@@ -1,0 +1,69 @@
+# lifetime.bjou
+
+interface destructable {
+    proc destroy(this)
+}
+
+interface Foo {
+    proc foo(this, f : float) : _*
+}
+
+abstract type S {
+    implements destructable
+    implements Foo
+}
+
+type T extends S {
+    buf : char* # allocated memory
+
+    proc create() : T {
+        print "Creating T"
+        return { T: .buf = new char[1024] }
+    }
+
+    implements Foo {
+        proc foo(this, f : float) : T* {
+            print "T.Foo.foo() with f = %", f
+            return this 
+        }
+    }
+
+    implements destructable {
+        proc destroy(this) {
+            print "Destroying T"
+            delete this.buf
+        }
+    }
+}
+
+type U extends S {
+    implements destructable {
+        proc destroy(this) {
+            print "Destroying U"
+        }
+    }
+    implements Foo {
+        proc foo(this, f : float) : U* {
+            print "U.Foo.foo() with f = %", f
+            this.destroy()
+            return this
+        }
+    }
+}
+
+(proc main() {
+    t := T.create()
+    u := { U: }
+    # T.destructable.destroy
+    s_t := (&t) as S*
+    s_u := (&u) as S*
+    print "Lifetime"
+    s_t.foo(1.23)
+    s_u.foo(4.56)
+    s_t.destroy()
+    s_u.destroy()
+})()
+
+# Creating T
+# Lifetime
+# Destroying T

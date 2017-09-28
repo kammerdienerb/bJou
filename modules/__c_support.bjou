@@ -1,0 +1,18 @@
+# __c_support.bjou
+
+# This module provides bindings to C functions that are necessary to
+# language level features for the time being.
+# These features include new, delete, print
+
+module __c_support
+
+extern printf(i8*, ...) : i32
+extern malloc(i32) : i8*
+extern free(i8*)
+
+extern memcpy(void*, void*, u64) : void*
+
+proc memcpy!(T)(dst : T*, src : T*, n : u64) : T* {
+    n *= sizeof T
+    return (dst as void*).memcpy(src as void*, n) as T*
+}

@@ -1,0 +1,5 @@
+# __string.bjou
+
+module __string
+
+type string {  }

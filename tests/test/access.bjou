@@ -1,0 +1,19 @@
+type Point {
+	x : int
+	y : float
+
+	proc write(this : Point*) print "(%, %)", this.x, this.y
+}
+
+proc main() {
+	p := { Point: }
+	p.x = 123
+	p.y = 456.789
+	_p := &p
+	_p.write()
+
+	names := ("Brandon", "Joseph", "Kammerdiener")
+	print "%, % %.", names.2, names.0, names.1[0]
+}
+
+main()

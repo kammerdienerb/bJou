@@ -1,0 +1,45 @@
+# interface.bjou
+
+interface I1 {
+    proc i1(this)
+}
+
+abstract type T {
+    implements I1
+}
+
+type T1 extends T {
+    implements I1 { 
+        proc i1(this)
+            print "T1.i1()"
+    }
+}
+
+interface I2 {
+    proc i2(this)
+}
+
+type T2 extends T1 {
+    implements I1 {
+        proc i1(this)
+            print "T2.i1()"
+    }
+    implements I2 {
+        proc i2(this)
+            print "T2.i2()"
+    }
+}
+
+# proc call(this : I2)
+#    I2.i2()
+
+proc main() {
+    t1 := new T1 as T*
+    t2 := new T2 as T*
+
+    t1.i1()             # T1.i1()
+    t2.i1()             # T2.i1()
+    (t2 as T2*).i2()    # T2.i2()
+}
+
+main()

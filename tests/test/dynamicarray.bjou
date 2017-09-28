@@ -1,0 +1,9 @@
+# dynamicarray.bjou
+
+(proc main() {
+    array := __bjou_dyn_array!(char).create()
+    array->append('b')
+    ptr := array->element_ptr(0)
+
+    print "%", ptr as void*
+ })()

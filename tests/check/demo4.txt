@@ -1,0 +1,18 @@
+Hello, bJou!
+Hello, constants!
+Hello, variables!
+add(1, 2) = 3
+add(1.23, 4.56) = 5.790000
+addi(3, 4) = 7
+3.addi(4) = 7
+5! = 120
+This is repeated.
+I'm anonymous and I return 12345.
+An anonymous procedure returned 12345
+This is repeated.
+This is repeated.
+This is repeated.
+This is repeated.
+This is repeated.
+input_proc() returned an odd number.
+input_proc() returned an even number.

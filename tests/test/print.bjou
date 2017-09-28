@@ -1,0 +1,19 @@
+type vec {
+    x : int
+    y : int
+    z : int
+}
+
+type twovecs {
+    first : vec
+    second : vec
+}
+
+(proc main() {
+    print "Hello print"
+    _2v := { twovecs:
+        .first  = { vec: .x = 1, .y = 2, .z = 3 },
+        .second = { vec: .x = 4, .y = 5, .z = 6 }
+    }
+    print "%", _2v
+})()

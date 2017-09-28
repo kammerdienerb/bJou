@@ -1,0 +1,11 @@
+# while.bjou
+
+(proc main() {
+    str := "bjou while loops"
+    i := 0
+    while str[i] != 0 as char {
+        printf("%c", str[i])
+        i += 1
+    }
+    print ""
+})()

@@ -1,0 +1,84 @@
+# __dynamic_array.bjou
+
+module __dynamic_array
+
+type __bjou_dyn_array!(T) {
+    const INIT_SIZE := 8
+
+    __capacity 	: int
+	__used		: int
+	__data		: T*
+
+
+    proc create() : __bjou_dyn_array!(T) {
+        return  { __bjou_dyn_array!(T): 
+                    .__capacity = __bjou_dyn_array!(T).INIT_SIZE,
+                    .__used     = 0,
+                    .__data     = new T[__bjou_dyn_array!(T).INIT_SIZE]
+                }
+    }
+
+    proc create(_s : T*, n : int) : __bjou_dyn_array!(T) {
+        a := { __bjou_dyn_array!(T):
+            .__data = new T[n],
+            .__used = n,
+            .__capacity = n
+        }
+
+        (a.__data).memcpy(_s, n as u64)
+        return a
+    }
+
+    proc element_ptr(this, idx : int) : T* {
+        return &this.__data[idx]
+    }
+
+    proc grow(this) {
+        this.__capacity *= 2
+        new__data := new T[this.__capacity]
+        memcpy(new__data, this.__data, (this.__used as u64) * sizeof T)
+        delete this.__data
+        this.__data = new__data
+    }
+
+    proc shrink(this) {
+        this.__capacity /= 2
+        new__data := new T[this.__capacity]
+        memcpy(new__data, this.__data, (this.__used as u64) * sizeof T)
+        delete this.__data
+        this.__data = new__data
+    }
+
+    proc length(this) : int { return this.__used }
+
+    proc append(this, item : T) : T* {
+        if this.__used == this.__capacity
+            this.grow()
+        this.__data[this.__used] = item
+        this.__used += 1
+
+        return &this.__data[this.__used - 1]
+    }
+
+    proc pop(this) : T* {
+        if this.__used == 0
+            return this.__data
+
+        this.__used -= 1
+
+        if this.__used < this.__capacity / 2
+        and this.__capacity > __bjou_dyn_array!(T).INIT_SIZE
+            this.shrink()
+
+        return &this.__data[this.__used - 1]
+    }
+
+    proc erase(this, idx : int) {
+        
+    }
+
+    proc free(this) {
+        delete this.__data
+        @this = { __bjou_dyn_array!(T): }
+    }
+}

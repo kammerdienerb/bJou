@@ -1,0 +1,14 @@
+# conditionals.bjou
+
+proc a(arg : bool) : bool { print "a()" return arg }
+proc b(arg : bool) : bool { print "b()" return arg }
+proc c(arg : bool) : bool { print "c()" return arg }
+
+proc main() {
+	print "condition 0: %", a(false) or b(true) or c(false)
+	print "condition 1: %", (a(true) and b(true) and c(true)) and ((a(true) and b(false)) or c(true))
+	print "condition 2: %", a(true) or (b(false) and c(true))
+	print "condition 3: %", a(false) and b(true)
+}
+
+main()

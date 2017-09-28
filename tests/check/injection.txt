@@ -1,0 +1,4 @@
+Hello, creator!
+Hello, world!
+42
+(124, 458)

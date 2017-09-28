@@ -1,0 +1,39 @@
+# templates.bjou
+
+proc sum!(T)(a : T, b : T) : T
+    return a + b
+
+proc swap!(T)(a : T*, b : T*) {
+    tmp := @a
+    @a = @b
+    @b = tmp
+}
+
+type vec!(T) {
+    x : T
+    y : T
+    z : T
+}
+
+proc printvec!(T)(this : vec!(T)*) {
+    x : T = this.x
+    y : T = this.y
+    z : T = this.z
+
+    print "(%, %, %)", x, y, z
+}
+
+(proc main() {
+    a := 1
+    b := 2
+    print "%", sum(a, b)
+    print "%", 1.23.sum(4.56)
+    swap(&a, &b)
+    print "a: %\nb: %", a, b
+    vi := { vec!(int): .x = 1, .y = 2, .z = 3 }
+    vi->printvec()
+    vf := { vec!(float): .x = 1.23, .y = 4.56, .z = 7.89 }
+    swap(&vf.x, &vf.z)
+    vf->printvec()
+    print "%", vf.x.sum(vf.y).sum(vf.z)
+})()

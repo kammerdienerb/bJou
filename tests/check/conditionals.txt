@@ -1,0 +1,14 @@
+a()
+b()
+condition 0: 1
+a()
+b()
+c()
+a()
+b()
+c()
+condition 1: 1
+a()
+condition 2: 1
+a()
+condition 3: 0

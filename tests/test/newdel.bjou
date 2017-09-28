@@ -1,0 +1,30 @@
+# newdel.bjou
+
+type Point {
+	x : float
+	y : float
+
+	proc set(this : Point*, x : float, y : float) {
+		this.x = x
+		this.y = y
+	}
+}
+
+proc main() {
+	i := new int
+	p := new Point
+	# printf("%p, %p\n", i, p)
+
+	@i = 6543
+
+	print "%", @i
+
+	p.set(5.6, 7.8)
+
+	print "(%, %)", p.x, p.y + 1.0
+
+	delete i
+	delete p
+}
+
+main()

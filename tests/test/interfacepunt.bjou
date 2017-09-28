@@ -1,0 +1,24 @@
+# interfacepunt.bjou
+
+interface I {
+    proc i(this)
+}
+
+abstract type A {
+    implements I
+}
+
+type T extends A {
+    implements I {
+        proc i(this)
+            print "T.I.i()"
+    }
+}
+
+proc main() {
+    t := new T
+    t.i()
+    (t as A*).i()
+}
+
+main()

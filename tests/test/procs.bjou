@@ -1,0 +1,31 @@
+extern sleep(int) : int
+
+proc hello(name : char *) {
+	print "Hello, %!", name
+}
+
+proc hello(num : int) {
+	print "number %", num
+}
+
+proc hello(f : float) {
+	print "float %", f
+}
+
+proc p() : int {
+	print "p"
+	return 0
+}
+
+proc main() {
+	i := 12345
+	name := "creator"
+
+	if 1 < 2 sleep(0)
+
+	if i > 0 hello(name) else return
+	2.hello()
+	3.1415926.hello()
+}
+
+main()

@@ -1,0 +1,4 @@
+num: 12345, word: Foo, floatingpt: 56.789000, new_char: b
+i
+4.560000
+array[3] = 4

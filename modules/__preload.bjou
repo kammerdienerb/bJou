@@ -1,0 +1,9 @@
+# __preload.bjou
+
+module __preload
+
+import "__typeinfo.bjou"
+import "__c_support.bjou"
+import "__panic.bjou"
+import "__string.bjou"
+import "__dynamic_array.bjou"

@@ -1,0 +1,13 @@
+# sizeof.bjou
+
+type Point {
+	x : int
+	y : int
+}
+
+proc main() {
+	print "%", sizeof int
+	print "%", sizeof Point
+}
+
+main()

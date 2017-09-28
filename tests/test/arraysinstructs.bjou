@@ -1,0 +1,16 @@
+# arraysinstructs.bjou
+
+type hasarray {
+    array : int[2]
+}
+
+proc main() {
+    # h := { hasarray: .array = { 123, 456 } } # FIX
+    h := { hasarray: }
+    h.array[0] = 123
+    h.array[1] = 456
+
+    print "[%, %]", h.array[0], h.array[1]
+}
+
+main()

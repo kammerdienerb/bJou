@@ -1,0 +1,15 @@
+# for.bjou
+
+extern strlen(char*) : u64
+
+(proc main() {
+    str := "bjou"
+
+    for i := 1; i <= 10; i += 1
+        print "%", i
+
+    for i := 0; i < (str.strlen() as int); i += 1
+        printf("%c", str[i])
+    
+    print ""
+})()

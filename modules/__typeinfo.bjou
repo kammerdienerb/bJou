@@ -1,0 +1,16 @@
+# __typeinfo.bjou
+
+# This module provides the typeinfo type for use internal to the compiler
+# as well as at the source level to facilitate some level of RTTI.
+
+module __typeinfo
+
+type typeinfo {
+    # @note: The size of this array declaration is reset in the compiler
+    # to the max number of interface procedures.
+    _v_table    : void*[0]
+    _typename  : char*
+
+    proc typename(this) : char*
+        return this._typename
+}

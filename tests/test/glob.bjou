@@ -1,0 +1,24 @@
+# glob.bjou
+
+proc p() print "I am p()"
+
+glob := 12345
+_p := p
+
+print "%", glob
+_p()
+
+i : int
+j := 12345
+i = 1
+
+type Point {
+    x : int
+    y : int
+}
+
+gp := { Point: .x = 1, .y = 2 }
+ga := { 1, 2, 3, 4, 5 }
+
+print "(%, %)", gp.x, gp.y
+print "ga[2] = %", ga[2]

@@ -1,0 +1,19 @@
+# tuple.bjou
+
+type Point {
+	x : int
+	y : int
+}
+
+proc return2pts() : (Point, Point) {
+	p1 := { Point: .x = 1, .y = 2 }
+	p2 := { Point: .x = 3, .y = 4 }
+	return (p1, p2)
+}
+
+proc main() {
+	tuple := return2pts()
+	print "(%, %), (%, %)", tuple.0.x, tuple.0.y, tuple.1.x, tuple.1.y
+}
+
+main()

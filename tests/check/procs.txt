@@ -1,0 +1,3 @@
+Hello, creator!
+number 2
+float 3.141593

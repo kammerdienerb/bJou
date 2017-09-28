@@ -1,0 +1,16 @@
+# __panic.bjou
+
+module __panic
+
+extern puts(char*) : i32
+extern exit(i32)
+
+proc panic(errcode : i32, message : char*) {
+	puts(message)
+	exit(errcode)
+}
+
+proc panic(message : char*) {
+	puts(message)
+	exit(-1)
+}

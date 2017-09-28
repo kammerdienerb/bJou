@@ -1,0 +1,2 @@
+Hello print
+{ .first = { .x = 1, .y = 2, .z = 3 }, .second = { .x = 4, .y = 5, .z = 6 } }
