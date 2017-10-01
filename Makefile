@@ -11,8 +11,8 @@ SRC			= $(wildcard src/*.cpp)
 TCLAP_SRC	= $(wildcard tclap/*.cpp)
 ALL_SRC		= $(SRC)
 ALL_SRC 	+= $(TCLAP_SRC)
-R_OBJ 		= $(patsubst %.cpp,release/obj/%.o,$(ALL_SRC))
-D_OBJ 		= $(patsubst %.cpp,debug/obj/%.o,$(ALL_SRC))
+R_OBJ 		= $(patsubst %.cpp,obj/release/%.o,$(ALL_SRC))
+D_OBJ 		= $(patsubst %.cpp,obj/debug/%.o,$(ALL_SRC))
 
 CORES ?= $(shell sysctl -n hw.ncpu || echo 1)
 
@@ -40,21 +40,21 @@ _release: $(R_OBJ)
 
 .PHONY: release _release
 
-debug/obj/%.o: %.cpp
-	@mkdir -p debug/obj/src
-	@mkdir -p debug/obj/tclap
+obj/debug/%.o: %.cpp
+	@mkdir -p obj/debug/src
+	@mkdir -p obj/debug/tclap
 	@echo "Compiling $<"
 	@$(CC) $(D_CFLAGS) -c -o $@ $<	
 
-release/obj/%.o: %.cpp
-	@mkdir -p release/obj/src
-	@mkdir -p release/obj/tclap
+obj/release/%.o: %.cpp
+	@mkdir -p obj/release/src
+	@mkdir -p obj/release/tclap
 	@echo "Compiling $<"
 	@$(CC) $(R_CFLAGS) -c -o $@ $<
 
 clean:
-	@\rm -f debug/obj/src/*.o
-	@\rm -f debug/obj/tclap/*.o
-	@\rm -f release/obj/src/*.o
-	@\rm -f release/obj/tclap/*.o
+	@\rm -f obj/debug/src/*.o
+	@\rm -f obj/debug/tclap/*.o
+	@\rm -f obj/release/src/*.o
+	@\rm -f obj/release/tclap/*.o
 	@\rm -f bin/$(TARGET)
