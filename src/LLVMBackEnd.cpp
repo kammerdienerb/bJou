@@ -109,26 +109,69 @@ namespace bjou {
     
     milliseconds LLVMBackEnd::LinkingStage() {
         auto start = Clock::now();
-        
-        std::string errstr;
-        llvm::raw_string_ostream errstream(errstr);
-        
-        std::string dest = compilation->outputpath + compilation->outputbasefilename;
-        std::string dest_o = dest + ".o";
-        
-        std::vector<const char*> link_args = { "-demangle", "-dynamic", "-arch", "x86_64", "-macosx_version_min", "10.12.0", "-o", dest.c_str(), dest_o.c_str(), "-lSystem", "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/../lib/clang/8.1.0/lib/darwin/libclang_rt.osx.a" };
-        
-        bool success = lld::mach_o::link(link_args, errstream);
-        
-        if (!success) {
-            if (errstream.str().find("warning") == 0) {
-                warning(COMPILER_SRC_CONTEXT(), "LLD:", errstream.str());
-            } else {
-                error(COMPILER_SRC_CONTEXT(), "LLD:", false, errstream.str());
-                internalError("There was an lld error.");
-            }
-        }
-        
+
+	    std::string dest = compilation->outputpath + compilation->outputbasefilename;
+	    std::string dest_o = dest + ".o";
+	
+		bool use_system_linker = true;
+		
+		if (compilation->args.lld_arg.getValue()) {
+			std::string errstr;
+	        llvm::raw_string_ostream errstream(errstr);
+	        
+	        std::vector<const char*> link_args = { "-demangle", "-dynamic", "-arch", "x86_64", "-macosx_version_min", "10.12.0", "-o", dest.c_str(), dest_o.c_str(), "-lSystem", "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/../lib/clang/8.1.0/lib/darwin/libclang_rt.osx.a" };
+	        
+	        bool success = lld::mach_o::link(link_args, errstream);
+	        
+	        if (!success) {
+	            if (errstream.str().find("warning") == 0) {
+	                warning(COMPILER_SRC_CONTEXT(), "LLD:", errstream.str());
+	            } else {
+	                error(COMPILER_SRC_CONTEXT(), "LLD:", false, errstream.str());
+	                // internalError("There was an lld error.");
+	            }
+				warning(COMPILER_SRC_CONTEXT(), "lld failed. Falling back to system linker.");
+				use_system_linker = true;
+	        } else use_system_linker = false;
+		}
+
+		if (use_system_linker) {
+			const char * cc = getenv("CC");
+			if (!cc)
+				cc = "cc";
+			std::vector<const char*> args { cc, dest_o.c_str(), "-o", dest.c_str(), NULL };
+
+			int fds[2];
+			int status;
+			if (pipe(fds) == -1)
+				internalError("Error creating pipe to system linker.");
+
+			pid_t childpid = fork();
+			if (childpid == 0) {
+				dup2(fds[1], STDERR_FILENO);
+            	close(fds[0]);
+            	execvp(args[0], (char**)args.data());
+				internalError("Error executing system linker.");
+			} else if (childpid == -1) {
+				internalError("Error forking system linker.");
+			}
+
+			close(fds[1]);
+			waitpid(childpid, &status, 0);
+
+			if (WIFEXITED(status)) {
+	            status = WEXITSTATUS(status);
+	            if (status) {
+					char errout[4096];
+					int n = read(fds[0], errout, sizeof(errout));
+					errout[n] = '\0';
+					std::string s_errout(errout);
+					error(COMPILER_SRC_CONTEXT(), "Linker error.", false, s_errout);
+				}
+	        }
+		}
+		
+                
         auto end = Clock::now();
         return duration_cast<milliseconds>(end - start);
     }

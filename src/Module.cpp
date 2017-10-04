@@ -108,13 +108,16 @@ namespace bjou {
             while (!imports.empty()) {
                 Import * import = imports.front();
                 imports.pop_front();
-                const std::string& fname = import->getModule();
+                std::string fname = de_quote(import->getModule());
                 
                 if (filesSeen.find(fname) == filesSeen.end()) {
                     std::ifstream in;
                     for (std::string& path : compilation->module_search_paths) {
                         in.open(path + fname, std::ios::binary);
-                        if (in) break;
+						if (in) {
+                            fname = path + fname;
+                            break;
+                        }
                     }
                     if (!in)
                         error(import->getContext(), "Unable to read file '" + fname + "'.");
@@ -130,6 +133,7 @@ namespace bjou {
                         error(import->getContext(), "File '" + import->getModule() + "' does not declare a module.");
                     
                     if (modulesImported.find(parser.mod_decl->getIdentifier()) == modulesImported.end()) {
+                        modulesImported.insert(parser.mod_decl->getIdentifier());
                         times[fname] = peektimes[fname] + parser(); // continue
                         pushImportsFromAST(parser.nodes, imports);
                         AST.reserve(AST.size() + parser.nodes.size());

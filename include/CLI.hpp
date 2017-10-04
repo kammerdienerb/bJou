@@ -65,6 +65,7 @@ namespace bjou {
         TCLAP::SwitchArg& opt_arg;
         TCLAP::SwitchArg& module_arg;
         TCLAP::SwitchArg& nopreload_arg;
+		TCLAP::SwitchArg& lld_arg;
         TCLAP::ValueArg<std::string>& output_arg;
         TCLAP::MultiArg<std::string>& link_arg;
         TCLAP::UnlabeledMultiArg<std::string>& files;
