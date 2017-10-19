@@ -159,21 +159,22 @@ namespace bjou {
 		if (pattern->getBase() == pattern) {
 		} else {
 			switch (pattern->kind) {
-				case INVALID:
-				case PLACEHOLDER:
-				case PRIMATIVE:
-				case BASE:
-				case STRUCT:
-				case ENUM:
-				case ALIAS:
-				case ARRAY:
-				case DYNAMIC_ARRAY:
-				case POINTER:
-				case MAYBE:
-				case TUPLE:
-				case PROCEDURE:
-				case TEMPLATE_STRUCT:
-				case TEMPLATE_ALIAS:
+				case Type::INVALID:
+				case Type::PLACEHOLDER:
+				case Type::PRIMATIVE:
+				case Type::BASE:
+				case Type::STRUCT:
+				case Type::ENUM:
+				case Type::ALIAS:
+				case Type::ARRAY:
+				case Type::DYNAMIC_ARRAY:
+				case Type::POINTER:
+				case Type::MAYBE:
+				case Type::TUPLE:
+				case Type::PROCEDURE:
+				case Type::TEMPLATE_STRUCT:
+				case Type::TEMPLATE_ALIAS:
+					return;
 			}
 		}
 	}
