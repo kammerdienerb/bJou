@@ -74,7 +74,7 @@ type __bjou_dyn_array!(T) {
     }
 
     proc erase(this, idx : int) {
-        
+        # @incomplete
     }
 
     proc free(this) {
