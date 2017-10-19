@@ -14,6 +14,7 @@
 #include <lld/Driver/Driver.h>
 
 #include <llvm/CodeGen/CommandFlags.h>
+#include <llvm/Target/TargetMachine.h>
 
 #include "Compile.hpp"
 #include "Global.hpp"
