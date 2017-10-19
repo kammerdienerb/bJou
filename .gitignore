@@ -3,3 +3,9 @@ debug
 release
 bin
 *.swp
+*.synctex.gz
+*.fls
+*.toc
+*.log
+*.fdb_latexmk
+*.aux

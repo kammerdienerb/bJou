@@ -144,7 +144,40 @@ namespace bjou {
         
         return new_node;
     }
-    
+  
+	enum patternMatchTypeStep {
+		IDENTITY,
+		ARRAY,
+		DYNAMIC_ARRAY,
+		POINTER,
+		MAYBE,
+		PROCEDURE,
+		TEMPLATE_INSTANTIATION
+	};
+
+	static void patternMatchType(const Type * pattern, const Type * subject) {
+		if (pattern->getBase() == pattern) {
+		} else {
+			switch (pattern->kind) {
+				case INVALID:
+				case PLACEHOLDER:
+				case PRIMATIVE:
+				case BASE:
+				case STRUCT:
+				case ENUM:
+				case ALIAS:
+				case ARRAY:
+				case DYNAMIC_ARRAY:
+				case POINTER:
+				case MAYBE:
+				case TUPLE:
+				case PROCEDURE:
+				case TEMPLATE_STRUCT:
+				case TEMPLATE_ALIAS:
+			}
+		}
+	}
+
     bool checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args, ASTNode * _inst, Context * context, bool fail, TemplateInstantiation * new_inst) {
         bool delete_new_inst = false;
         TemplateProc * tproc = (TemplateProc*)_tproc;
