@@ -14,7 +14,6 @@
 #include <lld/Driver/Driver.h>
 
 #include <llvm/CodeGen/CommandFlags.h>
-#include <llvm/Target/TargetMachine.h>
 
 #include "Compile.hpp"
 #include "Global.hpp"
@@ -87,7 +86,7 @@ namespace bjou {
         
         llvm::CodeGenOpt::Level OLvl = (compilation->args.opt_arg.getValue() ? llvm::CodeGenOpt::Aggressive : llvm::CodeGenOpt::None);
     
-        defaultTargetMachine = defaultTarget->createTargetMachine(defaultTriple, "generic", "", Options, getRelocModel(), getCodeModel(), OLvl);
+        defaultTargetMachine = defaultTarget->createTargetMachine(defaultTriple, "generic", "", Options, None, CodeModel::Default, OLvl);
         layout = new llvm::DataLayout(defaultTargetMachine->createDataLayout());
         
         // set up default target machine

@@ -2,10 +2,10 @@ TARGET		= bjou
 CC 			= g++
 INCLUDE		= include
 TCLAP_INCLUDE = . 
-R_CFLAGS 	= -I$(INCLUDE) -I$(TCLAP_INCLUDE) -I$(shell llvm-config --includedir) -DBJOU_USE_COLOR $(shell llvm-config --cxxflags)
-D_CFLAGS 	= -I$(INCLUDE) -I$(TCLAP_INCLUDE) -I$(shell llvm-config --includedir) -DBJOU_USE_COLOR -DBJOU_DEBUG_BUILD $(shell llvm-config --cxxflags)
-LLVM_LIBS	= $(shell llvm-config --libs all)
-R_LFLAGS	= $(shell llvm-config --ldflags) $(LLVM_LIBS) -lcurses -lz -lm -llldYAML -llldReaderWriter -llldMachO -llldELF -llldDriver -llldCore -llldConfig -llldCOFF 
+R_CFLAGS 	= -I$(INCLUDE) -I$(TCLAP_INCLUDE) -DBJOU_USE_COLOR $(shell llvm-config --cxxflags)
+D_CFLAGS 	= -I$(INCLUDE) -I$(TCLAP_INCLUDE) -DBJOU_USE_COLOR -DBJOU_DEBUG_BUILD $(shell llvm-config --cxxflags) -w
+LLVM_LIBS	= $(shell llvm-config --libs all --system-libs)
+R_LFLAGS	= $(shell llvm-config --ldflags) $(LLVM_LIBS) -llldYAML -llldReaderWriter -llldMachO -llldELF -llldDriver -llldCore -llldConfig -llldCOFF 
 D_LFLAGS	= $(R_LFLAGS)
 SRC			= $(wildcard src/*.cpp)
 TCLAP_SRC	= $(wildcard tclap/*.cpp)
@@ -26,7 +26,7 @@ _debug: $(D_OBJ)
 	@echo "----------------------------"
 	@echo "Building Debug Target $(TARGET)"
 	@echo
-	@$(CC) $(D_LFLAGS) -o bin/$(TARGET) $?
+	@$(CC) -o bin/$(TARGET) $(D_LFLAGS) $? 
 
 .PHONY: debug _debug
 
@@ -36,7 +36,7 @@ _release: $(R_OBJ)
 	@echo "------------------------------"
 	@echo "Building Release Target $(TARGET)"
 	@echo
-	@$(CC) $(R_LFLAGS) -o bin/$(TARGET) $?
+	@$(CC) -o bin/$(TARGET) $? $(R_LFLAGS) 
 
 .PHONY: release _release
 
