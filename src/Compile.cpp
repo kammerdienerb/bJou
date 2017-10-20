@@ -49,6 +49,7 @@ namespace bjou {
             
             module_search_paths.push_back("");
 #ifndef _WIN32
+			module_search_paths.push_back("modules/");
             module_search_paths.push_back("/usr/local/lib/bjou/modules/");
 #endif
         }
