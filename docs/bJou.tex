@@ -6,6 +6,16 @@
 \usepackage[export]{adjustbox}
 \usepackage{minted}
 
+\usepackage{hyperref}
+\hypersetup{
+	colorlinks=true,
+	linkcolor=blue,
+    filecolor=magenta,
+	urlcolor=cyan,
+}
+ 
+\urlstyle{same}
+
 \begin{document}
 
 \begin{titlepage}
@@ -43,63 +53,57 @@
 	\addcontentsline{toc}{subsection}{Goals of this Language}
 	\subsection*{Goals of this Language}
 		bJou is my attempt to create the programming language that I want to use. So, its features and design are almost entirely based around my specific needs and interests. I love lower-level programming. Stuff like, well, compilers. Things that are important to me in a language are direct access to memory and hardware, performance, and expressiveness. That list is probably not too surprising and truthfully, there are many languages that take these priorities and are great languages. C is incredibly fast. Writing Python is like writing poetry. bJou seeks to take what are, in my opinion, the best attributes from many languages and combine them into one. In short, bJou is a compiled, statically typed, multi-paradigm language with an emphasis in clear and intentioned abstraction techniques. bJou also takes an interesting approach to metaprogramming, which will be explored later.
-	
+
+\newpage
 \addcontentsline{toc}{section}{Setup}
 \section*{Setup}
 
 	\addcontentsline{toc}{subsection}{Getting bjou}
 	\subsection*{Getting bJou}
+	Visit \url{https://github.com/kammerdienerb/bJou.git} to find the latest version of the bJou compiler. Download the zip folder and decompress it somewhere convenient.
 	
 	\addcontentsline{toc}{subsection}{Setting Up Your Environment}
 	\subsection*{Setting Up Your Environment}
+		\ldots
 
+\newpage
 \addcontentsline{toc}{section}{The Language}
 \section*{The Language}
 
-Now that everything is up and running, we can look at some specific examples of what the language is and what it can do. One important thing to mention before we continue is that many syntax choices of the language in its current state are temporary and will most likely change. The features and ideas are more important at this point anyway. Onwards!
-
+	Now that everything is up and running, we can look at some specific examples of what the language is and what it can do. One important thing to mention before we continue is that many syntax choices of the language in its current state are temporary and will most likely change. The features and ideas are more important at this point anyway. Onwards!
+	
 	\addcontentsline{toc}{subsection}{Variables, Type Intelligence}
 	\subsection*{Variables, Type Intelligence}
 		\begin{centering}
-			\begin{minted}[breaklines, frame=lines, linenos]{bash}
-# demo1.bjou
-# Variables, Type Intelligence
-
-proc main() {
-    num : int
-    num = 12345
-    word : char* = "Foo"
-    			
-    new_num : int* = new int
-    				
-    floatingpt := 56.789
-    new_char := new char
-    
-    @new_char = 'b'
-    									
-    print "num: %, word: %, floatingpt: %, new_char: %", num, word, floatingpt, @new_char
-    										
-    delete new_num
-    delete new_char
-    												
-    printf("%c\n", "string"[3])
-    													
-    printf("%f\n", { 1.23, 4.56, 7.89 }[1])
-    														
-    # array0 : int[num]
-    array1 : int[3 + 2]
-    array2 := { 1, 2, 3, 4, 5 }
-    # i := array2[1+6]
-    print "array[3] = %", array2[1+2]
-}
-
-main()
-			\end{minted}
-			\caption{Code}
+			\inputminted[breaklines, fontsize=\small, baselinestretch=0.8, frame=lines, linenos]{bash}{"../tests/test/demo1.bjou"}
 		\end{centering}
+
+		\newpage
+		The code located in the file `tests/test/demo1.bjou' is shown above. The purpose of this first demo file is to demonstrate basic variable declaration/use in bJou and, more interestingly, the compiler's utilization of type information.
+	
+		Before we dive into that, let's look at the first couple of lines and figure some things out. Lines \texttt{1} and \texttt{2} are comments. Comments can be made anywhere with the \texttt{\#} character and tell the parser to ignore the rest of the line. Line \texttt{4} (closing on line \texttt{29}) has some interesting details that we will hand-wave for now. If you are really curious, you can skip ahead to the section on Procedures later in this document, but for now all we need to know is that a procedure called main is being declared, defined, and called and that everything else in this file is taking place in that procedure. If that's still confusing, don't worry about it -- it's not that important in this context.
+
+		Now take a look at line \texttt{5}. This is a variable declaration that says \texttt{num} is a variable that is of type \texttt{int}. The next line describes a simple assignment, telling bJou to set \texttt{num} equal to the integer \texttt{12345}. The complete syntax for a variable declaration follows this pattern:
+	
+		$$identifier : type\ declarator = initialization$$
+		
+		This pattern in its entirety is shown on line \texttt{7}. I say entirety because it is not always necessary to write all three of those components of a variable declaration. As you may have noticed, the first declaration on line \texttt{5} does not have an initialization. Lines \texttt{11} and \texttt{12} show variable declarations without type declarators. The rule of thumb for variable declarations is that it must have at least a type declarator or an initialization if not both.
+	
+		The reason for the aforementioned rule is that the compiler \emph{must} be able know the type of the variable. The cool thing is that an initialization says enough about the variable that the compiler can figure out the required type from it. So, on line \texttt{11}, since \texttt{floatingpt} is initialized to \texttt{56.789}, the compiler decides that it must be of type \texttt{float}.
+	
+		Line \texttt{12} introduces the \texttt{new} keyword. \texttt{new} is similar to the C++ concept, but does not call constructors (bJou does not share the C++ constructor model -- see the Defining Types section). \texttt{new} allocates space on the heap and returns a pointer to it. \texttt{delete} -- shown on lines \texttt{18} and \texttt{19} -- frees that space up. So with that in mind, we can conclude that the compiler assigns the type \texttt{char*}, or a pointer to a character, to the variable \texttt{new\_char}. The details of pointers and memory access in general are outside of the scope of this document, so I won't get into that. I will say, however, that other than a slight syntactic change where \texttt{@} dereferences pointers instead of \texttt{*} (shown on lines \texttt{14} and \texttt{16}), pointers work the same way as in C.
+	
+		A \texttt{print} statement is on line \texttt{16}. If you are familiar with C's \texttt{printf()}, this may look familiar. There are a couple of differences that I will highlight. The first is that \texttt{print} is a statement internal to the compiler rather that a function like \texttt{printf()}. The second difference is a display of the compiler's ability to use type information in other places -- not just variable declarations. C's \texttt{printf()} uses a format string as the first argument that tells the program how to print the data that you give it. For example, if line \texttt{16} was written with \texttt{printf()}, the format string would look something like \texttt{"num: \%d, word: \%s, floatingpt: \%f, new\_char: \%c"}. The letters following the \texttt{\%} character describe the types of the arguments you pass to it. With the bJou \texttt{print} statement, the compiler knows the types of the arguments you pass and can figure out the appropriate way to print them, which allows us to omit the extra letters in the format string.
+
+		bJou's type awareness extends to any expression and even things like array literals as shown in line \texttt{26}. As an exercise, uncomment lines \texttt{24} and \texttt{27} to see how bJou's type system will detect simple errors with static arrays.
 	
 	\addcontentsline{toc}{subsection}{Constants}
 	\subsection*{Constants}
+		\begin{centering}
+			\inputminted[breaklines, fontsize=\small, baselinestretch=0.8, frame=lines, linenos]{bash}{"../tests/test/demo2.bjou"}
+		\end{centering}
+
+		\newpage
 	
 	\addcontentsline{toc}{subsection}{Defining Types}
 	\subsection*{Defining Types}
@@ -122,6 +126,7 @@ main()
 	\addcontentsline{toc}{subsection}{Non-Linear Compiler Logic}
 	\subsection*{Non-Linear Compiler Logic}
 
+\newpage
 \addcontentsline{toc}{section}{Beyond the Language}
 \section*{Beyond the Language}
 

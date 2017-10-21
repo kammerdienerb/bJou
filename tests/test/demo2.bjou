@@ -8,5 +8,5 @@
     const TWO_PI := 2.0 * PI
     print "2 x % = %", PI, TWO_PI
     i := 1
-#   const ZERO := i - 1 # not a constant expression -- will not compile
+    # const ZERO := i - 1 # not a constant expression -- will not compile
 })()

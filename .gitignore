@@ -9,4 +9,5 @@ bin
 *.log
 *.fdb_latexmk
 *.aux
+*.out
 docs/_minted-bJou/
