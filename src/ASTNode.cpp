@@ -5252,7 +5252,19 @@ namespace bjou {
     void Continue::analyze(bool force) {
         HANDLE_FORCE();
         
-        // @incomplete
+        ASTNode * p = parent;
+
+		while (p && p->isStatement()) {
+			if (p->nodeKind == ASTNode::WHILE ||
+				p->nodeKind == ASTNode::DO_WHILE ||
+				p->nodeKind == ASTNode::FOR) {
+					break;
+			}
+			p = p->parent;
+		}
+
+		if (!p || !p->isStatement())
+			errorl(getContext(), "no loop to continue");
         
         setFlag(ANALYZED, true);
     }
