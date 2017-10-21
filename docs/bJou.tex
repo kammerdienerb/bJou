@@ -21,7 +21,7 @@
 \begin{titlepage}
 	\centering
 
-	\includegraphics[scale=0.5]{black.PNG}
+	\includegraphics[scale=0.45]{black.PNG}
 
 	\vspace{1cm}
 
@@ -111,6 +111,14 @@
 		\begin{centering}
 			\inputminted[breaklines, fontsize=\small, baselinestretch=0.8, frame=lines, linenos]{bash}{"../tests/test/demo3.bjou"}
 		\end{centering}
+
+		The code above demonstrates a few features that center around the idea of defining custom types. We'll begin on line \texttt{4} where a type called \texttt{Base} is defined. It has two data fields \texttt{c} and \texttt{message} which are declared with the standard variable declaration syntax inside of a type definition. The only `gotcha' is that initialization expressions are not allowed within types.
+		
+		The next type, \texttt{Derived} (line \texttt{9}), show us how bJou allows for single inheritance. The \texttt{extends} keyword says that a type inherits from some base type and gains its members implicitly. One line \texttt{10} a field \texttt{num} is added to \texttt{Derived}, so it has \texttt{c}, \texttt{message}, and \texttt{num} in total. If you are curious about multiple inheritance, please see the section on Interfaces. Now notice lines \texttt{12} and \texttt{19}. On these lines, two procedures are being defined for the \texttt{Derived} type. \texttt{create()} is similar to the concept of a `constructor' in that it is a procedure that returns a new \texttt{Derived} instance, but that is really where the commonalities with C++ constructors end. Within a type definition, \texttt{this} can be used as syntactic sugar to create parameter declarations corresponding to a pointer to the instance of the type as shown on line \texttt{19} for \texttt{printall()}. In other words, in the context of a type definition for some \texttt{T}, \texttt{this} translates to \texttt{this : T*}.
+
+		Lines \texttt{24} and \texttt{25} show an example of creating an instance of a type and interacting with it. First notice the call \texttt{Derived.create(\ldots)}. Here, we see that any procedure defined for a type can be referenced from the type name or through an instance as shown on the next line with \texttt{d->printall()}. The arrow operator does something related, but much different than the same operator in C. In bJou, the \texttt{->} operator acts like the access operator (\texttt{.}), which works for both structure types and pointers to them. In bJou, the \texttt{.} operator also forwards the left hand side to the next call as the first argument. The difference, however is that \texttt{->} is used to take the address of the left hand side before the argument is forwarded to the next procedure call. See this in action on line \texttt{25} where \texttt{printall()} expects a \texttt{Derived*} as its first and only argument (from \texttt{this}). The \texttt{->} takes \texttt{d} (of type \texttt{Derived}) and forwards its address (type \texttt{Derived*}) as the argument to the call to \texttt{printall()}.
+		
+		It is a critical point that procedures defined for types in bJou can always be referenced without a specific instance of the type. The importance of this is to allow for procedures to be used as first-class-citizens in all cases. This is explored in the next section.
 
 	\addcontentsline{toc}{subsection}{Procedures}
 	\subsection*{Procedures}
