@@ -65,3 +65,5 @@ proc odd_or_even(input_proc : <() : int>) : <() : char*> {
 print "%", odd_or_even(proc () : int return 1)()
 even := proc () : int return 2
 print "%", odd_or_even(even)()
+
+#$run(say_hello("compile time"))

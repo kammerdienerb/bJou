@@ -66,7 +66,7 @@ namespace bjou {
                         }
                     }
                     if (!in)
-                        error(import->getContext(), "Unable to read file '" + fname + "'.");
+                        errorl(import->getContext(), "Unable to read file '" + fname + "'.");
                     
                     if (filesSeen.find(fname) == filesSeen.end()) {
                         filesSeen.insert(fname);
@@ -120,7 +120,7 @@ namespace bjou {
                         }
                     }
                     if (!in)
-                        error(import->getContext(), "Unable to read file '" + fname + "'.");
+                        errorl(import->getContext(), "Unable to read file '" + fname + "'.");
                     
                     filesSeen.insert(fname);
                     

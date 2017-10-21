@@ -1,33 +1,22 @@
-\documentclass[12pt]{article}
+\documentclass{article}
 
 \usepackage[utf8]{inputenc}
 \usepackage{xcolor}
 \usepackage{graphicx}
 \usepackage[export]{adjustbox}
-\usepackage{minted}
-
-\usepackage{hyperref}
-\hypersetup{
-	colorlinks=true,
-	linkcolor=blue,
-    filecolor=magenta,
-	urlcolor=cyan,
-}
- 
-\urlstyle{same}
 
 \begin{document}
 
 \begin{titlepage}
 	\centering
 
-	\includegraphics[scale=0.45]{black.PNG}
+	\includegraphics[scale=0.5]{black.PNG}
 
 	\vspace{1cm}
 
 	{\huge\bfseries Programming Language}
 
-	\vspace{4.8cm}
+	\vspace{5cm}
 
 	{\itshape\Large Brandon Kammerdiener}
 
@@ -48,101 +37,33 @@
 
 	\addcontentsline{toc}{subsection}{Goals of this Document}
 	\subsection*{Goals of this Document}
-		This document aims to provide background and explain the motivations behind the bJou programming language. It will also describe and demonstrate the features of bJou by guiding the reader through code examples that can be compiled with the bJou compiler that goes with this document.	
 	
-	\addcontentsline{toc}{subsection}{Goals of this Language}
-	\subsection*{Goals of this Language}
-		bJou is my attempt to create the programming language that I want to use. So, its features and design are almost entirely based around my specific needs and interests. I love lower-level programming. Stuff like, well, compilers. Things that are important to me in a language are direct access to memory and hardware, performance, and expressiveness. That list is probably not too surprising and truthfully, there are many languages that take these priorities and are great languages. C is incredibly fast. Writing Python is like writing poetry. bJou seeks to take what are, in my opinion, the best attributes from many languages and combine them into one. In short, bJou is a compiled, statically typed, multi-paradigm language with an emphasis in clear and intentioned abstraction techniques. bJou also takes an interesting approach to metaprogramming, which will be explored later.
-
-\newpage
+	\addcontentsline{toc}{subsection}{Goals of this Document}
+	\subsection*{Goals of this Document}
+	
 \addcontentsline{toc}{section}{Setup}
 \section*{Setup}
 
 	\addcontentsline{toc}{subsection}{Getting bjou}
 	\subsection*{Getting bJou}
-	Visit \url{https://github.com/kammerdienerb/bJou.git} to find the latest version of the bJou compiler. Download the zip folder and decompress it somewhere convenient.
 	
-	\addcontentsline{toc}{subsection}{Setting Up Your Environment}
-	\subsection*{Setting Up Your Environment}
-		\ldots
+	\addcontentsline{toc}{section}{Setting Up Your Environment}
+	\section*{Setting Up Your Environment}
 
-\newpage
 \addcontentsline{toc}{section}{The Language}
 \section*{The Language}
 
-	Now that everything is up and running, we can look at some specific examples of what the language is and what it can do. One important thing to mention before we continue is that many syntax choices of the language in its current state are temporary and will most likely change. The features and ideas are more important at this point anyway. Onwards!
-	
 	\addcontentsline{toc}{subsection}{Variables, Type Intelligence}
 	\subsection*{Variables, Type Intelligence}
-		\begin{centering}
-			\inputminted[breaklines, fontsize=\small, baselinestretch=0.8, frame=lines, linenos]{bash}{"../tests/test/demo1.bjou"}
-		\end{centering}
-
-		The code located in the file `tests/test/demo1.bjou' is shown above. The purpose of this first demo file is to demonstrate basic variable declaration/use in bJou and, more interestingly, the compiler's utilization of type information.
-	
-		Before we dive into that, let's look at the first couple of lines and figure some things out. Lines \texttt{1} and \texttt{2} are comments. Comments can be made anywhere with the \texttt{\#} character and tell the parser to ignore the rest of the line. Line \texttt{4} (closing on line \texttt{29}) has some interesting details that we will hand-wave for now. If you are really curious, you can skip ahead to the section on Procedures later in this document, but for now all we need to know is that a procedure called main is being declared, defined, and called and that everything else in this file is taking place in that procedure. If that's still confusing, don't worry about it -- it's not that important in this context.
-
-		Now take a look at line \texttt{5}. This is a variable declaration that says \texttt{num} is a variable that is of type \texttt{int}. The next line describes a simple assignment, telling bJou to set \texttt{num} equal to the integer \texttt{12345}. The complete syntax for a variable declaration follows this pattern:
-	
-		$$identifier : type\ declarator = initialization$$
-		
-		This pattern in its entirety is shown on line \texttt{7}. I say entirety because it is not always necessary to write all three of those components of a variable declaration. As you may have noticed, the first declaration on line \texttt{5} does not have an initialization. Lines \texttt{11} and \texttt{12} show variable declarations without type declarators. The rule of thumb for variable declarations is that it must have at least a type declarator or an initialization if not both.
-	
-		The reason for the aforementioned rule is that the compiler \emph{must} be able know the type of the variable. The cool thing is that an initialization says enough about the variable that the compiler can figure out the required type from it. So, on line \texttt{11}, since \texttt{floatingpt} is initialized to \texttt{56.789}, the compiler decides that it must be of type \texttt{float}.
-	
-		Line \texttt{12} introduces the \texttt{new} keyword. \texttt{new} is similar to the C++ concept, but does not call constructors (bJou does not share the C++ constructor model -- see the Defining Types section). \texttt{new} allocates space on the heap and returns a pointer to it. \texttt{delete} -- shown on lines \texttt{18} and \texttt{19} -- frees that space up. So with that in mind, we can conclude that the compiler assigns the type \texttt{char*}, or a pointer to a character, to the variable \texttt{new\_char}. The details of pointers and memory access in general are outside of the scope of this document, so I won't get into that. I will say, however, that other than a slight syntactic change where \texttt{@} dereferences pointers instead of \texttt{*} (shown on lines \texttt{14} and \texttt{16}), pointers work the same way as in C.
-	
-		A \texttt{print} statement is on line \texttt{16}. If you are familiar with C's \texttt{printf()}, this may look familiar. There are a couple of differences that I will highlight. The first is that \texttt{print} is a statement internal to the compiler rather that a function like \texttt{printf()}. The second difference is a display of the compiler's ability to use type information in other places -- not just variable declarations. C's \texttt{printf()} uses a format string as the first argument that tells the program how to print the data that you give it. For example, if line \texttt{16} was written with \texttt{printf()}, the format string would look something like \texttt{"num: \%d, word: \%s, floatingpt: \%f, new\_char: \%c"}. The letters following the \texttt{\%} character describe the types of the arguments you pass to it. With the bJou \texttt{print} statement, the compiler knows the types of the arguments you pass and can figure out the appropriate way to print them, which allows us to omit the extra letters in the format string.
-
-		bJou's type awareness extends to any expression and even things like array literals as shown in line \texttt{26}. As an exercise, uncomment lines \texttt{24} and \texttt{27} to see how bJou's type system will detect simple errors with static arrays.
 	
 	\addcontentsline{toc}{subsection}{Constants}
 	\subsection*{Constants}
-		\begin{centering}
-			\inputminted[breaklines, fontsize=\small, baselinestretch=0.8, frame=lines, linenos]{bash}{"../tests/test/demo2.bjou"}
-		\end{centering}
-
-		Constants can be thought of as labels for pre-computed (where applicable) expressions. On line \texttt{5} of `tests/test/demo2.bjou', \texttt{PI} is defined as the constant expression \texttt{3.141593} computed from \texttt{355.0 / 113.0}. This computation is made at compile time so that the program suffers no run-time performance costs. Constant's take advantage of bJou's type awareness to deduce their type since an initialization is always required for constants. Initialization is probably a bad word to use since you cannot modify constants and they don't actually `store' anything like variables do, but it is easier to think of them similarly to variables to understand how they are created and used.
-		
-		Lines \texttt{6} through \texttt{9} show the constant \texttt{PI} being used in places where any expression could be used -- even in the declaration of another constant. I find it easiest to think about constants as placeholders for expressions that don't change throughout the program. Line \texttt{11} shows a situation where the constant \texttt{ZERO} is being set as an expression that contains a reference to a variable \texttt{i}. This is incorrect and will not compile since \texttt{i} is a variable, i.e. it may change at run-time.
-
+	
 	\addcontentsline{toc}{subsection}{Defining Types}
 	\subsection*{Defining Types}
-		\begin{centering}
-			\inputminted[breaklines, fontsize=\small, baselinestretch=0.8, frame=lines, linenos]{bash}{"../tests/test/demo3.bjou"}
-		\end{centering}
-
-		The code above demonstrates a few features that center around the idea of defining custom types. We'll begin on line \texttt{4} where a type called \texttt{Base} is defined. It has two data fields \texttt{c} and \texttt{message} which are declared with the standard variable declaration syntax inside of a type definition. The only `gotcha' is that initialization expressions are not allowed within types.
-		
-		The next type, \texttt{Derived} (line \texttt{9}), show us how bJou allows for single inheritance. The \texttt{extends} keyword says that a type inherits from some base type and gains its members implicitly. One line \texttt{10} a field \texttt{num} is added to \texttt{Derived}, so it has \texttt{c}, \texttt{message}, and \texttt{num} in total. If you are curious about multiple inheritance, please see the section on Interfaces. Now notice lines \texttt{12} and \texttt{19}. On these lines, two procedures are being defined for the \texttt{Derived} type. \texttt{create()} is similar to the concept of a `constructor' in that it is a procedure that returns a new \texttt{Derived} instance, but that is really where the commonalities with C++ constructors end. Within a type definition, \texttt{this} can be used as syntactic sugar to create parameter declarations corresponding to a pointer to the instance of the type as shown on line \texttt{19} for \texttt{printall()}. In other words, in the context of a type definition for some \texttt{T}, \texttt{this} translates to \texttt{this : T*}.
-
-		Lines \texttt{24} and \texttt{25} show an example of creating an instance of a type and interacting with it. First notice the call \texttt{Derived.create(\ldots)}. Here, we see that any procedure defined for a type can be referenced from the type name or through an instance as shown on the next line with \texttt{d->printall()}. The arrow operator does something related, but much different than the same operator in C. In bJou, the \texttt{->} operator acts like the access operator (\texttt{.}), which works for both structure types and pointers to them. In bJou, the \texttt{.} operator also forwards the left hand side to the next call as the first argument. The difference, however is that \texttt{->} is used to take the address of the left hand side before the argument is forwarded to the next procedure call. See this in action on line \texttt{25} where \texttt{printall()} expects a \texttt{Derived*} as its first and only argument (from \texttt{this}). The \texttt{->} takes \texttt{d} (of type \texttt{Derived}) and forwards its address (type \texttt{Derived*}) as the argument to the call to \texttt{printall()}.
-		
-		It is a critical point that procedures defined for types in bJou can always be referenced without a specific instance of the type. The importance of this is to allow for procedures to be used as first-class-citizens in all cases. This is explored in the next section.
-
-	\newpage
+	
 	\addcontentsline{toc}{subsection}{Procedures}
 	\subsection*{Procedures}
-		\begin{centering}
-			\inputminted[breaklines, fontsize=\small, baselinestretch=0.8, frame=lines, linenos]{bash}{"../tests/test/demo4.bjou"}
-		\end{centering}
-		
-		The code example above is quite long and covers many details concerning Procedures in bJou. This section will not cover the example in the detail that the previous sections did. However, I encourage the reader to read through and/or modify the example to play with the ideas presented.
-
-		Before diving in, the syntax patterns for procedure type declarators for procedures with return types and procedures with no return type respectively are as follows:
-
-		$$<(parameter\ types) : return\ type>$$
-		$$<(parameter\ types)>$$
-
-		The first thing worth mentioning is that procedures can be attached to constants and variables alike in the same way any other expression can. In fact, bJou makes no distinction between procedures and expressions -- they \emph{are} expressions. Lines \texttt{7} and \texttt{9} show this. We can see a similar idea on lines \texttt{15} through \texttt{26}, however, in this case, \texttt{add()} is \emph{overloaded}. The implications of this can be seen when we try to assign \texttt{add()} to variables. Uncomment line \texttt{26} to see why the compiler needs an explicitly typed \emph{l-value} for \texttt{add()}.
-
-		Now we focus our attention on the action taking place on lines \texttt{28} through \texttt{41}. The key takeaway here is that not only are procedure references expressions (i.e. identifiers such as \texttt{add}), but procedure definitions are too.
-
-		Line \texttt{43} introduces \emph{anonymous} procedures. This facility allows procedures that are immediately used as expressions to be unnamed.
-
-		The rest of the example shows cases where procedures can be passed as arguments and returned from other procedures. This is often called using \emph{higher-order} functions.
-
-		One important note is that while procedures can be defined as expressions, they do not perform any lexical scoping. In other words, expression procedures do \emph{not} capture any symbols from the scope they are created in like a \emph{closure} or \emph{lambda} might in other languages.
 
 	\addcontentsline{toc}{subsection}{Talking to C}
 	\subsection*{Talking to C}
@@ -159,7 +80,6 @@
 	\addcontentsline{toc}{subsection}{Non-Linear Compiler Logic}
 	\subsection*{Non-Linear Compiler Logic}
 
-\newpage
 \addcontentsline{toc}{section}{Beyond the Language}
 \section*{Beyond the Language}
 

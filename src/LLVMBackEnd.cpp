@@ -86,7 +86,7 @@ namespace bjou {
         
         llvm::CodeGenOpt::Level OLvl = (compilation->args.opt_arg.getValue() ? llvm::CodeGenOpt::Aggressive : llvm::CodeGenOpt::None);
     
-        defaultTargetMachine = defaultTarget->createTargetMachine(defaultTriple, "generic", "", Options, getRelocModel(), getCodeModel(), OLvl);
+        defaultTargetMachine = defaultTarget->createTargetMachine(defaultTriple, "generic", "", Options, None, CodeModel::Default, OLvl);
         layout = new llvm::DataLayout(defaultTargetMachine->createDataLayout());
         
         // set up default target machine
@@ -1837,8 +1837,9 @@ namespace bjou {
         llvm::Function * func = llbe->builder.GetInsertBlock()->getParent();
         
         llvm::BasicBlock * check = llvm::BasicBlock::Create(llbe->llContext, "forcheckcond", func);
+       
         
-        llbe->builder.CreateBr(check);
+		llbe->builder.CreateBr(check);
         
         llbe->builder.SetInsertPoint(check);
         
@@ -1847,30 +1848,42 @@ namespace bjou {
         cond = llbe->builder.CreateICmpEQ(cond, llvm::ConstantInt::get(llbe->llContext, llvm::APInt(1, 1, true)), "forcond");
         
         
-        llvm::BasicBlock * then = llvm::BasicBlock::Create(llbe->llContext, "then", func);
+        llvm::BasicBlock * then = llvm::BasicBlock::Create(llbe->llContext, "then");
+		llvm::BasicBlock * after = llvm::BasicBlock::Create(llbe->llContext, "after");
         llvm::BasicBlock * merge = llvm::BasicBlock::Create(llbe->llContext, "merge");
         
-        llbe->builder.CreateCondBr(cond, then, merge);
+		llbe->loop_continue_stack.push(after);
+		llbe->loop_break_stack.push(merge);
+
+		llbe->builder.SetInsertPoint(check);
+
+		llbe->builder.CreateCondBr(cond, then, merge);
         
         // Emit then value.
+		func->getBasicBlockList().push_back(then);
         llbe->builder.SetInsertPoint(then);
         
         for (ASTNode * statement : getStatements())
             statement->generate(backEnd);
+
+		llbe->builder.CreateBr(after);
+       
+		// afterthoughts and jump back to check
+		func->getBasicBlockList().push_back(after);
+		llbe->builder.SetInsertPoint(after);
         
-        for (ASTNode * at : getAfterthoughts())
+		for (ASTNode * at : getAfterthoughts())
             at->generate(backEnd);
-        
+
         if (!getFlag(HAS_TOP_LEVEL_RETURN))
             llbe->builder.CreateBr(check);
-        
-        // Codegen of 'Then' can change the current block, update ThenBB for the PHI.
-        then = llbe->builder.GetInsertBlock();
-        
+
         // Emit merge block.
-        func->getBasicBlockList().push_back(merge);
+		func->getBasicBlockList().push_back(merge);
         llbe->builder.SetInsertPoint(merge);
         
+		llbe->loop_continue_stack.pop();
+		llbe->loop_break_stack.pop();
         
         return merge; // what does this accomplish?
     }
@@ -1881,6 +1894,8 @@ namespace bjou {
         llvm::Function * func = llbe->builder.GetInsertBlock()->getParent();
         
         llvm::BasicBlock * check = llvm::BasicBlock::Create(llbe->llContext, "whilecheckcond", func);
+
+		llbe->loop_continue_stack.push(check);
         
         llbe->builder.CreateBr(check);
         
@@ -1893,6 +1908,8 @@ namespace bjou {
         
         llvm::BasicBlock * then = llvm::BasicBlock::Create(llbe->llContext, "then", func);
         llvm::BasicBlock * merge = llvm::BasicBlock::Create(llbe->llContext, "merge");
+
+		llbe->loop_break_stack.push(merge);
         
         llbe->builder.CreateCondBr(cond, then, merge);
         
@@ -1911,7 +1928,9 @@ namespace bjou {
         // Emit merge block.
         func->getBasicBlockList().push_back(merge);
         llbe->builder.SetInsertPoint(merge);
-        
+       
+		llbe->loop_continue_stack.pop();
+		llbe->loop_break_stack.pop();
         
         return merge; // what does this accomplish?
     }
@@ -2036,4 +2055,17 @@ namespace bjou {
         }
         return ll_s_ty;
     }
+
+	void * Break::generate(BackEnd& backEnd, bool flag) {
+		LLVMBackEnd * llbe = (LLVMBackEnd*)&backEnd;
+
+		return llbe->builder.CreateBr(llbe->loop_break_stack.top());
+	}
+
+	void * Continue::generate(BackEnd& backEnd, bool flag) {
+		LLVMBackEnd * llbe = (LLVMBackEnd*)&backEnd;
+
+		return llbe->builder.CreateBr(llbe->loop_continue_stack.top());
+	}
+
 }
