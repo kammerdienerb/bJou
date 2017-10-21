@@ -3753,6 +3753,8 @@ namespace bjou {
             analyze();
         return ((Declarator*)getTypeDeclarator())->getType();
     }
+
+	bool VariableDeclaration::isStatement() const { return true; }
     
     
     
@@ -5188,7 +5190,9 @@ namespace bjou {
         return c;
     }
     
-    Return::~Return() {
+	bool Return::isStatement() const { return true; }
+    
+	Return::~Return() {
         if (expression)
             delete expression;
     }
@@ -5206,8 +5210,20 @@ namespace bjou {
     void Break::analyze(bool force) {
         HANDLE_FORCE();
         
-        // @incomplete
-        
+       	ASTNode * p = parent;
+
+		while (p && p->isStatement()) {
+			if (p->nodeKind == ASTNode::WHILE ||
+				p->nodeKind == ASTNode::DO_WHILE ||
+				p->nodeKind == ASTNode::FOR) {
+					break;
+			}
+			p = p->parent;
+		}
+
+		if (!p || !p->isStatement())
+			errorl(getContext(), "no loop to break out of");
+
         setFlag(ANALYZED, true);
     }
     
@@ -5218,7 +5234,9 @@ namespace bjou {
         // and...
     }
     
-    Break::~Break() {
+	bool Break::isStatement() const { return true; }
+    
+	Break::~Break() {
     }
     //
     
@@ -5246,11 +5264,30 @@ namespace bjou {
         // and...
     }
     
-    Continue::~Continue() {
+	bool Continue::isStatement() const { return true; }
+    
+	Continue::~Continue() {
     }
     //
     
-    
+   
+	static void handleTerminators(ASTNode * statement, std::vector<ASTNode*>& statements, ASTNode * &node) {
+		if (node->nodeKind == ASTNode::RETURN) {
+			statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
+			if (&node != &statements.back())
+				errorl(node->getContext(), "Code below this return will never execute.");
+		} else if (node->nodeKind == ASTNode::BREAK) {
+			statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
+			if (&node != &statements.back())
+				errorl(node->getContext(), "Code below this break will never execute.");
+		} else if (node->nodeKind == ASTNode::CONTINUE) {
+			statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
+			if (&node != &statements.back())
+				errorl(node->getContext(), "Code below this continue will never execute.");
+		}
+	}
+
+
     
     // ~~~~~ If ~~~~~
     
@@ -5298,12 +5335,8 @@ namespace bjou {
             errorl(getConditional()->getContext(), "Expression resulting in type 'bool' is required for conditionals.", true, "'" + getConditional()->getType()->getDemangledName() + "' is invalid");
         for (ASTNode * &statement : getStatements()) {
             statement->analyze(force);
-            if (statement->nodeKind == RETURN) {
-                setFlag(HAS_TOP_LEVEL_RETURN, true);
-                if (&statement != &getStatements().back())
-                    errorl(statement->getContext(), "Code below this return will never execute.");
-            }
-        }
+        	handleTerminators(this, getStatements(), statement);
+		}
         
         if (getElse())
             getElse()->analyze(force);
@@ -5347,7 +5380,9 @@ namespace bjou {
         return c;
     }
     
-    If::~If() {
+	bool If::isStatement() const { return true; }
+    
+	If::~If() {
         BJOU_DEBUG_ASSERT(conditional);
         delete conditional;
         for (ASTNode * s : statements)
@@ -5383,11 +5418,7 @@ namespace bjou {
         
         for (ASTNode * &statement : getStatements()) {
             statement->analyze(force);
-            if (statement->nodeKind == RETURN) {
-                setFlag(HAS_TOP_LEVEL_RETURN, true);
-                if (&statement != &getStatements().back())
-                    errorl(statement->getContext(), "Code below this return will never execute.");
-            }
+			handleTerminators(this, getStatements(), statement);
         }
         
         setFlag(ANALYZED, true);
@@ -5417,7 +5448,9 @@ namespace bjou {
         return c;
     }
     
-    Else::~Else() {
+	bool Else::isStatement() const { return true; }
+    
+	Else::~Else() {
         for (ASTNode * s : statements)
             delete s;
     }
@@ -5494,12 +5527,8 @@ namespace bjou {
         
         for (ASTNode * &statement : getStatements()) {
             statement->analyze(force);
-            if (statement->nodeKind == RETURN) {
-                setFlag(HAS_TOP_LEVEL_RETURN, true);
-                if (&statement != &getStatements().back())
-                    errorl(statement->getContext(), "Code below this return will never execute.");
-            }
-        }
+			handleTerminators(this, getStatements(), statement);
+		}
         
         setFlag(ANALYZED, true);
     }
@@ -5548,7 +5577,9 @@ namespace bjou {
         return c;
     }
     
-    For::~For() {
+	bool For::isStatement() const { return true; }
+    
+	For::~For() {
         for (ASTNode * i : initializations)
             delete i;
         ASTNode * conditional = getConditional();
@@ -5602,11 +5633,7 @@ namespace bjou {
         
         for (ASTNode * &statement : getStatements()) {
             statement->analyze(force);
-            if (statement->nodeKind == RETURN) {
-                setFlag(HAS_TOP_LEVEL_RETURN, true);
-                if (&statement != &getStatements().back())
-                    errorl(statement->getContext(), "Code below this return will never execute.");
-            }
+			handleTerminators(this, getStatements(), statement);
         }
         
         setFlag(ANALYZED, true);
@@ -5640,7 +5667,9 @@ namespace bjou {
         return c;
     }
     
-    While::~While() {
+	bool While::isStatement() const { return true; }
+    
+	While::~While() {
         BJOU_DEBUG_ASSERT(conditional);
         delete conditional;
         for (ASTNode * s : statements)
@@ -5687,12 +5716,8 @@ namespace bjou {
         
         for (ASTNode * &statement : getStatements()) {
             statement->analyze(force);
-            if (statement->nodeKind == RETURN) {
-                setFlag(HAS_TOP_LEVEL_RETURN, true);
-                if (&statement != &getStatements().back())
-                    errorl(statement->getContext(), "Code below this return will never execute.");
-            }
-        }
+			handleTerminators(this, getStatements(), statement);
+       	}
         
         setFlag(ANALYZED, true);
     }
@@ -5725,7 +5750,9 @@ namespace bjou {
         return c;
     }
     
-    DoWhile::~DoWhile() {
+	bool DoWhile::isStatement() const { return true; }
+    
+	DoWhile::~DoWhile() {
         BJOU_DEBUG_ASSERT(conditional);
         delete conditional;
         for (ASTNode * s : statements)
@@ -5806,7 +5833,9 @@ namespace bjou {
         return c;
     }
     
-    Match::~Match() {
+	bool Match::isStatement() const { return true; }
+    
+	Match::~Match() {
         BJOU_DEBUG_ASSERT(expression);
         delete expression;
         for (ASTNode * w : withs)
@@ -5852,12 +5881,8 @@ namespace bjou {
         
         for (ASTNode * &statement : getStatements()) {
             statement->analyze(force);
-            if (statement->nodeKind == RETURN) {
-                setFlag(HAS_TOP_LEVEL_RETURN, true);
-                if (&statement != &getStatements().back())
-                    errorl(statement->getContext(), "Code below this return will never execute.");
-            }
-        }
+       		handleTerminators(this, getStatements(), statement); 
+		}
         
         setFlag(ANALYZED, true);
     }
@@ -5890,7 +5915,9 @@ namespace bjou {
         return c;
     }
     
-    With::~With() {
+	bool With::isStatement() const { return true; }
+    
+	With::~With() {
         BJOU_DEBUG_ASSERT(expression);
         delete expression;
         for (ASTNode * s : statements)

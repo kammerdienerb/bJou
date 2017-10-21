@@ -66,6 +66,8 @@ namespace bjou {
         std::vector<Procedure*> procsGenerateDefinitions;
         std::vector<Struct*> structsGenerateDefinitions;
         Struct * typeinfo_struct;
+		std::stack<llvm::BasicBlock*> loop_break_stack;
+		std::stack<llvm::BasicBlock*> loop_continue_stack;
         
         milliseconds go();
         void namedValsPushFrame();

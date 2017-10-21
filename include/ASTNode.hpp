@@ -1758,6 +1758,7 @@ namespace bjou {
         
         // Node interface
 		const Type * getType();
+		bool isStatement() const;
 		void unwrap(std::vector<ASTNode*>& terminals);
         ASTNode * clone();
         virtual void analyze(bool force = false);
@@ -2206,7 +2207,8 @@ namespace bjou {
         
         // Node interface
 				void unwrap(std::vector<ASTNode*>& terminals);
-        ASTNode * clone();
+ 		bool isStatement() const;
+       ASTNode * clone();
         virtual void analyze(bool force = false);
         virtual void addSymbols(Scope * _scope);
         
@@ -2233,7 +2235,9 @@ namespace bjou {
         // Node interface
         virtual void analyze(bool force = false);
         ASTNode * clone();
-        virtual void addSymbols(Scope * _scope);
+        bool isStatement() const;
+virtual void addSymbols(Scope * _scope);
+		virtual void * generate(BackEnd& backEnd, bool flag = false);
         virtual ~Break();
         //
     };
@@ -2254,7 +2258,9 @@ namespace bjou {
         // Node interface
         virtual void analyze(bool force = false);
         ASTNode * clone();
+		bool isStatement() const;
         virtual void addSymbols(Scope * _scope);
+		virtual void * generate(BackEnd& backEnd, bool flag = false);
         virtual ~Continue();
         //
     };
@@ -2288,6 +2294,7 @@ namespace bjou {
         // Node interface
 				void unwrap(std::vector<ASTNode*>& terminals);
         ASTNode * clone();
+		bool isStatement() const;
         virtual void analyze(bool force = false);
         virtual void addSymbols(Scope * _scope);
         virtual void * generate(BackEnd& backEnd, bool flag = false);
@@ -2318,6 +2325,7 @@ namespace bjou {
         // Node interface
 				void unwrap(std::vector<ASTNode*>& terminals);
         ASTNode * clone();
+		bool isStatement() const;
         virtual void analyze(bool force = false);
         virtual void addSymbols(Scope * _scope);
         virtual ~Else();
@@ -2359,6 +2367,7 @@ namespace bjou {
         // Node interface
 				void unwrap(std::vector<ASTNode*>& terminals);
         ASTNode * clone();
+		bool isStatement() const;
         virtual void analyze(bool force = false);
         virtual void addSymbols(Scope * _scope);
         virtual void * generate(BackEnd& backEnd, bool flag = false);
@@ -2391,6 +2400,7 @@ namespace bjou {
         // Node interface
 				void unwrap(std::vector<ASTNode*>& terminals);
         ASTNode * clone();
+		bool isStatement() const;
         virtual void analyze(bool force = false);
         virtual void addSymbols(Scope * _scope);
         virtual void * generate(BackEnd& backEnd, bool flag = false);
@@ -2423,6 +2433,7 @@ namespace bjou {
         // Node interface
 				void unwrap(std::vector<ASTNode*>& terminals);
         ASTNode * clone();
+		bool isStatement() const;
         virtual void analyze(bool force = false);
         virtual void addSymbols(Scope * _scope);
         virtual ~DoWhile();
@@ -2455,6 +2466,7 @@ namespace bjou {
         // Node interface
 				void unwrap(std::vector<ASTNode*>& terminals);
         ASTNode * clone();
+		bool isStatement() const;
         virtual void analyze(bool force = false);
         virtual void addSymbols(Scope * _scope);
         virtual ~Match();
@@ -2487,6 +2499,7 @@ namespace bjou {
         // Node interface
 				void unwrap(std::vector<ASTNode*>& terminals);
         ASTNode * clone();
+		bool isStatement() const;
         virtual void analyze(bool force = false);
         virtual void addSymbols(Scope * _scope);
         virtual ~With();

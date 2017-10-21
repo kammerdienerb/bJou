@@ -10,3 +10,5 @@ bin
 *.fdb_latexmk
 *.aux
 docs/_minted-bJou/
+*.gdb_history
+*.out
