@@ -120,8 +120,29 @@
 		
 		It is a critical point that procedures defined for types in bJou can always be referenced without a specific instance of the type. The importance of this is to allow for procedures to be used as first-class-citizens in all cases. This is explored in the next section.
 
+	\newpage
 	\addcontentsline{toc}{subsection}{Procedures}
 	\subsection*{Procedures}
+		\begin{centering}
+			\inputminted[breaklines, fontsize=\small, baselinestretch=0.8, frame=lines, linenos]{bash}{"../tests/test/demo4.bjou"}
+		\end{centering}
+		
+		The code example above is quite long and covers many details concerning Procedures in bJou. This section will not cover the example in the detail that the previous sections did. However, I encourage the reader to read through and/or modify the example to play with the ideas presented.
+
+		Before diving in, the syntax patterns for procedure type declarators for procedures with return types and procedures with no return type respectively are as follows:
+
+		$$<(parameter\ types) : return\ type>$$
+		$$<(parameter\ types)>$$
+
+		The first thing worth mentioning is that procedures can be attached to constants and variables alike in the same way any other expression can. In fact, bJou makes no distinction between procedures and expressions -- they \emph{are} expressions. Lines \texttt{7} and \texttt{9} show this. We can see a similar idea on lines \texttt{15} through \texttt{26}, however, in this case, \texttt{add()} is \emph{overloaded}. The implications of this can be seen when we try to assign \texttt{add()} to variables. Uncomment line \texttt{26} to see why the compiler needs an explicitly typed \emph{l-value} for \texttt{add()}.
+
+		Now we focus our attention on the action taking place on lines \texttt{28} through \texttt{41}. The key takeaway here is that not only are procedure references expressions (i.e. identifiers such as \texttt{add}), but procedure definitions are too.
+
+		Line \texttt{43} introduces \emph{anonymous} procedures. This facility allows procedures that are immediately used as expressions to be unnamed.
+
+		The rest of the example shows cases where procedures can be passed as arguments and returned from other procedures. This is often called using \emph{higher-order} functions.
+
+		One important note is that while procedures can be defined as expressions, they do not perform any lexical scoping. In other words, expression procedures do \emph{not} capture any symbols from the scope they are created in like a \emph{closure} or \emph{lambda} might in other languages.
 
 	\addcontentsline{toc}{subsection}{Talking to C}
 	\subsection*{Talking to C}
