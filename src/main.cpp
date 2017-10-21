@@ -45,13 +45,14 @@ int main(int argc, const char ** argv) {
     TCLAP::SwitchArg noparallel_arg("", "noparallel", "Turn compilation parallelization off.", cmd_line);
     TCLAP::SwitchArg opt_arg("O", "optimize", "Run LLVM optimization passes.", cmd_line);
     TCLAP::SwitchArg module_arg("m", "module", "Create a module file instead of an executable.", cmd_line);
+    TCLAP::MultiArg<std::string> module_search_path_arg("I", "searchpath", "Add an additional module search path.", false, "path", cmd_line);
     TCLAP::SwitchArg nopreload_arg("", "nopreload", "Do not automatically import preload modules.", cmd_line);
 	TCLAP::SwitchArg lld_arg("", "lld", "Attempt to use lld to link. If unsuccessful, use system linker.", cmd_line);
     TCLAP::ValueArg<std::string> output_arg("o", "output", "Name of target output file.", false, "", "file name", cmd_line);
     TCLAP::MultiArg<std::string> link_arg("l", "link", "Name of libraries to link.", false, "library name", cmd_line);
     TCLAP::UnlabeledMultiArg<std::string> files("files", "Input source files.", false, "file name(s)", cmd_line); // this actually is required, but I wanted to provide the error message instead of tclap
     
-    bjou::TCLAPArgSet args = { verbose_arg, justcheck_arg, time_arg, symbols_arg, noparallel_arg, opt_arg, module_arg, nopreload_arg, lld_arg, output_arg, link_arg, files };
+    bjou::TCLAPArgSet args = { verbose_arg, justcheck_arg, time_arg, symbols_arg, noparallel_arg, opt_arg, module_arg, module_search_path_arg, nopreload_arg, lld_arg, output_arg, link_arg, files };
     
     cmd_line.parse(argc, (char**)argv); // cast away constness
     // end command line options

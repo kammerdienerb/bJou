@@ -48,6 +48,15 @@ namespace bjou {
             }
             
             module_search_paths.push_back("");
+			for (auto& _path : args.module_search_path_arg.getValue()) {
+				std::string path = _path;
+				if (_path.back() != '/')
+					path += "/";
+				module_search_paths.push_back(path);
+			}
+			
+			module_search_paths.push_back("modules/");
+
 #ifndef _WIN32
 			module_search_paths.push_back("modules/");
             module_search_paths.push_back("/usr/local/lib/bjou/modules/");
