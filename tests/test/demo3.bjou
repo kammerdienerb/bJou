@@ -16,7 +16,7 @@ type Derived extends Base {
                     .num = num 
                 }
 
-    proc printall(this : Derived*)
+    proc printall(this)
         print "{ %, %, % }", this.c, this.message, this.num
 }
 
