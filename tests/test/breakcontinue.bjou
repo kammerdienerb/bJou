@@ -1,0 +1,39 @@
+# breakcontinue.bjou
+
+(proc main() {
+	i := 0
+
+	print "while break"
+
+	while i < 10 {
+		print "%", i
+		if i == 5 break
+		i += 1
+	}
+
+	while true break 
+	
+	print "for break"
+
+	for i = 0; i < 10; i += 1 {
+		if i > 5 break 
+		print "%", i
+	}
+
+	print "while continue"
+
+	i = 0
+
+	while i < 10 {
+		i += 1
+		if i - 1 < 5 continue
+		print "%", i - 1
+	}
+
+	print "for continue"
+
+	for i = 0; i < 10; i += 1 {
+		if i % 2 != 0 continue
+		print "%", i
+	}
+})()
