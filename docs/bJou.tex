@@ -78,7 +78,6 @@
 			\inputminted[breaklines, fontsize=\small, baselinestretch=0.8, frame=lines, linenos]{bash}{"../tests/test/demo1.bjou"}
 		\end{centering}
 
-		\newpage
 		The code located in the file `tests/test/demo1.bjou' is shown above. The purpose of this first demo file is to demonstrate basic variable declaration/use in bJou and, more interestingly, the compiler's utilization of type information.
 	
 		Before we dive into that, let's look at the first couple of lines and figure some things out. Lines \texttt{1} and \texttt{2} are comments. Comments can be made anywhere with the \texttt{\#} character and tell the parser to ignore the rest of the line. Line \texttt{4} (closing on line \texttt{29}) has some interesting details that we will hand-wave for now. If you are really curious, you can skip ahead to the section on Procedures later in this document, but for now all we need to know is that a procedure called main is being declared, defined, and called and that everything else in this file is taking place in that procedure. If that's still confusing, don't worry about it -- it's not that important in this context.
@@ -103,11 +102,16 @@
 			\inputminted[breaklines, fontsize=\small, baselinestretch=0.8, frame=lines, linenos]{bash}{"../tests/test/demo2.bjou"}
 		\end{centering}
 
-		\newpage
-	
+		Constants can be thought of as labels for pre-computed (where applicable) expressions. On line \texttt{5} of `tests/test/demo2.bjou', \texttt{PI} is defined as the constant expression \texttt{3.141593} computed from \texttt{355.0 / 113.0}. This computation is made at compile time so that the program suffers no run-time performance costs. Constant's take advantage of bJou's type awareness to deduce their type since an initialization is always required for constants. Initialization is probably a bad word to use since you cannot modify constants and they don't actually `store' anything like variables do, but it is easier to think of them similarly to variables to understand how they are created and used.
+		
+		Lines \texttt{6} through \texttt{9} show the constant \texttt{PI} being used in places where any expression could be used -- even in the declaration of another constant. I find it easiest to think about constants as placeholders for expressions that don't change throughout the program. Line \texttt{11} shows a situation where the constant \texttt{ZERO} is being set as an expression that contains a reference to a variable \texttt{i}. This is incorrect and will not compile since \texttt{i} is a variable, i.e. it may change at run-time.
+
 	\addcontentsline{toc}{subsection}{Defining Types}
 	\subsection*{Defining Types}
-	
+		\begin{centering}
+			\inputminted[breaklines, fontsize=\small, baselinestretch=0.8, frame=lines, linenos]{bash}{"../tests/test/demo3.bjou"}
+		\end{centering}
+
 	\addcontentsline{toc}{subsection}{Procedures}
 	\subsection*{Procedures}
 
