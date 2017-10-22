@@ -235,7 +235,35 @@ namespace bjou {
         setFlag(ANALYZED, true);
     }
     //
-   
+
+	static void emplaceConversion(Expression * expr, const Type * dest_t) {
+		ASTNode * p = expr->parent;
+
+		AsExpression * conversion = new AsExpression;
+		conversion->setContext(expr->getContext());
+		conversion->setScope(expr->getScope());
+		conversion->setContents("as");
+		
+		(*expr->replace)(p, expr, conversion);
+
+		conversion->setLeft(expr);
+		conversion->setRight(dest_t->getGenericDeclarator());
+		conversion->getRight()->setContext(conversion->getContext());
+		conversion->getRight()->setScope(conversion->getScope());
+		
+		conversion->analyze(true);
+	}
+
+	static void convertOperands(BinaryExpression * expr, const Type * dest_t) {
+		const Type * lt = expr->getLeft()->getType();
+		const Type * rt = expr->getRight()->getType();
+
+		if (lt != dest_t)
+			emplaceConversion((Expression*)expr->getLeft(), dest_t);
+		if (rt != dest_t)
+			emplaceConversion((Expression*)expr->getRight(), dest_t);
+	}
+
     // ~~~~~ AddExpression ~~~~~
     
     
@@ -271,13 +299,17 @@ namespace bjou {
         
         if (lt->enumerableEquivalent()) {
             if (rt->enumerableEquivalent() || rt->isFP()) {
-                setType(primativeConversionResult(lt, rt));
+                const Type * dest_t = primativeConversionResult(lt, rt);
+				convertOperands(this, dest_t);
+				setType(dest_t);
             } else if (rt->isPointer()) {
                 setType(rt);
             } else goto err;
         } else if (lt->isFP()) {
             if (rt->enumerableEquivalent() || rt->isFP()) {
-                setType(primativeConversionResult(lt, rt));
+                const Type * dest_t = primativeConversionResult(lt, rt);
+				convertOperands(this, dest_t);
+				setType(dest_t);
             } else goto err;
         } else if (lt->isPointer()) {
             if (rt->enumerableEquivalent()) {
@@ -332,11 +364,15 @@ namespace bjou {
         
         if (lt->enumerableEquivalent()) {
             if (rt->enumerableEquivalent() || rt->isFP()) {
-                setType(primativeConversionResult(lt, rt));
+                const Type * dest_t = primativeConversionResult(lt, rt);
+				convertOperands(this, dest_t);
+				setType(dest_t);
             } else goto err;
         } else if (lt->isFP()) {
             if (rt->enumerableEquivalent() || rt->isFP()) {
-                setType(primativeConversionResult(lt, rt));
+                const Type * dest_t = primativeConversionResult(lt, rt);
+				convertOperands(this, dest_t);
+				setType(dest_t);
             } else goto err;
         } else if (lt->isPointer()) {
             if (rt->enumerableEquivalent()) {
@@ -390,11 +426,15 @@ namespace bjou {
         
         if (lt->enumerableEquivalent()) {
             if (rt->enumerableEquivalent() || rt->isFP()) {
-                setType(primativeConversionResult(lt, rt));
+                const Type * dest_t = primativeConversionResult(lt, rt);
+				convertOperands(this, dest_t);
+				setType(dest_t);
             } else goto err;
         } else if (lt->isFP()) {
             if (rt->enumerableEquivalent() || rt->isFP()) {
-                setType(primativeConversionResult(lt, rt));
+                const Type * dest_t = primativeConversionResult(lt, rt);
+				convertOperands(this, dest_t);
+				setType(dest_t);
             } else goto err;
         } else goto err;
         goto out;
@@ -444,11 +484,15 @@ namespace bjou {
         
         if (lt->enumerableEquivalent()) {
             if (rt->enumerableEquivalent() || rt->isFP()) {
-                setType(primativeConversionResult(lt, rt));
+                const Type * dest_t = primativeConversionResult(lt, rt);
+				convertOperands(this, dest_t);
+				setType(dest_t);
             } else goto err;
         } else if (lt->isFP()) {
             if (rt->enumerableEquivalent() || rt->isFP()) {
-                setType(primativeConversionResult(lt, rt));
+                const Type * dest_t = primativeConversionResult(lt, rt);
+				convertOperands(this, dest_t);
+				setType(dest_t);
             } else goto err;
         } else goto err;
         goto out;
@@ -498,7 +542,9 @@ namespace bjou {
         
         if (lt->enumerableEquivalent()) {
             if (rt->enumerableEquivalent()) {
-                setType(primativeConversionResult(lt, rt));
+                const Type * dest_t = primativeConversionResult(lt, rt);
+				convertOperands(this, dest_t);
+				setType(dest_t);
             } else goto err;
         } else goto err;
         goto out;
