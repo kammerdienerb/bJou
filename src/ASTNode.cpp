@@ -252,15 +252,16 @@ namespace bjou {
 		conversion->getRight()->setScope(conversion->getScope());
 		
 		conversion->analyze(true);
+		printf("converted to %s\n", conversion->getType()->code.c_str());
 	}
 
 	static void convertOperands(BinaryExpression * expr, const Type * dest_t) {
 		const Type * lt = expr->getLeft()->getType();
 		const Type * rt = expr->getRight()->getType();
 
-		if (lt != dest_t)
+		if (!lt->equivalent(dest_t, /* exact_match =*/true))
 			emplaceConversion((Expression*)expr->getLeft(), dest_t);
-		if (rt != dest_t)
+		if (!rt->equivalent(dest_t, /* exact_match =*/true))
 			emplaceConversion((Expression*)expr->getRight(), dest_t);
 	}
 
@@ -558,7 +559,17 @@ namespace bjou {
     
     ASTNode * ModExpression::clone() { return ExpressionClone(this); }
     //
-   
+  
+
+	static void convertAssignmentOperand(BinaryExpression * assign) {
+		const Type * lt = assign->getLeft()->getType();
+		const Type * rt = assign->getRight()->getType();
+		
+		if (lt->isPrimative() && rt->isPrimative())
+			if (!lt->equivalent(rt, /* exact_match =*/true))
+				emplaceConversion((Expression*)assign->getRight(), lt);
+	}
+
     // ~~~~~ AssignmentExpression ~~~~~
     
     AssignmentExpression::AssignmentExpression() {
@@ -611,6 +622,10 @@ namespace bjou {
         right = (Expression*)getRight();
         
         right->analyze(true);
+		
+		convertAssignmentOperand(this);
+		
+		right = (Expression*)getRight(); // refresh again
         const Type * rt = right->getType();
         
         BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
@@ -657,6 +672,11 @@ namespace bjou {
         Expression * right = (Expression*)getRight();
         right->analyze();
         
+		convertAssignmentOperand(this);
+		
+		right = (Expression*)getRight(); // refresh again
+        const Type * rt = right->getType();
+
         BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
         BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
         
@@ -714,6 +734,11 @@ namespace bjou {
         Expression * right = (Expression*)getRight();
         right->analyze();
         
+		convertAssignmentOperand(this);
+		
+		right = (Expression*)getRight(); // refresh again
+        const Type * rt = right->getType();
+
         BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
         BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
         
@@ -771,6 +796,11 @@ namespace bjou {
         Expression * right = (Expression*)getRight();
         right->analyze();
         
+		convertAssignmentOperand(this);
+		
+		right = (Expression*)getRight(); // refresh again
+        const Type * rt = right->getType();
+
         BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
         BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
         
@@ -828,6 +858,11 @@ namespace bjou {
         Expression * right = (Expression*)getRight();
         right->analyze();
         
+		convertAssignmentOperand(this);
+		
+		right = (Expression*)getRight(); // refresh again
+        const Type * rt = right->getType();
+
         BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
         BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
         
@@ -885,6 +920,11 @@ namespace bjou {
         Expression * right = (Expression*)getRight();
         right->analyze();
         
+		convertAssignmentOperand(this);
+		
+		right = (Expression*)getRight(); // refresh again
+        const Type * rt = right->getType();
+
         BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
         BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
         
@@ -1288,7 +1328,7 @@ namespace bjou {
             errorl(getLeft()->getContext(), "Expression is not a procedure, but is being called like one.");
         
         ProcedureType * plt = (ProcedureType*)lt;
-        
+       
         int nargs = (int)args->getExpressions().size();
         int nexpected = (int)plt->paramTypes.size();
         
@@ -1302,7 +1342,7 @@ namespace bjou {
             arg_err = true;
             errConext = args->getContext();
         }
-        
+       
         if (!arg_err) {
             for (int i = 0; i < nexpected; i += 1) {
                 const Type * expected_t = plt->paramTypes[i];
@@ -1313,6 +1353,16 @@ namespace bjou {
                     errConext = args->getExpressions()[i]->getContext();
                     break;
                 }
+
+				// add auto primative conversions
+				if (expected_t->isPrimative() && arg_t->isPrimative()) {
+					if (!arg_t->equivalent(expected_t, /* exact_match =*/true)) {
+						printf("%s vs %s\n", arg_t->code.c_str(), expected_t->code.c_str());
+						printf("%p %p\n", args->getExpressions()[i]->parent, args->getExpressions()[i]);
+						emplaceConversion((Expression*)args->getExpressions()[i], expected_t);
+						printf("%p %p\n", args->getExpressions()[i]->parent, args->getExpressions()[i]);
+					}
+				}
             }
         }
         
@@ -1777,19 +1827,32 @@ namespace bjou {
         int i = 0;
         
         if ((i = handleInterfaceSpecificCall())) {
-            if (i == -1) return;
+            if (i == -1) {
+				setFlag(ANALYZED, true);
+				return;
+			}
         } else if (getLeft()->analyze(force), (i = handleThroughTemplate())) {
-            if (i == -1) return;
+            if (i == -1) {
+				setFlag(ANALYZED, true);
+				return;
+			}
         } else if ((i = handleAccessThroughDeclarator(force))) {
-            if (i == -1) return;
+            if (i == -1) {
+				setFlag(ANALYZED, true);
+				return;
+			}
         } else if ((i = handleContainerAccess())) {
-            if (i == -1) return;
+            if (i == -1) {
+				setFlag(ANALYZED, true);
+				return;
+			}
         }
         
         if (!type) {
-            if (handleInjection())
+            if (handleInjection()) {
+				setFlag(ANALYZED, true);
                 return;
-            else errorl(getContext(), "Access using the '.' operator only applies to struct types and pointers to them.", true, "attempting to use '.' on '" + getLeft()->getType()->getDemangledName() + "'");
+			} else errorl(getContext(), "Access using the '.' operator only applies to struct types and pointers to them.", true, "attempting to use '.' on '" + getLeft()->getType()->getDemangledName() + "'");
         }
         
         BJOU_DEBUG_ASSERT(type && "expression does not have a type");
@@ -3717,8 +3780,15 @@ namespace bjou {
                 
                 const Type * t = getTypeDeclarator()->getType(); // @leak
                 lValStack.push(t);
+
                 if (!t->equivalent(getInitialization()->getType()))
                     errorl(getInitialization()->getContext(), "Can't initialize " + t->getDemangledName() + " '" + getName() + "' with expression of type '" + getInitialization()->getType()->getDemangledName() + "'.");
+		
+				const Type * init_t = getInitialization()->getType();
+				if (t->isPrimative() && init_t->isPrimative())
+					if (!t->equivalent(getInitialization()->getType(), /* exact_match =*/true))
+						emplaceConversion((Expression*)getInitialization(), t);
+
                 lValStack.pop();
             } else {
                 setTypeDeclarator(getInitialization()->getType()->getGenericDeclarator());

@@ -1,0 +1,6 @@
+proc p(arg : float)
+	print "%", arg
+
+(proc main(){
+	12345.p()
+})()

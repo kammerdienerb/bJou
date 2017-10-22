@@ -12,3 +12,4 @@ bin
 docs/_minted-bJou/
 *.gdb_history
 *.out
+tests/out
