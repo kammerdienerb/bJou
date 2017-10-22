@@ -769,7 +769,9 @@ namespace bjou {
     
     struct AccessExpression : BinaryExpression {
         AccessExpression();
-        
+       
+        enum eBitFlags E_BIT_FLAGS_AND(PAREN, TERMINAL, IDENT, UFC);
+
         CallExpression * injection;
         
         CallExpression * nextCall();
@@ -1997,6 +1999,7 @@ namespace bjou {
         std::vector<ASTNode*>& getExpressions();
         void setExpressions(std::vector<ASTNode*> _expressions);
         void addExpression(ASTNode * _expression);
+		void addExpressionToFront(ASTNode * _expression);
         
         // Node interface
         virtual void unwrap(std::vector<ASTNode*>& terminals);

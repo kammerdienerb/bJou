@@ -22,7 +22,8 @@ type grow!(T) {
             ._cap = n
         }
 
-        (g._t).memcpy(_s, n as u64)
+        # (g._t).memcpy(_s, n as u64)
+		(g._t).memcpy(_s, n)
         return g
     }
 
@@ -39,7 +40,8 @@ type Point {
 
 (proc main() {
     gi := grow!(int).create()
-    gi._t.memcpy({ 1, 2, 3 }, 3 as u64)
+    # gi._t.memcpy({ 1, 2, 3 }, 3 as u64)
+	gi._t.memcpy({ 1, 2, 3 }, 3)
     gi._used = 3
 
     gp := grow.create({ 

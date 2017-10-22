@@ -252,7 +252,6 @@ namespace bjou {
 		conversion->getRight()->setScope(conversion->getScope());
 		
 		conversion->analyze(true);
-		printf("converted to %s\n", conversion->getType()->code.c_str());
 	}
 
 	static void convertOperands(BinaryExpression * expr, const Type * dest_t) {
@@ -1007,11 +1006,13 @@ namespace bjou {
         
         if (lt->enumerableEquivalent()) {
             if (rt->enumerableEquivalent() || rt->isFP()) {
-                // setType(primativeConversionResult(lt, rt));
+				const Type * dest_t = primativeConversionResult(lt, rt);
+				convertOperands(this, dest_t);
             } else goto err;
         } else if (lt->isFP()) {
             if (rt->enumerableEquivalent() || rt->isFP()) {
-                // setType(primativeConversionResult(lt, rt));
+				const Type * dest_t = primativeConversionResult(lt, rt);
+				convertOperands(this, dest_t);
             } else goto err;
         } else if (lt->isPointer()) {
             if (rt->isPointer()) {
@@ -1288,7 +1289,16 @@ namespace bjou {
         const Type * lt = nullptr;
          
         getRight()->analyze(force);
+
+		ASTNode * old_left = getLeft();
+		bool tryufc = old_left->nodeKind == ASTNode::ACCESS_EXPRESSION;
         getLeft()->analyze(force);
+
+		if (tryufc                                             &&
+			old_left->getFlag(AccessExpression::UFC)           &&
+			getLeft()->nodeKind == ASTNode::IDENTIFIER) {
+				return;
+		}
         
         ArgList * args = (ArgList*)getRight();
         Expression * l = (Expression*)getLeft();
@@ -1355,14 +1365,9 @@ namespace bjou {
                 }
 
 				// add auto primative conversions
-				if (expected_t->isPrimative() && arg_t->isPrimative()) {
-					if (!arg_t->equivalent(expected_t, /* exact_match =*/true)) {
-						printf("%s vs %s\n", arg_t->code.c_str(), expected_t->code.c_str());
-						printf("%p %p\n", args->getExpressions()[i]->parent, args->getExpressions()[i]);
+				if (expected_t->isPrimative() && arg_t->isPrimative())
+					if (!arg_t->equivalent(expected_t, /* exact_match =*/true))
 						emplaceConversion((Expression*)args->getExpressions()[i], expected_t);
-						printf("%p %p\n", args->getExpressions()[i]->parent, args->getExpressions()[i]);
-					}
-				}
             }
         }
         
@@ -1479,10 +1484,9 @@ namespace bjou {
     }
     
     CallExpression * AccessExpression::nextCall() {
-        Expression * next_call = nullptr;
-        if (parent && parent->nodeKind == CALL_EXPRESSION)
-            next_call = (Expression*)parent;
-        return (CallExpression*)next_call;
+		if (parent && parent->nodeKind == CALL_EXPRESSION)
+			return (CallExpression*)parent;
+		return nullptr;
     }
     
     int AccessExpression::handleInterfaceSpecificCall() {
@@ -1805,12 +1809,14 @@ namespace bjou {
             }
             
             ArgList * args = (ArgList*)next_call->getRight();
-            args->getExpressions().insert(args->getExpressions().begin(), getLeft());
+			args->addExpressionToFront(getLeft());
+            // args->getExpressions().insert(args->getExpressions().begin(), getLeft());
             next_call->setLeft(getRight());
             next_call->analyze();
             injection = (CallExpression*)next_call;
             setType(getRight()->getType());
             // delete this; // @refactor? @leak?
+			setFlag(UFC, true);
             return true;
         }
         return false;
@@ -4724,7 +4730,12 @@ namespace bjou {
         _expression->replace = rpget<replacementPolicy_ArgList_Expressions>();
         expressions.push_back(_expression);
     }
-    
+    void ArgList::addExpressionToFront(ASTNode * _expression) {
+		_expression->parent = this;
+        _expression->replace = rpget<replacementPolicy_ArgList_Expressions>();
+		expressions.insert(expressions.begin(), _expression);
+	}
+
     // Node interface
     void ArgList::analyze(bool force) {
         HANDLE_FORCE();
