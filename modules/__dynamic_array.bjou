@@ -25,7 +25,7 @@ type __bjou_dyn_array!(T) {
             .__capacity = n
         }
 
-        (a.__data).memcpy(_s, n as u64)
+        (a.__data).memcpy(_s, n)
         return a
     }
 
@@ -36,7 +36,7 @@ type __bjou_dyn_array!(T) {
     proc grow(this) {
         this.__capacity *= 2
         new__data := new T[this.__capacity]
-        memcpy(new__data, this.__data, (this.__used as u64) * sizeof T)
+        memcpy(new__data, this.__data, (this.__used) * sizeof T)
         delete this.__data
         this.__data = new__data
     }
@@ -44,7 +44,7 @@ type __bjou_dyn_array!(T) {
     proc shrink(this) {
         this.__capacity /= 2
         new__data := new T[this.__capacity]
-        memcpy(new__data, this.__data, (this.__used as u64) * sizeof T)
+        memcpy(new__data, this.__data, (this.__used) * sizeof T)
         delete this.__data
         this.__data = new__data
     }

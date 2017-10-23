@@ -38,7 +38,8 @@ type T {
 (proc main() {
     dst := { 0, 0, 0 }
     src := { 1, 2, 3 }
-    n := 3 as u64
+    # n := 3 as u64
+	n := 3
     print "Helper"
     dst.memcpy(src, n) # helper
     memcpy!(int)(1, 2, 3) # 3

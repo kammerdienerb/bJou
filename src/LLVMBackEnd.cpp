@@ -50,7 +50,7 @@ namespace bjou {
     
     milliseconds LLVMBackEnd::go() {
         auto start = Clock::now();
-        
+       
         auto cg_time = CodeGenStage();
         if (compilation->args.time_arg.getValue())
             prettyPrintTimeMin(cg_time, std::string("Code Generation") + (compilation->args.opt_arg.getValue() ? " and Optimization" : ""));
@@ -95,7 +95,7 @@ namespace bjou {
         llvm::TargetOptions opt;
         auto RM = llvm::Optional<llvm::Reloc::Model>();
         defaultTargetMachine = defaultTarget->createTargetMachine(defaultTriple, CPU, Features, opt, RM);
-        
+       
         createllModule();
         
         generator.generate();
@@ -1266,7 +1266,11 @@ namespace bjou {
     
     void * SizeofExpression::generate(BackEnd& backEnd, bool flag) {
         LLVMBackEnd * llbe = (LLVMBackEnd*)&backEnd;
-        
+      
+		const Type * rt = getRight()->getType();
+		if (rt->isPrimative())
+			BJOU_DEBUG_ASSERT(rt->size != -1);
+
         uint64_t size = llbe->layout->getTypeAllocSize(llbe->bJouTypeToLLVMType(getRight()->getType()));
         
         return llvm::ConstantInt::get(llvm::Type::getInt64Ty(llbe->llContext), size);
@@ -1990,8 +1994,9 @@ namespace bjou {
                 llbe->builder.CreateStore(&Arg, alloca);
             }
             
-            for (ASTNode * statement : getStatements())
+            for (ASTNode * statement : getStatements()) {
                 statement->generate(backEnd);
+			}
            
             if (!getFlag(HAS_TOP_LEVEL_RETURN)) {
                 // dangerous to assume void ret type..  @bad
