@@ -1,0 +1,18 @@
+type T {
+	data : char*
+
+	proc create() : T
+		return { T: .data = new char[32] }
+
+	implements idestroy {
+		proc destroy(this) {
+			print "destroying T"
+			delete this.data
+		}			
+	}
+}
+
+(proc main() {
+	t := T.create()
+	t->destroy()
+}) ()

@@ -4406,12 +4406,21 @@ namespace bjou {
         
         setFlag(ANALYZED, true);
     }
-    
-    void InterfaceDef::addSymbols(Scope * _scope) {
+
+	void InterfaceDef::preDeclare(Scope * _scope) {
         setScope(_scope);
         _Symbol<InterfaceDef>* symbol = new _Symbol<InterfaceDef>(getName(), this);
         setMangledName(symbol->mangledString(_scope));
         _scope->addSymbol(symbol, &getNameContext());
+    }
+
+    void InterfaceDef::addSymbols(Scope * _scope) {
+        /*
+		setScope(_scope);
+        _Symbol<InterfaceDef>* symbol = new _Symbol<InterfaceDef>(getName(), this);
+        setMangledName(symbol->mangledString(_scope));
+        _scope->addSymbol(symbol, &getNameContext());
+		*/
         
         for (auto& procs : getProcs()) {
             for (ASTNode * _proc : procs.second) {

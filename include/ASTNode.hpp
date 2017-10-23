@@ -1895,6 +1895,7 @@ namespace bjou {
         void addProcs(std::string key, std::vector<ASTNode*> vals);
         void addProc(std::string key, ASTNode * val);
         
+        void preDeclare(Scope * _scope);
         unsigned int totalProcs();
         
         // Node interface

@@ -1,0 +1,11 @@
+# __destroy.bjou
+
+# This module declares the interface for type destructors.
+# The compiler will look for types that implement this interface
+# and call destroy() at the end of their lifetimes.
+
+module __destroy
+
+interface idestroy {
+	proc destroy(this)	
+}

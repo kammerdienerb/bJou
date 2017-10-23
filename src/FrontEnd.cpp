@@ -226,6 +226,8 @@ namespace bjou {
         for (ASTNode * node : AST) {
             if (node->nodeKind == ASTNode::STRUCT)
                 ((Struct*)node)->preDeclare(globalScope);
+			else if (node->nodeKind == ASTNode::INTERFACE_DEF)
+				((InterfaceDef*)node)->preDeclare(globalScope);
             else if (node->nodeKind == ASTNode::NAMESPACE)
                 ((Namespace*)node)->preDeclare(globalScope);
         }
