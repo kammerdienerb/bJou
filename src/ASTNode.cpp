@@ -2077,6 +2077,8 @@ namespace bjou {
         HANDLE_FORCE();
         
         getRight()->analyze();
+		if (getRight()->getType()->isPrimative() && getRight()->getType()->size == -1)
+			errorl(getContext(), "Taking sizeof void.");
         setType(compilation->frontEnd.typeTable["ulong"]);
         
         BJOU_DEBUG_ASSERT(type && "expression does not have a type");
@@ -2973,6 +2975,8 @@ namespace bjou {
     void Declarator::unwrap(std::vector<ASTNode*>& terminals) {
         if (getTemplateInst())
             getTemplateInst()->unwrap(terminals);
+		if (getIdentifier())
+			getIdentifier()->unwrap(terminals);
         terminals.push_back(this);
     }
     

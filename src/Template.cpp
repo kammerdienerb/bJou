@@ -195,7 +195,7 @@ namespace bjou {
         
         for (auto elem : def->getElements())
             checklist.push_back(std::make_pair((TemplateDefineElement*)elem, nullptr));
-        
+       
         if (inst) {
             if (inst->getElements().size() > checklist.size()) {
                 if (fail)
@@ -205,7 +205,7 @@ namespace bjou {
             for (int i = 0; i < (int)checklist.size(); i += 1)
                 checklist[i].second = (Declarator*)inst->getElements()[i];
         }
-        
+
         if (passed_args) {
             if (passed_args->getExpressions().size() != params.size())
                 return -1;
@@ -221,7 +221,7 @@ namespace bjou {
                 Declarator * passed_base_decl = (Declarator*)passed_decl->getBase();
                 passed_base_decl->setScope(passed_decl->getScope());
                 const Type * passed_base_t = passed_base_decl->getType()->getOriginal();
-                
+        
                 for (auto& check : checklist) {
                     if (!check.second) {
                         if (check.first->name == param_decl->mangleSymbol()) {
@@ -288,7 +288,7 @@ namespace bjou {
             for (ASTNode * expr : passed_args->getExpressions())
                 arg_types.push_back(expr->getType());
             std::vector<const Type*> new_param_types;
-            
+           
             std::vector<VariableDeclaration*> var_clones;
             std::vector<ASTNode*> terms;
             for (ASTNode * _var : params) {
@@ -298,6 +298,7 @@ namespace bjou {
                 var_clone->unwrap(terms);
                 var_clones.push_back(var_clone);
             }
+
             templateReplaceTerminals(terms, def, new_inst);
             
             for (ASTNode * _var : var_clones) {
@@ -310,21 +311,21 @@ namespace bjou {
                 new_param_types.push_back(var->getTypeDeclarator()->getType());
                 delete _var;
             }
-            
+
             for (int i = 0; i < (int)arg_types.size(); i += 1) {
                 if (!arg_types[i]->equivalent(new_param_types[i])) {
-					if (!arg_types[i]->equivalent(new_param_types[i], /* exact_match =*/true))
-						nconv += 1;
                     if (delete_new_inst)
                         delete new_inst;
                     return -1;
                 }
+				if (!arg_types[i]->equivalent(new_param_types[i], /* exact_match =*/true))
+					nconv += 1;
             }
         }
         
         if (delete_new_inst)
             delete new_inst;
-        
+       
         return nconv;
     }
     
@@ -336,23 +337,23 @@ namespace bjou {
         
         TemplateInstantiation * new_inst = new TemplateInstantiation;
         checkTemplateProcInstantiation(_tproc, _passed_args, _inst, context, fail, new_inst);
-        
+
         std::vector<ASTNode*> save_params, new_params, terms;
         for (ASTNode * param : proc->getParamVarDeclarations()) {
             save_params.push_back(param);
             
-            ASTNode * clone = param->clone();
-            new_params.push_back(clone);
-            clone->unwrap(terms);
+            ASTNode * param_clone = param->clone();
+            new_params.push_back(param_clone);
+            param_clone->unwrap(terms);
         }
-        
-        proc->getParamVarDeclarations().clear();
         
         templateReplaceTerminals(terms, def, new_inst);
         
+       	proc->getParamVarDeclarations().clear();
+
         for (ASTNode * new_param : new_params)
             proc->addParamVarDeclaration(new_param);
-        
+
         _Symbol<Procedure> * newsym = new _Symbol<Procedure>(proc->getName(), proc, new_inst);
         std::string mangledName = newsym->mangledString(scope);
         
@@ -362,18 +363,26 @@ namespace bjou {
             // found it
             BJOU_DEBUG_ASSERT(sym->isProc());
             BJOU_DEBUG_ASSERT(sym->node()->nodeKind == ASTNode::PROCEDURE);
+
+			// restore params
+			proc->getParamVarDeclarations().clear();
+
+        	for (ASTNode * p : save_params)
+            	proc->addParamVarDeclaration(p);
+
             return (Procedure*)sym->node();
         }
         
-        proc->getParamVarDeclarations().clear();
-        for (ASTNode * param : save_params)
-            proc->addParamVarDeclaration(param);
-        
+		// restore params
+		proc->getParamVarDeclarations().clear();
+
+        for (ASTNode * p : save_params)
+            proc->addParamVarDeclaration(p);
+
         for (ASTNode * new_param : new_params)
             delete new_param;
         
         Procedure * clone = (Procedure*)proc->clone();
-		clone->setFlag(Procedure::IS_TEMPLATE_DERIVED, true);
         clone->setName(proc->getName());// mangledName);
         clone->inst = new_inst;
         
@@ -384,6 +393,7 @@ namespace bjou {
         clone->addSymbols(scope);
         
         clone->analyze(true);
+		clone->setFlag(Procedure::IS_TEMPLATE_DERIVED, true);
         compilation->frontEnd.deferredAST.push_back(clone);
         
         return clone;

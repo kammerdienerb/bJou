@@ -1,5 +1,0 @@
-(proc main() {
- 	buff := new char[128]
- 	memcpy(buff as void*, "some string" as void*, 11)
- 	print "%", buff
-})()

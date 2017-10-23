@@ -1,4 +1,3 @@
-//
 //  Symbol.cpp
 //  bjou++
 //
@@ -190,8 +189,11 @@ namespace bjou {
 		if (compare_type) {
 			for (auto& p : procs) {
 				if (!p.second->isTemplateProc()) {
-					if (compare_type->argMatch((ProcedureType*)p.second->node()->getType()))
-						candidates.push_back(p.second);
+					if (compare_type->argMatch((ProcedureType*)p.second->node()->getType())) {
+						if (!p.second->node()->getFlag(Procedure::IS_TEMPLATE_DERIVED)) {
+							candidates.push_back(p.second);
+						}
+					}
 				} else {
 					TemplateProc * tproc = (TemplateProc*)p.second->node();
 			               
@@ -224,10 +226,8 @@ namespace bjou {
 					TemplateProc * tproc = (TemplateProc*)sym->node();
 					_template.insert(std::make_pair(checkTemplateProcInstantiation(tproc, args, inst, context, fail), sym));
 				} else {
-					if (!sym->node()->getFlag(Procedure::IS_TEMPLATE_DERIVED)) {
-						ProcedureType * candidate_type = (ProcedureType*)sym->node()->getType();
-						_concrete.insert(std::make_pair(countConversions(compare_type, candidate_type), sym));
-					}
+					ProcedureType * candidate_type = (ProcedureType*)sym->node()->getType();
+					_concrete.insert(std::make_pair(countConversions(compare_type, candidate_type), sym));
 				}
 			}
 
