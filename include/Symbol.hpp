@@ -40,6 +40,10 @@ namespace bjou {
         
         Procedure * get(ASTNode * args = nullptr, ASTNode * inst = nullptr, Context * context = nullptr, bool fail = true);
         Procedure * getTemplate(std::vector<const Type*>& arg_types, ASTNode * args, ASTNode * inst, Context * context, bool fail);
+		std::vector<Symbol*> getCandidates(ProcedureType * compare_type, ASTNode * args, ASTNode * inst, Context * context, bool fail);
+		bool resolve(std::vector<Symbol*>& candidates, std::vector<Symbol*>& resolved, ProcedureType * compare_type, ASTNode * args, ASTNode * inst, Context * context, bool fail);
+		void showCandidatesError(std::vector<Symbol*>& candidates, Context * context);
+
     };
     
     std::string demangledString(std::string mangled);

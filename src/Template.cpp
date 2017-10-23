@@ -179,7 +179,7 @@ namespace bjou {
 		}
 	}
 
-    bool checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args, ASTNode * _inst, Context * context, bool fail, TemplateInstantiation * new_inst) {
+    int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args, ASTNode * _inst, Context * context, bool fail, TemplateInstantiation * new_inst) {
         bool delete_new_inst = false;
         TemplateProc * tproc = (TemplateProc*)_tproc;
         TemplateDefineList * def = (TemplateDefineList*)tproc->getTemplateDef();
@@ -200,7 +200,7 @@ namespace bjou {
             if (inst->getElements().size() > checklist.size()) {
                 if (fail)
                     errorl(inst->getContext(), "Too many template arguments."); // @bad error message
-                else return false;
+                else return -1;
             }
             for (int i = 0; i < (int)checklist.size(); i += 1)
                 checklist[i].second = (Declarator*)inst->getElements()[i];
@@ -208,7 +208,7 @@ namespace bjou {
         
         if (passed_args) {
             if (passed_args->getExpressions().size() != params.size())
-                return false;
+                return -1;
             
             for (int i = 0; i < (int)params.size(); i += 1) {
                 Declarator * param_decl = (Declarator*)((VariableDeclaration*)params[i])->getTypeDeclarator();
@@ -242,7 +242,7 @@ namespace bjou {
                                                 if (fail) {
                                                     errorl(passed_args->getExpressions()[i]->getContext(), "Template procedure expecting a through template argument type being passed a non-template argument.", false);
                                                     errorl(params[i]->getContext(), "Through-template argument defined here.");
-                                                } else return false;
+                                                } else return -1;
                                             }
                                             check.second = (Declarator*)passed_struct_t->inst->getElements()[j];
                                             break;
@@ -271,16 +271,18 @@ namespace bjou {
             if (check.second) {
                 if (new_inst)
                     new_inst->addElement(check.second->clone());
-            } else incomplete_errs.push_back(check.first->getName());
+            } else incomplete_errs.push_back("could not resolve '" + check.first->getName() + "'");
         }
         if (!incomplete_errs.empty()) {
             if (delete_new_inst)
                 delete new_inst;
             if (fail)
-                errorl(*context, "Could not complete the following templates in '" + proc->getName() + "':", true, incomplete_errs);
-            else return false;
+                errorl(*context, "Could not complete the template '" + proc->getName() + "'", true, incomplete_errs);
+            else return -1;
         }
-        
+       
+		int nconv = 0;
+
         if (passed_args) {
             std::vector<const Type*> arg_types;
             for (ASTNode * expr : passed_args->getExpressions())
@@ -311,9 +313,11 @@ namespace bjou {
             
             for (int i = 0; i < (int)arg_types.size(); i += 1) {
                 if (!arg_types[i]->equivalent(new_param_types[i])) {
+					if (!arg_types[i]->equivalent(new_param_types[i], /* exact_match =*/true))
+						nconv += 1;
                     if (delete_new_inst)
                         delete new_inst;
-                    return false;
+                    return -1;
                 }
             }
         }
@@ -321,7 +325,7 @@ namespace bjou {
         if (delete_new_inst)
             delete new_inst;
         
-        return true;
+        return nconv;
     }
     
     Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args, ASTNode * _inst, Context * context, bool fail) {
@@ -369,6 +373,7 @@ namespace bjou {
             delete new_param;
         
         Procedure * clone = (Procedure*)proc->clone();
+		clone->setFlag(Procedure::IS_TEMPLATE_DERIVED, true);
         clone->setName(proc->getName());// mangledName);
         clone->inst = new_inst;
         

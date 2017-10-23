@@ -20,7 +20,8 @@ void p(B b, A a) {}
 namespace bjou {
     Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst);
     Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args, ASTNode * _inst, Context * context, bool fail = true);
-    bool checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args, ASTNode * _inst, Context * context, bool fail = true, TemplateInstantiation * new_inst = nullptr);
+	// returns number of argument conversions for success, else -1
+    int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args, ASTNode * _inst, Context * context, bool fail = true, TemplateInstantiation * new_inst = nullptr);
 }
 
 #endif /* Template_hpp */

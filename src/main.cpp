@@ -29,10 +29,17 @@
 #define BJOU_DEBUG_BUILD
 #endif
 
+#include <signal.h>
+
+void sigfpe(int arg) {
+	printf("why?\n");
+}
+
 namespace bjou { struct ASTNode; Compilation * compilation = nullptr; }
 std::mutex cli_mtx;
 
 int main(int argc, const char ** argv) {
+	signal(SIGFPE, sigfpe);
     // below are the command line options that this compiler takes.
     TCLAP::CmdLine cmd_line("bJou\nA friendly language and compiler written by Brandon Kammerdiener", ' ', BJOU_VER_STR);
     bJouOutput output;

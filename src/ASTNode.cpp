@@ -2222,8 +2222,10 @@ namespace bjou {
         const Type * lt = getLeft()->getType();
         const Type * rt = getRight()->getType();
         
-        if (lt->equivalent(rt, /*exact_match = */true))
-            errorl(getContext(), "Cast to same type (" + lt->getDemangledName() + " to " + rt->getDemangledName() + ") does nothing.");
+        if (lt->equivalent(rt, /*exact_match = */true)) {
+			if (!rt->isPointer())
+	            errorl(getContext(), "Cast to same type (" + lt->getDemangledName() + " to " + rt->getDemangledName() + ") does nothing.");
+		}
         
         if (!(
             // @incomplete
