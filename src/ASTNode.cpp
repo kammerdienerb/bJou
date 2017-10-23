@@ -2493,7 +2493,10 @@ namespace bjou {
                 const Type * expr_t = expr->getType();
                 compilation->frontEnd.lValStack.pop();
                 if (!expr_t->equivalent(mt))
-                    errorl(expr->getContext(), "Element for '" + name + "' in '" + s_t->getDemangledName() + "' literal differs from expected type '" + mt->getDemangledName() + "'.");
+                    errorl(expr->getContext(), "Element for '" + name + "' in '" + s_t->getDemangledName() + "' literal differs from expected type '" + mt->getDemangledName() + "'.", true, "got '" + expr_t->getDemangledName() + "'");
+				if (expr_t->isPrimative() && mt->isPrimative())
+					if (!expr_t->equivalent(mt, /* exact_match =*/true))
+						emplaceConversion((Expression*)expr, mt);
             }
             setType(getObjDeclarator()->getType());
         } else {
@@ -5290,10 +5293,16 @@ namespace bjou {
                 Expression * expr = (Expression*)getExpression();
                 expr->analyze(force);
                 // @leaks abound
-                if (retLVal->equivalent(compilation->frontEnd.typeTable[compilation->frontEnd.getBuiltinVoidTypeName()]))
+                if (retLVal->equivalent(compilation->frontEnd.typeTable[compilation->frontEnd.getBuiltinVoidTypeName()])) {
                     errorl(expr->getContext(), "'" + proc->getName() + "' does not return a value.");
-                else if (!expr->getType()->equivalent(retLVal))
-                    errorl(expr->getContext(), "return statement does not match the return type for procedure '" + proc->getName() + "'.", true, "expected '" + retLVal->getDemangledName() + "'", "got '" + expr->getType()->getDemangledName() + "'");
+				} else { 
+					const Type * expr_t = expr->getType();
+					if (!expr_t->equivalent(retLVal))
+                    	errorl(expr->getContext(), "return statement does not match the return type for procedure '" + proc->getName() + "'.", true, "expected '" + retLVal->getDemangledName() + "'", "got '" + expr_t->getDemangledName() + "'");
+					if (retLVal->isPrimative() && expr_t->isPrimative())
+						if (!expr_t->equivalent(retLVal, /* exact_match =*/true))
+							emplaceConversion((Expression*)getExpression(), retLVal);
+				}
             } else if (!retLVal->equivalent(compilation->frontEnd.typeTable[compilation->frontEnd.getBuiltinVoidTypeName()])) {
                 errorl(getContext(), "'" + proc->getName() + "' must return an expression of type '" + retLVal->getDemangledName());
             }
