@@ -1356,6 +1356,13 @@ namespace bjou {
         // @incomplete
         if (lt->isPointer() && rt->isPointer())
             return llbe->builder.CreateBitCast(val, ll_rt);
+		else if (lt->isArray() && rt->isPointer()) {
+			ArrayType * a_t = (ArrayType*)lt;
+			PointerType * p_t = (PointerType*)rt;
+
+			if (a_t->array_of->equivalent(p_t->pointer_of, /* exact_match =*/true) || p_t->pointer_of->size == -1)
+				return llbe->builder.CreateBitCast(val, ll_rt);
+		}
         return nullptr;
     }
     
@@ -1731,6 +1738,10 @@ namespace bjou {
                 else fmt += "%p";
             } else if (t->isProcedure()) {
                 fmt += "%p";
+			} else if (t->isArray()) {
+				ArrayType * a_t = (ArrayType*)t;
+				if (a_t->array_of->code == "char")
+					fmt += "%s";
             } else internalError("Can't print type."); // @temporary
             
             vals.push_back(val);

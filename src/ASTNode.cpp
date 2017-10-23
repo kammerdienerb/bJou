@@ -2234,6 +2234,10 @@ namespace bjou {
             (lt->equivalent(rt))                            ||
             // (lt->enumerableEquivalent() && rt->isPointer()) || // for a NULL
             (lt->isPointer() && rt->isPointer())            ||
+			(lt->isArray() && rt->isPointer() && (
+			 	((ArrayType*)lt)->array_of
+					->equivalent(((PointerType*)rt)->pointer_of, /* exact_match =*/true) ||
+				((PointerType*)rt)->pointer_of->size == -1)) ||
             (lt->isPointer() && rt->isProcedure())          ||// @temporary
             (lt->isProcedure() && rt->isPointer())            // @temporary
             )) {
@@ -3820,7 +3824,12 @@ namespace bjou {
         getTypeDeclarator()->analyze(force);
         
         if (getTypeDeclarator()->nodeKind == ARRAY_DECLARATOR) {
-            ArrayDeclarator * array_decl = (ArrayDeclarator*)getTypeDeclarator();
+           	if (sym) {
+				// arrays don't require initialization before reference
+				sym->initializedInScopes.insert(getScope());
+			}
+            
+			ArrayDeclarator * array_decl = (ArrayDeclarator*)getTypeDeclarator();
             if (array_decl->size == -1) {
                 Context errContext;
                 std::string errMsg;
