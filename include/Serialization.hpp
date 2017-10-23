@@ -15,12 +15,12 @@
 
 #include <set>
 
-#include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
 #include <boost/serialization/base_object.hpp>
-#include <boost/serialization/vector.hpp>
-#include <boost/serialization/unordered_map.hpp>
 #include <boost/serialization/set.hpp>
+#include <boost/serialization/unordered_map.hpp>
+#include <boost/serialization/vector.hpp>
 
 namespace bjou {
     boost::archive::text_oarchive create_oarchive(const char * fname);
@@ -41,11 +41,12 @@ namespace serialization {
     
     template <class Archive>
     void serialize(Archive& ar, replacementPolicy& rp, const unsigned int version) {  }
-    
-#define RP_FUNCTOR_SER(name)                                                                    \
-    template <class Archive>                                                                    \
-    void serialize(Archive& ar, replacementPolicy_##name& rp, const unsigned int version) {     \
-        ar & boost::serialization::base_object<replacementPolicy>(rp);                          \
+
+#define RP_FUNCTOR_SER(name)                                                   \
+    template <class Archive>                                                   \
+    void serialize(Archive & ar, replacementPolicy_##name & rp,                \
+                   const unsigned int version) {                               \
+        ar & boost::serialization::base_object<replacementPolicy>(rp);         \
     }
     
     RP_FUNCTOR_SER(empty);

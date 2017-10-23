@@ -11,8 +11,6 @@
 
 //#include "LLVMBackEnd.hpp"
 
-struct LLVMExecutor {
-    
-};
+struct LLVMExecutor {};
 
 #endif /* LLVMExecutor_hpp */

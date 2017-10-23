@@ -9,16 +9,16 @@
 #include "Misc.hpp"
 #include <string>
 
-std::string de_quote(std::string& str) {
+std::string de_quote(std::string & str) {
     if (str.size() > 2 && str[0] == '\"' && str[str.size() - 1] == '\"')
         return str.substr(1, str.size() - 2);
     return str;
 }
 
-std::string str_escape(std::string& str) {
+std::string str_escape(std::string & str) {
     size_t pos = 0;
     std::string r = str;
-    
+
     while (pos < r.size()) {
         if (r[pos] == '\\') {
             if (r[pos + 1] == 'n')
@@ -34,7 +34,7 @@ std::string str_escape(std::string& str) {
     return r;
 }
 
-char get_ch_value(std::string& str) {
+char get_ch_value(std::string & str) {
     char ch;
     if (str.size() == 3)
         ch = str[1];
@@ -44,7 +44,8 @@ char get_ch_value(std::string& str) {
         ch = '\n';
     else if (str == "'\\t'")
         ch = '\t';
-    else return -1; // @incomplete
-    
+    else
+        return -1; // @incomplete
+
     return ch;
 }

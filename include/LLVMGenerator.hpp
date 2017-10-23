@@ -10,14 +10,14 @@
 #define LLVMGenerator_hpp
 
 namespace bjou {
-    struct LLVMBackEnd;
-    
-    struct LLVMGenerator {
-        LLVMBackEnd& backEnd;
-   
-        LLVMGenerator(LLVMBackEnd& _backEnd);
+struct LLVMBackEnd;
 
-        void generate();
-    };
-}
+struct LLVMGenerator {
+    LLVMBackEnd & backEnd;
+
+    LLVMGenerator(LLVMBackEnd & _backEnd);
+
+    void generate();
+};
+} // namespace bjou
 #endif /* LLVMGenerator_hpp */

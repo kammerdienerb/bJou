@@ -7,9 +7,9 @@
 //
 
 #include "BackEnd.hpp"
-#include "Global.hpp"
 #include "Compile.hpp"
+#include "Global.hpp"
 
 namespace bjou {
-    BackEnd::BackEnd(FrontEnd& _frontEnd) : frontEnd(_frontEnd) {  }
-}
+BackEnd::BackEnd(FrontEnd & _frontEnd) : frontEnd(_frontEnd) {}
+} // namespace bjou

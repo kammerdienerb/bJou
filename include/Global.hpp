@@ -9,13 +9,12 @@
 #ifndef Global_h
 #define Global_h
 
-
 #include <mutex>
 
 namespace bjou {
-    struct Compilation;
-    extern Compilation* compilation;
-}
+struct Compilation;
+extern Compilation * compilation;
+} // namespace bjou
 
 using bjou::compilation;
 

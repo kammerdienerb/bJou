@@ -15,33 +15,33 @@
 #include <vector>
 
 namespace bjou {
-    struct Type;
-    struct ASTNode;
-    
-    struct StructVal {
-        std::vector<struct Val> vals;
-    };
-    
-    struct Val {
-        const Type * t;
-        
-        union {
-            int64_t as_i64;
-            double as_f64;
-        };
-        
-        std::string as_string;
-        StructVal as_struct;
+struct Type;
+struct ASTNode;
 
-        ASTNode * toExpr();
+struct StructVal {
+    std::vector<struct Val> vals;
+};
+
+struct Val {
+    const Type * t;
+
+    union {
+        int64_t as_i64;
+        double as_f64;
     };
-    
-    Val evalAdd(Val& a, Val& b, const Type * t);
-    Val evalSub(Val& a, Val& b, const Type * t);
-    Val evalMult(Val& a, Val& b, const Type * t);
-    Val evalDiv(Val& a, Val& b, const Type * t);
-    Val evalMod(Val& a, Val& b, const Type * t);
-    
-}
+
+    std::string as_string;
+    StructVal as_struct;
+
+    ASTNode * toExpr();
+};
+
+Val evalAdd(Val & a, Val & b, const Type * t);
+Val evalSub(Val & a, Val & b, const Type * t);
+Val evalMult(Val & a, Val & b, const Type * t);
+Val evalDiv(Val & a, Val & b, const Type * t);
+Val evalMod(Val & a, Val & b, const Type * t);
+
+} // namespace bjou
 
 #endif /* Evaluate_hpp */

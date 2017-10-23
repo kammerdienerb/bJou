@@ -18,8 +18,7 @@
 
 #define B_MAX(a, b) ((a) > (b) ? (a) : (b))
 
-template <size_t N>
-bool s_in_a(const char * s, const char * (&a)[N]) {
+template <size_t N> bool s_in_a(const char * s, const char * (&a)[N]) {
     for (auto elem : a)
         if (std::strcmp(elem, s) == 0)
             return true;
@@ -27,44 +26,44 @@ bool s_in_a(const char * s, const char * (&a)[N]) {
 }
 
 namespace bjou {
-    template <typename F, typename R>
-    inline std::future<R> runasync(F& f) {
-        return std::async(std::launch::async, f);
-    }
-    
-    template <typename F, typename... Ts, typename R>
-    inline std::future<R> runasync(F& f, Ts&... params) {
-        return std::async(std::launch::async, std::forward<F>(f), std::forward<Ts>(params)...);
-    }
+template <typename F, typename R> inline std::future<R> runasync(F & f) {
+    return std::async(std::launch::async, f);
 }
 
-std::string de_quote(std::string& str);
-std::string str_escape(std::string& str);
-char get_ch_value(std::string& str);
+template <typename F, typename... Ts, typename R>
+inline std::future<R> runasync(F & f, Ts &... params) {
+    return std::async(std::launch::async, std::forward<F>(f),
+                      std::forward<Ts>(params)...);
+}
+} // namespace bjou
+
+std::string de_quote(std::string & str);
+std::string str_escape(std::string & str);
+char get_ch_value(std::string & str);
 
 #ifdef BJOU_DEBUG_BUILD
 #include <string>
 namespace bjou {
-    void internalError(std::string message);
-    void errorl(Context context, std::string message, bool exit);
-}
-inline void _BJOU_TRIGGER_DEBUG_ASSERT(int line, const char* file) {
+void internalError(std::string message);
+void errorl(Context context, std::string message, bool exit);
+} // namespace bjou
+inline void _BJOU_TRIGGER_DEBUG_ASSERT(int line, const char * file) {
     bjou::Context context;
     context.filename = file;
     context.begin.line = context.end.line = line;
     context.begin.character = context.end.character = 1;
-    bjou::errorl(context, "assertion failed on line " + std::to_string(line) + " of " + std::string(file), false);
+    bjou::errorl(context,
+                 "assertion failed on line " + std::to_string(line) + " of " +
+                     std::string(file),
+                 false);
     bjou::internalError("exiting due to a failed assertion");
 }
-#define BJOU_DEBUG_ASSERT(expr)                 \
-    if (!(expr))                                \
-        _BJOU_TRIGGER_DEBUG_ASSERT(__LINE__, __FILE__)
+#define BJOU_DEBUG_ASSERT(expr)                                                \
+    if (!(expr))                                                               \
+    _BJOU_TRIGGER_DEBUG_ASSERT(__LINE__, __FILE__)
 #else
-    #define BJOU_DEBUG_ASSERT(expr) ;
+#define BJOU_DEBUG_ASSERT(expr) ;
 #endif
-
-
-
 
 // I really hate the C preprocessor.. let's do something about that.
 #define EVAL(x) x

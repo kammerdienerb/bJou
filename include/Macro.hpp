@@ -10,9 +10,7 @@
 #define Macro_hpp
 
 namespace bjou {
-    struct MacroDispatchInfo {
-        
-    };
-}
+struct MacroDispatchInfo {};
+} // namespace bjou
 
 #endif /* Macro_hpp */

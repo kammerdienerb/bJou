@@ -9,37 +9,37 @@
 #ifndef StringViewableBuffer_hpp
 #define StringViewableBuffer_hpp
 
-#include <string>
 #include <fstream>
+#include <string>
 
-namespace bjou {    
-    class StringViewableBuffer {
-        char * _buff;
-        char * _begin;
-        char * _end;
-        long long _nbytes;
-        
-    public:
-        StringViewableBuffer();
-        StringViewableBuffer(const char * c_str);
-        StringViewableBuffer(std::string& str);
-        StringViewableBuffer(std::ifstream& file);
-        
-        ~StringViewableBuffer();
-        
-        const char * begin() const;
-        const char * end() const;
-        
-        void advance(long long n);
-        void pullBack(long long n);
-        
-        unsigned long long viewSize() const;
-        
-        std::string substr(long long i, long long n) const;
-        operator std::string() const;
-        
-        char operator[] (long long i) const;
-    };
-}
+namespace bjou {
+class StringViewableBuffer {
+    char * _buff;
+    char * _begin;
+    char * _end;
+    long long _nbytes;
+
+  public:
+    StringViewableBuffer();
+    StringViewableBuffer(const char * c_str);
+    StringViewableBuffer(std::string & str);
+    StringViewableBuffer(std::ifstream & file);
+
+    ~StringViewableBuffer();
+
+    const char * begin() const;
+    const char * end() const;
+
+    void advance(long long n);
+    void pullBack(long long n);
+
+    unsigned long long viewSize() const;
+
+    std::string substr(long long i, long long n) const;
+    operator std::string() const;
+
+    char operator[](long long i) const;
+};
+} // namespace bjou
 
 #endif /* StringViewableBuffer_hpp */
