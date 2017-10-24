@@ -202,21 +202,21 @@ milliseconds LLVMBackEnd::LinkingStage() {
     return duration_cast<milliseconds>(end - start);
 }
 
-void LLVMBackEnd::pushFrame() {
-    if (frames.empty())
-        frames.emplace();
-    else
-        frames.push(frames.top());
-}
+void LLVMBackEnd::pushFrame() { frames.emplace_back(); }
 
-void LLVMBackEnd::popFrame() { frames.pop(); }
+void LLVMBackEnd::popFrame() { frames.pop_back(); }
 
-StackFrame& LLVMBackEnd::curFrame() { BJOU_DEBUG_ASSERT(!frames.empty()); return frames.top(); }
+StackFrame& LLVMBackEnd::curFrame() { BJOU_DEBUG_ASSERT(!frames.empty()); return frames.back(); }
 
 llvm::Value * LLVMBackEnd::namedVal(std::string name, const Type * type) {
     BJOU_DEBUG_ASSERT(!frames.empty());
 
 	auto& f = curFrame();
+	auto search = frames.rbegin();
+	do {
+		if (search->namedVals.count(name))
+			return search->vals[search->namedVals[name]].val;
+	} while (++search != frames.rend());
 
     if (f.namedVals.count(name))
         return f.vals[f.namedVals[name]].val;

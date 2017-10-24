@@ -67,7 +67,7 @@ struct LLVMBackEnd : BackEnd {
     llvm::Module * llModule;
     llvm::IRBuilder<> builder;
 
-	std::stack<StackFrame> frames;
+	std::vector<StackFrame> frames;
     // this is kind of weird, but we map on TupleType->code as a key
     std::unordered_map<std::string, llvm::StructType *> createdTupleStructTypes;
     std::unordered_map<std::string, llvm::Type *> definedTypes;
