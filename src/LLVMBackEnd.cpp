@@ -213,10 +213,12 @@ llvm::Value * LLVMBackEnd::namedVal(std::string name, const Type * type) {
 
 	auto& f = curFrame();
 	auto search = frames.rbegin();
-	do {
+	
+	while (search != frames.rend()) {
 		if (search->namedVals.count(name))
 			return search->vals[search->namedVals[name]].val;
-	} while (++search != frames.rend());
+		search++;
+	}
 
     if (f.namedVals.count(name))
         return f.vals[f.namedVals[name]].val;
