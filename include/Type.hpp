@@ -121,6 +121,7 @@ struct StructType : Type {
     Struct * _struct;
     TemplateInstantiation * inst;
     Type * extends;
+	Procedure * idestroy_link;
     std::unordered_map<std::string, int> memberIndices;
     std::vector<const Type *> memberTypes;
     std::unordered_map<std::string, Constant *> constantMap;

@@ -84,9 +84,13 @@ struct LLVMBackEnd : BackEnd {
 	void pushFrame();
 	void popFrame();
 	StackFrame& curFrame();
-	llvm::Value * unnamedVal(llvm::Value * val, const Type * type);
-	llvm::Value * namedVal(std::string name, const Type * type = nullptr);
-    llvm::Value * namedVal(std::string name, llvm::Value * val, const Type * type);
+	llvm::Value * addNamedVal(std::string name, llvm::Value * val, const Type * type);
+	llvm::Value * addUnnamedVal(llvm::Value * val, const Type * type);
+	llvm::Value * allocNamedVal(std::string name, const Type * type);
+	llvm::Value * getNamedVal(std::string name);
+	// llvm::Value * unnamedVal(llvm::Value * val, const Type * type);
+	// llvm::Value * namedVal(std::string name, const Type * type = nullptr);
+    // llvm::Value * namedVal(std::string name, llvm::Value * val, const Type * type);
     llvm::Type * bJouTypeToLLVMType(const bjou::Type * t);
     llvm::Type * createOrLookupDefinedType(const bjou::Type * t);
     llvm::StructType * createTupleStructType(const bjou::Type * t);

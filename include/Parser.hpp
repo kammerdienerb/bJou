@@ -297,7 +297,7 @@ struct Parser {
     MaybeASTNode parseOperand();
     MaybeASTNode parseArgList();
 
-    MaybeASTNode parseTopLevelNode();
+    virtual MaybeASTNode parseTopLevelNode();
     MaybeASTNode parseImport();
     MaybeASTNode parseModuleDeclaration();
     MaybeASTNode parseNamespace();
@@ -339,8 +339,10 @@ struct AsyncParser : Parser {
                 bool start = true);
 
     std::vector<ASTNode *> nodes;
+	std::vector<ASTNode *> structs, ifaceDefs;
 
     void parseCommon();
+    MaybeASTNode parseTopLevelNode();
     milliseconds operator()();
 };
 
@@ -351,9 +353,11 @@ struct ImportParser : Parser {
                  bool start = true);
 
     std::vector<ASTNode *> nodes;
+	std::vector<ASTNode *> structs, ifaceDefs;
     ModuleDeclaration * mod_decl;
 
     void parseCommon();
+	MaybeASTNode parseTopLevelNode();
     void Dispose();
     milliseconds operator()();
 };

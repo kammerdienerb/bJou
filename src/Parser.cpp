@@ -621,7 +621,7 @@ void Parser::parseCommon() {
         if (!m_node.assignTo(node))
             errornext(*this, "Unexpected token.");
 
-        if (node->nodeKind == ASTNode::MODULE_DECL) {
+		else if (node->nodeKind == ASTNode::MODULE_DECL) {
             moduleCheck(compilation->frontEnd.AST, module_declared,
                         (ModuleDeclaration *)node);
             module_declared = (ModuleDeclaration *)node;
@@ -1725,6 +1725,60 @@ MaybeASTNode Parser::parseTopLevelNode() {
         (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
         (m_node = parseStatement()) || (m_node = parseImport());
 
+	ASTNode * node = nullptr;
+	if (m_node.assignTo(node)) {
+		if (node->nodeKind == ASTNode::STRUCT)
+			compilation->frontEnd.structs.push_back(node);
+		else if (node->nodeKind == ASTNode::INTERFACE_DEF)
+			compilation->frontEnd.ifaceDefs.push_back(node);
+	}
+
+    return m_node;
+}
+
+MaybeASTNode AsyncParser::parseTopLevelNode() {
+    static ASTNode * module_declared = nullptr;
+    ASTNode * mod_check = nullptr;
+
+    MaybeASTNode m_node;
+    (m_node = parseModuleDeclaration()) || (m_node = parseNamespace()) ||
+        (m_node = parseProc()) || (m_node = parseExternSig()) ||
+        (m_node = parseType()) || (m_node = parseInterfaceDef()) ||
+        (m_node = parseEnum()) || (m_node = parseConstant()) ||
+        (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
+        (m_node = parseStatement()) || (m_node = parseImport());
+
+	ASTNode * node = nullptr;
+	if (m_node.assignTo(node)) {
+		if (node->nodeKind == ASTNode::STRUCT)
+			structs.push_back(node);
+		else if (node->nodeKind == ASTNode::INTERFACE_DEF)
+			ifaceDefs.push_back(node);
+	}
+
+    return m_node;
+}
+
+MaybeASTNode ImportParser::parseTopLevelNode() {
+    static ASTNode * module_declared = nullptr;
+    ASTNode * mod_check = nullptr;
+
+    MaybeASTNode m_node;
+    (m_node = parseModuleDeclaration()) || (m_node = parseNamespace()) ||
+        (m_node = parseProc()) || (m_node = parseExternSig()) ||
+        (m_node = parseType()) || (m_node = parseInterfaceDef()) ||
+        (m_node = parseEnum()) || (m_node = parseConstant()) ||
+        (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
+        (m_node = parseStatement()) || (m_node = parseImport());
+
+	ASTNode * node = nullptr;
+	if (m_node.assignTo(node)) {
+		if (node->nodeKind == ASTNode::STRUCT)
+			structs.push_back(node);
+		else if (node->nodeKind == ASTNode::INTERFACE_DEF)
+			ifaceDefs.push_back(node);
+	}
+
     return m_node;
 }
 
@@ -1783,6 +1837,7 @@ MaybeASTNode Parser::parseNamespace() {
             ASTNode * subNode = nullptr;
             if (!m_subNode.assignTo(subNode))
                 break;
+
             result->addNode(subNode);
         }
         expect(R_CURLY_BRACE, "'}'", false, false,
@@ -2811,7 +2866,8 @@ void AsyncParser::parseCommon() {
         ASTNode * node = nullptr;
         if (!m_node.assignTo(node))
             errornext(*this, "Unexpected token.");
-        if (node->nodeKind == ASTNode::MODULE_DECL) {
+		
+        else if (node->nodeKind == ASTNode::MODULE_DECL) {
             moduleCheck(nodes, module_declared, (ModuleDeclaration *)node);
             module_declared = (ModuleDeclaration *)node;
         }

@@ -204,29 +204,81 @@ milliseconds LLVMBackEnd::LinkingStage() {
 
 void LLVMBackEnd::pushFrame() { frames.emplace_back(); }
 
+static llvm::Value * createidestroyCall(LLVMBackEnd * llbe, llvm::Value * val, StructType * s_t) {
+    llvm::PointerType * ll_byte_ptr_t =
+        llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
+
+	Procedure * proc = s_t->idestroy_link;
+	BJOU_DEBUG_ASSERT(proc);
+
+    BJOU_DEBUG_ASSERT(s_t->interfaceIndexMap.count(proc));
+    unsigned int idx = s_t->interfaceIndexMap[proc];
+    llvm::Constant * idx_val =
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), idx);
+
+    llvm::Value * typeinfo = (llvm::GlobalVariable *)llbe->getGlobaltypeinfo(s_t->_struct);
+    BJOU_DEBUG_ASSERT(typeinfo);
+    StructType * typeinfo_t =
+        (StructType *)compilation->frontEnd.typeTable["typeinfo"];
+    llvm::StructType * ll_typeinfo_t =
+        (llvm::StructType *)llbe->bJouTypeToLLVMType(typeinfo_t);
+
+    llvm::Value * typeinfo_cast = llbe->builder.CreateBitCast(
+        val, ll_typeinfo_t->getPointerTo()->getPointerTo());
+    llvm::Value * typeinfo_addr =
+        llbe->builder.CreateLoad(typeinfo_cast, "typeinfo_load");
+    llvm::Value * v_table_cast = llbe->builder.CreateBitCast(
+        typeinfo_addr, ll_byte_ptr_t->getPointerTo());
+
+    std::vector<llvm::Value *> gep_indices{idx_val};
+    llvm::Value * gep =
+        llbe->builder.CreateInBoundsGEP(v_table_cast, gep_indices);
+
+    llvm::Value * callee = llbe->builder.CreateLoad(gep, "v_table_load");
+
+    BJOU_DEBUG_ASSERT(callee);
+
+    llvm::Value * fn = llbe->builder.CreateBitCast(
+        callee, llbe->bJouTypeToLLVMType(proc->getType()));
+
+    return llbe->builder.CreateCall(fn, { val });
+}
+
+static void generateFramePreExit(LLVMBackEnd * llbe) {
+	auto& f = llbe->curFrame();
+	for (auto it = f.vals.rbegin(); it != f.vals.rend(); it++) {
+		if (it->type->isStruct()) {
+			StructType * s_t = (StructType*)it->type;
+			if (s_t->interfaces.find("idestroy") != s_t->interfaces.end())
+				createidestroyCall(llbe, it->val, s_t);
+		}
+	}	
+}
+
+StackFrame& LLVMBackEnd::curFrame() { return frames.back(); }
+
 void LLVMBackEnd::popFrame() { frames.pop_back(); }
 
-StackFrame& LLVMBackEnd::curFrame() { BJOU_DEBUG_ASSERT(!frames.empty()); return frames.back(); }
-
-llvm::Value * LLVMBackEnd::namedVal(std::string name, const Type * type) {
+llvm::Value * LLVMBackEnd::addNamedVal(std::string name, llvm::Value * val, const Type * type) {
     BJOU_DEBUG_ASSERT(!frames.empty());
-
 	auto& f = curFrame();
-	auto search = frames.rbegin();
-	
-	while (search != frames.rend()) {
-		if (search->namedVals.count(name))
-			return search->vals[search->namedVals[name]].val;
-		search++;
-	}
 
-    if (f.namedVals.count(name))
-        return f.vals[f.namedVals[name]].val;
+	f.vals.push_back({ val, type });
+	f.namedVals[name] = f.vals.size() - 1;
 
-    if (!type)
-        internalError("namedVal() could not find the value specified, '" +
-                      name + "'");
+    return val;
+}
 
+llvm::Value * LLVMBackEnd::addUnnamedVal(llvm::Value * val, const Type * type) {
+    BJOU_DEBUG_ASSERT(!frames.empty());
+	auto& f = curFrame();
+
+	f.vals.push_back({ val, type });
+
+	return val;
+}
+
+llvm::Value * LLVMBackEnd::allocNamedVal(std::string name, const Type * type) {
 	llvm::Type * t = bJouTypeToLLVMType(type);
 
 	BJOU_DEBUG_ASSERT(t);
@@ -244,6 +296,61 @@ llvm::Value * LLVMBackEnd::namedVal(std::string name, const Type * type) {
                              llvm::IntegerType::getInt32Ty(llContext))}),
             ptr);
 
+		addNamedVal(name, ptr, type);
+		return ptr;
+    }
+
+	addNamedVal(name, alloca, type);
+
+    return alloca;
+
+}
+
+llvm::Value * LLVMBackEnd::getNamedVal(std::string name) {
+	BJOU_DEBUG_ASSERT(!frames.empty());
+	auto& f = curFrame();
+	for (auto search = frames.rbegin(); search != frames.rend(); search++)
+		if (search->namedVals.count(name))
+			return search->vals[search->namedVals[name]].val;
+
+	return nullptr;
+}
+
+#if 0
+llvm::Value * LLVMBackEnd::namedVal(std::string name, const Type * type) {
+    BJOU_DEBUG_ASSERT(!frames.empty());
+
+	auto& f = curFrame();
+	for (auto search = frames.rbegin(); search != frames.rend(); search++)
+		if (search->namedVals.count(name))
+			return search->vals[search->namedVals[name]].val;
+
+    if (f.namedVals.count(name))
+        return f.vals[f.namedVals[name]].val;
+
+    if (!type)
+        internalerror("namedval() could not find the value specified, '" +
+                      name + "'");
+
+	llvm::type * t = bjoutypetollvmtype(type);
+
+	bjou_debug_assert(t);
+
+    llvm::value * alloca = builder.createalloca(t, 0, name);
+
+	printf("allocated symbol %s\n", name.c_str());
+
+    if (t->isarrayty()) {
+        llvm::value * ptr =
+            builder.CreateAlloca(t->getArrayElementType()->getPointerTo());
+        builder.CreateStore(
+            builder.CreateInBoundsGEP(
+                alloca, {llvm::Constant::getNullValue(
+                             llvm::IntegerType::getInt32Ty(llContext)),
+                         llvm::Constant::getNullValue(
+                             llvm::IntegerType::getInt32Ty(llContext))}),
+            ptr);
+
 		f.vals.push_back({ ptr, type });
 		f.namedVals[name] = f.vals.size() - 1;
         return ptr;
@@ -251,6 +358,7 @@ llvm::Value * LLVMBackEnd::namedVal(std::string name, const Type * type) {
 	
 	f.vals.push_back({ alloca, type });
 	f.namedVals[name] = f.vals.size() - 1;
+
     return alloca;
 }
 
@@ -259,8 +367,13 @@ llvm::Value * LLVMBackEnd::namedVal(std::string name, llvm::Value * val, const T
 
 	f.vals.push_back({ val, type });
 	f.namedVals[name] = f.vals.size() - 1;
+
+	printf("added symbol %s\n", name.c_str());
+
     return val;
 }
+
+#endif
 
 llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
     switch (t->kind) {
@@ -490,11 +603,13 @@ void LLVMBackEnd::createMainEntryPoint() {
 
     // pushFrame();
 	auto arg_it = func->args().begin();
-	namedVal("__bjou_main_arg0", &(*arg_it++), compilation->frontEnd.typeTable["int"]);
-	namedVal("__bjou_main_arg1", &(*arg_it), compilation->frontEnd.typeTable["char"]->pointerOf());
+	// namedVal("__bjou_main_arg0", &(*arg_it++), compilation->frontEnd.typeTable["int"]);
+	addNamedVal("__bjou_main_arg0", &(*arg_it++), compilation->frontEnd.typeTable["int"]);
+	// namedVal("__bjou_main_arg1", &(*arg_it), compilation->frontEnd.typeTable["char"]->pointerOf());
+	addNamedVal("__bjou_main_arg1", &(*arg_it), compilation->frontEnd.typeTable["char"]->pointerOf());
 
     for (ASTNode * node : compilation->frontEnd.AST)
-        if (node->isStatement())
+        if (node->isStatement() && node->nodeKind != ASTNode::VARIABLE_DECLARATION && node->nodeKind != ASTNode::CONSTANT)
             node->generate(*this);
 
     builder.CreateRet(
@@ -573,7 +688,7 @@ llvm::ConstantArray * LLVMBackEnd::create_v_table_constant_array(Struct * s) {
                         InterfaceImplementation::PUNT_TO_EXTENSION)) {
                     Procedure * proc = (Procedure *)_proc;
                     llvm::Constant * fn_val =
-                        (llvm::Constant *)namedVal(proc->getMangledName());
+                        (llvm::Constant *)getNamedVal(proc->getMangledName());
                     BJOU_DEBUG_ASSERT(fn_val);
                     llvm::Constant * cast =
                         (llvm::Constant *)builder.CreateBitCast(fn_val,
@@ -1612,7 +1727,7 @@ void * ExternLiteral::generate(BackEnd & backEnd, bool flag) {
 void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    llvm::Value * ptr = llbe->namedVal(qualified);
+    llvm::Value * ptr = llbe->getNamedVal(qualified);
 
     // if the named value is not a stack allocation or global variable (i.e.
     // constant, function, etc.) we don't want the load instruction ever
@@ -1791,7 +1906,7 @@ void * Constant::generate(BackEnd & backEnd, bool flag) {
         llbe->generatedTypeMemberConstants[this] = v;
         return v;
     }
-    return llbe->namedVal(
+    return llbe->addNamedVal(
         getMangledName(),
         (llvm::Value *)getInitialization()->generate(backEnd), getType());
 }
@@ -1849,7 +1964,7 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
             gvar->setInitializer(llvm::Constant::getNullValue(ll_t));
     }
 
-    llbe->namedVal(var->getMangledName(), gvar, t);
+    llbe->addNamedVal(var->getMangledName(), gvar, t);
     return gvar;
 }
 
@@ -1857,7 +1972,7 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
     llvm::Type * t = llbe->bJouTypeToLLVMType(getType());
-    llvm::Value * val = llbe->namedVal(getMangledName(), getType());
+    llvm::Value * val = llbe->allocNamedVal(getMangledName(), getType());
     BJOU_DEBUG_ASSERT(val);
 
     if (getType()->isArray()) {
@@ -2004,7 +2119,9 @@ void * Print::generate(BackEnd & backEnd, bool flag) {
 void * If::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    bool hasElse = (bool)getElse();
+	llbe->pushFrame();
+
+	bool hasElse = (bool)getElse();
 
     llvm::Value * cond = (llvm::Value *)getConditional()->generate(backEnd);
     // Convert condition to a bool by comparing equal to 1.
@@ -2026,8 +2143,10 @@ void * If::generate(BackEnd & backEnd, bool flag) {
 
     if (hasElse)
         llbe->builder.CreateCondBr(cond, then, _else);
-    else
+    else {
+		llbe->pushFrame();
         llbe->builder.CreateCondBr(cond, then, merge);
+	}
 
     // Emit then value.
     llbe->builder.SetInsertPoint(then);
@@ -2035,10 +2154,15 @@ void * If::generate(BackEnd & backEnd, bool flag) {
     for (ASTNode * statement : getStatements())
         statement->generate(backEnd);
 
-    if (!getFlag(HAS_TOP_LEVEL_RETURN))
+    if (!getFlag(HAS_TOP_LEVEL_RETURN)) {
+		generateFramePreExit(llbe);
         llbe->builder.CreateBr(merge);
+	}
+
+	llbe->popFrame();
 
     if (hasElse) {
+		llbe->pushFrame();
         // Emit else block.
         func->getBasicBlockList().push_back(_else);
         llbe->builder.SetInsertPoint(_else);
@@ -2047,8 +2171,11 @@ void * If::generate(BackEnd & backEnd, bool flag) {
         for (ASTNode * statement : _Else->getStatements())
             statement->generate(backEnd);
 
-        if (!_Else->getFlag(HAS_TOP_LEVEL_RETURN))
+        if (!_Else->getFlag(HAS_TOP_LEVEL_RETURN)) {
+			generateFramePreExit(llbe);
             llbe->builder.CreateBr(merge);
+		}
+		llbe->popFrame();
 
         _else = llbe->builder.GetInsertBlock();
     }
@@ -2067,7 +2194,9 @@ void * If::generate(BackEnd & backEnd, bool flag) {
 void * For::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    for (ASTNode * init : getInitializations())
+	llbe->pushFrame();
+    
+	for (ASTNode * init : getInitializations())
         init->generate(backEnd);
 
     llvm::Function * func = llbe->builder.GetInsertBlock()->getParent();
@@ -2114,8 +2243,12 @@ void * For::generate(BackEnd & backEnd, bool flag) {
     for (ASTNode * at : getAfterthoughts())
         at->generate(backEnd);
 
-    if (!getFlag(HAS_TOP_LEVEL_RETURN))
+    if (!getFlag(HAS_TOP_LEVEL_RETURN)) {
+		generateFramePreExit(llbe);
         llbe->builder.CreateBr(check);
+	}
+
+	llbe->popFrame();
 
     // Emit merge block.
     func->getBasicBlockList().push_back(merge);
@@ -2129,6 +2262,8 @@ void * For::generate(BackEnd & backEnd, bool flag) {
 
 void * While::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+	llbe->pushFrame();
 
     llvm::Function * func = llbe->builder.GetInsertBlock()->getParent();
 
@@ -2162,8 +2297,12 @@ void * While::generate(BackEnd & backEnd, bool flag) {
     for (ASTNode * statement : getStatements())
         statement->generate(backEnd);
 
-    if (!getFlag(HAS_TOP_LEVEL_RETURN))
+    if (!getFlag(HAS_TOP_LEVEL_RETURN)) {
+		generateFramePreExit(llbe);
         llbe->builder.CreateBr(check);
+	}
+
+	llbe->popFrame();
 
     // Codegen of 'Then' can change the current block, update ThenBB for the
     // PHI.
@@ -2214,7 +2353,7 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         if (linkage == llvm::Function::LinkageTypes::InternalLinkage)
             llbe->procsGenerateDefinitions.push_back(this);
 
-        llbe->namedVal(getMangledName(), func, my_real_t);
+        llbe->addNamedVal(getMangledName(), func, my_real_t);
     } else {
         // generate the definition
 
@@ -2237,7 +2376,7 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         for (auto & Arg : func->args()) {
             // Create an alloca for this variable.
            	VariableDeclaration * v = (VariableDeclaration*)getParamVarDeclarations()[j]; 
-			llvm::Value * alloca = llbe->namedVal(Arg.getName(), v->getType());
+			llvm::Value * alloca = llbe->allocNamedVal(Arg.getName(), v->getType());
             // Store the initial value into the alloca.
             llbe->builder.CreateStore(&Arg, alloca);
 			j += 1;
@@ -2251,6 +2390,8 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
             // dangerous to assume void ret type..  @bad
             // but we hope that semantic analysis will have caught
             // a missing explicit typed return
+
+			generateFramePreExit(llbe);
             llbe->builder.CreateRetVoid();
         }
 
@@ -2270,9 +2411,12 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
 
 void * Return::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
-    if (getExpression())
-        return llbe->builder.CreateRet(
-            (llvm::Value *)getExpression()->generate(backEnd));
+    if (getExpression()) {
+		llvm::Value * v = (llvm::Value *)getExpression()->generate(backEnd);
+		generateFramePreExit(llbe);
+        return llbe->builder.CreateRet(v);
+	}
+	generateFramePreExit(llbe);
     return llbe->builder.CreateRetVoid();
 }
 
@@ -2316,12 +2460,14 @@ void * Struct::generate(BackEnd & backEnd, bool flag) {
 void * Break::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
+	generateFramePreExit(llbe);
     return llbe->builder.CreateBr(llbe->loop_break_stack.top());
 }
 
 void * Continue::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
+	generateFramePreExit(llbe);
     return llbe->builder.CreateBr(llbe->loop_continue_stack.top());
 }
 

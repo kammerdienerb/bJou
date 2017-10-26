@@ -157,8 +157,11 @@ milliseconds FrontEnd::ParseStage() {
                 times[ft.first] = ft.second.get();
 
             // collect nodes
-            for (AsyncParser & p : parserContainer)
+            for (AsyncParser & p : parserContainer) {
                 AST.insert(AST.end(), p.nodes.begin(), p.nodes.end());
+				structs.insert(structs.end(), p.structs.begin(), p.structs.end());
+				ifaceDefs.insert(ifaceDefs.end(), p.ifaceDefs.begin(), p.ifaceDefs.end());
+			}
 
             futureTimes.clear();
             parserContainer.clear();
@@ -185,8 +188,11 @@ milliseconds FrontEnd::ParseStage() {
             times[ft.first] = ft.second.get();
 
         // collect nodes
-        for (AsyncParser & p : parserContainer)
+        for (AsyncParser & p : parserContainer) {
             AST.insert(AST.end(), p.nodes.begin(), p.nodes.end());
+			structs.insert(structs.end(), p.structs.begin(), p.structs.end());
+			ifaceDefs.insert(ifaceDefs.end(), p.ifaceDefs.begin(), p.ifaceDefs.end());
+		}
 
     } else {
         for (const std::string & fname : fnames) {
@@ -218,9 +224,9 @@ milliseconds FrontEnd::ImportStage() {
     auto start = Clock::now();
 
     if (!compilation->args.nopreload_arg.getValue())
-        importModuleFromFile(AST, "__preload.bjou");
+        importModuleFromFile(*this, "__preload.bjou");
 
-    importModulesFromAST(AST);
+    importModulesFromAST(*this);
 
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
@@ -230,18 +236,23 @@ milliseconds FrontEnd::SymbolsStage() {
     auto start = Clock::now();
 
     globalScope = new Scope("global", nullptr);
+   
+	// @incomplete
+	// does this work with namespaces? doubt it
+	for (ASTNode * i : ifaceDefs)
+		((InterfaceDef*)i)->preDeclare(globalScope);
+	for (ASTNode * s : structs)
+		((Struct*)s)->preDeclare(globalScope);
 
-    for (ASTNode * node : AST) {
-        if (node->nodeKind == ASTNode::STRUCT)
-            ((Struct *)node)->preDeclare(globalScope);
-        else if (node->nodeKind == ASTNode::INTERFACE_DEF)
-            ((InterfaceDef *)node)->preDeclare(globalScope);
-        else if (node->nodeKind == ASTNode::NAMESPACE)
-            ((Namespace *)node)->preDeclare(globalScope);
-    }
-
-    for (ASTNode * node : AST)
-        node->addSymbols(globalScope);
+	for (ASTNode * i : ifaceDefs)
+		((InterfaceDef*)i)->addSymbols(globalScope);
+	for (ASTNode * s : structs)
+		((Struct*)s)->addSymbols(globalScope);
+    
+	for (ASTNode * node : AST) {
+		if (node->nodeKind != ASTNode::STRUCT && node->nodeKind != ASTNode::INTERFACE_DEF)
+        	node->addSymbols(globalScope);
+	}
 
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);

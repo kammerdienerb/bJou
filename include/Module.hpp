@@ -30,8 +30,10 @@ boost::archive::text_iarchive * _ar);
 };
  */
 
-void importModulesFromAST(std::vector<ASTNode *> & AST);
-void importModuleFromFile(std::vector<ASTNode *> & AST, const char * _fname);
+struct FrontEnd;
+
+void importModulesFromAST(FrontEnd& frontEnd);
+void importModuleFromFile(FrontEnd& frontEnd, const char * _fname);
 // void exportModule(std::vector<ASTNode*>& AST);
 // void exportModuleToFile(std::vector<ASTNode*>& AST, const char * fname);
 // void joinTypeTableWithCompilation(std::unordered_map<std::string, Type*>&

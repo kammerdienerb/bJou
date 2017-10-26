@@ -1,0 +1,6 @@
+Creating T
+Lifetime
+T.Foo.foo() with f = 1.230000
+U.Foo.foo() with f = 4.560000
+Destroying U with f = 4.560000
+Destroying T with f = 1.230000

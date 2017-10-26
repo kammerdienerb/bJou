@@ -28,6 +28,7 @@ struct FrontEnd {
 
     std::vector<ASTNode *> AST;
     std::vector<ASTNode *> deferredAST;
+	std::vector<ASTNode*> structs, ifaceDefs, namespaces;
     std::unordered_map<std::string, Type *> typeTable;
     std::unordered_map<std::string, Type *> primativeTypeTable;
     Scope * globalScope;

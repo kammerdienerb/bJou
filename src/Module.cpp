@@ -28,7 +28,7 @@
 #include <utility>
 
 namespace bjou {
-static void pushImportsFromAST(std::vector<ASTNode *> & AST,
+static void pushImportsFromAST(std::vector<ASTNode*>& AST,
                                std::deque<Import *> & imports) {
     for (ASTNode * node : AST) {
         if (node->nodeKind == ASTNode::IMPORT) {
@@ -40,7 +40,7 @@ static void pushImportsFromAST(std::vector<ASTNode *> & AST,
 }
 
 static void importModules(std::deque<Import *> imports,
-                          std::vector<ASTNode *> & AST) {
+                          FrontEnd& frontEnd) {
     std::set<std::string> & modulesImported =
         compilation->frontEnd.modulesImported;
     std::set<std::string> filesSeen;
@@ -108,8 +108,10 @@ static void importModules(std::deque<Import *> imports,
             // collect nodes
             for (ImportParser * p : parserContainer) {
                 pushImportsFromAST(p->nodes, imports);
-                AST.reserve(AST.size() + p->nodes.size());
-                AST.insert(AST.end(), p->nodes.begin(), p->nodes.end());
+                frontEnd.AST.reserve(frontEnd.AST.size() + p->nodes.size());
+                frontEnd.AST.insert(frontEnd.AST.end(), p->nodes.begin(), p->nodes.end());
+				frontEnd.structs.insert(frontEnd.structs.end(), p->structs.begin(), p->structs.end());
+				frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(), p->ifaceDefs.begin(), p->ifaceDefs.end());
                 delete p;
             }
 
@@ -152,9 +154,11 @@ static void importModules(std::deque<Import *> imports,
                     modulesImported.insert(parser.mod_decl->getIdentifier());
                     times[fname] = peektimes[fname] + parser(); // continue
                     pushImportsFromAST(parser.nodes, imports);
-                    AST.reserve(AST.size() + parser.nodes.size());
-                    AST.insert(AST.end(), parser.nodes.begin(),
+                    frontEnd.AST.reserve(frontEnd.AST.size() + parser.nodes.size());
+                    frontEnd.AST.insert(frontEnd.AST.end(), parser.nodes.begin(),
                                parser.nodes.end());
+					frontEnd.structs.insert(frontEnd.structs.end(), parser.structs.begin(), parser.structs.end());
+					frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(), parser.ifaceDefs.begin(), parser.ifaceDefs.end());
                 } else
                     parser.Dispose();
             }
@@ -166,20 +170,20 @@ static void importModules(std::deque<Import *> imports,
             prettyPrintTimeMin(t.second, "    imported " + t.first);
 }
 
-void importModulesFromAST(std::vector<ASTNode *> & AST) {
+void importModulesFromAST(FrontEnd& frontEnd) {
     std::deque<Import *> imports;
-    pushImportsFromAST(AST, imports);
-    importModules(imports, AST);
+    pushImportsFromAST(frontEnd.AST, imports);
+    importModules(imports, frontEnd);
 }
 
-void importModuleFromFile(std::vector<ASTNode *> & AST, const char * _fname) {
+void importModuleFromFile(FrontEnd& frontEnd, const char * _fname) {
     Import * import = new Import;
     import->setModule(_fname);
     import->setFlag(Import::FROM_PATH, true);
 
     std::deque<Import *> imports{import};
 
-    importModules(imports, AST);
+    importModules(imports, frontEnd);
 
     delete import;
 }

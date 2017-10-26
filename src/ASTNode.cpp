@@ -4657,7 +4657,7 @@ void InterfaceImplementation::analyze(bool force) {
                     Procedure * def = (Procedure *)_def;
 
                     const Type * parent_t = parent->getType(); // @leak?
-
+					
                     const Type * placeholder_def_t =
                         (const Type *)def->getType();
                     const Type * def_t =
@@ -4682,7 +4682,7 @@ void InterfaceImplementation::analyze(bool force) {
 
                 const Type * parent_t = parent->getType(); // @leak?
 
-                const Type * placeholder_def_t = (const Type *)def->getType();
+				const Type * placeholder_def_t = (const Type *)def->getType();
                 const Type * def_t =
                     placeholder_def_t->replacePlaceholders(parent_t);
 
@@ -4693,6 +4693,10 @@ void InterfaceImplementation::analyze(bool force) {
                                           /* exactMatch = */ true)) {
                         found = true;
                         used.insert(proc);
+				
+						if (ifaceDef->getMangledName() == "idestroy" && procName == "destroy")
+							((StructType*)parent_t)->idestroy_link = (Procedure*)proc;
+                
                         break;
                     }
                 }
@@ -4752,6 +4756,8 @@ void InterfaceImplementation::addSymbols(Scope * _scope) {
 
                 for (ASTNode * _param : proc->getParamVarDeclarations()) {
                     VariableDeclaration * param = (VariableDeclaration *)_param;
+					param->setScope(ifaceDef->getScope());
+					param->getTypeDeclarator()->setScope(ifaceDef->getScope());
 
                     BJOU_DEBUG_ASSERT(param->getTypeDeclarator());
 

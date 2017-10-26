@@ -190,7 +190,7 @@ StructType::StructType() : Type(STRUCT) {}
 StructType::StructType(std::string & name, Struct * __struct,
                        TemplateInstantiation * _inst)
     : Type(STRUCT, name), isAbstract(__struct->getFlag(Struct::IS_ABSTRACT)),
-      _struct(__struct), inst(_inst), extends(nullptr) {}
+      _struct(__struct), inst(_inst), extends(nullptr), idestroy_link(nullptr) {}
 
 static void insertProcSet(StructType * This, Procedure * proc) {
     // if (This->memberProcs.find(proc->getName()) == This->memberProcs.end()) {
