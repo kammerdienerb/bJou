@@ -1,0 +1,19 @@
+# lifetime2.bjou
+
+type T {
+	i : int
+
+	proc create(i : int) : T {
+		print "create() for T where i = %", i
+		return { T: .i = i }
+	}
+
+	proc set() { # refs?
+	}
+
+	implements idestroy {
+		proc destroy(this) {
+			
+		}
+	}
+}

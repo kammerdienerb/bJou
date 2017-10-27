@@ -1,3 +1,9 @@
+#include <algorithm>
+#include <cassert>
+#include <cctype>
+#include <cstddef>
+#include <cstdint>
+#include <iterator>
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/ArrayRef.h>
@@ -56,12 +62,6 @@
 #include <llvm/Support/Format.h>
 #include <llvm/Support/FormattedStream.h>
 #include <llvm/Support/raw_ostream.h>
-#include <algorithm>
-#include <cassert>
-#include <cctype>
-#include <cstddef>
-#include <cstdint>
-#include <iterator>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -71,32 +71,38 @@
 #if !defined(LLVM_DUMP_ENABLED)
 
 namespace llvm {
-	// Value::dump - allow easy printing of Values from the debugger.
-	LLVM_DUMP_METHOD
-	void Value::dump() const { print(dbgs(), /*IsForDebug=*/true); dbgs() << '\n'; }
-	
-	// Type::dump - allow easy printing of Types from the debugger.
-	 LLVM_DUMP_METHOD
-	 void Type::dump() const { print(dbgs(), /*IsForDebug=*/true); dbgs() << '\n'; }
-	
-	//  Module::dump() - Allow printing of Modules from the debugger.
-	 LLVM_DUMP_METHOD
-	 void Module::dump() const {
-	   print(dbgs(), nullptr,
-	/*ShouldPreserveUseListOrder=*/false, /*IsForDebug=*/true);
-	}
-    //\brief Allow printing of Comdats from the debugger.
-	LLVM_DUMP_METHOD
-	void Comdat::dump() const { print(dbgs(), /*IsForDebug=*/true); }
-    //NamedMDNode::dump() - Allow printing of NamedMDNodes from the debugger.
-	LLVM_DUMP_METHOD
-	void NamedMDNode::dump() const { print(dbgs(), /*IsForDebug=*/true); }
-   	LLVM_DUMP_METHOD
-	void Metadata::dump() const { dump(nullptr); }
-   	LLVM_DUMP_METHOD
-	void Metadata::dump(const Module *M) const {
-		print(dbgs(), M, /*IsForDebug=*/true);
-		dbgs() << '\n';
-	}
+// Value::dump - allow easy printing of Values from the debugger.
+LLVM_DUMP_METHOD
+void Value::dump() const {
+    print(dbgs(), /*IsForDebug=*/true);
+    dbgs() << '\n';
 }
+
+// Type::dump - allow easy printing of Types from the debugger.
+LLVM_DUMP_METHOD
+void Type::dump() const {
+    print(dbgs(), /*IsForDebug=*/true);
+    dbgs() << '\n';
+}
+
+//  Module::dump() - Allow printing of Modules from the debugger.
+LLVM_DUMP_METHOD
+void Module::dump() const {
+    print(dbgs(), nullptr,
+          /*ShouldPreserveUseListOrder=*/false, /*IsForDebug=*/true);
+}
+//\brief Allow printing of Comdats from the debugger.
+LLVM_DUMP_METHOD
+void Comdat::dump() const { print(dbgs(), /*IsForDebug=*/true); }
+// NamedMDNode::dump() - Allow printing of NamedMDNodes from the debugger.
+LLVM_DUMP_METHOD
+void NamedMDNode::dump() const { print(dbgs(), /*IsForDebug=*/true); }
+LLVM_DUMP_METHOD
+void Metadata::dump() const { dump(nullptr); }
+LLVM_DUMP_METHOD
+void Metadata::dump(const Module * M) const {
+    print(dbgs(), M, /*IsForDebug=*/true);
+    dbgs() << '\n';
+}
+} // namespace llvm
 #endif

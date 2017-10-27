@@ -12,27 +12,27 @@
 #include <string>
 
 namespace bjou {
-    
-    struct Loc {
-        int line;
-        int character;
-    };
 
-    struct Context {
-        std::string filename;
-        Loc begin;
-        Loc end;
-    
-        Context();
-        Context(std::string _filename, Loc _begin);
-        void start(Context * context);
-        void finish(Context * context, Context * wtspccontext = nullptr);
-        Context lastchar();
-    };
-    
-    Context diff(Context * c1, Context * c2 = nullptr);
-}
+struct Loc {
+    int line;
+    int character;
+};
 
-#define COMPILER_SRC_CONTEXT() Context(__FILE__, { __LINE__, 0 })
+struct Context {
+    std::string filename;
+    Loc begin;
+    Loc end;
+
+    Context();
+    Context(std::string _filename, Loc _begin);
+    void start(Context * context);
+    void finish(Context * context, Context * wtspccontext = nullptr);
+    Context lastchar();
+};
+
+Context diff(Context * c1, Context * c2 = nullptr);
+} // namespace bjou
+
+#define COMPILER_SRC_CONTEXT() Context(__FILE__, {__LINE__, 0})
 
 #endif /* Context_h */

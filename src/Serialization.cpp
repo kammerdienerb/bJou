@@ -117,7 +117,8 @@ BOOST_CLASS_EXPORT(bjou::ProcedureType)
 BOOST_CLASS_EXPORT(bjou::TemplateStructType)
 BOOST_CLASS_EXPORT(bjou::TemplateAliasType)
 
-#define RP_FUNCTOR_SER_REG(name) BOOST_CLASS_EXPORT(bjou::replacementPolicy_##name);
+#define RP_FUNCTOR_SER_REG(name)                                               \
+    BOOST_CLASS_EXPORT(bjou::replacementPolicy_##name);
 
 BOOST_CLASS_EXPORT(bjou::replacementPolicy)
 RP_FUNCTOR_SER_REG(empty);

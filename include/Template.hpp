@@ -11,17 +11,20 @@
 
 #include "ASTNode.hpp"
 
-template <typename A, typename B>
-void p(A a, B b) {}
+template <typename A, typename B> void p(A a, B b) {}
 
-template <typename A, typename B>
-void p(B b, A a) {}
+template <typename A, typename B> void p(B b, A a) {}
 
 namespace bjou {
-    Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst);
-    Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args, ASTNode * _inst, Context * context, bool fail = true);
-	// returns number of argument conversions for success, else -1
-    int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args, ASTNode * _inst, Context * context, bool fail = true, TemplateInstantiation * new_inst = nullptr);
-}
+Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst);
+Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args,
+                             ASTNode * _inst, Context * context,
+                             bool fail = true);
+// returns number of argument conversions for success, else -1
+int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
+                                   ASTNode * _inst, Context * context,
+                                   bool fail = true,
+                                   TemplateInstantiation * new_inst = nullptr);
+} // namespace bjou
 
 #endif /* Template_hpp */

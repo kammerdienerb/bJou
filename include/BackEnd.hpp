@@ -12,15 +12,15 @@
 #include "Compile.hpp"
 
 namespace bjou {
-    struct FrontEnd;
-    
-    struct BackEnd {
-        BackEnd(FrontEnd& _frontEnd);
-        
-        FrontEnd& frontEnd;
-        
-        virtual milliseconds go() = 0;
-    };
-}
+struct FrontEnd;
+
+struct BackEnd {
+    BackEnd(FrontEnd & _frontEnd);
+
+    FrontEnd & frontEnd;
+
+    virtual milliseconds go() = 0;
+};
+} // namespace bjou
 
 #endif /* BackEnd_h */

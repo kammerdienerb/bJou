@@ -11,7 +11,7 @@ function run_test {
 	f=$1
 	TEST_SUCCESS="true"
 	NAME=$(basename "$f" .bjou)
-	../bin/bjou "test/$NAME.bjou" -o "bin/$NAME"
+	../bin/bjou "test/$NAME.bjou" -I ../modules -o "bin/$NAME"
 	if [ $? -ne 0 ]
   	then
     	TEST_SUCCESS="false"
