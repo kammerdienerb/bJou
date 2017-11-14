@@ -54,7 +54,7 @@ constexpr const TokenParserFnType tokenParsers[] = {
 #define GOOD_IDX(buff, p) ((p) < (buff).viewSize())
 #define IS_C(buff, p, c) ((p) < (buff).viewSize() && (buff)[(p)] == (c))
 #define IN_CHAR_RANGE(buff, p, first, last)                                    \
-    ((p) < (buff).viewSize() && ((buff)[(p)] >= first && (buff)[(p)] <= last))
+    ((p) < (buff).viewSize() && ((buff)[(p)] >= (first) && (buff)[(p)] <= (last)))
 #define IS_AZ(buff, p)                                                         \
     ((p) < (buff).viewSize() && (((buff)[(p)]) >= 'A' && ((buff)[(p)]) <= 'Z'))
 #define IS_az(buff, p)                                                         \
@@ -621,7 +621,7 @@ void Parser::parseCommon() {
         if (!m_node.assignTo(node))
             errornext(*this, "Unexpected token.");
 
-		else if (node->nodeKind == ASTNode::MODULE_DECL) {
+        else if (node->nodeKind == ASTNode::MODULE_DECL) {
             moduleCheck(compilation->frontEnd.AST, module_declared,
                         (ModuleDeclaration *)node);
             module_declared = (ModuleDeclaration *)node;
@@ -1725,13 +1725,13 @@ MaybeASTNode Parser::parseTopLevelNode() {
         (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
         (m_node = parseStatement()) || (m_node = parseImport());
 
-	ASTNode * node = nullptr;
-	if (m_node.assignTo(node)) {
-		if (node->nodeKind == ASTNode::STRUCT)
-			compilation->frontEnd.structs.push_back(node);
-		else if (node->nodeKind == ASTNode::INTERFACE_DEF)
-			compilation->frontEnd.ifaceDefs.push_back(node);
-	}
+    ASTNode * node = nullptr;
+    if (m_node.assignTo(node)) {
+        if (node->nodeKind == ASTNode::STRUCT)
+            compilation->frontEnd.structs.push_back(node);
+        else if (node->nodeKind == ASTNode::INTERFACE_DEF)
+            compilation->frontEnd.ifaceDefs.push_back(node);
+    }
 
     return m_node;
 }
@@ -1748,13 +1748,13 @@ MaybeASTNode AsyncParser::parseTopLevelNode() {
         (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
         (m_node = parseStatement()) || (m_node = parseImport());
 
-	ASTNode * node = nullptr;
-	if (m_node.assignTo(node)) {
-		if (node->nodeKind == ASTNode::STRUCT)
-			structs.push_back(node);
-		else if (node->nodeKind == ASTNode::INTERFACE_DEF)
-			ifaceDefs.push_back(node);
-	}
+    ASTNode * node = nullptr;
+    if (m_node.assignTo(node)) {
+        if (node->nodeKind == ASTNode::STRUCT)
+            structs.push_back(node);
+        else if (node->nodeKind == ASTNode::INTERFACE_DEF)
+            ifaceDefs.push_back(node);
+    }
 
     return m_node;
 }
@@ -1771,13 +1771,13 @@ MaybeASTNode ImportParser::parseTopLevelNode() {
         (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
         (m_node = parseStatement()) || (m_node = parseImport());
 
-	ASTNode * node = nullptr;
-	if (m_node.assignTo(node)) {
-		if (node->nodeKind == ASTNode::STRUCT)
-			structs.push_back(node);
-		else if (node->nodeKind == ASTNode::INTERFACE_DEF)
-			ifaceDefs.push_back(node);
-	}
+    ASTNode * node = nullptr;
+    if (m_node.assignTo(node)) {
+        if (node->nodeKind == ASTNode::STRUCT)
+            structs.push_back(node);
+        else if (node->nodeKind == ASTNode::INTERFACE_DEF)
+            ifaceDefs.push_back(node);
+    }
 
     return m_node;
 }
@@ -2866,7 +2866,7 @@ void AsyncParser::parseCommon() {
         ASTNode * node = nullptr;
         if (!m_node.assignTo(node))
             errornext(*this, "Unexpected token.");
-		
+        
         else if (node->nodeKind == ASTNode::MODULE_DECL) {
             moduleCheck(nodes, module_declared, (ModuleDeclaration *)node);
             module_declared = (ModuleDeclaration *)node;
