@@ -1,0 +1,29 @@
+# null.bjou
+
+# provide the means to get a null pointer
+# abuse null initialization in struct literals to get null which we can't represent
+# the fact that we need this module is @bad
+
+module null
+
+type _nullptr_t {
+    _ptr : void*
+}
+
+proc _nullptr() : void* {
+    n := { _nullptr_t: }
+    return n._ptr
+}
+
+proc nullptr!(T)() : T* {
+    # if T is void we don't want to cast
+    # we will get an error about a useless cast otherwise
+    # also, static_if is cool :)
+    $static_if{$same_type{T void}
+        return _nullptr()}
+    $static_if{not $same_type{T void}
+        return _nullptr() as T*}
+}
+
+proc isnull!(T)(ptr : T*) : bool
+    return ptr == nullptr!(T)()

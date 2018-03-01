@@ -12,10 +12,10 @@ type __bjou_dyn_array!(T) {
 
     proc create() : __bjou_dyn_array!(T) {
         return  { __bjou_dyn_array!(T): 
-                    .__capacity = __bjou_dyn_array!(T).INIT_SIZE,
-                    .__used     = 0,
-                    .__data     = new T[__bjou_dyn_array!(T).INIT_SIZE]
-                }
+            .__capacity = __bjou_dyn_array!(T).INIT_SIZE,
+            .__used     = 0,
+            .__data     = new T[__bjou_dyn_array!(T).INIT_SIZE]
+        }
     }
 
     proc create(_s : T*, n : int) : __bjou_dyn_array!(T) {

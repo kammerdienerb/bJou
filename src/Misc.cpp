@@ -10,9 +10,16 @@
 #include <string>
 
 std::string de_quote(std::string & str) {
+    if (str == "\"\"")
+        return "";
     if (str.size() > 2 && str[0] == '\"' && str[str.size() - 1] == '\"')
         return str.substr(1, str.size() - 2);
     return str;
+}
+
+bool has_suffix(const std::string & s, std::string suffix) {
+    return (s.size() > suffix.size()) &&
+           (s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0);
 }
 
 std::string str_escape(std::string & str) {

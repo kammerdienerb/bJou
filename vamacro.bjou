@@ -1,0 +1,10 @@
+# vamacro.bjou
+
+$run{ printVersion() }
+
+$ct {
+    extern bjou_getVersionString() : char*
+
+    proc printVersion()
+        print "version %", bjou_getVersionString()
+}

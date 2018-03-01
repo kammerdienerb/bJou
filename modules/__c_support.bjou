@@ -6,7 +6,7 @@
 
 module __c_support
 
-extern printf(i8*, ...) : i32
+extern printf(char*, ...) : i32
 extern malloc(i32) : i8*
 extern free(i8*)
 

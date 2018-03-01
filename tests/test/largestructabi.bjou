@@ -1,0 +1,28 @@
+# largestructabi
+
+type Medium {
+    a : char*
+    b : (i32, i32)
+    c : f32[3]
+}
+
+type Large {
+    a : i32 
+    b : i32
+    c : i64 
+    d : i64
+    e : f32
+    f : f64
+    g : void*
+    h : Medium
+}
+
+proc p(l : Large) : Large {
+    return l    
+}
+
+(proc main() {
+    print "%", sizeof Large
+    l := { Large: }
+    l = p(l)
+})()

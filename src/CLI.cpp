@@ -147,7 +147,8 @@ void _here(Context & context) {
             }
         } else {
             // std::cout << "            " << lines[context.begin.line - 3] <<
-            // "\n";  std::cout << "            " << lines[context.begin.line - 2]
+            // "\n";  std::cout << "            " << lines[context.begin.line -
+            // 2]
             // << "\n";
             std::cout << linenobuf(context.begin.line - 2)
                       << lines[context.begin.line - 3] << "\n";

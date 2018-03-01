@@ -60,6 +60,7 @@ MaybeString parser_kwd_raw(StringViewableBuffer & buff);
 MaybeString parser_kwd_immut(StringViewableBuffer & buff);
 MaybeString parser_kwd_coerce(StringViewableBuffer & buff);
 MaybeString parser_kwd_this(StringViewableBuffer & buff);
+MaybeString parser_kwd_ref(StringViewableBuffer & buff);
 MaybeString parser_kwd_delete(StringViewableBuffer & buff);
 MaybeString parser_kwd_namespace(StringViewableBuffer & buff);
 MaybeString parser_kwd_import(StringViewableBuffer & buff);
@@ -95,6 +96,7 @@ MaybeString parser_arrow(StringViewableBuffer & buff);
 MaybeString parser_exclam(StringViewableBuffer & buff);
 MaybeString parser_kwd_sizeof(StringViewableBuffer & buff);
 MaybeString parser_amp(StringViewableBuffer & buff);
+MaybeString parser_tilde(StringViewableBuffer & buff);
 MaybeString parser_at(StringViewableBuffer & buff);
 MaybeString parser_kwd_not(StringViewableBuffer & buff);
 MaybeString parser_kwd_new(StringViewableBuffer & buff);
@@ -163,6 +165,7 @@ enum TokenKind {
     KWD_IMMUT,
     KWD_COERCE,
     KWD_THIS,
+    KWD_REF,
     KWD_DELETE,
     KWD_NAMESPACE,
     KWD_IMPORT,
@@ -198,6 +201,7 @@ enum TokenKind {
     EXCLAM,
     KWD_SIZEOF,
     AMP,
+    TILDE,
     AT,
     KWD_NOT,
     KWD_NEW,
@@ -294,6 +298,8 @@ struct Parser {
     MaybeASTNode parseTerminatingExpression();
     MaybeASTNode parseParentheticalExpressionOrTuple();
     MaybeASTNode parseInitializerList();
+    MaybeASTNode parseSliceExpression();
+    MaybeASTNode parseLenExpression();
     MaybeASTNode parseOperand();
     MaybeASTNode parseArgList();
 
@@ -325,6 +331,9 @@ struct Parser {
     MaybeASTNode parseBreak();
     MaybeASTNode parseContinue();
 
+    MaybeASTNode parseMacroUse();
+    MaybeASTNode parseMacroArg();
+
     MaybeASTNode parseSLComment();
 
     void moduleCheck(std::vector<ASTNode *> & AST,
@@ -333,13 +342,12 @@ struct Parser {
 };
 
 struct AsyncParser : Parser {
-    AsyncParser(const char * c_str, bool start = true);
-    AsyncParser(std::string & str, bool start = true);
-    AsyncParser(std::ifstream & file, const std::string & fname,
-                bool start = true);
+    AsyncParser(const char * c_str);
+    AsyncParser(std::string & str);
+    AsyncParser(std::ifstream & file, const std::string & fname);
 
     std::vector<ASTNode *> nodes;
-	std::vector<ASTNode *> structs, ifaceDefs;
+    std::vector<ASTNode *> structs, ifaceDefs;
 
     void parseCommon();
     MaybeASTNode parseTopLevelNode();
@@ -347,17 +355,18 @@ struct AsyncParser : Parser {
 };
 
 struct ImportParser : Parser {
-    ImportParser(const char * c_str, bool start = true);
-    ImportParser(std::string & str, bool start = true);
-    ImportParser(std::ifstream & file, const std::string & fname,
-                 bool start = true);
+    ImportParser(const char * c_str);
+    ImportParser(std::string & str);
+    ImportParser(std::ifstream & file, const std::string & fname);
+
+    Import * source = nullptr;
 
     std::vector<ASTNode *> nodes;
-	std::vector<ASTNode *> structs, ifaceDefs;
+    std::vector<ASTNode *> structs, ifaceDefs;
     ModuleDeclaration * mod_decl;
 
     void parseCommon();
-	MaybeASTNode parseTopLevelNode();
+    MaybeASTNode parseTopLevelNode();
     void Dispose();
     milliseconds operator()();
 };

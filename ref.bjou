@@ -1,34 +1,47 @@
 # ref.bjou
 
-proc inc(i : int) {
-    print "val"        
-}
-
-proc inc(i : ref int) {
-    print "ref"
-    i += 1
-}
-
-proc p(i : ref int) {
-    print "ref"    
+proc inc(i : int ref) {
+    i += 1    
 }
 
 (proc main() {
     i := 12345
-    r := ref i
-    i.inc()         # val
-    print "%", i    # 12345
-    inc(ref i)      # ref
-    print "%", i    # 12346
-    r.inc()         # ref
-    print "%", i    # 12347
-    
-    i.p()           # ref
-    r.p()           # ref
-
-    r2 : ref float
-
-    nodes : ASTNode ref[...]
-    nodes.append(new CallExpression.create())
-    data : SomeType* = &(new[n] SomeType.create(some_arg))
+    j := 54321
+    r : int ref = i
+    r = j
+    j = 98765
+    print "i = %, j = %, r = %", i, j, r
 })()
+
+# proc inc(i : int) {
+#     print "val"        
+# }
+# 
+# proc inc(i : int ref) {
+#     print "ref"
+#     i += 1
+# }
+# 
+# proc p(i : int ref) {
+#     print "ref"    
+# }
+# 
+# (proc main() {
+#     i := 12345
+#     r := ~i
+#     i.inc()         # val
+#     print "%", i    # 12345
+#     inc(~i)      # ref
+#     print "%", i    # 12346
+#     r.inc()         # ref
+#     print "%", i    # 12347
+#     
+#     i.p()           # ref
+#     r.p()           # ref
+# 
+#     r2 : float ref
+# 
+#     nodes : ASTNode ref[...]
+#     nodes.append(new CallExpression.create())
+#     data : SomeType* = &(new[n] SomeType.create(some_arg))
+# })()

@@ -39,9 +39,9 @@
 
 #ifdef __cplusplus
 /// Common C++ headers
+#include <cstdio> // for getch()
 #include <iostream>
 #include <string>
-#include <cstdio> // for getch()
 /// Namespace forward declarations
 namespace rlutil {
 RLUTIL_INLINE void locate(int x, int y);
@@ -60,11 +60,11 @@ RLUTIL_INLINE void locate(int x,
 #define getch _getch
 #define kbhit _kbhit
 #else
+#include <sys/ioctl.h> // for getkey()
+#include <sys/time.h>  // for kbhit()
+#include <sys/types.h> // for kbhit()
 #include <termios.h>   // for getch() and kbhit()
 #include <unistd.h>    // for getch(), kbhit() and (u)sleep()
-#include <sys/ioctl.h> // for getkey()
-#include <sys/types.h> // for kbhit()
-#include <sys/time.h>  // for kbhit()
 
 /// Function: getch
 /// Get character without waiting for Return to be pressed.

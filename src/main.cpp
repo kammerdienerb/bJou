@@ -7,6 +7,8 @@
 //
 
 #include <bitset>
+#include <cstdlib>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -36,6 +38,8 @@ Compilation * compilation = nullptr;
 std::mutex cli_mtx;
 
 int main(int argc, const char ** argv) {
+    std::srand(std::time(NULL));
+
     // below are the command line options that this compiler takes.
     TCLAP::CmdLine cmd_line("bJou\nA friendly language and compiler written by "
                             "Brandon Kammerdiener",

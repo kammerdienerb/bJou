@@ -1,0 +1,33 @@
+# opt.bjou
+
+(proc main() {
+    # add dead code elimination and loop invariant code motion passes
+    $add_llvm_passes{"adce" "licm"}
+
+    const n := 20
+
+    x := 0
+
+    if x != 0 print "eliminate me"
+
+    for i := 0; i < 100000000; i += 1 {
+        n.factorial()
+        x = 12345 # loop invariant
+    }
+})()
+
+proc factorial(n : i64) : i64 {
+    # add tail call elimination pass
+    $add_llvm_pass{"tailcallelim"}
+    # $add_llvm_pass("print-function")
+
+    if (n <= 1)
+        return 1
+    return n * factorial(n - 1)
+}
+
+proc factorial_copy(n : i64) : i64 {
+    if (n <= 1)
+        return 1
+    return n * factorial_copy(n - 1)
+}

@@ -34,6 +34,7 @@ struct Compilation {
     Mode mode;
     std::string outputbasefilename;
     std::string outputpath;
+    std::vector<std::string> obj_files;
     std::vector<std::string> module_search_paths;
 
     unsigned int max_interface_procs;

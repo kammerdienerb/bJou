@@ -1,0 +1,176 @@
+# c2bjou
+# source to source translator from C to bJou
+# uses libclang
+
+$run{ main() }
+
+$ct {
+    import "null.bjou"
+
+    import "clang.bjou"
+    const libclang_path := "/usr/local/Cellar/llvm/5.0.1/lib/libclang.dylib"
+
+    import "compiler.bjou"
+
+    type VisitorData {
+        cw              : ClangWrapper*
+        indent          : int
+        created_nodes   : ASTNode**
+        n_created_nodes : int
+    }
+
+    type ClangWrapper {
+        index : CXIndex*
+        tu : CXTranslationUnit*
+
+        proc create() : ClangWrapper* {
+            cw := new ClangWrapper
+            cw.index = clang.createIndex(0, 0)
+
+            return cw
+        }
+
+        proc destroy(this) {
+            delete this
+        }
+
+        proc parseTU(this, fname : char*) {
+            this.tu = clang.parseTranslationUnit(
+                this.index,
+                fname,
+                _nullptr() as char**, 0,
+                _nullptr() as CXUnsavedFile*, 0,
+                0)
+
+            if this.tu.isnull()
+                panic("c2bjou: bad translation unit")
+            
+            ndiags := clang.getNumDiagnostics(this.tu) as int
+            for i := 0; i < ndiags; i += 1 {
+                diag := clang.getDiagnostic(this.tu, i)
+                cxstr := clang.formatDiagnostic(diag, clang.defaultDiagnosticDisplayOptions())
+                str := clang.getCString(cxstr)
+                print "%", str
+                clang.disposeString(cxstr)
+            }
+            if ndiags > 0
+                panic("c2bjou: there were libclang errors")
+        }
+
+        proc traverse(this,
+                      root : CXCursor,
+                      visitor : <(
+                        CXCursor,      # cursor
+                        CXCursor,      # parent
+                        CXClientData*) # client_data
+                        : u32>,        # CXChildVisitResult)
+                      data : VisitorData*) {
+            clang.visitChildren(root, visitor, data as CXClientData*)
+        }
+
+        proc traverseTU(this,
+                        visitor : <(
+                            CXCursor,      # cursor
+                            CXCursor,      # parent
+                            CXClientData*) # client_data
+                            : u32>,        # CXChildVisitResult
+                        data : VisitorData*) {      
+
+            cursor := clang.getTranslationUnitCursor(this.tu)
+            this.traverse(cursor, visitor, data)
+        }
+    }
+
+    proc my_visitor(cursor      : CXCursor,
+                    parent      : CXCursor,
+                    client_data : CXClientData*) : u32 {
+
+        data := client_data as VisitorData*
+
+        name_cxstr := clang.getCursorSpelling(cursor)
+        name_str := clang.getCString(name_cxstr)
+        kind_cxstr := clang.getCursorKindSpelling(cursor.kind)
+        kind_str := clang.getCString(kind_cxstr)
+
+        for i := 0; i < data.indent; i += 1
+            printf("  ")
+        print "%: '%'", kind_str, name_str
+       
+
+        if cursor.kind == 8 { # functionDecl
+            nullnode := _nullptr() as ASTNode*
+            nullnodes := _nullptr() as ASTNode**
+            nullstrings := _nullptr() as char**
+
+            void_decl := bjou_createDeclarator(
+                            bjou_createIdentifier("void"),
+                            nullnode,
+                            nullstrings, 0)
+
+            arg_exprs : ASTNode*[1]
+            statements : ASTNode*[1]
+
+            extern sprintf(char*, char*, ...) : int
+            my_str : char[256]
+            my_str.sprintf("%s()\n", name_str)
+
+            arg_exprs[0] = bjou_createStringLiteral(my_str)
+            statements[0] = bjou_createCallExpression(
+                                bjou_createIdentifier("printf"),
+                                bjou_createArgList(
+                                    arg_exprs, 1))
+
+            p := bjou_createProcedure(
+                     name_str,
+                     nullnodes, 0,
+                     false,
+                     void_decl,
+                     statements, 1)
+
+            call := bjou_createCallExpression(
+                        bjou_createIdentifier(name_str),
+                        bjou_createArgList(
+                            nullnodes, 0))
+
+            data.created_nodes[data.n_created_nodes] = p
+            data.n_created_nodes += 1
+            data.created_nodes[data.n_created_nodes] = call
+            data.n_created_nodes += 1
+        }
+
+        data.indent += 1
+        data.cw.traverse(cursor, my_visitor, data)
+        data.indent -= 1
+
+        return 1
+    }
+
+    proc main() {
+        init_clang(libclang_path)
+
+        cw := ClangWrapper.create()
+
+        cw.parseTU("fact.c")
+
+        node : ASTNode*[256]
+        data := { VisitorData:
+            .cw = cw,
+            .indent = 0,
+            .created_nodes = node,
+            .n_created_nodes = 0
+        }
+        cw.traverseTU(my_visitor, &data)
+
+        # run passes on translated nodes
+        gs := bjou_getGlobalScope()
+
+        for i := 0; i < data.n_created_nodes; i += 1
+            bjou_addSymbols(data.created_nodes[i], gs)
+        for i := 0; i < data.n_created_nodes; i += 1 {
+            bjou_analyze(data.created_nodes[i])
+            bjou_appendNode(data.created_nodes[i])
+        }
+
+        cw.destroy()
+    }
+}

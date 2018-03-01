@@ -1,0 +1,4 @@
+# run2.bjou
+
+proc p() { print "p" }
+$run{ p() }

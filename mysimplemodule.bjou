@@ -1,0 +1,13 @@
+# mysimplemodule.bjou
+
+module mysimplemodule
+
+type T {
+    proc create() {
+        print "create T"     
+    }    
+}
+
+proc mysimpleproc() {
+    print "simple"
+}

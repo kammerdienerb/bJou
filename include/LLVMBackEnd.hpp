@@ -9,11 +9,14 @@
 #ifndef LLVMBackEnd_hpp
 #define LLVMBackEnd_hpp
 
+#include <map>
+#include <set>
 #include <stack>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "ABI.hpp"
 #include "ASTNode.hpp"
 #include "BackEnd.hpp"
 #include "LLVMGenerator.hpp"
@@ -41,22 +44,42 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+
 namespace bjou {
 struct StackFrame {
-	struct FrameVal {
-		llvm::Value * val;
-		const Type * type;
-	};
+    StackFrame();
 
-	std::vector<FrameVal> vals;
-	std::unordered_map<std::string, size_t> namedVals;
+    struct FrameVal {
+        llvm::Value * val;
+        const Type * type;
+    };
+
+    std::vector<FrameVal> vals;
+    std::unordered_map<std::string, size_t> namedVals;
 };
-	
+
+struct LoopFrameInfo {
+    LoopFrameInfo(StackFrame _frame, llvm::BasicBlock * _bb);
+
+    StackFrame frame;
+    llvm::BasicBlock * bb;
+};
+
 struct LLVMBackEnd : BackEnd {
     LLVMBackEnd(FrontEnd & _frontEnd);
     ~LLVMBackEnd();
 
+    enum GEN_MODE { RT, CT };
+    GEN_MODE mode;
+
+    void init();
+    void init_jit();
+
+    void jit_reset();
+
     LLVMGenerator generator;
+    ABILowerer<LLVMBackEnd> * abi_lowerer;
 
     std::string defaultTriple;
     const llvm::Target * defaultTarget;
@@ -64,38 +87,59 @@ struct LLVMBackEnd : BackEnd {
     llvm::DataLayout * layout;
 
     llvm::LLVMContext llContext;
-    llvm::Module * llModule;
+    llvm::Module *llModule, *outModule;
+
+    std::unique_ptr<llvm::Module> jitModule;
+    llvm::ExecutionEngine * ee;
+
     llvm::IRBuilder<> builder;
 
-	std::vector<StackFrame> frames;
-    // this is kind of weird, but we map on TupleType->code as a key
-    std::unordered_map<std::string, llvm::StructType *> createdTupleStructTypes;
-    std::unordered_map<std::string, llvm::Type *> definedTypes;
+    std::vector<StackFrame> frames;
+
+    std::map<ASTNode *, llvm::Value *> generated_nodes;
+    std::map<const Type *, llvm::Type *> generated_types;
+    std::set<ASTNode *> types_need_completion;
+    std::set<ASTNode *> globs_need_completion;
+    std::set<ASTNode *> procs_need_completion;
+
+    std::map<Procedure *, void *> proc_abi_info;
+
+    std::map<std::string, std::function<llvm::Pass *()>> pass_create_by_name;
+    std::map<Procedure *, llvm::legacy::FunctionPassManager *> proc_passes;
+    void addProcedurePass(Procedure * proc, std::string pass_name);
+
+    void genStructProcs(Struct * s);
+
+    llvm::Value * getOrGenNode(ASTNode * node, bool getAddr = false);
+    llvm::Type * getOrGenType(const Type * t);
+
     std::unordered_map<std::string, llvm::GlobalVariable *> globaltypeinfos;
     std::unordered_map<Constant *, llvm::Value *> generatedTypeMemberConstants;
-    std::vector<Procedure *> procsGenerateDefinitions;
-    std::vector<Struct *> structsGenerateDefinitions;
-    Struct * typeinfo_struct;
-    std::stack<llvm::BasicBlock *> loop_break_stack;
-    std::stack<llvm::BasicBlock *> loop_continue_stack;
+
+    std::stack<LoopFrameInfo> loop_break_stack;
+    std::stack<LoopFrameInfo> loop_continue_stack;
+    std::stack<Procedure *> proc_stack;
 
     milliseconds go();
-	
-	void pushFrame();
-	void popFrame();
-	StackFrame& curFrame();
-	llvm::Value * addNamedVal(std::string name, llvm::Value * val, const Type * type);
-	llvm::Value * addUnnamedVal(llvm::Value * val, const Type * type);
-	llvm::Value * allocNamedVal(std::string name, const Type * type);
-	llvm::Value * getNamedVal(std::string name);
-	// llvm::Value * unnamedVal(llvm::Value * val, const Type * type);
-	// llvm::Value * namedVal(std::string name, const Type * type = nullptr);
-    // llvm::Value * namedVal(std::string name, llvm::Value * val, const Type * type);
+    void completeTypes();
+    void completeGlobs();
+    void completeProcs();
+    void run(Procedure * proc);
+
+    void pushFrame();
+    void popFrame();
+    StackFrame & curFrame();
+
+    llvm::Value * addNamedVal(std::string name, llvm::Value * val,
+                              const Type * type);
+    llvm::Value * addUnnamedVal(llvm::Value * val, const Type * type);
+    llvm::Value * allocNamedVal(std::string name, const Type * type);
+    llvm::Value * getNamedVal(std::string name);
+
     llvm::Type * bJouTypeToLLVMType(const bjou::Type * t);
     llvm::Type * createOrLookupDefinedType(const bjou::Type * t);
     llvm::StructType * createTupleStructType(const bjou::Type * t);
 
-    void createllModule();
     void createMainEntryPoint();
     void createPrintfProto();
     llvm::Value * getPointerToArrayElements(llvm::Value * array);

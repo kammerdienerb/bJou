@@ -2,7 +2,7 @@
 //  Type.hpp
 //  bjou++
 //
-//  Created by Brandon Kammerdiener on 1/8/17.
+//  Created by Brandon Kammerdiener on 1/8/18.
 //  Copyright © 2017 me. All rights reserved.
 //
 
@@ -10,6 +10,7 @@
 #define Type_hpp
 
 #include "Maybe.hpp"
+#include "Misc.hpp"
 
 #include <set>
 #include <string>
@@ -31,97 +32,229 @@ struct ProcSet;
 
 struct Type {
     enum Kind {
-        INVALID,
         PLACEHOLDER,
-        PRIMATIVE,
-        BASE,
-        STRUCT,
-        ENUM,
-        ALIAS,
-        ARRAY,
-        DYNAMIC_ARRAY,
+        VOID,
+        BOOL,
+        INT,
+        FLOAT,
+        CHAR,
         POINTER,
-        MAYBE,
+        REF,
+        ARRAY,
+        SLICE,
+        DYNAMIC_ARRAY,
+        STRUCT,
         TUPLE,
-        PROCEDURE,
-        TEMPLATE_STRUCT,
-        TEMPLATE_ALIAS
+        PROCEDURE
     };
 
-    enum Sign { NA, SIGNED, UNSIGNED };
+    enum Sign { UNSIGNED = 0, SIGNED = 1 };
 
     Kind kind;
-    Sign sign;
-    int size;
-    std::string code;
+    std::string key;
 
-    Type();
-    Type(Kind _kind);
-    Type(std::string _name);
-    Type(Kind _kind, std::string _name, Sign _sign = NA, int _size = -1);
+    Type(Kind _kind, const std::string _key);
 
-    bool isValid() const;
-    bool isPrimative() const;
-    bool isFP() const;
-    bool isStruct() const;
-    bool isEnum() const;
-    bool isAlias() const;
-    bool isArray() const;
-    bool isPointer() const;
-    bool isMaybe() const;
-    bool isTuple() const;
-    bool isProcedure() const;
-    bool isTemplateStruct() const;
-    bool isTemplateAlias() const;
+    bool isPlaceholder()  const;
+    bool isVoid()         const;
+    bool isBool()         const;
+    bool isInt()          const;
+    bool isFloat()        const;
+    bool isChar()         const;
+    bool isPointer()      const;
+    bool isRef()          const;
+    bool isMaybe()        const;
+    bool isArray()        const;
+    bool isSlice()        const;
+    bool isDynamicArray() const;
+    bool isStruct()       const;
+    bool isTuple()        const;
+    bool isProcedure()    const;
 
-    bool enumerableEquivalent() const;
+    bool isPrimative()    const;
 
-    // Type interface
-    virtual const Type * getBase() const;
-    virtual const Type * getOriginal() const;
-    virtual bool equivalent(const Type * other, bool exactMatch = false) const;
+    const Type * getPointer() const;
+    const Type * getRef() const;
+    const Type * getMaybe() const;
 
-    virtual Declarator * getGenericDeclarator() const;
+    const Type * unRef() const;
 
+    const Type * getBase() const;
+
+    virtual const Type * under() const;
+
+    virtual Declarator * getGenericDeclarator() const = 0;
     virtual std::string getDemangledName() const;
-
-    virtual bool opApplies(std::string & op) const;
-    virtual bool isValidOperand(const Type * operand, std::string & op) const;
-    virtual const Type * binResultType(const Type * operand,
-                                       std::string & op) const;
-    virtual const Type * unResultType(std::string & op) const;
-
-    virtual const Type * arrayOf() const;
-    virtual const Type * pointerOf() const;
-    virtual const Type * maybeOf() const;
-
     virtual const Type * replacePlaceholders(const Type * t) const;
-
-    virtual ~Type();
-    //
-};
-
-struct InvalidType : Type {
-    InvalidType();
 };
 
 struct PlaceholderType : Type {
+    static const std::string plkey;
+
     PlaceholderType();
 
-    // Type interface
-    virtual bool equivalent(const Type * other, bool exactMatch = false) const;
-    virtual Declarator * getGenericDeclarator() const;
+    static const Type * get();
 
-    virtual const Type * replacePlaceholders(const Type * t) const;
-    //
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+
+    const Type * replacePlaceholders(const Type * t) const;
+};
+
+struct VoidType : Type {
+    static const std::string vkey;
+
+    VoidType();
+
+    static const Type * get();
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+};
+
+struct BoolType : Type {
+    static const std::string bkey;
+
+    BoolType();
+
+    static const Type * get();
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+};
+
+struct IntType : Type {
+    Sign sign;
+    int width;
+
+    IntType(Sign _sign, int _width);
+
+    static const Type * get(Sign sign, int width);
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+};
+
+struct FloatType : Type {
+    int width;
+
+    FloatType(int _width);
+
+    static const Type * get(int width);
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+};
+
+struct CharType : Type {
+    static const std::string ckey;
+
+    CharType();
+
+    static const Type * get();
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+};
+
+struct PointerType : Type {
+    const Type * elem_t;
+
+    PointerType(const Type * _elem_t);
+
+    static const Type * get(const Type * elem_t);
+
+    const Type * under() const;
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+
+    const Type * replacePlaceholders(const Type * t) const;
+};
+
+struct RefType : Type {
+    const Type * t;
+
+    RefType(const Type * _t);
+
+    static const Type * get(const Type * t);
+
+    const Type * under() const;
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+
+    const Type * replacePlaceholders(const Type * t) const;
+};
+
+struct ArrayType : Type {
+    const Type * elem_t;
+    int width;
+
+    ArrayType(const Type * _elem_t, int _width);
+
+    static const Type * get(const Type * elem_t, int width);
+
+    const Type * under() const;
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+
+    const Type * replacePlaceholders(const Type * t) const;
+};
+
+struct SliceType : Type {
+    const Type * elem_t;
+
+    SliceType(const Type * _elem_t);
+
+    static const Type * get(const Type * elem_t);
+
+    const Type * getRealType() const;
+
+    const Type * under() const;
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+
+    const Type * replacePlaceholders(const Type * t) const;
+};
+
+struct DynamicArrayType : Type {
+    const Type * elem_t;
+
+    DynamicArrayType(const Type * _elem_t);
+
+    static const Type * get(const Type * elem_t);
+
+    const Type * getRealType() const;
+
+    const Type * under() const;
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+
+    const Type * replacePlaceholders(const Type * t) const;
 };
 
 struct StructType : Type {
     bool isAbstract;
+    bool isComplete;
     Struct * _struct;
     TemplateInstantiation * inst;
     Type * extends;
-	Procedure * idestroy_link;
+    Procedure * idestroy_link;
     std::unordered_map<std::string, int> memberIndices;
     std::vector<const Type *> memberTypes;
     std::unordered_map<std::string, Constant *> constantMap;
@@ -130,244 +263,81 @@ struct StructType : Type {
     std::set<std::string> interfaces;
     std::unordered_map<Procedure *, unsigned int> interfaceIndexMap;
 
-    StructType();
     StructType(std::string & name, Struct * __struct = nullptr,
                TemplateInstantiation * _inst = nullptr);
 
+    static const Type * get(std::string name);
+    static const Type * get(std::string name, Struct * _struct,
+                            TemplateInstantiation * inst = nullptr);
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+
     void complete();
 
-    void setMemberType(int idx, const Type * t);
-
-    // Type interface
-    bool opApplies(std::string & op) const;
-    bool isValidOperand(const Type * operand, std::string & op) const;
-    const Type * binResultType(const Type * operand, std::string & op) const;
-    const Type * unResultType(std::string & op) const;
-
-    virtual const Type * replacePlaceholders(const Type * t) const;
-    //
-};
-
-struct EnumType : Type {
-    EnumType();
-    EnumType(std::string & name, ASTNode * __enum);
-
-    std::unordered_map<std::string, int> valMap;
-
-    int getVal(std::string identifier);
-
-    // @incomplete
-};
-
-struct AliasType : Type {
-    AliasType();
-    AliasType(std::string & name, Alias * _alias);
-
-    Alias * alias;
-    const Type * alias_of;
-
-    // Type interface
-    const Type * getOriginal() const;
-    bool equivalent(const Type * other, bool exactMatch = false) const;
-
-    bool opApplies(std::string & op) const;
-    bool isValidOperand(const Type * operand, std::string & op) const;
-    const Type * binResultType(const Type * operand, std::string & op) const;
-    const Type * unResultType(std::string & op) const;
-
-    virtual const Type * replacePlaceholders(const Type * t) const;
-    //
-
-    void complete();
-};
-
-struct ArrayType : Type {
-    ArrayType();
-    ArrayType(const Type * _array_of);
-    ArrayType(const Type * _array_of, Expression * _expression);
-
-    const Type * array_of;
-    Expression * expression;
-    int size;
-
-    // Type interface
-    bool equivalent(const Type * other, bool exactMatch = false) const;
-
-    const Type * getBase() const;
-    Declarator * getGenericDeclarator() const;
-
-    virtual std::string getDemangledName() const;
-
-    bool opApplies(std::string & op) const;
-    bool isValidOperand(const Type * operand, std::string & op) const;
-    const Type * binResultType(const Type * operand, std::string & op) const;
-    const Type * unResultType(std::string & op) const;
-
-    virtual const Type * replacePlaceholders(const Type * t) const;
-    //
-};
-
-struct DynamicArrayType : Type {
-    DynamicArrayType();
-    DynamicArrayType(const Type * _array_of);
-
-    const Type * array_of;
-
-    // Type interface
-    bool equivalent(const Type * other, bool exactMatch = false) const;
-
-    const Type * getBase() const;
-    Declarator * getGenericDeclarator() const;
-
-    virtual std::string getDemangledName() const;
-
-    bool opApplies(std::string & op) const;
-    bool isValidOperand(const Type * operand, std::string & op) const;
-    const Type * binResultType(const Type * operand, std::string & op) const;
-    const Type * unResultType(std::string & op) const;
-
-    virtual const Type * replacePlaceholders(const Type * t) const;
-    //
-};
-
-struct PointerType : Type {
-    PointerType();
-    PointerType(const Type * _pointer_of);
-
-    const Type * pointer_of;
-
-    // Type interface
-    bool equivalent(const Type * other, bool exactMatch = false) const;
-
-    const Type * getBase() const;
-    Declarator * getGenericDeclarator() const;
-
-    virtual std::string getDemangledName() const;
-
-    bool opApplies(std::string & op) const;
-    bool isValidOperand(const Type * operand, std::string & op) const;
-    const Type * binResultType(const Type * operand, std::string & op) const;
-    const Type * unResultType(std::string & op) const;
-
-    virtual const Type * replacePlaceholders(const Type * t) const;
-    //
-};
-
-struct MaybeType : Type {
-    MaybeType();
-    MaybeType(const Type * _maybe_of);
-
-    const Type * maybe_of;
-
-    // Type interface
-    const Type * getBase() const;
-    Declarator * getGenericDeclarator() const;
-
-    virtual std::string getDemangledName() const;
-
-    bool opApplies(std::string & op) const;
-    bool isValidOperand(const Type * operand, std::string & op) const;
-    const Type * binResultType(const Type * operand, std::string & op) const;
-    const Type * unResultType(std::string & op) const;
-
-    virtual const Type * replacePlaceholders(const Type * t) const;
-    //
+    bool implementsInterfaces() const;
 };
 
 struct TupleType : Type {
-    TupleType();
-    TupleType(std::vector<const Type *> _subTypes);
+    std::vector<const Type *> types;
 
-    std::vector<const Type *> subTypes;
+    TupleType(const std::vector<const Type *> & _types);
 
-    // Type interface
-    bool equivalent(const Type * other, bool exactMatch = false) const;
+    static const Type * get(const std::vector<const Type *> & types);
+
+    const std::vector<const Type *> & getTypes() const;
 
     Declarator * getGenericDeclarator() const;
 
-    virtual std::string getDemangledName() const;
+    std::string getDemangledName() const;
 
-    bool opApplies(std::string & op) const;
-    bool isValidOperand(const Type * operand, std::string & op) const;
-    const Type * binResultType(const Type * operand, std::string & op) const;
-    const Type * unResultType(std::string & op) const;
-
-    virtual const Type * replacePlaceholders(const Type * t) const;
-    //
+    const Type * replacePlaceholders(const Type * t) const;
 };
 
 struct ProcedureType : Type {
-    ProcedureType();
-    ProcedureType(std::vector<const Type *> _paramTypes, const Type * _retType,
-                  bool _isVararg = false);
-
     std::vector<const Type *> paramTypes;
     bool isVararg;
     const Type * retType;
 
-    bool argMatch(const Type * _other, bool exactMatch = false);
+    ProcedureType(const std::vector<const Type *> & _paramTypes,
+                  const Type * _retType, bool _isVararg = false);
 
-    // Type interface
-    bool equivalent(const Type * other, bool exactMatch = false) const;
-    Declarator * getGenericDeclarator() const;
+    static const Type * get(const std::vector<const Type *> & paramTypes,
+                            const Type * retType, bool _isVararg = false);
 
-    virtual std::string getDemangledName() const;
-
-    bool opApplies(std::string & op) const;
-    bool isValidOperand(const Type * operand, std::string & op) const;
-    const Type * binResultType(const Type * operand, std::string & op) const;
-    const Type * unResultType(std::string & op) const;
-
-    virtual const Type * replacePlaceholders(const Type * t) const;
-    //
-};
-
-struct TemplateStructType : Type {
-    TemplateStructType();
-    TemplateStructType(std::string & name);
-
-    /*
-    // Type interface
-            const Type * getOriginal() const;
-    bool equivalent(const Type * other, bool exactMatch = false) const;
+    const std::vector<const Type *> & getParamTypes() const;
+    const Type * getRetType() const;
 
     Declarator * getGenericDeclarator() const;
 
-    bool opApplies(std::string& op) const;
-    bool isValidOperand(const Type * operand, std::string& op) const;
-    const Type * binResultType(const Type * operand, std::string& op) const;
-    const Type * unResultType(std::string& op) const;
-            //
-     */
+    std::string getDemangledName() const;
+
+    const Type * replacePlaceholders(const Type * t) const;
 };
 
-struct TemplateAliasType : Type {
-    TemplateAliasType();
-    TemplateAliasType(std::string & name);
+bool equal(const Type * t1, const Type * t2);
+const Type * conv(const Type * t1, const Type * t2);
+bool argMatch(const Type * t1, const Type * t2, bool exact = false);
 
-    /*
-    // Type interface
-            const Type * getOriginal() const;
-    bool equivalent(const Type * other, bool exactMatch = false) const;
+const Type * getTypeFromTable(const std::string & key);
+void addTypeToTable(const Type * t, const std::string & key);
 
-    Declarator * getGenericDeclarator() const;
+template <typename T, typename... argsT>
+const Type * getOrAddType(const std::string & key, argsT... args) {
+    const Type * t = getTypeFromTable(key);
 
-    bool opApplies(std::string& op) const;
-    bool isValidOperand(const Type * operand, std::string& op) const;
-    const Type * binResultType(const Type * operand, std::string& op) const;
-    const Type * unResultType(std::string& op) const;
-            //
-     */
-};
+    if (!t) {
+        t = new T(args...);
+        addTypeToTable(t, key);
+    }
 
-void compilationAddPrimativeTypes();
-
-const Type * primativeConversionResult(const Type * l, const Type * r);
-
-void createCompleteType(Symbol * sym);
+    return t;
+}
 
 std::vector<const Type *>
 typesSortedByDepencencies(std::vector<const Type *> nonPrimatives);
 
+void compilationAddPrimativeTypes();
 } // namespace bjou
 #endif /* Type_hpp */

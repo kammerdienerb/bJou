@@ -1,0 +1,20 @@
+# __slice.bjou
+
+module __slice
+
+type __bjou_slice!(T) {
+    __len  : u64
+    __data : T*
+
+    proc create(src : T*, start : u64, len : u64) : __bjou_slice!(T) {
+        print "creating slice [ %, %:% ]", src, start, len
+        return { __bjou_slice!(T):
+            .__data = src + start,
+            .__len = len
+        }
+    }
+
+    proc at(this, index : u64) : T {
+        return this.__data[index]     
+    }
+}

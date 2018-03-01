@@ -96,8 +96,8 @@ Procedure * ProcSet::get(ASTNode * args, ASTNode * inst, Context * context,
 
     if (args) {
         // @bad
-        compare_type = new ProcedureType(
-            arg_types, compilation->frontEnd.typeTable["void"]);
+        compare_type =
+            (ProcedureType *)ProcedureType::get(arg_types, VoidType::get());
     } else if (!compilation->frontEnd.lValStack.empty() &&
                compilation->frontEnd.lValStack.top()->isProcedure()) {
         compare_type = (ProcedureType *)compilation->frontEnd.lValStack.top();
@@ -117,10 +117,6 @@ Procedure * ProcSet::get(ASTNode * args, ASTNode * inst, Context * context,
     std::vector<Symbol *> candidates, resolved;
     candidates = getCandidates(compare_type, args, inst, context, fail);
     resolve(candidates, resolved, compare_type, args, inst, context, fail);
-
-    // Don't delete if we're using the l-val - we don't own it!!
-    if (compare_type && !uses_l_val)
-        delete compare_type;
 
     if (resolved.empty()) {
         if (fail) {
@@ -208,8 +204,7 @@ std::vector<Symbol *> ProcSet::getCandidates(ProcedureType * compare_type,
     if (compare_type) {
         for (auto & p : procs) {
             if (!p.second->isTemplateProc()) {
-                if (compare_type->argMatch(
-                        (ProcedureType *)p.second->node()->getType())) {
+                if (argMatch(compare_type, p.second->node()->getType())) {
                     if (!p.second->node()->getFlag(
                             Procedure::IS_TEMPLATE_DERIVED)) {
                         candidates.push_back(p.second);
@@ -232,10 +227,10 @@ static int countConversions(ProcedureType * compare_type,
                             ProcedureType * candidate_type) {
     int nconv = 0;
     for (int i = 0; i < (int)candidate_type->paramTypes.size(); i += 1) {
-        BJOU_DEBUG_ASSERT(compare_type->paramTypes[i]->equivalent(
-            candidate_type->paramTypes[i]));
-        if (!compare_type->paramTypes[i]->equivalent(
-                candidate_type->paramTypes[i], /* exact_match =*/true))
+        const Type * t1 = compare_type->paramTypes[i];
+        const Type * t2 = candidate_type->paramTypes[i];
+        BJOU_DEBUG_ASSERT(conv(t1, t2));
+        if (!equal(t1, t2))
             nconv += 1;
     }
     return nconv;

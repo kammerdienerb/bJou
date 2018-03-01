@@ -41,6 +41,9 @@ Val evalSub(Val & a, Val & b, const Type * t);
 Val evalMult(Val & a, Val & b, const Type * t);
 Val evalDiv(Val & a, Val & b, const Type * t);
 Val evalMod(Val & a, Val & b, const Type * t);
+Val evalNot(Val & a, const Type * t);
+Val evalEqu(Val & a, Val & b, const Type * t);
+Val evalNeq(Val & a, Val & b, const Type * t);
 
 } // namespace bjou
 

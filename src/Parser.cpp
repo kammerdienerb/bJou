@@ -31,22 +31,22 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_kwd_type, parser_kwd_abstract, parser_kwd_extends,
     parser_kwd_interface, parser_kwd_implements, parser_kwd_from,
     parser_kwd_enum, parser_kwd_print, parser_kwd_raw, parser_kwd_immut,
-    parser_kwd_coerce, parser_kwd_this, parser_kwd_delete, parser_kwd_namespace,
-    parser_kwd_import, parser_kwd_module, parser_kwd_alias, parser_kwd_operator,
-    parser_kwd_return, parser_kwd_if, parser_kwd_else, parser_kwd_while,
-    parser_kwd_do, parser_kwd_for, parser_kwd_match, parser_kwd_with,
-    parser_kwd_break, parser_kwd_continue, parser_l_curly_brace,
-    parser_r_curly_brace, parser_l_sqr_bracket, parser_r_sqr_bracket,
-    parser_l_paren, parser_r_paren, parser_integer, parser_floating_pt,
-    parser_char_literal, parser_string_literal, parser_kwd_true,
-    parser_kwd_false, parser_kwd_nothing, parser_kwd_as, parser_dot,
-    parser_arrow, parser_exclam, parser_kwd_sizeof, parser_amp, parser_at,
-    parser_kwd_not, parser_kwd_new, parser_kwd_proc, parser_kwd_extern,
-    parser_kwd_some, parser_mult, parser_div, parser_mod, parser_plus,
-    parser_minus, parser_lss, parser_leq, parser_gtr, parser_geq, parser_equ,
-    parser_neq, parser_and, parser_kwd_and, parser_or, parser_kwd_or,
-    parser_assign, parser_plus_eq, parser_min_eq, parser_mult_eq, parser_div_eq,
-    parser_mod_eq, parser_var_decl_beg,
+    parser_kwd_coerce, parser_kwd_this, parser_kwd_ref, parser_kwd_delete,
+    parser_kwd_namespace, parser_kwd_import, parser_kwd_module,
+    parser_kwd_alias, parser_kwd_operator, parser_kwd_return, parser_kwd_if,
+    parser_kwd_else, parser_kwd_while, parser_kwd_do, parser_kwd_for,
+    parser_kwd_match, parser_kwd_with, parser_kwd_break, parser_kwd_continue,
+    parser_l_curly_brace, parser_r_curly_brace, parser_l_sqr_bracket,
+    parser_r_sqr_bracket, parser_l_paren, parser_r_paren, parser_integer,
+    parser_floating_pt, parser_char_literal, parser_string_literal,
+    parser_kwd_true, parser_kwd_false, parser_kwd_nothing, parser_kwd_as,
+    parser_dot, parser_arrow, parser_exclam, parser_kwd_sizeof, parser_amp,
+    parser_tilde, parser_at, parser_kwd_not, parser_kwd_new, parser_kwd_proc,
+    parser_kwd_extern, parser_kwd_some, parser_mult, parser_div, parser_mod,
+    parser_plus, parser_minus, parser_lss, parser_leq, parser_gtr, parser_geq,
+    parser_equ, parser_neq, parser_and, parser_kwd_and, parser_or,
+    parser_kwd_or, parser_assign, parser_plus_eq, parser_min_eq, parser_mult_eq,
+    parser_div_eq, parser_mod_eq, parser_var_decl_beg,
     // parser_constant_decl_beg, // @const
     parser_sl_comment_beg, parser_ml_comment_beg, parser_ml_comment_end,
     parser_end_of_line};
@@ -54,7 +54,8 @@ constexpr const TokenParserFnType tokenParsers[] = {
 #define GOOD_IDX(buff, p) ((p) < (buff).viewSize())
 #define IS_C(buff, p, c) ((p) < (buff).viewSize() && (buff)[(p)] == (c))
 #define IN_CHAR_RANGE(buff, p, first, last)                                    \
-    ((p) < (buff).viewSize() && ((buff)[(p)] >= (first) && (buff)[(p)] <= (last)))
+    ((p) < (buff).viewSize() &&                                                \
+     ((buff)[(p)] >= (first) && (buff)[(p)] <= (last)))
 #define IS_AZ(buff, p)                                                         \
     ((p) < (buff).viewSize() && (((buff)[(p)]) >= 'A' && ((buff)[(p)]) <= 'Z'))
 #define IS_az(buff, p)                                                         \
@@ -75,7 +76,7 @@ constexpr const TokenParserFnType tokenParsers[] = {
 const char * kwds[] = {
     "type",   "abstract", "interface", "implements", "extends", "from",
     "enum",   "print",    "raw",       "immut",      "delete",  "namespace",
-    "import", "alias",    "operator",  "coerce",     "this",
+    "import", "alias",    "operator",  "coerce",     "this",    "ref",
 
     "return", "if",       "else",      "while",      "do",      "for",
     "match",  "with",     "break",     "continue",
@@ -266,6 +267,9 @@ MaybeString parser_kwd_coerce(StringViewableBuffer & buff) {
 MaybeString parser_kwd_this(StringViewableBuffer & buff) {
     return parse_kwd(buff, "this");
 }
+MaybeString parser_kwd_ref(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "ref");
+}
 MaybeString parser_kwd_delete(StringViewableBuffer & buff) {
     return parse_kwd(buff, "delete");
 }
@@ -424,6 +428,9 @@ MaybeString parser_kwd_sizeof(StringViewableBuffer & buff) {
 }
 MaybeString parser_amp(StringViewableBuffer & buff) {
     return parse_punc(buff, "&");
+}
+MaybeString parser_tilde(StringViewableBuffer & buff) {
+    return parse_punc(buff, "~");
 }
 MaybeString parser_at(StringViewableBuffer & buff) {
     return parse_punc(buff, "@");
@@ -627,6 +634,8 @@ void Parser::parseCommon() {
             module_declared = (ModuleDeclaration *)node;
         }
 
+        node->replace = rpget<replacementPolicy_Global_Node>();
+
         // we are single-threaded..
         compilation->frontEnd.AST.push_back(node);
     }
@@ -729,6 +738,10 @@ std::string Parser::expect(TokenKind tok, std::string err, bool skipEat,
 }
 
 MaybeASTNode Parser::parseDeclarator() {
+    auto m_use = parseMacroUse();
+    if (m_use)
+        return m_use;
+
     Declarator * result = nullptr;
     Context context;
     context.start(&currentContext);
@@ -837,32 +850,39 @@ MaybeASTNode Parser::parseDeclarator() {
     } else
         return MaybeASTNode();
 
-    // Array, Pointer, Maybe
-    //                array - [               pointer - *                maybe -
-    //                ?
+    // Array, Pointer, Maybe, Ref
+    //                array/slice - [         pointer - *
+    //                maybe       - ?         ref     - ref
     while (optional(L_SQR_BRACKET, true) || optional(MULT, true) ||
-           optional(QUESTION, true)) {
+           optional(QUESTION, true) || optional(KWD_REF, true)) {
         if (optional(L_SQR_BRACKET)) {
             if (optional(ELLIPSIS)) {
                 result = new DynamicArrayDeclarator(result);
-                context.finish(&currentContext, &justCleanedContext);
-                result->setContext(context);
+            } else if (optional(R_SQR_BRACKET, true)) {
+                result = new SliceDeclarator(result); 
             } else {
                 MaybeASTNode m_expr = parseExpression();
                 ASTNode * expr = nullptr;
-                m_expr.assignTo(expr); // this doesn't have to work since the
-                                       // expr is optional
+                if (!m_expr.assignTo(expr)) {
+                    errornext(*this, "Expected static array length expression.", true,
+                                     "use '[]' do declare slice",
+                                     "or '[...]' to declare dynamic array");
+                }
                 result = new ArrayDeclarator(result, expr);
-                context.finish(&currentContext, &justCleanedContext);
-                result->setContext(context);
             }
             expect(R_SQR_BRACKET, "']'");
+            context.finish(&currentContext, &justCleanedContext);
+            result->setContext(context);
         } else if (optional(MULT)) {
             result = new PointerDeclarator(result);
             context.finish(&currentContext, &justCleanedContext);
             result->setContext(context);
         } else if (optional(QUESTION)) {
             result = new MaybeDeclarator(result);
+            context.finish(&currentContext, &justCleanedContext);
+            result->setContext(context);
+        } else if (optional(KWD_REF)) {
+            result = new RefDeclarator(result);
             context.finish(&currentContext, &justCleanedContext);
             result->setContext(context);
         }
@@ -1186,13 +1206,14 @@ MaybeASTNode Parser::parseExpression_r(ASTNode * left, int minPrecedence) {
                 m_right = parseExpression_r(right, 0);
                 m_right.assignTo(right);
                 BJOU_DEBUG_ASSERT(right);
+                expect(R_SQR_BRACKET, "']'");
+                right->getContext().finish(&currentContext, &justCleanedContext);
             }
-            expect(R_SQR_BRACKET, "']'");
         } else if (op == "()") {
             expect(L_PAREN, "'('");
             m_right = parseArgList();
             if (!m_right) //.assignTo(right)) // this won't work because we have
-                          //to force an ArgList where an Expression should go
+                          // to force an ArgList where an Expression should go
                 return MaybeASTNode();
             // force it
             ASTNode * argList = nullptr;
@@ -1205,6 +1226,7 @@ MaybeASTNode Parser::parseExpression_r(ASTNode * left, int minPrecedence) {
                 optional(COLON)
                     ? "precede procedure declarations with the keyword 'proc'"
                     : "to end procedure call");
+            right->getContext().finish(&currentContext, &justCleanedContext);
         } else {
             eat(op);
             if (binary(op.c_str())) {
@@ -1329,7 +1351,7 @@ MaybeString Parser::parseBinaryOperator(bool skipEat) {
 MaybeString Parser::parseUnaryPrefixOperator(bool skipEat) {
     const TokenKind opOrder[] = {EXCLAM,     KWD_NOT,  KWD_NEW,    KWD_DELETE,
                                  KWD_SIZEOF, KWD_PROC, KWD_EXTERN, KWD_SOME,
-                                 AT,         AMP};
+                                 AT,         AMP,      TILDE};
 
     for (TokenKind tok : opOrder) {
         MaybeString m_result = optional(tok, skipEat);
@@ -1411,6 +1433,10 @@ ASTNode * Parser::applyPostfixOp(std::string & postfixOp, Expression * expr,
 }
 
 MaybeASTNode Parser::parseTerminatingExpression() {
+    auto m_use = parseMacroUse();
+    if (m_use)
+        return m_use;
+
     Expression * result = nullptr;
     Context context;
     context.start(&currentContext);
@@ -1470,7 +1496,9 @@ MaybeASTNode Parser::parseTerminatingExpression() {
         }
         node->setFlag(Expression::TERMINAL, true);
     } else if ((m_node = parseInitializerList()) ||
-               (m_node = parseParentheticalExpressionOrTuple())) {
+               (m_node = parseParentheticalExpressionOrTuple()) ||
+               (m_node = parseSliceExpression()) ||
+               (m_node = parseLenExpression())) {
         m_node.assignTo(node);
         BJOU_DEBUG_ASSERT(node);
     } else
@@ -1480,7 +1508,8 @@ MaybeASTNode Parser::parseTerminatingExpression() {
 }
 
 MaybeASTNode Parser::parseParentheticalExpressionOrTuple() {
-    Context contextBegin = currentContext;
+    Context contextBegin;
+    contextBegin.start(&currentContext);
     if (optional(L_PAREN)) {
         MaybeASTNode m_expression = parseExpression();
         Expression * expression = nullptr;
@@ -1579,6 +1608,77 @@ MaybeASTNode Parser::parseInitializerList() {
 
     return MaybeASTNode();
 }
+
+MaybeASTNode Parser::parseSliceExpression() {
+    if (optional(L_SQR_BRACKET, true)) {
+        SliceExpression * result = new SliceExpression();
+        result->getContext().start(&currentContext);
+
+        eat("[");
+
+        if (optional(R_SQR_BRACKET)) {
+            result->getContext().finish(&currentContext, &justCleanedContext);
+            errorl(result->getContext(), "Empty slice expression.");
+        } else {
+            ASTNode * expr = nullptr;
+            MaybeASTNode m_expr;
+
+            m_expr = parseExpression();
+            if (!m_expr.assignTo(expr))
+                errornext(*this, "Invalid source in slice expression.", true,
+                                 "slice syntax: '[ source, start_index:length ]'");
+            result->setSrc(expr);
+           
+            expect(COMMA, "','");
+
+            m_expr = parseExpression();
+            if (!m_expr.assignTo(expr))
+                errornext(*this, "Invalid starting index in slice expression.", true,
+                                 "slice syntax: '[ source, start_index:length ]'");
+            result->setStart(expr);
+
+            expect(COLON, "':'"); 
+
+            m_expr = parseExpression();
+            if (!m_expr.assignTo(expr))
+                errornext(*this, "Invalid length in slice expression.", true,
+                                 "slice syntax: '[ source, start_index:length ]'");
+            result->setLength(expr);
+
+            expect(R_SQR_BRACKET, "']'");
+
+            result->getContext().finish(&currentContext, &justCleanedContext);
+            return MaybeASTNode(result);
+        }
+    }
+
+    return MaybeASTNode();
+}
+
+MaybeASTNode Parser::parseLenExpression() {
+    if (!optional(OR, true) && optional(VERT, true)) {
+        LenExpression * result = new LenExpression();
+        result->getContext().start(&currentContext);
+
+        eat("|");
+
+        ASTNode * expr = nullptr;
+        MaybeASTNode m_expr;
+
+        m_expr = parseExpression();
+        if (!m_expr.assignTo(expr))
+            errornext(*this, "Invalid expression in cardinality expression.");
+        result->setExpr(expr);
+       
+        expect(VERT, "'|'");
+
+        result->getContext().finish(&currentContext, &justCleanedContext);
+        return MaybeASTNode(result);
+    }
+
+    return MaybeASTNode();
+}
+
 
 MaybeASTNode Parser::parseOperand() {
     Expression * result = nullptr;
@@ -2812,6 +2912,42 @@ MaybeASTNode Parser::parseContinue() {
     return MaybeASTNode();
 }
 
+MaybeASTNode Parser::parseMacroUse() {
+    if (optional(DOLLAR, true)) {
+        MacroUse * result = new MacroUse();
+        result->getContext().start(&currentContext);
+
+        eat("$");
+
+        result->setMacroName(expect(IDENTIFIER, "macro name"));
+
+        expect(L_CURLY_BRACE, "'{'");
+        while (true) {
+            ASTNode * arg = nullptr;
+            MaybeASTNode m_arg = parseMacroArg();
+            if (!m_arg.assignTo(arg))
+                break;
+            result->addArg(arg);
+
+            // if (!optional(COMMA))
+            // break;
+        }
+        expect(R_CURLY_BRACE, "'}'");
+
+        result->getContext().finish(&currentContext, &justCleanedContext);
+
+        return MaybeASTNode(result);
+    }
+
+    return MaybeASTNode();
+}
+
+MaybeASTNode Parser::parseMacroArg() {
+    MaybeASTNode m_node;
+    (m_node = parseTopLevelNode()) || (m_node = parseDeclarator());
+    return m_node;
+}
+
 MaybeASTNode Parser::parseSLComment() {
     if (optional(HASH, true, true)) {
         Context saveJustCleaned = justCleanedContext;
@@ -2850,12 +2986,10 @@ void Parser::moduleCheck(std::vector<ASTNode *> & AST,
     module_declared = mod_decl;
 }
 
-AsyncParser::AsyncParser(const char * c_str, bool start)
-    : Parser(c_str, start) {}
-AsyncParser::AsyncParser(std::string & str, bool start) : Parser(str, start) {}
-AsyncParser::AsyncParser(std::ifstream & file, const std::string & fname,
-                         bool start)
-    : Parser(file, fname, start) {}
+AsyncParser::AsyncParser(const char * c_str) : Parser(c_str, false) {}
+AsyncParser::AsyncParser(std::string & str) : Parser(str, false) {}
+AsyncParser::AsyncParser(std::ifstream & file, const std::string & fname)
+    : Parser(file, fname, false) {}
 
 void AsyncParser::parseCommon() {
     static ModuleDeclaration * module_declared = nullptr;
@@ -2866,11 +3000,14 @@ void AsyncParser::parseCommon() {
         ASTNode * node = nullptr;
         if (!m_node.assignTo(node))
             errornext(*this, "Unexpected token.");
-        
+
         else if (node->nodeKind == ASTNode::MODULE_DECL) {
             moduleCheck(nodes, module_declared, (ModuleDeclaration *)node);
             module_declared = (ModuleDeclaration *)node;
         }
+        
+        node->replace = rpget<replacementPolicy_Global_Node>();
+
         nodes.push_back(node);
     }
 }
@@ -2881,13 +3018,12 @@ milliseconds AsyncParser::operator()() {
     return duration_cast<milliseconds>(Clock::now() - start);
 }
 
-ImportParser::ImportParser(const char * c_str, bool start)
-    : Parser(c_str, start), mod_decl(nullptr) {}
-ImportParser::ImportParser(std::string & str, bool start)
-    : Parser(str, start), mod_decl(nullptr) {}
-ImportParser::ImportParser(std::ifstream & file, const std::string & fname,
-                           bool start)
-    : Parser(file, fname, start), mod_decl(nullptr) {}
+ImportParser::ImportParser(const char * c_str)
+    : Parser(c_str, false), mod_decl(nullptr) {}
+ImportParser::ImportParser(std::string & str)
+    : Parser(str, false), mod_decl(nullptr) {}
+ImportParser::ImportParser(std::ifstream & file, const std::string & fname)
+    : Parser(file, fname, false), mod_decl(nullptr) {}
 
 void ImportParser::parseCommon() {
     while (buff.viewSize() > 0) {
@@ -2908,6 +3044,9 @@ void ImportParser::parseCommon() {
                 return;
             }
         }
+        
+        node->replace = rpget<replacementPolicy_Global_Node>();
+        
         nodes.push_back(node);
     }
 }

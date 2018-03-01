@@ -1,0 +1,14 @@
+# trans.bjou
+
+import "c2bjou.bjou"
+
+$run(
+    cinclude("fact.c"))
+# nas parallel
+$add_llvm_pass_to_proc(
+    factorial,
+    "tailcallelim")
+
+(proc main() {
+    mybenchmark()
+})()

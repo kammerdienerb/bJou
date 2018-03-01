@@ -16,23 +16,22 @@
 
 namespace bjou {
 ASTNode * Val::toExpr() {
-    if (t->enumerableEquivalent()) {
-        if (t->size == 1) {
-            BooleanLiteral * b = new BooleanLiteral;
-            b->setContents(as_i64 ? "true" : "false");
-            return b;
-        } else {
-            IntegerLiteral * i = new IntegerLiteral;
-            i->setContents(std::to_string(as_i64));
-            return i;
-        }
-    } else if (t->isFP()) {
+    if (t->isBool()) {
+        BooleanLiteral * b = new BooleanLiteral;
+        b->setContents(as_i64 ? "true" : "false");
+        return b;
+    } else if (t->isInt()) {
+        IntegerLiteral * i = new IntegerLiteral;
+        i->setContents(std::to_string(as_i64));
+        return i;
+    } else if (t->isFloat()) {
         FloatLiteral * f = new FloatLiteral;
         f->setContents(std::to_string(as_f64));
         return f;
     } else if (t->isPointer()) {
         PointerType * pt = (PointerType *)t;
-        if (pt->pointer_of->size == 8) {
+        const Type * u = pt->under();
+        if (u == CharType::get()) {
             StringLiteral * s = new StringLiteral;
             s->setContents(as_string);
             return s;
@@ -49,9 +48,9 @@ Val evalAdd(Val & a, Val & b, const Type * t) {
     Val result;
     result.t = t;
 
-    if (t->enumerableEquivalent()) {
+    if (t->isInt() || t->isBool()) {
         result.as_i64 = _evalAdd<int64_t>(a, b);
-    } else if (t->isFP()) {
+    } else if (t->isFloat()) {
         result.as_f64 = _evalAdd<double>(a, b);
     } else
         internalError("Could not evaluate add expression.");
@@ -63,9 +62,9 @@ Val evalSub(Val & a, Val & b, const Type * t) {
     Val result;
     result.t = t;
 
-    if (t->enumerableEquivalent()) {
+    if (t->isInt() || t->isBool()) {
         result.as_i64 = _evalSub<int64_t>(a, b);
-    } else if (t->isFP()) {
+    } else if (t->isFloat()) {
         result.as_f64 = _evalSub<double>(a, b);
     } else
         internalError("Could not evaluate sub expression.");
@@ -77,9 +76,9 @@ Val evalMult(Val & a, Val & b, const Type * t) {
     Val result;
     result.t = t;
 
-    if (t->enumerableEquivalent()) {
+    if (t->isInt() || t->isBool()) {
         result.as_i64 = _evalMult<int64_t>(a, b);
-    } else if (t->isFP()) {
+    } else if (t->isFloat()) {
         result.as_f64 = _evalMult<double>(a, b);
     } else
         internalError("Could not evaluate mult expression.");
@@ -91,9 +90,9 @@ Val evalDiv(Val & a, Val & b, const Type * t) {
     Val result;
     result.t = t;
 
-    if (t->enumerableEquivalent()) {
+    if (t->isInt() || t->isBool()) {
         result.as_i64 = _evalDiv<int64_t>(a, b);
-    } else if (t->isFP()) {
+    } else if (t->isFloat()) {
         result.as_f64 = _evalDiv<double>(a, b);
     } else
         internalError("Could not evaluate div expression.");
@@ -105,10 +104,52 @@ Val evalMod(Val & a, Val & b, const Type * t) {
     Val result;
     result.t = t;
 
-    if (t->enumerableEquivalent()) {
+    if (t->isInt() || t->isBool()) {
         result.as_i64 = _evalMod<int64_t>(a, b);
     } else
-        internalError("Could not evaluate Mod expression.");
+        internalError("Could not evaluate mod expression.");
+
+    return result;
+}
+
+Val evalNot(Val & a, const Type * t) {
+    Val result;
+    result.t = t;
+
+    if (t->isInt() || t->isBool()) {
+        result.as_i64 = _evalNot<int64_t>(a);
+    } else if (t->isFloat()) {
+        result.as_f64 = _evalNot<double>(a);
+    } else
+        internalError("Could not evaluate not expression.");
+
+    return result;
+}
+
+Val evalEqu(Val & a, Val & b, const Type * t) {
+    Val result;
+    result.t = t;
+
+    if (t->isInt() || t->isBool()) {
+        result.as_i64 = _evalEqu<int64_t>(a, b);
+    } else if (t->isFloat()) {
+        result.as_f64 = _evalEqu<double>(a, b);
+    } else
+        internalError("Could not evaluate equ expression.");
+
+    return result;
+}
+
+Val evalNeq(Val & a, Val & b, const Type * t) {
+    Val result;
+    result.t = t;
+
+    if (t->isInt() || t->isBool()) {
+        result.as_i64 = _evalNeq<int64_t>(a, b);
+    } else if (t->isFloat()) {
+        result.as_f64 = _evalNeq<double>(a, b);
+    } else
+        internalError("Could not evaluate neq expression.");
 
     return result;
 }

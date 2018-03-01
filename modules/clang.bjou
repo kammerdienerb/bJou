@@ -1,0 +1,466 @@
+# clang.bjou
+# bJou interface to libclang
+# written for c2bjou
+
+module clang
+
+import "dlfcn.bjou"
+import "null.bjou"
+
+# global libclang object
+clang := { libclang: }
+
+proc init_clang(path : char*)
+    clang = libclang.create(path)
+
+type CXString {
+    data          : void*
+    private_flags : u32
+}
+
+abstract type CXIndex           { }
+abstract type CXTargetInfo      { }
+abstract type CXTranslationUnit { }
+abstract type CXClientData      { }
+
+type CXUnsavedFile {
+    Filename : char*
+    Contents : char*
+    Length   : u64 
+}
+
+type CXVersion {
+    Major    : i32
+    Minor    : i32
+    Subminor : i32
+}
+
+abstract type CXFile { }
+
+type CXFileUniqueID {
+    data : u64[3]    
+}
+
+type CXSourceLocation {
+    ptr_data : void*[2]
+    int_data : u32
+}
+
+type CXSourceRange {
+    ptr_data       : void*[2]
+    begin_int_data : u32
+    end_int_data   : u32
+}
+
+type CXSourceRangeList {
+    count  : u32
+    ranges : CXSourceRange*
+}
+
+abstract type CXDiagnostic    { }
+abstract type CXDiagnosticSet { }
+
+type CXTUResourceUsageEntry {
+    kind   : u32 # CXTUResourceUsageKind
+    amount : u64
+}
+
+type CXTUResourceUsage {
+    data       : void*
+    numEntries : u32
+    entries    : CXTUResourceUsageEntry*
+}
+
+type CXCursor {
+    kind  : u32
+    xdata : i32
+    data  : void*[3]
+}
+
+type CXPlatformAvailability {
+    Platform    : CXString
+    Introduced  : CXVersion
+    Deprecated  : CXVersion
+    Obsoleted   : CXVersion
+    Unavailable : i32
+    Message     : CXString
+}
+
+abstract type CXCursorSet { }
+
+type CXType {
+    kind : u32 # CXTypeKind
+    data : void*[2]
+}
+
+abstract type CXModule { }
+
+type CXToken {
+    int_data : u32[4]
+    ptr_data : void*
+}
+
+abstract type CXCompletionString { }
+
+type CXCompletionResult {
+    CursorKind       : u32 # CXCursorKind
+    CompletionString : CXCompletionString*
+}
+
+type CXCodeCompleteResults {
+    Results    : CXCompletionResult*
+    NumResults : u32
+}
+
+abstract type CXEvalResult { }
+
+abstract type CXRemapping { }
+
+type CXCursorAndRangeVisitor {
+    context : void*
+    visit : <(
+        void*, #context
+        CXCursor,
+        CXSourceRange)
+        : u32> # CXVisitorResult
+}
+
+abstract type CXIdxClientFile      { }
+abstract type CXIdxClientEntity    { }
+abstract type CXIdxClientContainer { }
+abstract type CXIdxClientASTFile   { }
+
+type CXIdxLoc {
+    ptr_data : void*[2]
+    int_data : u32
+}
+
+type CXIdxIncludedFileInfo {
+    hasLoc         : CXIdxLoc
+    filename       : char*
+    file           : CXFile*
+    isImport       : i32
+    isAngled       : i32
+    isModuleImport : i32
+}
+
+type CXIdxImportedASTFileInfo {
+    file       : CXFile*
+    module     : CXModule*
+    loc        : CXIdxLoc
+    isImplicit : i32
+}
+
+type CXIdxAttrInfo {
+    kind   : u32 # CXIdxAttrKind
+    cursor : CXCursor
+    loc    : CXIdxLoc
+}
+
+type CXIdxEntityInfo {
+    kind          : u32 # CXIdxEntityKind
+    templateKind  : u32 # CXIdxEntityCXXTemplateKind
+    lang          : u32 # CXIdxEntityLanguage
+    name          : char*
+    USR           : char*
+    cursor        : CXCursor
+    attributes    : char**
+    numAttributes : u32
+}
+
+type CXIdxContainerInfo {
+    cursor : CXCursor    
+}
+
+type CXIdxIBOutletCollectionAttrInfo {
+    attrInfo    : CXIdxAttrInfo*
+    objcClass   : CXIdxEntityInfo*
+    classCursor : CXCursor
+    classLoc    : CXIdxLoc
+}
+
+type CXIdxDeclInfo {
+    entityInfo        : CXIdxEntityInfo*
+    cursor            : CXCursor
+    loc               : CXIdxLoc
+    semanticContainer : CXIdxContainerInfo*
+    lexicalContainer  : CXIdxContainerInfo*
+    isRedeclaration   : i32
+    isDefinition      : i32
+    isContainer       : i32
+    declAsContainer   : CXIdxContainerInfo*
+    isImplicit        : i32
+    attributes        : CXIdxAttrInfo**
+    numAttributes     : u32
+    flags             : u32
+}
+
+type CXIdxObjCContainerDeclInfo {
+    declInfo : CXIdxDeclInfo*
+    kind : u32 # CXIdxObjCContainerKind
+}
+
+type CXIdxBaseClassInfo {
+    base   : CXIdxEntityInfo*
+    cursor : CXCursor
+    loc    : CXIdxLoc
+} 
+
+type CXIdxObjCProtocolRefInfo {
+    protocol : CXIdxEntityInfo*
+    cursor   : CXCursor
+    loc      : CXIdxLoc
+}
+
+type CXIdxObjCProtocolRefListInfo {
+    protocols    : CXIdxObjCProtocolRefInfo**
+    numProtocols : u32
+}
+
+type CXIdxObjCInterfaceDeclInfo {
+    containerInfo : CXIdxObjCContainerDeclInfo*
+    superInfo     : CXIdxBaseClassInfo*
+    protocols     : CXIdxObjCProtocolRefListInfo*
+}
+
+type CXIdxObjCCategoryDeclInfo {
+    containerInfo : CXIdxObjCContainerDeclInfo*
+    objcClass     : CXIdxEntityInfo*
+    classCursor   : CXCursor
+    classLoc      : CXIdxLoc
+    protocols     : CXIdxObjCProtocolRefListInfo*
+}
+
+type CXIdxObjCPropertyDeclInfo {
+    declInfo : CXIdxDeclInfo*
+    getter   : CXIdxEntityInfo*
+    setter   : CXIdxEntityInfo*
+}
+
+type CXIdxCXXClassDeclInfo {
+    declInfo : CXIdxDeclInfo*
+    bases    : CXIdxBaseClassInfo**
+    numBases : u32
+}
+
+type CXIdxEntityRefInfo {
+    kind             : u32 # CXIdxEntityRefKind
+    cursor           : CXCursor
+    loc              : CXIdxLoc
+    referencedEntity : CXIdxEntityInfo*
+    parentEntity     : CXIdxEntityInfo*
+    container        : CXIdxContainerInfo*
+}
+
+type IndexerCallbacks {
+    abortQuery : <(
+        CXClientData*, # client_data
+        void*)         # reserved
+        : i32>
+
+    diagnostic : <(
+        CXClientData*, # client_data
+        CXDiagnosticSet*,
+        void*)>        # reserved
+
+    enteredMainFile : <(
+        CXClientData*, # client_data
+        CXFile*,       # mainFile 
+        void*)         # reserved
+        : CXIdxClientFile*>
+
+    ppIncludedFile : <(
+        CXClientData*, # client_data
+        CXIdxIncludedFileInfo*)
+        : CXIdxClientFile*>
+
+    importedASTFile : <(
+        CXClientData*, # client_data
+        CXIdxImportedASTFileInfo*)
+        : CXIdxClientASTFile*>
+        
+    startedTranslationUnit : <(
+        CXClientData*, # client_data
+        void*)         # reserved
+        : CXIdxClientContainer*>
+
+    indexDeclaration : <(
+        CXClientData*, # client_data
+        CXIdxDeclInfo*)>
+    
+    indexEntityReference : <(
+        CXClientData*, # client_data
+        CXIdxEntityRefInfo*)>
+}
+
+abstract type CXIndexAction { }
+
+type libclang {
+    _lib_handle : void*
+
+    # ---------------- symbols ----------------
+    
+    getCString : <(
+        CXString)
+        : char*>
+
+    disposeString : <(
+        CXString)>
+
+    createIndex : <(
+        i32,
+        i32)
+        : CXIndex*>
+    
+    createTranslationUnitFromSourceFile : <(
+        CXIndex*,
+        char*,
+        i32,
+        char**,
+        u32,
+        CXUnsavedFile**)
+        : CXTranslationUnit*>
+    
+    parseTranslationUnit : <(
+        CXIndex*,
+        char*,
+        char**,
+        i32,
+        CXUnsavedFile*,
+        u32,
+        u32)
+        : CXTranslationUnit*> 
+
+    parseTranslationUnit2 : <(
+        CXIndex*,
+        char*,
+        char**,
+        i32,
+        CXUnsavedFile*,
+        u32,
+        u32,
+        CXTranslationUnit**)
+        : u32>
+
+    getNumDiagnostics : <(
+        CXTranslationUnit*)
+        : u32>
+
+    getDiagnostic : <(
+        CXTranslationUnit*,
+        u32)
+        : CXDiagnostic*>
+
+    formatDiagnostic : <(
+        CXDiagnostic*,
+        u32)
+        : CXString>
+
+    defaultDiagnosticDisplayOptions : <()
+        : u32>
+
+    getTranslationUnitCursor : <(
+        CXTranslationUnit*)
+        : CXCursor>
+
+    visitChildren : <(
+        CXCursor,
+        <(  CXCursor,
+            CXCursor,
+            CXClientData*)
+            : u32>,
+        CXClientData*)
+        : u32>
+
+    getCursorSpelling : <(
+        CXCursor)
+        : CXString>
+
+    Cursor_isNull : <(
+        CXCursor)
+        : i32>
+
+    getCursorKindSpelling : <(
+        u32)
+        : CXString>
+
+    # ------------- end symbols --------------
+   
+    proc _load(this, path : char*) {
+        handle := dlopen(libclang_path, RTLD_LAZY)
+        if handle.isnull()
+            panic(dlerror())
+        this._lib_handle = handle 
+    }
+
+    proc _handleGetSymbol(this, sym : char*) : void* {
+        ptr := this._lib_handle.dlsym(sym)
+        if ptr.isnull()
+            panic(dlerror())
+        return ptr
+    }
+
+    proc create(path : char*) : libclang {
+        lib := { libclang: }
+        lib->_load(path)
+        
+        # load symbols
+         lib.getCString = (lib->_handleGetSymbol("clang_getCString"))
+            as <(CXString) : char*>
+
+        lib.disposeString = (lib->_handleGetSymbol("clang_disposeString"))
+            as <(CXString)>
+
+        lib.createIndex = (lib->_handleGetSymbol("clang_createIndex"))
+                as <(i32, i32) : CXIndex*>
+
+        lib.createTranslationUnitFromSourceFile = (lib->_handleGetSymbol("clang_createTranslationUnitFromSourceFile"))
+            as <(CXIndex*, char*, i32, char**, u32, CXUnsavedFile**) : CXTranslationUnit*>
+
+        lib.parseTranslationUnit = (lib->_handleGetSymbol("clang_parseTranslationUnit"))
+            as <(CXIndex*, char*, char**, i32, CXUnsavedFile*, u32, u32) : CXTranslationUnit*>
+        
+        lib.parseTranslationUnit2 = (lib->_handleGetSymbol("clang_parseTranslationUnit2"))
+            as <(CXIndex*, char*, char**, i32, CXUnsavedFile*, u32, u32, CXTranslationUnit**) : u32> 
+        
+        lib.getNumDiagnostics = (lib->_handleGetSymbol("clang_getNumDiagnostics"))
+            as <(CXTranslationUnit*) : u32>
+
+        lib.getDiagnostic = (lib->_handleGetSymbol("clang_getDiagnostic"))
+            as <(CXTranslationUnit*, u32) : CXDiagnostic*>
+
+
+        lib.formatDiagnostic = (lib->_handleGetSymbol("clang_formatDiagnostic"))
+            as <(CXDiagnostic*, u32) : CXString>
+
+        lib.defaultDiagnosticDisplayOptions = (lib->_handleGetSymbol("clang_defaultDiagnosticDisplayOptions"))
+            as <() : u32>
+
+        lib.getTranslationUnitCursor = (lib->_handleGetSymbol("clang_getTranslationUnitCursor"))
+            as <(CXTranslationUnit*) : CXCursor>
+
+        lib.visitChildren = (lib->_handleGetSymbol("clang_visitChildren"))
+            as <(   CXCursor,
+                    <(  CXCursor,
+                        CXCursor,
+                        CXClientData*)
+                        : u32>,
+                    CXClientData*)
+                    : u32>
+
+        lib.getCursorSpelling = (lib->_handleGetSymbol("clang_getCursorSpelling"))
+            as <(CXCursor) : CXString>
+
+        lib.Cursor_isNull = (lib->_handleGetSymbol("clang_Cursor_isNull"))
+            as <(CXCursor) : i32>
+
+        lib.getCursorKindSpelling = (lib->_handleGetSymbol("clang_getCursorKindSpelling"))
+            as <(u32) : CXString>
+
+        return lib
+    }
+
+    proc close(this) {
+        this._lib_handle.dlclose()     
+    }
+}

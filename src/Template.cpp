@@ -65,6 +65,10 @@ static bool terminalShouldReplace(ASTNode * term, ASTNode * d) {
         Identifier * ident = (Identifier *)decl->getIdentifier();
         if (ident->getUnqualified() == elem->getName())
             return true;
+    } else if (term->nodeKind == ASTNode::IDENTIFIER) { // @bad
+        Identifier * ident = (Identifier *)term;
+        if (ident->getUnqualified() == elem->getName())
+            return true;
     } else if (IS_EXPRESSION(term)) {
         // @incomplete
     }
@@ -87,8 +91,9 @@ static void templateReplaceTerminals(ASTNode * _template, ASTNode * _def,
             ASTNode * i = inst->getElements()[idx];
             ASTNode * i_clone = i->clone();
             i_clone->setContext(term->getContext());
-            if (terminalShouldReplace(term, d))
+            if (terminalShouldReplace(term, d)) {
                 (*term->replace)(term->parent, term, i_clone);
+            }
         }
     }
 }
@@ -104,8 +109,10 @@ static void templateReplaceTerminals(std::vector<ASTNode *> & terminals,
         for (int idx = 0; idx < (int)def->getElements().size(); idx += 1) {
             ASTNode * d = def->getElements()[idx];
             ASTNode * i = inst->getElements()[idx];
-            if (terminalShouldReplace(term, d))
-                (*term->replace)(term->parent, term, i->clone());
+            ASTNode * i_clone = i->clone();
+            if (terminalShouldReplace(term, d)) {
+                (*term->replace)(term->parent, term, i_clone);
+            }
         }
     }
 }
@@ -135,14 +142,23 @@ Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst) {
     clone->setName(mangledName);
     clone->inst = inst;
 
+    clone->setFlag(ASTNode::CT, isCT(clone));
+
     clone->preDeclare(scope);
     clone->addSymbols(scope);
 
     templateReplaceTerminals(clone, ttype->getTemplateDef(), inst);
 
+    // template members need to be expanded before we can complete the type
+    // @bad is this the best way to do this?
+    // does it cover things like member proc params? does it need to?
+    for (ASTNode * mem : clone->getMemberVarDecls())
+        mem->analyze(false);
+
     ((StructType *)clone->getType())->complete();
 
     clone->analyze(true);
+
     compilation->frontEnd.deferredAST.push_back(clone);
 
     return clone;
@@ -170,6 +186,7 @@ enum patternMatchTypeStep {
     TEMPLATE_INSTANTIATION
 };
 
+/*
 static void patternMatchType(const Type * pattern, const Type * subject) {
     if (pattern->getBase() == pattern) {
     } else {
@@ -193,6 +210,7 @@ static void patternMatchType(const Type * pattern, const Type * subject) {
         }
     }
 }
+*/
 
 int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
                                    ASTNode * _inst, Context * context,
@@ -246,8 +264,7 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
             Declarator * passed_base_decl =
                 (Declarator *)passed_decl->getBase();
             passed_base_decl->setScope(passed_decl->getScope());
-            const Type * passed_base_t =
-                passed_base_decl->getType()->getOriginal();
+            const Type * passed_base_t = passed_base_decl->getType();
 
             for (auto & check : checklist) {
                 if (!check.second) {
@@ -371,13 +388,12 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
         }
 
         for (int i = 0; i < (int)arg_types.size(); i += 1) {
-            if (!arg_types[i]->equivalent(new_param_types[i])) {
+            if (!conv(arg_types[i], new_param_types[i])) {
                 if (delete_new_inst)
                     delete new_inst;
                 return -1;
             }
-            if (!arg_types[i]->equivalent(new_param_types[i],
-                                          /* exact_match =*/true))
+            if (!equal(arg_types[i], new_param_types[i]))
                 nconv += 1;
         }
     }
@@ -453,6 +469,9 @@ Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args,
 
     if (tproc->getFlag(TemplateProc::FROM_THROUGH_TEMPLATE))
         clone->setFlag(ASTNode::SYMBOL_OVERWRITE, true);
+
+    clone->setFlag(ASTNode::CT, isCT(clone));
+
     clone->addSymbols(scope);
 
     clone->analyze(true);

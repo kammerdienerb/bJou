@@ -30,4 +30,15 @@ bool rightAssoc(const char * op) {
 bool leftAssoc(const char * op) {
     return getOpInfo(op, OpMap)->associativity == LEFT;
 }
+
+const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
+const char * assignmentOps[] = {"=", "+=", "-=", "*=", "/=", "%="};
+
+bool isAssignableOp(std::string & op) {
+    return s_in_a(op.c_str(), assignableOps);
+}
+
+bool isAssignmentOp(std::string & op) {
+    return s_in_a(op.c_str(), assignableOps);
+}
 } // namespace bjou

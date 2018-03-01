@@ -1,19 +1,47 @@
 # lifetime2.bjou
 
+# type T {
+# 	i : int
+# 
+# 	proc create(i : int) : T {
+# 		print "create() for T where i = %", i
+# 		return { T: .i = i }
+# 	}
+# 
+# 	proc set() { # refs?
+# 	}
+# 
+# 	implements idestroy {
+# 		proc destroy(this) {
+# 			
+# 		}
+# 	}
+# }
+
 type T {
-	i : int
+    i : int
 
-	proc create(i : int) : T {
-		print "create() for T where i = %", i
-		return { T: .i = i }
-	}
+    proc create(i : int) : T {
+        print "creating T %", i
+        return { T: .i = i }
+    }
 
-	proc set() { # refs?
-	}
-
-	implements idestroy {
-		proc destroy(this) {
-			
-		}
-	}
+    implements idestroy {
+        proc destroy(this)
+            print "destroying T %", this.i
+    }    
 }
+
+proc inc(i : int*) {
+    @i += 1
+    print "inc()"
+}
+
+(proc main() {
+    i : int
+    for i = 0; i < 5; inc(&i) {
+        t := T.create(i)
+        if i > 2
+            break
+    }
+})()

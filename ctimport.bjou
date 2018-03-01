@@ -1,0 +1,12 @@
+# ctimport.bjou
+
+$ct {
+    import "mysimplemodule.bjou"
+
+    proc main() {
+        mysimpleproc()
+    }
+}
+
+$run { T.create() }
+$run { main() }
