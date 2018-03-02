@@ -1,6 +1,6 @@
 # ctimport.bjou
 
-$ct {
+\ct {
     import "mysimplemodule.bjou"
 
     proc main() {
@@ -8,5 +8,5 @@ $ct {
     }
 }
 
-$run { T.create() }
-$run { main() }
+\run { T.create() }
+\run { main() }

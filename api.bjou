@@ -3,7 +3,7 @@
 import "compiler.bjou"
 import "null.bjou"
 
-$ct {
+\ct {
     proc main() {
         nullnode := _nullptr() as ASTNode*
         nullnodes := _nullptr() as ASTNode**
@@ -51,4 +51,4 @@ $ct {
     }
 }
 
-$run{ main() }
+\run{ main() }

@@ -1,5 +1,5 @@
 proc p() {
-    $static_if {$rand{1 2} % 2
+    \static_if {\rand{1 2} % 2
         print "coin"}
 }
 

@@ -1,0 +1,20 @@
+# shorttemplate.bjou
+
+type A$T {
+    var : T
+}
+
+type B$U {
+    var : U*    
+}
+
+type C$(V, W) {
+    v : V
+    w : W
+}
+
+\run{ main() }
+
+(proc main() {
+    a : A$B$C$(int, float)
+})()

@@ -737,7 +737,7 @@ std::string Parser::expect(TokenKind tok, std::string err, bool skipEat,
     return match;
 }
 
-MaybeASTNode Parser::parseDeclarator() {
+MaybeASTNode Parser::parseDeclarator(bool base_only) {
     auto m_use = parseMacroUse();
     if (m_use)
         return m_use;
@@ -761,7 +761,7 @@ MaybeASTNode Parser::parseDeclarator() {
 
     MaybeASTNode m_identifier;
 
-    if (optional(LSS)) { // Procedure
+    if (!base_only && optional(LSS)) { // Procedure
         expect(L_PAREN, "'('");
         ProcedureDeclarator * procDeclarator = new ProcedureDeclarator();
         bool vararg = false;
@@ -800,7 +800,7 @@ MaybeASTNode Parser::parseDeclarator() {
         result = procDeclarator;
         context.finish(&currentContext, &justCleanedContext);
         result->setContext(context);
-    } else if (optional(L_PAREN)) { // Tuple
+    } else if (!base_only && optional(L_PAREN)) { // Tuple
         TupleDeclarator * tupleDeclarator = new TupleDeclarator();
         int n_subs = 0;
         while (!optional(R_PAREN)) {
@@ -831,7 +831,8 @@ MaybeASTNode Parser::parseDeclarator() {
         baseDeclarator = new Declarator();
         baseDeclarator->setIdentifier(identifier);
 
-        if (optional(TEMPLATE_BEGIN, true)) {
+        //if (optional(TEMPLATE_BEGIN, true)) {
+        if (optional(DOLLAR, true)) {
             MaybeASTNode m_templateInst = parseTemplateInst();
             ASTNode * templateInst = nullptr;
             if (m_templateInst.assignTo(templateInst))
@@ -853,8 +854,8 @@ MaybeASTNode Parser::parseDeclarator() {
     // Array, Pointer, Maybe, Ref
     //                array/slice - [         pointer - *
     //                maybe       - ?         ref     - ref
-    while (optional(L_SQR_BRACKET, true) || optional(MULT, true) ||
-           optional(QUESTION, true) || optional(KWD_REF, true)) {
+    while (!base_only && (optional(L_SQR_BRACKET, true) || optional(MULT, true) ||
+           optional(QUESTION, true) || optional(KWD_REF, true))) {
         if (optional(L_SQR_BRACKET)) {
             if (optional(ELLIPSIS)) {
                 result = new DynamicArrayDeclarator(result);
@@ -978,33 +979,45 @@ MaybeASTNode Parser::parseTemplateDefineVariadicTypeArgs() {
 }
 
 MaybeASTNode Parser::parseTemplateDef() {
-    if (optional(TEMPLATE_BEGIN, true)) {
+    if (optional(DOLLAR, true)) {
         TemplateDefineList * result = new TemplateDefineList();
         result->getContext().start(&currentContext);
+        
+        eat("$");
+        
+        if (optional(L_PAREN)) {
+            while (true) {
+                MaybeASTNode m_element;
+                ASTNode * element = nullptr;
+                (m_element = parseTemplateDefineExpression()) ||
+                    (m_element = parseTemplateDefineTypeDescriptor()) ||
+                    (m_element = parseTemplateDefineVariadicTypeArgs());
 
-        eat("!(");
+                if (!m_element.assignTo(element))
+                    errornext(*this, "Invalid item in template definition list.");
 
-        while (true) {
+                result->addElement(element);
+                if (!optional(COMMA))
+                    break;
+            }
+            
+            if (result->getElements().size() == 0)
+                errorl(result->getContext(),
+                       "Empty template definition list not allowed.");
+
+            expect(R_PAREN, "')'");    
+        } else {
             MaybeASTNode m_element;
             ASTNode * element = nullptr;
-            (m_element = parseTemplateDefineExpression()) ||
-                (m_element = parseTemplateDefineTypeDescriptor()) ||
-                (m_element = parseTemplateDefineVariadicTypeArgs());
+            m_element = parseTemplateDefineTypeDescriptor();
 
             if (!m_element.assignTo(element))
-                errornext(*this, "Invalid item in template definition list.");
+                errornext(*this, "Expected template element identifier.");
 
             result->addElement(element);
-            if (!optional(COMMA))
-                break;
         }
-        expect(R_PAREN, "')'");
-
+        
         result->getContext().finish(&currentContext, &justCleanedContext);
-
-        if (result->getElements().size() == 0)
-            errorl(result->getContext(),
-                   "Empty template definition list not allowed.");
 
         return MaybeASTNode(result);
     }
@@ -1015,34 +1028,46 @@ MaybeASTNode Parser::parseTemplateInst() {
     TemplateInstantiation * result = new TemplateInstantiation();
     result->getContext().start(&currentContext);
 
-    expect(TEMPLATE_BEGIN, "'!('");
+    expect(DOLLAR, "'$'");
 
-    while (!optional(R_PAREN, true)) {
+    if (optional(L_PAREN)) {
+        while (!optional(R_PAREN, true)) {
+            MaybeASTNode m_element;
+            ASTNode * element = nullptr;
+
+            if (optional(L_SQR_BRACKET)) {
+                m_element = parseExpression();
+                if (!m_element.assignTo(element))
+                    errornext(
+                        *this,
+                        "Invalid expression argument in template instantiation.");
+                expect(R_SQR_BRACKET, "']'");
+            } else {
+                m_element = parseDeclarator();
+                if (!m_element.assignTo(element))
+                    errornext(*this, "Invalid argument in template instantiation.",
+                              true,
+                              "Note: Expression arguments should be surrounded by "
+                              "brackets '([expr])'");
+            }
+            BJOU_DEBUG_ASSERT(element);
+            result->addElement(element);
+            if (!optional(COMMA))
+                break;
+        }
+        expect(R_PAREN, "')'");
+    } else {
         MaybeASTNode m_element;
         ASTNode * element = nullptr;
 
-        if (optional(L_SQR_BRACKET)) {
-            m_element = parseExpression();
-            if (!m_element.assignTo(element))
-                errornext(
-                    *this,
-                    "Invalid expression argument in template instantiation.");
-            expect(R_SQR_BRACKET, "']'");
-        } else {
-            m_element = parseDeclarator();
-            if (!m_element.assignTo(element))
-                errornext(*this, "Invalid argument in template instantiation.",
-                          true,
-                          "Note: Expression arguments should be surrounded by "
-                          "brackets '([expr])'");
-        }
+        m_element = parseDeclarator(/* base only =*/ true);
+        if (!m_element.assignTo(element))
+            errornext(*this,
+                "Invalid expression argument in template instantiation.");
         BJOU_DEBUG_ASSERT(element);
         result->addElement(element);
-        if (!optional(COMMA))
-            break;
     }
-    expect(R_PAREN, "')'");
-
+    
     result->getContext().finish(&currentContext, &justCleanedContext);
 
     return MaybeASTNode(result);
@@ -1487,7 +1512,8 @@ MaybeASTNode Parser::parseTerminatingExpression() {
     if ((m_node = parseQualifiedIdentifier())) {
         m_node.assignTo(node);
         BJOU_DEBUG_ASSERT(node);
-        if (optional(TEMPLATE_BEGIN, true)) {
+        // if (optional(TEMPLATE_BEGIN, true)) {
+        if (optional(DOLLAR, true)) {
             MaybeASTNode m_templateInst = parseTemplateInst();
             ASTNode * templateInst = nullptr;
             if (!m_templateInst.assignTo(templateInst))
@@ -2913,11 +2939,11 @@ MaybeASTNode Parser::parseContinue() {
 }
 
 MaybeASTNode Parser::parseMacroUse() {
-    if (optional(DOLLAR, true)) {
+    if (optional(BACK_SLASH, true)) {
         MacroUse * result = new MacroUse();
         result->getContext().start(&currentContext);
 
-        eat("$");
+        eat("\\");
 
         result->setMacroName(expect(IDENTIFIER, "macro name"));
 

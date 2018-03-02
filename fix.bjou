@@ -1,11 +1,11 @@
-type B!(T) {
+type B$T {
     val : T    
 }
 
-type A!(T) {
-    b : B!(T) 
+type A$T {
+    b : B$T 
 }
 
 (proc main() {
-    a := { A!(int): } 
+    a := { A$int: } 
 })()

@@ -15,15 +15,15 @@ proc _nullptr() : void* {
     return n._ptr
 }
 
-proc nullptr!(T)() : T* {
+proc nullptr$T() : T* {
     # if T is void we don't want to cast
     # we will get an error about a useless cast otherwise
     # also, static_if is cool :)
-    $static_if{$same_type{T void}
+    \static_if{\same_type{T void}
         return _nullptr()}
-    $static_if{not $same_type{T void}
+    \static_if{not \same_type{T void}
         return _nullptr() as T*}
 }
 
-proc isnull!(T)(ptr : T*) : bool
-    return ptr == nullptr!(T)()
+proc isnull$T(ptr : T*) : bool
+    return ptr == nullptr$T()

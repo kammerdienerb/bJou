@@ -2,7 +2,7 @@
 
 (proc main() {
     array : char[...]
-    print "%", $__da_data{array}
+    print "%", \__da_data{array}
     # array->append('b')
 #     ptr := array->element_ptr(0)
 # 

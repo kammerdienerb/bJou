@@ -276,7 +276,7 @@ struct Parser {
         return match;
     }
 
-    MaybeASTNode parseDeclarator();
+    MaybeASTNode parseDeclarator(bool only_base = false);
     ASTNode * newVoidDeclarator();
     MaybeASTNode parseTemplateDefineTypeDescriptor();
     MaybeASTNode parseTemplateDefineExpression();

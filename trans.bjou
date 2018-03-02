@@ -2,12 +2,12 @@
 
 import "c2bjou.bjou"
 
-$run(
-    cinclude("fact.c"))
+\run{
+    cinclude("fact.c")}
 # nas parallel
-$add_llvm_pass_to_proc(
-    factorial,
-    "tailcallelim")
+\add_llvm_pass_to_proc{
+    factorial
+    "tailcallelim"}
 
 (proc main() {
     mybenchmark()

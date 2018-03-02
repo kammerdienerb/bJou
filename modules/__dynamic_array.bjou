@@ -2,7 +2,7 @@
 
 module __dynamic_array
 
-type __bjou_dyn_array!(T) {
+type __bjou_dyn_array$T {
     const INIT_SIZE := 8
 
     __capacity 	: int
@@ -10,16 +10,16 @@ type __bjou_dyn_array!(T) {
 	__data		: T*
 
 
-    proc create() : __bjou_dyn_array!(T) {
-        return  { __bjou_dyn_array!(T): 
-            .__capacity = __bjou_dyn_array!(T).INIT_SIZE,
+    proc create() : __bjou_dyn_array$T {
+        return  { __bjou_dyn_array$T: 
+            .__capacity = __bjou_dyn_array$T.INIT_SIZE,
             .__used     = 0,
-            .__data     = new T[__bjou_dyn_array!(T).INIT_SIZE]
+            .__data     = new T[__bjou_dyn_array$T.INIT_SIZE]
         }
     }
 
-    proc create(_s : T*, n : int) : __bjou_dyn_array!(T) {
-        a := { __bjou_dyn_array!(T):
+    proc create(_s : T*, n : int) : __bjou_dyn_array$T {
+        a := { __bjou_dyn_array$T:
             .__data = new T[n],
             .__used = n,
             .__capacity = n
@@ -67,7 +67,7 @@ type __bjou_dyn_array!(T) {
         this.__used -= 1
 
         if this.__used < this.__capacity / 2
-        and this.__capacity > __bjou_dyn_array!(T).INIT_SIZE
+        and this.__capacity > __bjou_dyn_array$T.INIT_SIZE
             this.shrink()
 
         return &this.__data[this.__used - 1]
@@ -79,6 +79,6 @@ type __bjou_dyn_array!(T) {
 
     proc free(this) {
         delete this.__data
-        @this = { __bjou_dyn_array!(T): }
+        @this = { __bjou_dyn_array$T: }
     }
 }

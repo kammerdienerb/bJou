@@ -1,6 +1,6 @@
 # ct.bjou
 
-$ct {
+\ct {
     type T{
         proc create() {
             print "T.create"     

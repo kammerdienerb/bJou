@@ -1,22 +1,22 @@
 # templates2.bjou
 
-type grow!(T) {
+type grow$T {
     _t : T*
     _used : int
     _cap : int
 
     const INIT_SIZE := 8
 
-    proc create() : grow!(T) {
-        return { grow!(T):
-            ._t = new T[grow!(T).INIT_SIZE],
+    proc create() : grow$T {
+        return { grow$T:
+            ._t = new T[grow$T.INIT_SIZE],
             ._used = 0,
-            ._cap = grow!(T).INIT_SIZE
+            ._cap = grow$T.INIT_SIZE
         }
     }
 
-    proc create(_s : T*, n : int) : grow!(T) {
-        g := { grow!(T):
+    proc create(_s : T*, n : int) : grow$T {
+        g := { grow$T:
             ._t = new T[n],
             ._used = n,
             ._cap = n
@@ -29,7 +29,7 @@ type grow!(T) {
 
     proc free(this) {
         delete this._t
-        @this = { grow!(T): }
+        @this = { grow$T: }
     }
 }
 
@@ -39,7 +39,7 @@ type Point {
 }
 
 (proc main() {
-    gi := grow!(int).create()
+    gi := grow$int.create()
     # gi._t.memcpy({ 1, 2, 3 }, 3 as u64)
 	gi._t.memcpy({ 1, 2, 3 }, 3)
     gi._used = 3

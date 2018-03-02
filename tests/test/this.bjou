@@ -1,12 +1,12 @@
 # this.bjou
 
-type One!(T) {
+type One$T {
     t : T
 
-    proc create(t : T) : One!(T)
-        return { One!(T): .t = t }
+    proc create(t : T) : One$T
+        return { One$T: .t = t }
     
-    proc Print(this) : One!(T) {
+    proc Print(this) : One$T {
         print "%", @this
         return @this
     }

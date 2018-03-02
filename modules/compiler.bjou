@@ -1,6 +1,6 @@
 # compiler.bjou
 
-module compiler $ct { # this module is only available at compile time
+module compiler \ct { # this module is only available at compile time
 
 type ASTNode { } # opaque -- bjou::ASTNode
 type Scope   { } # opaque -- bjou::Scope

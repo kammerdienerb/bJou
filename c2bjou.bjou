@@ -2,9 +2,9 @@
 # source to source translator from C to bJou
 # uses libclang
 
-$run{ main() }
+\run{ main() }
 
-$ct {
+\ct {
     import "null.bjou"
 
     import "clang.bjou"

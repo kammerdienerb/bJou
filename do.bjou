@@ -1,6 +1,6 @@
 # do.bjou
 
-$static_do { proc () {
+\static_do { proc () {
     extern scanf(char*, ...) : u32
 
     print "static_do"

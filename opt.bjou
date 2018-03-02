@@ -2,7 +2,7 @@
 
 (proc main() {
     # add dead code elimination and loop invariant code motion passes
-    $add_llvm_passes{"adce" "licm"}
+    \add_llvm_passes{"adce" "licm"}
 
     const n := 20
 
@@ -18,8 +18,8 @@
 
 proc factorial(n : i64) : i64 {
     # add tail call elimination pass
-    $add_llvm_pass{"tailcallelim"}
-    # $add_llvm_pass("print-function")
+    \add_llvm_pass{"tailcallelim"}
+    # \add_llvm_pass("print-function")
 
     if (n <= 1)
         return 1

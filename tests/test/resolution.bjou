@@ -1,13 +1,13 @@
 # resolution.bjou
 
-proc memcpy!(T)(a : T, b : T, c : T) {
+proc memcpy$T(a : T, b : T, c : T) {
     print "%, %, %", a, b, c
 }
 
 proc memcpy() print "memcpy"
 
-proc p!(A, B)(a : A, b : B) { }
-proc p!(A, B)(b : B, a : A) { }
+proc p$(A, B)(a : A, b : B) { }
+proc p$(A, B)(b : B, a : A) { }
 
 interface I1 {
     proc p(this)
@@ -42,7 +42,7 @@ type T {
 	n := 3
     print "Helper"
     dst.memcpy(src, n) # helper
-    memcpy!(int)(1, 2, 3) # 3
+    memcpy$int(1, 2, 3) # 3
     memcpy() # extern
     # p(1, 'a') ambiguous
     t := new T
