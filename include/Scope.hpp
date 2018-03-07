@@ -37,11 +37,13 @@ struct Scope {
     virtual std::string mangledPrefix() const;
     Maybe<Symbol *> getSymbol(Scope * startingScope, ASTNode * _identifier,
                               Context * context = nullptr, bool traverse = true,
-                              bool fail = true, bool checkUninit = true, bool countAsReference = true);
+                              bool fail = true, bool checkUninit = true,
+                              bool countAsReference = true);
     Maybe<Symbol *> getSymbol(Scope * startingScope,
                               std::string & qualifiedIdentifier,
                               Context * context = nullptr, bool traverse = true,
-                              bool fail = true, bool checkUninit = true, bool countAsReference = true);
+                              bool fail = true, bool checkUninit = true,
+                              bool countAsReference = true);
     void addSymbol(Symbol * symbol, Context * context);
     void addSymbol(_Symbol<Procedure> * symbol, Context * context);
     void addSymbol(_Symbol<TemplateProc> * symbol, Context * context);

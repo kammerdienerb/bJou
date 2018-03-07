@@ -234,13 +234,13 @@ milliseconds FrontEnd::go() {
     if (time_arg)
         prettyPrintTimeMin(a_time - ctruntime, "Semantic analysis");
 
-//     auto d_time = DesugarStage();
-//     if (time_arg)
-//         prettyPrintTimeMin(d_time, "Desugaring");
+    //     auto d_time = DesugarStage();
+    //     if (time_arg)
+    //         prettyPrintTimeMin(d_time, "Desugaring");
 
     if (!compilation->args.nopreload_arg.isSet())
         fix_typeinfo_v_table_size();
-    
+
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
 }
@@ -439,15 +439,14 @@ milliseconds FrontEnd::AnalysisStage() {
 
 // milliseconds FrontEnd::DesugarStage() {
 //     auto start = Clock::now();
-// 
+//
 //     for (ASTNode * node : AST) {
 //         node->desugar();
 //     }
-// 
+//
 //     auto end = Clock::now();
 //     return duration_cast<milliseconds>(end - start);
 // }
-
 
 /*
 milliseconds FrontEnd::ModuleStage() {

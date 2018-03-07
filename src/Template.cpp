@@ -176,7 +176,8 @@ static ASTNode * replacement_policy_isolated_params(ASTNode * parent,
     return new_node;
 }
 
-static Declarator * patternMatchType(Declarator * pattern, Declarator * subject, std::string& name) {
+static Declarator * patternMatchType(Declarator * pattern, Declarator * subject,
+                                     std::string & name) {
     if (pattern->nodeKind != ASTNode::DECLARATOR) {
         if (pattern->nodeKind != ASTNode::POINTER_DECLARATOR &&
             subject->nodeKind != ASTNode::ARRAY_DECLARATOR) {
@@ -187,93 +188,94 @@ static Declarator * patternMatchType(Declarator * pattern, Declarator * subject,
     }
 
     switch (pattern->nodeKind) {
-        case ASTNode::DECLARATOR: {
-            if (pattern->mangleSymbol() == name)
-                return (Declarator*)subject->clone();
+    case ASTNode::DECLARATOR: {
+        if (pattern->mangleSymbol() == name)
+            return (Declarator *)subject->clone();
 
-            if (pattern->getTemplateInst()) {
-                const Type * t = subject->getType();
-                if (t->isStruct()) {
-                    StructType * s_t = (StructType*)t;
-                    if (s_t->inst) {
-                        TemplateInstantiation * p_inst = (TemplateInstantiation*)pattern->getTemplateInst(); 
-                        TemplateInstantiation * s_inst = (TemplateInstantiation*)s_t->inst;
+        if (pattern->getTemplateInst()) {
+            const Type * t = subject->getType();
+            if (t->isStruct()) {
+                StructType * s_t = (StructType *)t;
+                if (s_t->inst) {
+                    TemplateInstantiation * p_inst =
+                        (TemplateInstantiation *)pattern->getTemplateInst();
+                    TemplateInstantiation * s_inst =
+                        (TemplateInstantiation *)s_t->inst;
 
-                        if (p_inst->getElements().size() == s_inst->getElements().size()) {
-                            for (int i = 0; i < (int)p_inst->getElements().size(); i += 1) {
-                                Declarator * match = patternMatchType(
-                                                        (Declarator*)p_inst->getElements()[i],
-                                                        (Declarator*)s_inst->getElements()[i],
-                                                        name);
-                                if (match)
-                                    return match;
-                            }
+                    if (p_inst->getElements().size() ==
+                        s_inst->getElements().size()) {
+                        for (int i = 0; i < (int)p_inst->getElements().size();
+                             i += 1) {
+                            Declarator * match = patternMatchType(
+                                (Declarator *)p_inst->getElements()[i],
+                                (Declarator *)s_inst->getElements()[i], name);
+                            if (match)
+                                return match;
                         }
                     }
                 }
             }
-            break;
         }
+        break;
+    }
 
-        case ASTNode::ARRAY_DECLARATOR:
-        case ASTNode::SLICE_DECLARATOR:
-        case ASTNode::DYNAMIC_ARRAY_DECLARATOR:
-        case ASTNode::POINTER_DECLARATOR:
-        case ASTNode::REF_DECLARATOR:
-        case ASTNode::MAYBE_DECLARATOR:
-            return patternMatchType(
-                        (Declarator*)pattern->under(),
-                        (Declarator*)subject->under(),
-                        name);
+    case ASTNode::ARRAY_DECLARATOR:
+    case ASTNode::SLICE_DECLARATOR:
+    case ASTNode::DYNAMIC_ARRAY_DECLARATOR:
+    case ASTNode::POINTER_DECLARATOR:
+    case ASTNode::REF_DECLARATOR:
+    case ASTNode::MAYBE_DECLARATOR:
+        return patternMatchType((Declarator *)pattern->under(),
+                                (Declarator *)subject->under(), name);
 
-        case ASTNode::TUPLE_DECLARATOR: {
-            TupleDeclarator * p_tup = (TupleDeclarator*)pattern; 
-            TupleDeclarator * s_tup = (TupleDeclarator*)subject;
+    case ASTNode::TUPLE_DECLARATOR: {
+        TupleDeclarator * p_tup = (TupleDeclarator *)pattern;
+        TupleDeclarator * s_tup = (TupleDeclarator *)subject;
 
-            if (p_tup->getSubDeclarators().size() != s_tup->getSubDeclarators().size())
-                return nullptr;
+        if (p_tup->getSubDeclarators().size() !=
+            s_tup->getSubDeclarators().size())
+            return nullptr;
 
-            for (int i = 0; i < (int)p_tup->getSubDeclarators().size(); i += 1) {
-                Declarator * match = patternMatchType(
-                                        (Declarator*)p_tup->getSubDeclarators()[i],
-                                        (Declarator*)s_tup->getSubDeclarators()[i],
-                                        name);
-                if (match)
-                    return match;
-            }
-            break;
-        }
-
-        case ASTNode::PROCEDURE_DECLARATOR: {
-            ProcedureDeclarator * p_proc = (ProcedureDeclarator*)pattern; 
-            ProcedureDeclarator * s_proc = (ProcedureDeclarator*)subject;
-
-            if (p_proc->getParamDeclarators().size() != s_proc->getParamDeclarators().size())
-                return nullptr;
-
-            Declarator * match = nullptr;
-
-            for (int i = 0; i < (int)p_proc->getParamDeclarators().size(); i += 1) {
-                match = patternMatchType(
-                            (Declarator*)p_proc->getParamDeclarators()[i],
-                            (Declarator*)s_proc->getParamDeclarators()[i],
-                            name);
-                if (match)
-                    return match;
-            }
-
-            match = patternMatchType(
-                        (Declarator*)p_proc->getRetDeclarator(),
-                        (Declarator*)s_proc->getRetDeclarator(),
-                        name);
-
+        for (int i = 0; i < (int)p_tup->getSubDeclarators().size(); i += 1) {
+            Declarator * match = patternMatchType(
+                (Declarator *)p_tup->getSubDeclarators()[i],
+                (Declarator *)s_tup->getSubDeclarators()[i], name);
             if (match)
                 return match;
-            break;                               
         }
-        default:
-            BJOU_DEBUG_ASSERT(false && "Declarator kind not handled in patternMatchType()");
+        break;
+    }
+
+    case ASTNode::PROCEDURE_DECLARATOR: {
+        ProcedureDeclarator * p_proc = (ProcedureDeclarator *)pattern;
+        ProcedureDeclarator * s_proc = (ProcedureDeclarator *)subject;
+
+        if (p_proc->getParamDeclarators().size() !=
+            s_proc->getParamDeclarators().size())
             return nullptr;
+
+        Declarator * match = nullptr;
+
+        for (int i = 0; i < (int)p_proc->getParamDeclarators().size(); i += 1) {
+            match = patternMatchType(
+                (Declarator *)p_proc->getParamDeclarators()[i],
+                (Declarator *)s_proc->getParamDeclarators()[i], name);
+            if (match)
+                return match;
+        }
+
+        match =
+            patternMatchType((Declarator *)p_proc->getRetDeclarator(),
+                             (Declarator *)s_proc->getRetDeclarator(), name);
+
+        if (match)
+            return match;
+        break;
+    }
+    default:
+        BJOU_DEBUG_ASSERT(false &&
+                          "Declarator kind not handled in patternMatchType()");
+        return nullptr;
     }
 
     return nullptr;
@@ -322,7 +324,7 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
                     ->getTypeDeclarator();
             // unref
             if (param_decl->nodeKind == ASTNode::REF_DECLARATOR)
-                param_decl = (Declarator*)param_decl->under();
+                param_decl = (Declarator *)param_decl->under();
 
             const Type * passed_type =
                 passed_args->getExpressions()[i]->getType();
@@ -331,14 +333,15 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
 
             // unref
             if (passed_decl->nodeKind == ASTNode::REF_DECLARATOR)
-                passed_decl = (Declarator*)passed_decl->under();
+                passed_decl = (Declarator *)passed_decl->under();
 
             BJOU_DEBUG_ASSERT(passed_decl);
             passed_decl->setScope(passed_args->getExpressions()[i]->getScope());
 
             for (auto & check : checklist) {
                 if (!check.second) {
-                    Declarator * match = patternMatchType(param_decl, passed_decl, check.first->name);
+                    Declarator * match = patternMatchType(
+                        param_decl, passed_decl, check.first->name);
                     if (match)
                         check.second = match;
                     delete passed_decl;
@@ -459,7 +462,7 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
             // We need to analyze and THEN get the type, making sure to access
             // the declarator via getTypeDeclarator() because if the declarator
             // is a template, it will be replaced.
-            
+
             var->getTypeDeclarator()->analyze(true);
             new_param_types.push_back(var->getTypeDeclarator()->getType());
             delete _var;

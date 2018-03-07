@@ -103,13 +103,9 @@ static inline std::string akey(const Type * t, int width) {
     return t->key + "[" + std::to_string(width) + "]";
 }
 
-static inline std::string skey(const Type * t) {
-    return t->key + "[]";
-}
+static inline std::string skey(const Type * t) { return t->key + "[]"; }
 
-static inline std::string dkey(const Type * t) {
-    return t->key + "[...]";
-}
+static inline std::string dkey(const Type * t) { return t->key + "[...]"; }
 
 static inline std::string tkey(const std::vector<const Type *> & types) {
     std::string key = "(";
@@ -424,7 +420,6 @@ const Type * DynamicArrayType::replacePlaceholders(const Type * t) const {
     return DynamicArrayType::get(under()->replacePlaceholders(t));
 }
 
-
 StructType::StructType(std::string & name, Struct * __struct,
                        TemplateInstantiation * _inst)
     : Type(STRUCT, name), isAbstract(__struct->getFlag(Struct::IS_ABSTRACT)),
@@ -653,8 +648,8 @@ bool equal(const Type * t1, const Type * t2) {
     }
     case Type::ARRAY: {
         if (t2->isArray()) {
-            ArrayType * a1 = (ArrayType*)t1; 
-            ArrayType * a2 = (ArrayType*)t2;
+            ArrayType * a1 = (ArrayType *)t1;
+            ArrayType * a2 = (ArrayType *)t2;
             if (!equal(a1->under(), a2->under()))
                 return false;
             return a1->width == a2->width;
@@ -765,12 +760,12 @@ const Type * conv(const Type * t1, const Type * t2) {
         const Type * un = conv(t1->unRef(), t2->unRef());
         if (un)
             return un;
-        
+
         const Type * r1 = t1->unRef();
         const Type * r2 = t2->unRef();
 
         if (r1->isStruct() &&
-           ((t2->isRef() && r2->isStruct()) || t2->isStruct())) {
+            ((t2->isRef() && r2->isStruct()) || t2->isStruct())) {
 
             const StructType * s1 = (const StructType *)r1;
             const StructType * s2 = (const StructType *)r2;
@@ -1064,10 +1059,10 @@ unsigned int simpleSizer(const Type * t) {
         ArrayType * a_t = (ArrayType *)t;
         size = a_t->width * simpleSizer(a_t->elem_t);
     } else if (t->isSlice()) {
-        SliceType * s_t = (SliceType*)t;
+        SliceType * s_t = (SliceType *)t;
         size = simpleSizer(s_t->getRealType());
     } else if (t->isDynamicArray()) {
-        DynamicArrayType * d_t = (DynamicArrayType*)t;
+        DynamicArrayType * d_t = (DynamicArrayType *)t;
         size = simpleSizer(d_t->getRealType());
     } else if (t->isStruct()) {
         StructType * s_t = (StructType *)t;

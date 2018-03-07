@@ -234,7 +234,7 @@ static int countConversions(ProcedureType * compare_type,
             nconv += 1;
             // account for reference conversions too
             if (t1->isRef()) {
-                if (!equal(t1->unRef(), t2->unRef())) 
+                if (!equal(t1->unRef(), t2->unRef()))
                     nconv += 1;
             }
 
@@ -243,7 +243,7 @@ static int countConversions(ProcedureType * compare_type,
                 const Type * u2 = nullptr;
                 if (t2->isPointer() || t2->isRef())
                     u2 = t2->under();
-                else 
+                else
                     u2 = t2;
 
                 if (u1->isStruct() && u2->isStruct()) {
@@ -251,7 +251,7 @@ static int countConversions(ProcedureType * compare_type,
                     const StructType * s1 = (const StructType *)u1;
                     const StructType * s2 = (const StructType *)u2;
                     const Type * extends = nullptr;
-                    
+
                     if (!equal(s1, s2)) {
                         while (s2->extends) {
                             s2 = (const StructType *)s2->extends;
@@ -266,7 +266,6 @@ static int countConversions(ProcedureType * compare_type,
                     }
                 }
             }
-            
         }
     }
     return nconv;

@@ -78,7 +78,8 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope, ASTNode * _identifier,
         }
         if (traverse && parent)
             return parent->getSymbol(startingScope, _identifier, context,
-                                     traverse, fail, checkUninit, countAsReference);
+                                     traverse, fail, checkUninit,
+                                     countAsReference);
     }
     Scope * scope = compilation->frontEnd.globalScope;
     for (std::string & nspaceName : identifier->getNamespaces()) {
@@ -223,21 +224,31 @@ void Scope::addSymbol(_Symbol<Procedure> * symbol, Context * context) {
             mangled_existing->node()->setFlag(ASTNode::IGNORE_GEN, true);
         } else if (mangled_existing->node()->nodeKind == ASTNode::PROC_SET &&
                    mangled->node()->getFlag(Procedure::IS_EXTERN)) {
-            ProcSet * set = (ProcSet*)mangled_existing->node();
-            for (auto& sym : set->procs) {
-                if (sym.second->isTemplateProc()) continue;
+            ProcSet * set = (ProcSet *)mangled_existing->node();
+            for (auto & sym : set->procs) {
+                if (sym.second->isTemplateProc())
+                    continue;
 
-                Procedure * existing_proc = (Procedure*)sym.second->node();
+                Procedure * existing_proc = (Procedure *)sym.second->node();
 
                 if (existing_proc->getFlag(Procedure::IS_EXTERN)) {
                     const Type * t = proc->getType();
                     const Type * existing_t = existing_proc->getType();
 
                     if (!equal(existing_t, t)) {
-                        errorl(proc->getNameContext(), "Conflicting declarations of extern procedure '" + proc->getName() + "'.", false,
-                                                    "declared with type '" + t->getDemangledName() + "'");
-                        errorl(existing_proc->getNameContext(), "'" + existing_proc->getName() + "' previously declared here.", true,
-                                                    "declared with type '" + existing_t->getDemangledName() + "'");
+                        errorl(
+                            proc->getNameContext(),
+                            "Conflicting declarations of extern procedure '" +
+                                proc->getName() + "'.",
+                            false,
+                            "declared with type '" + t->getDemangledName() +
+                                "'");
+                        errorl(existing_proc->getNameContext(),
+                               "'" + existing_proc->getName() +
+                                   "' previously declared here.",
+                               true,
+                               "declared with type '" +
+                                   existing_t->getDemangledName() + "'");
                     }
 
                     // proc->setFlag(ASTNode::IGNORE_GEN, true);

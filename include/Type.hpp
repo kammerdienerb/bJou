@@ -55,23 +55,23 @@ struct Type {
 
     Type(Kind _kind, const std::string _key);
 
-    bool isPlaceholder()  const;
-    bool isVoid()         const;
-    bool isBool()         const;
-    bool isInt()          const;
-    bool isFloat()        const;
-    bool isChar()         const;
-    bool isPointer()      const;
-    bool isRef()          const;
-    bool isMaybe()        const;
-    bool isArray()        const;
-    bool isSlice()        const;
+    bool isPlaceholder() const;
+    bool isVoid() const;
+    bool isBool() const;
+    bool isInt() const;
+    bool isFloat() const;
+    bool isChar() const;
+    bool isPointer() const;
+    bool isRef() const;
+    bool isMaybe() const;
+    bool isArray() const;
+    bool isSlice() const;
     bool isDynamicArray() const;
-    bool isStruct()       const;
-    bool isTuple()        const;
-    bool isProcedure()    const;
+    bool isStruct() const;
+    bool isTuple() const;
+    bool isProcedure() const;
 
-    bool isPrimative()    const;
+    bool isPrimative() const;
 
     const Type * getPointer() const;
     const Type * getRef() const;

@@ -831,7 +831,7 @@ MaybeASTNode Parser::parseDeclarator(bool base_only) {
         baseDeclarator = new Declarator();
         baseDeclarator->setIdentifier(identifier);
 
-        //if (optional(TEMPLATE_BEGIN, true)) {
+        // if (optional(TEMPLATE_BEGIN, true)) {
         if (optional(DOLLAR, true)) {
             MaybeASTNode m_templateInst = parseTemplateInst();
             ASTNode * templateInst = nullptr;
@@ -854,20 +854,21 @@ MaybeASTNode Parser::parseDeclarator(bool base_only) {
     // Array, Pointer, Maybe, Ref
     //                array/slice - [         pointer - *
     //                maybe       - ?         ref     - ref
-    while (!base_only && (optional(L_SQR_BRACKET, true) || optional(MULT, true) ||
-           optional(QUESTION, true) || optional(KWD_REF, true))) {
+    while (!base_only &&
+           (optional(L_SQR_BRACKET, true) || optional(MULT, true) ||
+            optional(QUESTION, true) || optional(KWD_REF, true))) {
         if (optional(L_SQR_BRACKET)) {
             if (optional(ELLIPSIS)) {
                 result = new DynamicArrayDeclarator(result);
             } else if (optional(R_SQR_BRACKET, true)) {
-                result = new SliceDeclarator(result); 
+                result = new SliceDeclarator(result);
             } else {
                 MaybeASTNode m_expr = parseExpression();
                 ASTNode * expr = nullptr;
                 if (!m_expr.assignTo(expr)) {
-                    errornext(*this, "Expected static array length expression.", true,
-                                     "use '[]' do declare slice",
-                                     "or '[...]' to declare dynamic array");
+                    errornext(*this, "Expected static array length expression.",
+                              true, "use '[]' do declare slice",
+                              "or '[...]' to declare dynamic array");
                 }
                 result = new ArrayDeclarator(result, expr);
             }
@@ -982,9 +983,9 @@ MaybeASTNode Parser::parseTemplateDef() {
     if (optional(DOLLAR, true)) {
         TemplateDefineList * result = new TemplateDefineList();
         result->getContext().start(&currentContext);
-        
+
         eat("$");
-        
+
         if (optional(L_PAREN)) {
             while (true) {
                 MaybeASTNode m_element;
@@ -994,18 +995,19 @@ MaybeASTNode Parser::parseTemplateDef() {
                     (m_element = parseTemplateDefineVariadicTypeArgs());
 
                 if (!m_element.assignTo(element))
-                    errornext(*this, "Invalid item in template definition list.");
+                    errornext(*this,
+                              "Invalid item in template definition list.");
 
                 result->addElement(element);
                 if (!optional(COMMA))
                     break;
             }
-            
+
             if (result->getElements().size() == 0)
                 errorl(result->getContext(),
                        "Empty template definition list not allowed.");
 
-            expect(R_PAREN, "')'");    
+            expect(R_PAREN, "')'");
         } else {
             MaybeASTNode m_element;
             ASTNode * element = nullptr;
@@ -1016,7 +1018,7 @@ MaybeASTNode Parser::parseTemplateDef() {
 
             result->addElement(element);
         }
-        
+
         result->getContext().finish(&currentContext, &justCleanedContext);
 
         return MaybeASTNode(result);
@@ -1038,17 +1040,17 @@ MaybeASTNode Parser::parseTemplateInst() {
             if (optional(L_SQR_BRACKET)) {
                 m_element = parseExpression();
                 if (!m_element.assignTo(element))
-                    errornext(
-                        *this,
-                        "Invalid expression argument in template instantiation.");
+                    errornext(*this, "Invalid expression argument in template "
+                                     "instantiation.");
                 expect(R_SQR_BRACKET, "']'");
             } else {
                 m_element = parseDeclarator();
                 if (!m_element.assignTo(element))
-                    errornext(*this, "Invalid argument in template instantiation.",
-                              true,
-                              "Note: Expression arguments should be surrounded by "
-                              "brackets '([expr])'");
+                    errornext(
+                        *this, "Invalid argument in template instantiation.",
+                        true,
+                        "Note: Expression arguments should be surrounded by "
+                        "brackets '([expr])'");
             }
             BJOU_DEBUG_ASSERT(element);
             result->addElement(element);
@@ -1060,14 +1062,14 @@ MaybeASTNode Parser::parseTemplateInst() {
         MaybeASTNode m_element;
         ASTNode * element = nullptr;
 
-        m_element = parseDeclarator(/* base only =*/ true);
+        m_element = parseDeclarator(/* base only =*/true);
         if (!m_element.assignTo(element))
             errornext(*this,
-                "Invalid expression argument in template instantiation.");
+                      "Invalid expression argument in template instantiation.");
         BJOU_DEBUG_ASSERT(element);
         result->addElement(element);
     }
-    
+
     result->getContext().finish(&currentContext, &justCleanedContext);
 
     return MaybeASTNode(result);
@@ -1231,7 +1233,8 @@ MaybeASTNode Parser::parseExpression_r(ASTNode * left, int minPrecedence) {
                 m_right = parseExpression_r(right, 0);
                 m_right.assignTo(right);
                 BJOU_DEBUG_ASSERT(right);
-                right->getContext().finish(&currentContext, &justCleanedContext);
+                right->getContext().finish(&currentContext,
+                                           &justCleanedContext);
                 expect(R_SQR_BRACKET, "']'");
             }
         } else if (op == "()") {
@@ -1653,8 +1656,10 @@ MaybeASTNode Parser::parseSliceOrDynamicArrayExpression() {
 
             m_decl = parseDeclarator();
             if (!m_decl.assignTo(decl))
-                errornext(*this, "Expected type declarator in dynamic array expression.", true,
-                                 "dynamic array expression syntax: '[...type]'");
+                errornext(
+                    *this,
+                    "Expected type declarator in dynamic array expression.",
+                    true, "dynamic array expression syntax: '[...type]'");
 
             result->setTypeDeclarator(decl);
 
@@ -1671,23 +1676,24 @@ MaybeASTNode Parser::parseSliceOrDynamicArrayExpression() {
             m_expr = parseExpression();
             if (!m_expr.assignTo(expr))
                 errornext(*this, "Invalid source in slice expression.", true,
-                                 "slice syntax: '[ source, start_index:length ]'");
+                          "slice syntax: '[ source, start_index:length ]'");
             result->setSrc(expr);
-           
+
             expect(COMMA, "','");
 
             m_expr = parseExpression();
             if (!m_expr.assignTo(expr))
-                errornext(*this, "Invalid starting index in slice expression.", true,
-                                 "slice syntax: '[ source, start_index:length ]'");
+                errornext(*this, "Invalid starting index in slice expression.",
+                          true,
+                          "slice syntax: '[ source, start_index:length ]'");
             result->setStart(expr);
 
-            expect(COLON, "':'"); 
+            expect(COLON, "':'");
 
             m_expr = parseExpression();
             if (!m_expr.assignTo(expr))
                 errornext(*this, "Invalid length in slice expression.", true,
-                                 "slice syntax: '[ source, start_index:length ]'");
+                          "slice syntax: '[ source, start_index:length ]'");
             result->setLength(expr);
 
             expect(R_SQR_BRACKET, "']'");
@@ -1714,7 +1720,7 @@ MaybeASTNode Parser::parseLenExpression() {
         if (!m_expr.assignTo(expr))
             errornext(*this, "Invalid expression in cardinality expression.");
         result->setExpr(expr);
-       
+
         expect(VERT, "'|'");
 
         result->getContext().finish(&currentContext, &justCleanedContext);
@@ -1723,7 +1729,6 @@ MaybeASTNode Parser::parseLenExpression() {
 
     return MaybeASTNode();
 }
-
 
 MaybeASTNode Parser::parseOperand() {
     Expression * result = nullptr;
@@ -3050,7 +3055,7 @@ void AsyncParser::parseCommon() {
             moduleCheck(nodes, module_declared, (ModuleDeclaration *)node);
             module_declared = (ModuleDeclaration *)node;
         }
-        
+
         node->replace = rpget<replacementPolicy_Global_Node>();
 
         nodes.push_back(node);
@@ -3089,9 +3094,9 @@ void ImportParser::parseCommon() {
                 return;
             }
         }
-        
+
         node->replace = rpget<replacementPolicy_Global_Node>();
-        
+
         nodes.push_back(node);
     }
 }

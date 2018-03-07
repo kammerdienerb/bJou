@@ -9,8 +9,8 @@
 #ifndef FrontEnd_hpp
 #define FrontEnd_hpp
 
-#include "Context.hpp"
 #include "Compile.hpp"
+#include "Context.hpp"
 #include "Macro.hpp"
 #include "Scope.hpp"
 #include "Symbol.hpp"

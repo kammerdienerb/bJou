@@ -79,7 +79,11 @@ extern "C" ASTNode * bjou_createAsExpression(ASTNode * left, ASTNode * right);
 
 extern "C" ASTNode * bjou_createIdentifier(const char * unqualified);
 
-extern "C" ASTNode * bjou_createInitializerList(ASTNode * objDeclarator, char ** memberNames, int n_memberNames, ASTNode ** expressions, int n_expressions);
+extern "C" ASTNode * bjou_createInitializerList(ASTNode * objDeclarator,
+                                                char ** memberNames,
+                                                int n_memberNames,
+                                                ASTNode ** expressions,
+                                                int n_expressions);
 
 extern "C" ASTNode * bjou_createBooleanLiteral(const char * contents);
 extern "C" ASTNode * bjou_createIntegerLiteral(const char * contents);
@@ -87,34 +91,47 @@ extern "C" ASTNode * bjou_createFloatLiteral(const char * contents);
 extern "C" ASTNode * bjou_createStringLiteral(const char * contents);
 extern "C" ASTNode * bjou_createCharLiteral(const char * contents);
 
-extern "C" ASTNode * bjou_createDeclarator(ASTNode * ident, ASTNode * inst, char ** specs, int n_specs);
-extern "C" ASTNode * bjou_createArrayDeclarator(ASTNode * arrayOf, ASTNode * expression);
+extern "C" ASTNode * bjou_createDeclarator(ASTNode * ident, ASTNode * inst,
+                                           char ** specs, int n_specs);
+extern "C" ASTNode * bjou_createArrayDeclarator(ASTNode * arrayOf,
+                                                ASTNode * expression);
 extern "C" ASTNode * bjou_createPointerDeclarator(ASTNode * pointerOf);
 
-extern "C" ASTNode * bjou_createVariableDeclaration(const char * name, ASTNode * typeDeclarator, ASTNode * initialization);
+extern "C" ASTNode * bjou_createVariableDeclaration(const char * name,
+                                                    ASTNode * typeDeclarator,
+                                                    ASTNode * initialization);
 
 extern "C" ASTNode * bjou_createStruct(
-    const char* name,
-    ASTNode * extends,
-    ASTNode ** memberVarDecls, int n_memberVarDecls,
-    ASTNode ** constantDecls, int n_constantDecls,
-    ASTNode ** memberProcs, int n_memberProcs,
-    ASTNode ** memberTemplateProcs, int n_memberTemplateProcs,
-    ASTNode ** interfaceImpls, int n_interfaceImpls);
+    const char * name, ASTNode * extends, ASTNode ** memberVarDecls,
+    int n_memberVarDecls, ASTNode ** constantDecls, int n_constantDecls,
+    ASTNode ** memberProcs, int n_memberProcs, ASTNode ** memberTemplateProcs,
+    int n_memberTemplateProcs, ASTNode ** interfaceImpls, int n_interfaceImpls);
 
-extern "C" ASTNode * bjou_createArgList(ASTNode ** expressions, int n_expressions);
+extern "C" ASTNode * bjou_createArgList(ASTNode ** expressions,
+                                        int n_expressions);
 
-extern "C" ASTNode * bjou_createProcedure(const char * name, ASTNode ** paramVarDeclarations, int n_paramVarDeclarations, bool isVararg, ASTNode * retDeclarator, ASTNode ** statements, int n_statements);
+extern "C" ASTNode *
+bjou_createProcedure(const char * name, ASTNode ** paramVarDeclarations,
+                     int n_paramVarDeclarations, bool isVararg,
+                     ASTNode * retDeclarator, ASTNode ** statements,
+                     int n_statements);
 
 extern "C" ASTNode * bjou_createReturn(ASTNode * expression);
 extern "C" ASTNode * bjou_createBreak();
 extern "C" ASTNode * bjou_createContinue();
 
-extern "C" ASTNode * bjou_createIf(ASTNode * conditional, ASTNode ** statements, int n_statements, ASTNode * _else);
+extern "C" ASTNode * bjou_createIf(ASTNode * conditional, ASTNode ** statements,
+                                   int n_statements, ASTNode * _else);
 extern "C" ASTNode * bjou_createElse(ASTNode ** statements, int n_statements);
-extern "C" ASTNode * bjou_createFor(ASTNode ** initializations, int n_initializations, ASTNode * conditional, ASTNode ** afterthoughts, int n_afterthoughts, ASTNode ** statements, int n_statements);
-extern "C" ASTNode * bjou_createWhile(ASTNode * conditional, ASTNode ** statements, int n_statements);
-extern "C" ASTNode * bjou_createDoWhile(ASTNode * conditional, ASTNode ** statements, int n_statements);
+extern "C" ASTNode *
+bjou_createFor(ASTNode ** initializations, int n_initializations,
+               ASTNode * conditional, ASTNode ** afterthoughts,
+               int n_afterthoughts, ASTNode ** statements, int n_statements);
+extern "C" ASTNode * bjou_createWhile(ASTNode * conditional,
+                                      ASTNode ** statements, int n_statements);
+extern "C" ASTNode * bjou_createDoWhile(ASTNode * conditional,
+                                        ASTNode ** statements,
+                                        int n_statements);
 
 } // namespace bjou
 

@@ -33,8 +33,8 @@ void init_replacementPolicies() {
         ANY_EXPRESSION};
     rpget<replacementPolicy_SliceExpression_Length>()->allowed_nodeKinds = {
         ANY_EXPRESSION};
-    rpget<replacementPolicy_DynamicArrayExpression_TypeDeclarator>()->allowed_nodeKinds = {
-        ANY_DECLARATOR};
+    rpget<replacementPolicy_DynamicArrayExpression_TypeDeclarator>()
+        ->allowed_nodeKinds = {ANY_DECLARATOR};
     rpget<replacementPolicy_LenExpression_Expr>()->allowed_nodeKinds = {
         ANY_EXPRESSION};
     rpget<replacementPolicy_TupleLiteral_subExpression>()->allowed_nodeKinds = {
@@ -47,8 +47,8 @@ void init_replacementPolicies() {
         ANY_DECLARATOR};
     rpget<replacementPolicy_ArrayDeclarator_Expression>()->allowed_nodeKinds = {
         ANY_EXPRESSION};
-    rpget<replacementPolicy_SliceDeclarator_SliceOf>()
-        ->allowed_nodeKinds = {ANY_DECLARATOR};
+    rpget<replacementPolicy_SliceDeclarator_SliceOf>()->allowed_nodeKinds = {
+        ANY_DECLARATOR};
     rpget<replacementPolicy_DynamicArrayDeclarator_ArrayOf>()
         ->allowed_nodeKinds = {ANY_DECLARATOR};
     rpget<replacementPolicy_PointerDeclarator_PointerOf>()
@@ -188,19 +188,18 @@ RP_FUNCTOR_IMPL(
     new_node->replace = rpget<replacementPolicy_Global_Node>();
 
     return new_node;);
-RP_FUNCTOR_IMPL(
-    MultiNode_Node, MultiNode * parent_multi = (MultiNode*)parent;
-    auto found_node = std::find(parent_multi->nodes.begin(),
-                                parent_multi->nodes.end(),
-                                old_node);
-    if (found_node == parent_multi->nodes.end())
-        internalError("node to replace not found in "
-                      "replacementPolicy_MultiNode_Node()");
+RP_FUNCTOR_IMPL(MultiNode_Node, MultiNode * parent_multi = (MultiNode *)parent;
+                auto found_node = std::find(parent_multi->nodes.begin(),
+                                            parent_multi->nodes.end(),
+                                            old_node);
+                if (found_node == parent_multi->nodes.end())
+                    internalError("node to replace not found in "
+                                  "replacementPolicy_MultiNode_Node()");
 
-    *found_node = new_node; new_node->parent = parent;
-    new_node->replace = rpget<replacementPolicy_MultiNode_Node>();
+                *found_node = new_node; new_node->parent = parent;
+                new_node->replace = rpget<replacementPolicy_MultiNode_Node>();
 
-    return new_node;);
+                return new_node;);
 RP_FUNCTOR_IMPL(ExpressionL,
                 BJOU_DEBUG_ASSERT(((Expression *)parent)->getLeft() ==
                                   old_node);
@@ -228,31 +227,30 @@ RP_FUNCTOR_IMPL(
     new_node->replace = rpget<replacementPolicy_InitializerList_Expression>();
 
     return new_node;);
-RP_FUNCTOR_IMPL(
-    SliceExpression_Src,
-    BJOU_DEBUG_ASSERT(((SliceExpression *)parent)->getSrc() ==
-                      old_node);
-    ((SliceExpression *)parent)->setSrc(new_node); return new_node;);
-RP_FUNCTOR_IMPL(
-    SliceExpression_Start,
-    BJOU_DEBUG_ASSERT(((SliceExpression *)parent)->getStart() ==
-                      old_node);
-    ((SliceExpression *)parent)->setStart(new_node); return new_node;);
-RP_FUNCTOR_IMPL(
-    SliceExpression_Length,
-    BJOU_DEBUG_ASSERT(((SliceExpression *)parent)->getLength() ==
-                      old_node);
-    ((SliceExpression *)parent)->setLength(new_node); return new_node;);
-RP_FUNCTOR_IMPL(
-    DynamicArrayExpression_TypeDeclarator,
-    BJOU_DEBUG_ASSERT(((DynamicArrayExpression *)parent)->getTypeDeclarator() ==
-                      old_node);
-    ((DynamicArrayExpression *)parent)->setTypeDeclarator(new_node); return new_node;);
-RP_FUNCTOR_IMPL(
-    LenExpression_Expr,
-    BJOU_DEBUG_ASSERT(((LenExpression *)parent)->getExpr() ==
-                      old_node);
-    ((LenExpression *)parent)->setExpr(new_node); return new_node;);
+RP_FUNCTOR_IMPL(SliceExpression_Src,
+                BJOU_DEBUG_ASSERT(((SliceExpression *)parent)->getSrc() ==
+                                  old_node);
+                ((SliceExpression *)parent)->setSrc(new_node);
+                return new_node;);
+RP_FUNCTOR_IMPL(SliceExpression_Start,
+                BJOU_DEBUG_ASSERT(((SliceExpression *)parent)->getStart() ==
+                                  old_node);
+                ((SliceExpression *)parent)->setStart(new_node);
+                return new_node;);
+RP_FUNCTOR_IMPL(SliceExpression_Length,
+                BJOU_DEBUG_ASSERT(((SliceExpression *)parent)->getLength() ==
+                                  old_node);
+                ((SliceExpression *)parent)->setLength(new_node);
+                return new_node;);
+RP_FUNCTOR_IMPL(DynamicArrayExpression_TypeDeclarator,
+                BJOU_DEBUG_ASSERT(((DynamicArrayExpression *)parent)
+                                      ->getTypeDeclarator() == old_node);
+                ((DynamicArrayExpression *)parent)->setTypeDeclarator(new_node);
+                return new_node;);
+RP_FUNCTOR_IMPL(LenExpression_Expr,
+                BJOU_DEBUG_ASSERT(((LenExpression *)parent)->getExpr() ==
+                                  old_node);
+                ((LenExpression *)parent)->setExpr(new_node); return new_node;);
 RP_FUNCTOR_IMPL(
     TupleLiteral_subExpression,
     TupleLiteral * parent_tuple_lit = (TupleLiteral *)parent;
@@ -286,11 +284,11 @@ RP_FUNCTOR_IMPL(
     ArrayDeclarator_Expression,
     BJOU_DEBUG_ASSERT(((ArrayDeclarator *)parent)->getExpression() == old_node);
     ((ArrayDeclarator *)parent)->setExpression(new_node); return new_node;);
-RP_FUNCTOR_IMPL(
-    SliceDeclarator_SliceOf,
-    BJOU_DEBUG_ASSERT(((SliceDeclarator *)parent)->getSliceOf() ==
-                      old_node);
-    ((SliceDeclarator *)parent)->setSliceOf(new_node); return new_node;);
+RP_FUNCTOR_IMPL(SliceDeclarator_SliceOf,
+                BJOU_DEBUG_ASSERT(((SliceDeclarator *)parent)->getSliceOf() ==
+                                  old_node);
+                ((SliceDeclarator *)parent)->setSliceOf(new_node);
+                return new_node;);
 RP_FUNCTOR_IMPL(
     DynamicArrayDeclarator_ArrayOf,
     BJOU_DEBUG_ASSERT(((DynamicArrayDeclarator *)parent)->getArrayOf() ==

@@ -31,7 +31,7 @@ namespace bjou {
 static void pushImportsFromAST(std::vector<ASTNode *> & AST,
                                std::deque<Import *> & imports) {
     for (ASTNode * node : AST) {
-        std::vector<ASTNode*> terminals;
+        std::vector<ASTNode *> terminals;
         node->unwrap(terminals);
         for (ASTNode * term : terminals) {
             if (term->nodeKind == ASTNode::IMPORT) {
@@ -114,11 +114,12 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                 pushImportsFromAST(p->nodes, imports);
 
                 if (p->source->parent) {
-                    (*p->source->replace)(p->source->parent, p->source, new MultiNode(p->nodes));
+                    (*p->source->replace)(p->source->parent, p->source,
+                                          new MultiNode(p->nodes));
                 } else {
                     frontEnd.AST.reserve(frontEnd.AST.size() + p->nodes.size());
                     frontEnd.AST.insert(frontEnd.AST.end(), p->nodes.begin(),
-                                      p->nodes.end());
+                                        p->nodes.end());
                 }
                 frontEnd.structs.insert(frontEnd.structs.end(),
                                         p->structs.begin(), p->structs.end());
@@ -169,7 +170,9 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                     times[fname] = peektimes[fname] + parser(); // continue
                     pushImportsFromAST(parser.nodes, imports);
                     if (parser.source->parent) {
-                        (*parser.source->replace)(parser.source->parent, parser.source, new MultiNode(parser.nodes));
+                        (*parser.source->replace)(parser.source->parent,
+                                                  parser.source,
+                                                  new MultiNode(parser.nodes));
                     } else {
                         frontEnd.AST.reserve(frontEnd.AST.size() +
                                              parser.nodes.size());

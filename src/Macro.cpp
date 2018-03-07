@@ -112,14 +112,18 @@ static ASTNode * run(MacroUse * use) {
                "Procedure call must have type <()>", true,
                "Call has type " + t->getDemangledName());
 
-    
     auto start = Clock::now();
     compilation->backEnd.run(proc);
     auto end = Clock::now();
     milliseconds time = duration_cast<milliseconds>(end - start);
 
     if (compilation->args.time_arg.getValue())
-        prettyPrintTimeMin(time, "\\run '" + proc->getName() + "' from " + use->getContext().filename + " :: " + std::to_string(use->getContext().begin.line) + " :: " + std::to_string(use->getContext().begin.character));
+        prettyPrintTimeMin(
+            time,
+            "\\run '" + proc->getName() + "' from " +
+                use->getContext().filename +
+                " :: " + std::to_string(use->getContext().begin.line) +
+                " :: " + std::to_string(use->getContext().begin.character));
 
     compilation->frontEnd.ctruntime += time;
 
@@ -202,18 +206,19 @@ static ASTNode * ct(MacroUse * use) {
 }
 
 static ASTNode * op(MacroUse * use) {
-    const char * overloadable[] { "+" };
+    const char * overloadable[]{"+"};
 
     ASTNode * op_arg = use->getArgs()[0];
     ASTNode * proc_arg = use->getArgs()[1];
 
-    std::string op_str = de_quote(((Expression*)op_arg)->getContents());
+    std::string op_str = de_quote(((Expression *)op_arg)->getContents());
 
     if (!s_in_a(op_str.c_str(), overloadable))
-        errorl(op_arg->getContext(), "op: Overloading '" + op_str + "' not allowed.");
+        errorl(op_arg->getContext(),
+               "op: Overloading '" + op_str + "' not allowed.");
 
     if (proc_arg->nodeKind == ASTNode::NodeKind::PROCEDURE) {
-        Procedure * proc = (Procedure*)proc_arg;
+        Procedure * proc = (Procedure *)proc_arg;
 
         _Symbol<Procedure> * symbol =
             new _Symbol<Procedure>(op_str, proc, proc->inst);
@@ -222,12 +227,12 @@ static ASTNode * op(MacroUse * use) {
 
         return proc;
     } else {
-        TemplateProc * tproc = (TemplateProc*)proc_arg;
-        Procedure * proc = (Procedure*)tproc->_template;
+        TemplateProc * tproc = (TemplateProc *)proc_arg;
+        Procedure * proc = (Procedure *)tproc->_template;
 
         _Symbol<TemplateProc> * symbol =
             new _Symbol<TemplateProc>(op_str, tproc);
-        
+
         use->getScope()->addSymbol(symbol, &proc->getNameContext());
 
         return tproc;
@@ -237,7 +242,7 @@ static ASTNode * op(MacroUse * use) {
 }
 
 static ASTNode * __da_data(MacroUse * use) {
-    Expression * expr = (Expression*)use->getArgs()[0];
+    Expression * expr = (Expression *)use->getArgs()[0];
     const Type * t = expr->getType()->unRef();
 
     if (!t->isDynamicArray()) {
@@ -246,9 +251,11 @@ static ASTNode * __da_data(MacroUse * use) {
                "got '" + t->getDemangledName() + "'");
     }
 
-    StructType * struct_t = (StructType*)((DynamicArrayType*)t)->getRealType();
+    StructType * struct_t =
+        (StructType *)((DynamicArrayType *)t)->getRealType();
 
-    const Type * result_t = struct_t->memberTypes[struct_t->memberIndices["__data"]];
+    const Type * result_t =
+        struct_t->memberTypes[struct_t->memberIndices["__data"]];
 
     AccessExpression * access = new AccessExpression;
     access->setContext(use->getContext());
@@ -268,7 +275,7 @@ static ASTNode * __da_data(MacroUse * use) {
 }
 
 static ASTNode * __da_capacity(MacroUse * use) {
-    Expression * expr = (Expression*)use->getArgs()[0];
+    Expression * expr = (Expression *)use->getArgs()[0];
     const Type * t = expr->getType()->unRef();
 
     if (!t->isDynamicArray()) {
@@ -277,9 +284,11 @@ static ASTNode * __da_capacity(MacroUse * use) {
                "got '" + t->getDemangledName() + "'");
     }
 
-    StructType * struct_t = (StructType*)((DynamicArrayType*)t)->getRealType();
+    StructType * struct_t =
+        (StructType *)((DynamicArrayType *)t)->getRealType();
 
-    const Type * result_t = struct_t->memberTypes[struct_t->memberIndices["__capacity"]];
+    const Type * result_t =
+        struct_t->memberTypes[struct_t->memberIndices["__capacity"]];
 
     AccessExpression * access = new AccessExpression;
     access->setContext(use->getContext());
@@ -299,7 +308,7 @@ static ASTNode * __da_capacity(MacroUse * use) {
 }
 
 static ASTNode * __da_used(MacroUse * use) {
-    Expression * expr = (Expression*)use->getArgs()[0];
+    Expression * expr = (Expression *)use->getArgs()[0];
     const Type * t = expr->getType()->unRef();
 
     if (!t->isDynamicArray()) {
@@ -308,9 +317,11 @@ static ASTNode * __da_used(MacroUse * use) {
                "got '" + t->getDemangledName() + "'");
     }
 
-    StructType * struct_t = (StructType*)((DynamicArrayType*)t)->getRealType();
+    StructType * struct_t =
+        (StructType *)((DynamicArrayType *)t)->getRealType();
 
-    const Type * result_t = struct_t->memberTypes[struct_t->memberIndices["__used"]];
+    const Type * result_t =
+        struct_t->memberTypes[struct_t->memberIndices["__used"]];
 
     AccessExpression * access = new AccessExpression;
     access->setContext(use->getContext());
@@ -330,18 +341,18 @@ static ASTNode * __da_used(MacroUse * use) {
 }
 
 static ASTNode * __slice_data(MacroUse * use) {
-    Expression * expr = (Expression*)use->getArgs()[0];
+    Expression * expr = (Expression *)use->getArgs()[0];
     const Type * t = expr->getType()->unRef();
 
     if (!t->isSlice()) {
-        errorl(expr->getContext(),
-               "__slice_data: Expression is not a slice.", true,
-               "got '" + t->getDemangledName() + "'");
+        errorl(expr->getContext(), "__slice_data: Expression is not a slice.",
+               true, "got '" + t->getDemangledName() + "'");
     }
 
-    StructType * struct_t = (StructType*)((SliceType*)t)->getRealType();
+    StructType * struct_t = (StructType *)((SliceType *)t)->getRealType();
 
-    const Type * result_t = struct_t->memberTypes[struct_t->memberIndices["__data"]];
+    const Type * result_t =
+        struct_t->memberTypes[struct_t->memberIndices["__data"]];
 
     AccessExpression * access = new AccessExpression;
     access->setContext(use->getContext());
@@ -361,18 +372,18 @@ static ASTNode * __slice_data(MacroUse * use) {
 }
 
 static ASTNode * __slice_len(MacroUse * use) {
-    Expression * expr = (Expression*)use->getArgs()[0];
+    Expression * expr = (Expression *)use->getArgs()[0];
     const Type * t = expr->getType()->unRef();
 
     if (!t->isSlice()) {
-        errorl(expr->getContext(),
-               "__slice_len: Expression is not a slice.", true,
-               "got '" + t->getDemangledName() + "'");
+        errorl(expr->getContext(), "__slice_len: Expression is not a slice.",
+               true, "got '" + t->getDemangledName() + "'");
     }
 
-    StructType * struct_t = (StructType*)((SliceType*)t)->getRealType();
+    StructType * struct_t = (StructType *)((SliceType *)t)->getRealType();
 
-    const Type * result_t = struct_t->memberTypes[struct_t->memberIndices["__len"]];
+    const Type * result_t =
+        struct_t->memberTypes[struct_t->memberIndices["__len"]];
 
     AccessExpression * access = new AccessExpression;
     access->setContext(use->getContext());
@@ -444,18 +455,25 @@ MacroManager::MacroManager() {
         "add_llvm_passes", Macros::add_llvm_passes, {}, true};
     macros["ct"] = {"ct", Macros::ct, {}, true};
     macros["op"] = {
-        "op", Macros::op, {{ASTNode::NodeKind::STRING_LITERAL}, {ASTNode::NodeKind::PROCEDURE, ASTNode::NodeKind::TEMPLATE_PROC}}};
+        "op",
+        Macros::op,
+        {{ASTNode::NodeKind::STRING_LITERAL},
+         {ASTNode::NodeKind::PROCEDURE, ASTNode::NodeKind::TEMPLATE_PROC}}};
 
-    macros["__da_data"] = { "__da_data", Macros::__da_data, {{ANY_EXPRESSION}}};
-    macros["__da_capacity"] = { "__da_capacity", Macros::__da_capacity, {{ANY_EXPRESSION}}};
-    macros["__da_used"] = { "__da_used", Macros::__da_used, {{ANY_EXPRESSION}}};
+    macros["__da_data"] = {"__da_data", Macros::__da_data, {{ANY_EXPRESSION}}};
+    macros["__da_capacity"] = {
+        "__da_capacity", Macros::__da_capacity, {{ANY_EXPRESSION}}};
+    macros["__da_used"] = {"__da_used", Macros::__da_used, {{ANY_EXPRESSION}}};
 
-    macros["__slice_data"] = { "__slice_data", Macros::__slice_data, {{ANY_EXPRESSION}}};
-    macros["__slice_len"] = { "__slice_len", Macros::__slice_len, {{ANY_EXPRESSION}}};
+    macros["__slice_data"] = {
+        "__slice_data", Macros::__slice_data, {{ANY_EXPRESSION}}};
+    macros["__slice_len"] = {
+        "__slice_len", Macros::__slice_len, {{ANY_EXPRESSION}}};
 
-    macros["abc"] = { "abc", Macros::abc, {}};
+    macros["abc"] = {"abc", Macros::abc, {}};
 
-    macros["error"] = { "error", Macros::error, {{ASTNode::NodeKind::STRING_LITERAL}}};
+    macros["error"] = {
+        "error", Macros::error, {{ASTNode::NodeKind::STRING_LITERAL}}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {

@@ -251,7 +251,11 @@ extern "C" ASTNode * bjou_createIdentifier(const char * unqualified) {
     return node;
 }
 
-extern "C" ASTNode * bjou_createInitializerList(ASTNode * objDeclarator, char ** memberNames, int n_memberNames, ASTNode ** expressions, int n_expressions) {
+extern "C" ASTNode * bjou_createInitializerList(ASTNode * objDeclarator,
+                                                char ** memberNames,
+                                                int n_memberNames,
+                                                ASTNode ** expressions,
+                                                int n_expressions) {
     InitializerList * node = new InitializerList;
     if (objDeclarator)
         node->setObjDeclarator(objDeclarator);
@@ -298,7 +302,8 @@ extern "C" ASTNode * bjou_createCharLiteral(const char * contents) {
     return node;
 }
 
-extern "C" ASTNode * bjou_createDeclarator(ASTNode * ident, ASTNode * inst, char ** specs, int n_specs) {
+extern "C" ASTNode * bjou_createDeclarator(ASTNode * ident, ASTNode * inst,
+                                           char ** specs, int n_specs) {
     Declarator * node = new Declarator;
     node->setIdentifier(ident);
     if (inst)
@@ -309,7 +314,8 @@ extern "C" ASTNode * bjou_createDeclarator(ASTNode * ident, ASTNode * inst, char
     return node;
 }
 
-extern "C" ASTNode * bjou_createArrayDeclarator(ASTNode * arrayOf, ASTNode * expression) {
+extern "C" ASTNode * bjou_createArrayDeclarator(ASTNode * arrayOf,
+                                                ASTNode * expression) {
     ArrayDeclarator * node = new ArrayDeclarator(arrayOf, expression);
 
     return node;
@@ -321,7 +327,9 @@ extern "C" ASTNode * bjou_createPointerDeclarator(ASTNode * pointerOf) {
     return node;
 }
 
-extern "C" ASTNode * bjou_createVariableDeclaration(const char * name, ASTNode * typeDeclarator, ASTNode * initialization) {
+extern "C" ASTNode * bjou_createVariableDeclaration(const char * name,
+                                                    ASTNode * typeDeclarator,
+                                                    ASTNode * initialization) {
     VariableDeclaration * node = new VariableDeclaration;
     node->setName(name);
     if (typeDeclarator)
@@ -332,14 +340,13 @@ extern "C" ASTNode * bjou_createVariableDeclaration(const char * name, ASTNode *
     return node;
 }
 
-extern "C" ASTNode * bjou_createStruct(
-    const char* name,
-    ASTNode * extends,
-    ASTNode ** memberVarDecls, int n_memberVarDecls,
-    ASTNode ** constantDecls, int n_constantDecls,
-    ASTNode ** memberProcs, int n_memberProcs,
-    ASTNode ** memberTemplateProcs, int n_memberTemplateProcs,
-    ASTNode ** interfaceImpls, int n_interfaceImpls) {
+extern "C" ASTNode *
+bjou_createStruct(const char * name, ASTNode * extends,
+                  ASTNode ** memberVarDecls, int n_memberVarDecls,
+                  ASTNode ** constantDecls, int n_constantDecls,
+                  ASTNode ** memberProcs, int n_memberProcs,
+                  ASTNode ** memberTemplateProcs, int n_memberTemplateProcs,
+                  ASTNode ** interfaceImpls, int n_interfaceImpls) {
 
     Struct * node = new Struct;
     node->setName(name);
@@ -359,8 +366,8 @@ extern "C" ASTNode * bjou_createStruct(
     return node;
 }
 
-
-extern "C" ASTNode * bjou_createArgList(ASTNode ** expressions, int n_expressions) {
+extern "C" ASTNode * bjou_createArgList(ASTNode ** expressions,
+                                        int n_expressions) {
     ArgList * node = new ArgList;
     for (int i = 0; i < n_expressions; i += 1)
         node->addExpression(expressions[i]);
@@ -368,7 +375,11 @@ extern "C" ASTNode * bjou_createArgList(ASTNode ** expressions, int n_expression
     return node;
 }
 
-extern "C" ASTNode * bjou_createProcedure(const char * name, ASTNode ** paramVarDeclarations, int n_paramVarDeclarations, bool isVararg, ASTNode * retDeclarator, ASTNode ** statements, int n_statements) {
+extern "C" ASTNode *
+bjou_createProcedure(const char * name, ASTNode ** paramVarDeclarations,
+                     int n_paramVarDeclarations, bool isVararg,
+                     ASTNode * retDeclarator, ASTNode ** statements,
+                     int n_statements) {
     Procedure * node = new Procedure;
     node->setName(name);
     for (int i = 0; i < n_paramVarDeclarations; i += 1)
@@ -389,15 +400,12 @@ extern "C" ASTNode * bjou_createReturn(ASTNode * expression) {
     return node;
 }
 
-extern "C" ASTNode * bjou_createBreak() {
-    return new Break;
-}
+extern "C" ASTNode * bjou_createBreak() { return new Break; }
 
-extern "C" ASTNode * bjou_createContinue() {
-    return new Continue;
-}
+extern "C" ASTNode * bjou_createContinue() { return new Continue; }
 
-extern "C" ASTNode * bjou_createIf(ASTNode * conditional, ASTNode ** statements, int n_statements, ASTNode * _else) {
+extern "C" ASTNode * bjou_createIf(ASTNode * conditional, ASTNode ** statements,
+                                   int n_statements, ASTNode * _else) {
     If * node = new If;
     node->setConditional(conditional);
     for (int i = 0; i < n_statements; i += 1)
@@ -416,7 +424,10 @@ extern "C" ASTNode * bjou_createElse(ASTNode ** statements, int n_statements) {
     return node;
 }
 
-extern "C" ASTNode * bjou_createFor(ASTNode ** initializations, int n_initializations, ASTNode * conditional, ASTNode ** afterthoughts, int n_afterthoughts, ASTNode ** statements, int n_statements) {
+extern "C" ASTNode *
+bjou_createFor(ASTNode ** initializations, int n_initializations,
+               ASTNode * conditional, ASTNode ** afterthoughts,
+               int n_afterthoughts, ASTNode ** statements, int n_statements) {
     For * node = new For;
     for (int i = 0; i < n_initializations; i += 1)
         node->addInitialization(initializations[i]);
@@ -429,7 +440,8 @@ extern "C" ASTNode * bjou_createFor(ASTNode ** initializations, int n_initializa
     return node;
 }
 
-extern "C" ASTNode * bjou_createWhile(ASTNode * conditional, ASTNode ** statements, int n_statements) {
+extern "C" ASTNode * bjou_createWhile(ASTNode * conditional,
+                                      ASTNode ** statements, int n_statements) {
     While * node = new While;
     node->setConditional(conditional);
     for (int i = 0; i < n_statements; i += 1)
@@ -438,7 +450,9 @@ extern "C" ASTNode * bjou_createWhile(ASTNode * conditional, ASTNode ** statemen
     return node;
 }
 
-extern "C" ASTNode * bjou_createDoWhile(ASTNode * conditional, ASTNode ** statements, int n_statements) {
+extern "C" ASTNode * bjou_createDoWhile(ASTNode * conditional,
+                                        ASTNode ** statements,
+                                        int n_statements) {
     DoWhile * node = new DoWhile;
     node->setConditional(conditional);
     for (int i = 0; i < n_statements; i += 1)

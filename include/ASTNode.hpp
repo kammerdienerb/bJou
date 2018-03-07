@@ -199,15 +199,18 @@ struct ASTNode {
         ASTNode::NodeKind::SIZEOF_EXPRESSION,                                  \
         ASTNode::NodeKind::UNARY_POST_EXPRESSION,                              \
         ASTNode::NodeKind::AS_EXPRESSION, ASTNode::NodeKind::IDENTIFIER,       \
-        ASTNode::NodeKind::INITIALZER_LIST, ASTNode::NodeKind::SLICE_EXPRESSION, ASTNode::NodeKind::DYNAMIC_ARRAY_EXPRESSION, ASTNode::NodeKind::LEN_EXPRESSION,                                   \
-        ASTNode::NodeKind::BOOLEAN_LITERAL,                                    \
+        ASTNode::NodeKind::INITIALZER_LIST,                                    \
+        ASTNode::NodeKind::SLICE_EXPRESSION,                                   \
+        ASTNode::NodeKind::DYNAMIC_ARRAY_EXPRESSION,                           \
+        ASTNode::NodeKind::LEN_EXPRESSION, ASTNode::NodeKind::BOOLEAN_LITERAL, \
         ASTNode::NodeKind::INTEGER_LITERAL, ASTNode::NodeKind::FLOAT_LITERAL,  \
         ASTNode::NodeKind::STRING_LITERAL, ASTNode::NodeKind::CHAR_LITERAL,    \
         ASTNode::NodeKind::PROC_LITERAL, ASTNode::NodeKind::EXTERN_LITERAL,    \
         ASTNode::NodeKind::SOME_LITERAL, ASTNode::NodeKind::NOTHING_LITERAL,   \
         ASTNode::NodeKind::TUPLE_LITERAL, ASTNode::NodeKind::_END_EXPRESSIONS, \
         ASTNode::NodeKind::DECLARATOR, ASTNode::NodeKind::ARRAY_DECLARATOR,    \
-        ASTNode::NodeKind::SLICE_DECLARATOR, ASTNode::NodeKind::DYNAMIC_ARRAY_DECLARATOR,                           \
+        ASTNode::NodeKind::SLICE_DECLARATOR,                                   \
+        ASTNode::NodeKind::DYNAMIC_ARRAY_DECLARATOR,                           \
         ASTNode::NodeKind::POINTER_DECLARATOR,                                 \
         ASTNode::NodeKind::MAYBE_DECLARATOR,                                   \
         ASTNode::NodeKind::TUPLE_DECLARATOR,                                   \
@@ -267,8 +270,10 @@ struct ASTNode {
         ASTNode::NodeKind::SIZEOF_EXPRESSION,                                  \
         ASTNode::NodeKind::UNARY_POST_EXPRESSION,                              \
         ASTNode::NodeKind::AS_EXPRESSION, ASTNode::NodeKind::IDENTIFIER,       \
-        ASTNode::NodeKind::INITIALZER_LIST, ASTNode::NodeKind::SLICE_EXPRESSION, ASTNode::NodeKind::DYNAMIC_ARRAY_EXPRESSION, ASTNode::NodeKind::LEN_EXPRESSION,                                    \
-        ASTNode::NodeKind::BOOLEAN_LITERAL,                                    \
+        ASTNode::NodeKind::INITIALZER_LIST,                                    \
+        ASTNode::NodeKind::SLICE_EXPRESSION,                                   \
+        ASTNode::NodeKind::DYNAMIC_ARRAY_EXPRESSION,                           \
+        ASTNode::NodeKind::LEN_EXPRESSION, ASTNode::NodeKind::BOOLEAN_LITERAL, \
         ASTNode::NodeKind::INTEGER_LITERAL, ASTNode::NodeKind::FLOAT_LITERAL,  \
         ASTNode::NodeKind::STRING_LITERAL, ASTNode::NodeKind::CHAR_LITERAL,    \
         ASTNode::NodeKind::PROC_LITERAL, ASTNode::NodeKind::EXTERN_LITERAL,    \
@@ -277,7 +282,8 @@ struct ASTNode {
 
 #define ANY_DECLARATOR                                                         \
     ASTNode::NodeKind::DECLARATOR, ASTNode::NodeKind::ARRAY_DECLARATOR,        \
-        ASTNode::NodeKind::SLICE_DECLARATOR, ASTNode::NodeKind::DYNAMIC_ARRAY_DECLARATOR,                           \
+        ASTNode::NodeKind::SLICE_DECLARATOR,                                   \
+        ASTNode::NodeKind::DYNAMIC_ARRAY_DECLARATOR,                           \
         ASTNode::NodeKind::POINTER_DECLARATOR,                                 \
         ASTNode::NodeKind::MAYBE_DECLARATOR,                                   \
         ASTNode::NodeKind::TUPLE_DECLARATOR,                                   \
@@ -1219,13 +1225,12 @@ struct InitializerList : Expression {
     //
 };
 
-
 /* ============================================================================
  *
- *                             SliceExpression 
+ *                             SliceExpression
  *  Expression to create a slice of a static array, dynamic array, or another
  *  slice. syntax: '[ src, start_index:length ]'
- * 
+ *
  * ===========================================================================*/
 
 struct SliceExpression : Expression {
@@ -1258,10 +1263,10 @@ struct SliceExpression : Expression {
 
 /* ============================================================================
  *
- *                             DynamicArrayExpression 
+ *                             DynamicArrayExpression
  *  Expression to create a dynamic array
  *  syntax: '[...type]'
- * 
+ *
  * ===========================================================================*/
 
 struct DynamicArrayExpression : Expression {
@@ -1286,10 +1291,9 @@ struct DynamicArrayExpression : Expression {
     //
 };
 
-
 /* ============================================================================
  *
- *                            LenExpression 
+ *                            LenExpression
  *  A cardinality expression for arrays and slices. |expr|
  *
  * ===========================================================================*/
@@ -1696,8 +1700,7 @@ struct SliceDeclarator : Declarator {
     virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
     //
-}; 
-
+};
 
 /* ============================================================================
  *

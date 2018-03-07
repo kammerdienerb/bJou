@@ -677,9 +677,9 @@ llvm::Value * LLVMBackEnd::addNamedVal(std::string name, llvm::Value * val,
     auto & f = curFrame();
 
     if (type->isSlice())
-        type = ((SliceType*)type)->getRealType();
+        type = ((SliceType *)type)->getRealType();
     if (type->isDynamicArray())
-        type = ((DynamicArrayType*)type)->getRealType();
+        type = ((DynamicArrayType *)type)->getRealType();
 
     f.vals.push_back({val, type});
     f.namedVals[name] = f.vals.size() - 1;
@@ -692,9 +692,9 @@ llvm::Value * LLVMBackEnd::addUnnamedVal(llvm::Value * val, const Type * type) {
     auto & f = curFrame();
 
     if (type->isSlice())
-        type = ((SliceType*)type)->getRealType();
+        type = ((SliceType *)type)->getRealType();
     if (type->isDynamicArray())
-        type = ((DynamicArrayType*)type)->getRealType();
+        type = ((DynamicArrayType *)type)->getRealType();
 
     f.vals.push_back({val, type});
 
@@ -786,11 +786,11 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
                                         array_t->width);
         }
         case Type::SLICE: {
-            SliceType * s_t = (SliceType*)t;
+            SliceType * s_t = (SliceType *)t;
             return getOrGenType(s_t->getRealType());
         }
         case Type::DYNAMIC_ARRAY: {
-            DynamicArrayType * dyn_t = (DynamicArrayType*)t;
+            DynamicArrayType * dyn_t = (DynamicArrayType *)t;
             return getOrGenType(dyn_t->getRealType());
         }
         /*
@@ -1643,19 +1643,21 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
         // could be vararg
         if ((i - payload->sret) < plt->getParamTypes().size() &&
             plt->getParamTypes()[i - payload->sret]->isRef()) {
-        
+
             const Type * t = plt->getParamTypes()[i - payload->sret];
 
             val = llbe->getOrGenNode(arg, true);
 
-            if (t->unRef()->isStruct() && !equal(t->unRef(), arg->getType()->unRef()))
+            if (t->unRef()->isStruct() &&
+                !equal(t->unRef(), arg->getType()->unRef()))
                 val = llbe->builder.CreateBitCast(val, llbe->getOrGenType(t));
         } else {
             if (arg->getType()->isRef()) {
                 val = llbe->getOrGenNode(arg, true);
                 if (arg->getType()->unRef()->isArray()) {
                     const Type * elem_t = arg->getType()->unRef()->under();
-                    val = llbe->builder.CreateBitCast(val, llbe->getOrGenType(elem_t)->getPointerTo()); 
+                    val = llbe->builder.CreateBitCast(
+                        val, llbe->getOrGenType(elem_t)->getPointerTo());
                 } else
                     val = llbe->builder.CreateLoad(val, "ref");
             } else if (payload->byval & (1 << i)) {
@@ -1667,9 +1669,8 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
                     ptralign.push_back(i);
             }
         }
-       
-        BJOU_DEBUG_ASSERT(val);
 
+        BJOU_DEBUG_ASSERT(val);
 
         args.push_back(val);
         i += 1;
@@ -1680,8 +1681,7 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
         Expression * first_arg = (Expression *)arglist->getExpressions()[0];
         Struct * s = resolved_proc->getParentStruct();
         BJOU_DEBUG_ASSERT(s);
-        BJOU_DEBUG_ASSERT(
-            conv(s->getType()->getRef(), first_arg->getType()));
+        BJOU_DEBUG_ASSERT(conv(s->getType()->getRef(), first_arg->getType()));
         BJOU_DEBUG_ASSERT(args.size() > (0 + payload->sret));
         callee = generateInterfaceFn(backEnd, this, args[0 + payload->sret]);
 
@@ -1703,10 +1703,15 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
         if (payload->t->getRetType()->isRef()) {
             const Type * ret_t = payload->t->getRetType()->unRef();
             unsigned int size = simpleSizer(ret_t);
-            if (!size) size = 1;
-            callinst->addAttribute(0, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
-        } else if (payload->t->getRetType()->isPointer() || payload->t->getRetType()->isArray()) {
-            callinst->addAttribute(0, llvm::Attribute::getWithAlignment(llbe->llContext, sizeof(void*)));
+            if (!size)
+                size = 1;
+            callinst->addAttribute(
+                0, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext,
+                                                                size));
+        } else if (payload->t->getRetType()->isPointer() ||
+                   payload->t->getRetType()->isArray()) {
+            callinst->addAttribute(0, llvm::Attribute::getWithAlignment(
+                                          llbe->llContext, sizeof(void *)));
         }
     }
 
@@ -1720,11 +1725,15 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
     for (int ibyref : byrefs) {
         const Type * param_t = payload->t->getParamTypes()[ibyref]->unRef();
         unsigned int size = simpleSizer(param_t);
-        if (!size) size = 1;
-        callinst->addParamAttr(ibyref, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
+        if (!size)
+            size = 1;
+        callinst->addParamAttr(ibyref,
+                               llvm::Attribute::getWithDereferenceableBytes(
+                                   llbe->llContext, size));
     }
     for (int al : ptralign)
-        callinst->addParamAttr(al, llvm::Attribute::getWithAlignment(llbe->llContext, sizeof(void*)));
+        callinst->addParamAttr(al, llvm::Attribute::getWithAlignment(
+                                       llbe->llContext, sizeof(void *)));
 
     delete payload;
 
@@ -1805,9 +1814,9 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
     IntegerLiteral * r_elem = (IntegerLiteral *)getRight();
 
     if (t->isSlice())
-        t = ((SliceType*)t)->getRealType();
+        t = ((SliceType *)t)->getRealType();
     else if (t->isDynamicArray())
-        t = ((DynamicArrayType*)t)->getRealType();
+        t = ((DynamicArrayType *)t)->getRealType();
 
     if (t->isPointer()) {
         PointerType * pt = (PointerType *)t;
@@ -1857,7 +1866,7 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
         t_t = (TupleType *)t;
         elem = (int)r_elem->eval().as_i64;
     } else
-    BJOU_DEBUG_ASSERT(false);
+        BJOU_DEBUG_ASSERT(false);
 
     indices.push_back(
         llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0));
@@ -1905,11 +1914,14 @@ void * NewExpression::generate(BackEnd & backEnd, bool flag) {
         size_val = llvm::ConstantInt::get(
             llvm::Type::getInt32Ty(llbe->llContext), size);
 
-        llvm::Value * width_val = (llvm::Value *)llbe->getOrGenNode(array_decl->getExpression());
-        width_val = llbe->builder.CreateIntCast(width_val, llvm::IntegerType::getInt32Ty(llbe->llContext), true, "width");
+        llvm::Value * width_val =
+            (llvm::Value *)llbe->getOrGenNode(array_decl->getExpression());
+        width_val = llbe->builder.CreateIntCast(
+            width_val, llvm::IntegerType::getInt32Ty(llbe->llContext), true,
+            "width");
 
         size_val = llbe->builder.CreateMul(size_val, width_val);
-            
+
     } else {
         size = llbe->layout->getTypeAllocSize(llbe->getOrGenType(r_t));
         size_val = llvm::ConstantInt::get(
@@ -2164,7 +2176,7 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
     llvm::Value * ptr = llbe->getNamedVal(qualified);
-    
+
     if (!ptr && resolved)
         ptr = llbe->getOrGenNode(resolved);
 
@@ -2186,10 +2198,9 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     // if the named value is not a stack allocation or global variable (i.e.
     // constant, function, etc.) we don't want the load instruction ever
     // @update unless it is a reference
-    if (!llvm::isa<llvm::AllocaInst>(ptr)     &&
+    if (!llvm::isa<llvm::AllocaInst>(ptr) &&
         !llvm::isa<llvm::GlobalVariable>(ptr) &&
-        !llvm::isa<llvm::Argument>(ptr)       &&
-        !getType()->isRef())
+        !llvm::isa<llvm::Argument>(ptr) && !getType()->isRef())
         getAddr = true;
     // we shouldn't load direct function references
     else if (llvm::isa<llvm::Function>(ptr))
@@ -2527,7 +2538,8 @@ void * Print::generate(BackEnd & backEnd, bool flag) {
     std::string fmt;
 
     ArgList * args = (ArgList *)getArgs();
-    std::string pre_fmt = ((Expression *)args->getExpressions()[0])->getContents();
+    std::string pre_fmt =
+        ((Expression *)args->getExpressions()[0])->getContents();
 
     std::vector<llvm::Value *> vals = {nullptr};
 
@@ -2543,10 +2555,11 @@ void * Print::generate(BackEnd & backEnd, bool flag) {
                     val = llbe->builder.CreateLoad(val, "loadRef");
                 }
                 t = t->unRef();
-            } else val = t->isStruct()  ? (llvm::Value *)llbe->getOrGenNode(expr, true)
-                                        : (llvm::Value *)llbe->getOrGenNode(expr);
+            } else
+                val = t->isStruct()
+                          ? (llvm::Value *)llbe->getOrGenNode(expr, true)
+                          : (llvm::Value *)llbe->getOrGenNode(expr);
 
-            
             gen_printf_fmt(backEnd, val, t, fmt, vals);
 
             arg++;
@@ -2771,15 +2784,16 @@ void * While::generate(BackEnd & backEnd, bool flag) {
     return merge; // what does this accomplish?
 }
 
-static void findSliceAndDynamicArrayDecls(Declarator * base, std::vector<Declarator*>& out) {
-    Declarator * decl = (Declarator*)base->parent;
+static void findSliceAndDynamicArrayDecls(Declarator * base,
+                                          std::vector<Declarator *> & out) {
+    Declarator * decl = (Declarator *)base->parent;
     while (decl && IS_DECLARATOR(decl)) {
-        if (decl->nodeKind == ASTNode::SLICE_DECLARATOR || 
+        if (decl->nodeKind == ASTNode::SLICE_DECLARATOR ||
             decl->nodeKind == ASTNode::DYNAMIC_ARRAY_DECLARATOR) {
-        
-            out.push_back(decl); 
+
+            out.push_back(decl);
         }
-        decl = (Declarator*)decl->parent;
+        decl = (Declarator *)decl->parent;
     }
 }
 
@@ -2792,8 +2806,8 @@ static void genDeps(ASTNode * node, LLVMBackEnd & llbe) {
         if (IS_DECLARATOR(term)) {
             const Type * t = term->getType();
             llbe.getOrGenType(t);
-            std::vector<Declarator*> slices_and_das;
-            findSliceAndDynamicArrayDecls((Declarator*)term, slices_and_das);
+            std::vector<Declarator *> slices_and_das;
+            findSliceAndDynamicArrayDecls((Declarator *)term, slices_and_das);
 
             for (Declarator * decl : slices_and_das)
                 llbe.getOrGenType(decl->getType());
@@ -2880,10 +2894,13 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
             if (payload->ref & (1 << i)) {
                 const Type * param_t = payload->t->getParamTypes()[i]->unRef();
                 unsigned int size = simpleSizer(param_t);
-                if (!size) size = 1;
-                arg.addAttr(llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
+                if (!size)
+                    size = 1;
+                arg.addAttr(llvm::Attribute::getWithDereferenceableBytes(
+                    llbe->llContext, size));
             } else if (arg.getType()->isPointerTy())
-                arg.addAttr(llvm::Attribute::getWithAlignment(llbe->llContext, sizeof(void*)));
+                arg.addAttr(llvm::Attribute::getWithAlignment(llbe->llContext,
+                                                              sizeof(void *)));
             i += 1;
         }
 
@@ -2891,10 +2908,15 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
             if (payload->t->getRetType()->isRef()) {
                 const Type * ret_t = payload->t->getRetType()->unRef();
                 unsigned int size = simpleSizer(ret_t);
-                if (!size) size = 1;
-                func->addAttribute(0, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
-            } else if (payload->t->getRetType()->isPointer() || payload->t->getRetType()->isArray()) {
-                func->addAttribute(0, llvm::Attribute::getWithAlignment(llbe->llContext, sizeof(void*)));
+                if (!size)
+                    size = 1;
+                func->addAttribute(0,
+                                   llvm::Attribute::getWithDereferenceableBytes(
+                                       llbe->llContext, size));
+            } else if (payload->t->getRetType()->isPointer() ||
+                       payload->t->getRetType()->isArray()) {
+                func->addAttribute(0, llvm::Attribute::getWithAlignment(
+                                          llbe->llContext, sizeof(void *)));
             }
         }
 
@@ -2948,8 +2970,8 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                 llvm::Value * alloca = nullptr;
                 if (j == 0 && payload->sret) {
                     // @abi
-                    alloca = llbe->allocNamedVal(Arg.getName(),
-                                                 my_real_t->retType->getPointer());
+                    alloca = llbe->allocNamedVal(
+                        Arg.getName(), my_real_t->retType->getPointer());
                 } else {
                     VariableDeclaration * v = (VariableDeclaration *)
                         getParamVarDeclarations()[j - payload->sret];
@@ -3012,7 +3034,7 @@ void * Return::generate(BackEnd & backEnd, bool flag) {
     ABILowerProcedureTypeData * payload =
         (ABILowerProcedureTypeData *)llbe->proc_abi_info[proc];
 
-    ProcedureType * pt = (ProcedureType*)proc->getType();
+    ProcedureType * pt = (ProcedureType *)proc->getType();
 
     if (payload->sret) {
         // @abi
