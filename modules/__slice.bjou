@@ -1,0 +1,43 @@
+# __slice.bjou
+
+module __slice
+
+extern sprintf(char*, char*, ...) : int
+
+type __bjou_slice$T {
+    __len  : u64
+    __data : T*
+
+    proc create(src : T*, start : u64, len : u64) : __bjou_slice$T {
+        return { __bjou_slice$T:
+            .__data = src + start,
+            .__len = len
+        }
+    }
+}
+
+\static_if { \abc{}
+    proc __bjou_slice_subscript$T(
+            _s     : T[] ref, # the slice
+            _i     : u64,     # the index
+            _loc_f : char*,   # call site file
+            _loc_l : int,     # call site line
+            _loc_c : int)     # call site character
+            : T {
+
+        if _i >= \__slice_len{_s} {
+            buff : char[1024]
+            buff.sprintf("panic: slice index out of bounds (index = %d, length = %d)\n    at %s :: %d :: %d",
+                         _i, \__slice_len{_s}, _loc_f, _loc_l, _loc_c)
+            panic(buff)
+        }
+
+        return \__slice_data{_s}[_i]
+    }
+}
+\static_if { not \abc{}
+    proc __bjou_slice_subscript$T(_s : T[] ref, _i : u64) : T {
+        return \__slice_data{_s}[_i]
+    }
+}
+

@@ -1,0 +1,78 @@
+import "input.bjou"
+import "pointer.bjou"
+
+type Game {
+    const xstart := 0
+    const ystart := 0
+
+    superUser : bool
+    player_name : char*
+    x : int
+    y : int
+
+    proc create(player_name : char*) : Game {
+        return { Game: 
+            .superUser = false,
+            .player_name = player_name,
+            .x = Game.xstart,
+            .y = Game.ystart
+        }     
+    }
+
+    proc destroy(this) {
+        delete this.player_name
+        print "game over"
+    }
+}
+
+extern strcmp(char*, char*) : int
+extern strlen(char*) : int
+proc equals(a : char*, b : char*, c : char) : bool {
+    if strcmp(a, b) == 0
+        return true
+    else if c != 0
+        if  strlen(a) == 1
+        and a[0] == c
+            return true
+    return false
+}
+
+game : Game*
+game = (null() as Game*)
+
+proc processInput(input : char *) {
+    if input.equals("north", 'n')
+        game.y -= 1
+    else if input.equals("south", 's')
+        game.y += 1
+    else if input.equals("east", 'e')
+        game.x += 1
+    else if input.equals("west", 'w')
+        game.x -= 1
+    else printf("invalid input: '%s'\n", input)
+}
+
+(proc main() {
+    printf("\n\n\n****PIXELESS****\nAlpha v5.1.2\n\n")
+    g := Game.create(promptstring("Name?"))
+    game = &g
+
+    print "Starting new game for %.", game.player_name
+
+    f := file.open("file.bjou", file.READ)
+    
+    f->close()
+
+    while true {
+        printf("(%d, %d) ", game.x, game.y)
+        input := promptstring(">>>")
+
+        if input.equals("quit", 'q')
+            break
+        
+        processInput(input)
+        delete input
+    }
+
+    game.destroy()
+})()

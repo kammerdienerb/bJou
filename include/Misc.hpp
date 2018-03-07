@@ -38,6 +38,7 @@ inline std::future<R> runasync(F & f, Ts &... params) {
 } // namespace bjou
 
 std::string de_quote(std::string & str);
+bool has_suffix(const std::string & s, std::string suffix);
 std::string str_escape(std::string & str);
 char get_ch_value(std::string & str);
 

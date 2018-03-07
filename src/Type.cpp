@@ -18,76 +18,127 @@
 #include <vector>
 
 namespace bjou {
-Type::Type() : kind(BASE) {}
-Type::Type(Kind _kind) : kind(_kind) {}
-Type::Type(std::string _name) : kind(BASE), code(_name) {}
-Type::Type(Kind _kind, std::string _name, Sign _sign, int _size)
-    : kind(_kind), sign(_sign), size(_size), code(_name) {}
 
-bool Type::isValid() const { return kind != INVALID; }
-bool Type::isPrimative() const { return kind == PRIMATIVE; }
-bool Type::isFP() const {
-    return code == "float" || code == "double" || code == "f32" ||
-           code == "f64";
-}
-bool Type::isStruct() const { return kind == STRUCT; }
-bool Type::isEnum() const { return kind == ENUM; }
-bool Type::isAlias() const { return kind == ALIAS; }
-bool Type::isArray() const { return kind == ARRAY; }
+const char * signLtr = "ui";
+#define VALID_IWIDTH(w) ((w) == 8 || (w) == 16 || (w) == 32 || (w) == 64)
+#define VALID_FWIDTH(w) ((w) == 32 || (w) == 64)
+
+Type::Type(Kind _kind, const std::string _key) : kind(_kind), key(_key) {}
+
+bool Type::isPlaceholder() const { return kind == PLACEHOLDER; }
+bool Type::isVoid() const { return kind == VOID; }
+bool Type::isBool() const { return kind == BOOL; }
+bool Type::isInt() const { return kind == INT; }
+bool Type::isFloat() const { return kind == FLOAT; }
+bool Type::isChar() const { return kind == CHAR; }
 bool Type::isPointer() const { return kind == POINTER; }
-bool Type::isMaybe() const { return kind == MAYBE; }
-bool Type::isTuple() const { return kind == TUPLE; }
-bool Type::isProcedure() const { return kind == PROCEDURE; }
-bool Type::isTemplateStruct() const { return kind == TEMPLATE_STRUCT; }
-bool Type::isTemplateAlias() const { return kind == TEMPLATE_ALIAS; }
-
-bool Type::enumerableEquivalent() const {
-    const char * enumerables[] = {"bool", "u8",   "i8",    "u16",  "i16",
-                                  "u32",  "i32",  "u64",   "i64",  "int",
-                                  "uint", "long", "ulong", "char", "short"};
-
-    return (s_in_a(getOriginal()->code.c_str(), enumerables)) || isEnum();
-}
-
-// Type interface
-const Type * Type::getBase() const { return this; }
-
-const Type * Type::getOriginal() const { return this; }
-
-bool Type::equivalent(const Type * other, bool exactMatch) const {
-    if (isPrimative() && other->isPrimative()) {
-        if (((size == -1) ^ (other->size == -1)))
-            return false;
-        if (exactMatch)
-            return (sign == other->sign) && (size == other->size);
-        return primativeConversionResult(this, other);
-
-        /*
-        if (exactMatch)
-            return (sign == other->sign) && (size == other->size);
-        else {
-            // void
-            if (((size == -1) ^ (other->size == -1)))
-                return false;
-            // others
-            return true;
-        }
-         */
-    } else {
-        if (exactMatch)
-            return getOriginal()->code == other->getOriginal()->code;
-        else
-            return (getOriginal()->code == other->getOriginal()->code) ||
-                   (enumerableEquivalent() && other->enumerableEquivalent());
-    }
+bool Type::isRef() const { return kind == REF; }
+bool Type::isMaybe() const {
+    BJOU_DEBUG_ASSERT(false);
     return false;
 }
+bool Type::isArray() const { return kind == ARRAY; }
+bool Type::isSlice() const { return kind == SLICE; }
+bool Type::isDynamicArray() const { return kind == DYNAMIC_ARRAY; }
+bool Type::isStruct() const { return kind == STRUCT; }
+bool Type::isTuple() const { return kind == TUPLE; }
+bool Type::isProcedure() const { return kind == PROCEDURE; }
 
-// @leak
-Declarator * Type::getGenericDeclarator() const {
+bool Type::isPrimative() const {
+    return kind == VOID || kind == BOOL || kind == INT || kind == FLOAT ||
+           kind == CHAR;
+}
+
+const Type * Type::getPointer() const { return PointerType::get(this); }
+
+const Type * Type::getRef() const { return RefType::get(this); }
+
+const Type * Type::getMaybe() const {
+    BJOU_DEBUG_ASSERT(false);
+    return nullptr;
+}
+
+const Type * Type::unRef() const {
+    if (isRef())
+        return under();
+    return this;
+}
+
+const Type * Type::getBase() const {
+    const Type * u = under();
+    if (this == u)
+        return this;
+    return u->getBase();
+}
+
+const Type * Type::under() const { return this; }
+
+std::string Type::getDemangledName() const { return demangledString(key); }
+
+const Type * Type::replacePlaceholders(const Type * t) const { return this; }
+
+const std::string PlaceholderType::plkey = "_";
+
+const std::string VoidType::vkey = "void";
+
+const std::string BoolType::bkey = "bool";
+
+static inline std::string ikey(Type::Sign sign, int width) {
+    return std::string() + signLtr[(int)sign] + std::to_string(width);
+}
+
+static inline std::string fkey(int width) {
+    return std::string("f") + std::to_string(width);
+}
+
+const std::string CharType::ckey = "char";
+
+static inline std::string pkey(const Type * elem_t) {
+    return elem_t->key + "*";
+}
+
+static inline std::string rkey(const Type * t) { return t->key + " ref"; }
+
+static inline std::string akey(const Type * t, int width) {
+    return t->key + "[" + std::to_string(width) + "]";
+}
+
+static inline std::string skey(const Type * t) { return t->key + "[]"; }
+
+static inline std::string dkey(const Type * t) { return t->key + "[...]"; }
+
+static inline std::string tkey(const std::vector<const Type *> & types) {
+    std::string key = "(";
+    for (const Type * t : types) {
+        key += t->key;
+        if (t != types.back())
+            key += t->key + ", ";
+    }
+
+    return key + ")";
+}
+
+static inline std::string prkey(const std::vector<const Type *> & paramTypes,
+                                const Type * retType, bool isVararg) {
+    std::string key = "<(";
+    for (const Type * t : paramTypes) {
+        key += t->key;
+        if (&t != &paramTypes.back() || isVararg)
+            key += ", ";
+    }
+    if (isVararg)
+        key += "...";
+    key += ")";
+    if (retType->key != VoidType::vkey)
+        key += " : " + retType->key;
+
+    return key + ">";
+}
+
+static Declarator * basicDeclarator(const Type * t) {
     Declarator * declarator = new Declarator();
     declarator->context.filename = "<declarator created internally>";
-    declarator->setIdentifier(mangledStringtoIdentifier(code));
+    declarator->setIdentifier(mangledStringtoIdentifier(t->key));
     /*
     if (this->isStruct()) {
         StructType * s_t = (StructType*)this;
@@ -99,98 +150,290 @@ Declarator * Type::getGenericDeclarator() const {
     return declarator;
 }
 
-std::string Type::getDemangledName() const { return demangledString(code); }
+PlaceholderType::PlaceholderType()
+    : Type(PLACEHOLDER, PlaceholderType::plkey) {}
 
-bool Type::opApplies(std::string & op) const {
-    const char * applicable[] = {"!", "not", "&",  "*",  "/",  "%",  "+",
-                                 "-", "<",   "<=", ">",  ">=", "==", "!=",
-                                 "=", "*=",  "/=", "%=", "+=", "-="};
-    const char * boolean[] = {"&&", "and", "||", "or"};
-
-    if (equivalent(compilation->frontEnd.typeTable["void"]))
-        return false;
-    if (equivalent(compilation->frontEnd.typeTable["bool"]))
-        return s_in_a(op.c_str(), applicable) || s_in_a(op.c_str(), boolean);
-    return s_in_a(op.c_str(), applicable);
+const Type * PlaceholderType::get() {
+    return getOrAddType<PlaceholderType>(PlaceholderType::plkey);
 }
 
-bool Type::isValidOperand(const Type * operand, std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"*",  "/",  "%", "+",  "-",  "<",  "<=", ">", ">=",
-                           "==", "!=", "=", "*=", "/=", "%=", "+=", "-="};
-    const char * boolean[] = {"&&", "and", "||", "or"};
-    if (s_in_a(op.c_str(), same))
-        return equivalent(operand) ||
-               (enumerableEquivalent() && operand->enumerableEquivalent());
-    if (s_in_a(op.c_str(), boolean))
-        return operand->equivalent(compilation->frontEnd.typeTable["bool"]);
-    return false;
+Declarator * PlaceholderType::getGenericDeclarator() const {
+    PlaceholderDeclarator * declarator = new PlaceholderDeclarator;
+    declarator->context.filename = "<declarator created internally>";
+    declarator->createdFromType = true;
+    return declarator;
 }
 
-const Type * Type::binResultType(const Type * operand, std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"*",  "/",  "%",  "+",  "-", "=",
-                           "*=", "/=", "%=", "+=", "-="};
-    const char * boolean[] = {"&&", "and", "||", "or", "<",
-                              "<=", ">",   ">=", "==", "!="};
-
-    if (s_in_a(op.c_str(), same))
-        return this;
-    if (s_in_a(op.c_str(), boolean))
-        return compilation->frontEnd.typeTable["bool"];
-    return nullptr;
-}
-
-const Type * Type::unResultType(std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && unary(op.c_str()));
-    const char * pointer[] = {"&"};
-    const char * boolean[] = {"!", "not"};
-
-    if (s_in_a(op.c_str(), pointer))
-        return pointerOf();
-    if (s_in_a(op.c_str(), boolean))
-        return compilation->frontEnd.typeTable["bool"];
-    return nullptr;
-}
-
-const Type * Type::arrayOf() const { return new ArrayType(this); }
-const Type * Type::pointerOf() const { return new PointerType(this); }
-const Type * Type::maybeOf() const { return new MaybeType(this); }
-const Type * Type::replacePlaceholders(const Type * t) const {
-    return new Type(*this);
-}
-
-Type::~Type() {}
-//
-
-InvalidType::InvalidType() : Type(INVALID) {}
-
-PlaceholderType::PlaceholderType() : Type(PLACEHOLDER) { code = "_"; }
+std::string PlaceholderType::getDemangledName() const { return key; }
 
 const Type * PlaceholderType::replacePlaceholders(const Type * t) const {
     return t;
 }
 
-// Type interface
-bool PlaceholderType::equivalent(const Type * other, bool exactMatch) const {
-    // return other->kind == Type::PLACEHOLDER;
-    return true;
+VoidType::VoidType() : Type(VOID, VoidType::vkey) {}
+
+const Type * VoidType::get() { return getOrAddType<VoidType>(VoidType::vkey); }
+
+Declarator * VoidType::getGenericDeclarator() const {
+    return basicDeclarator(this);
 }
 
-Declarator * PlaceholderType::getGenericDeclarator() const {
-    Declarator * declarator = new PlaceholderDeclarator();
-    declarator->context.filename = "<declarator created internally>";
-    declarator->createdFromType = true;
-    return declarator;
-}
-//
+std::string VoidType::getDemangledName() const { return key; }
 
-StructType::StructType() : Type(STRUCT) {}
+BoolType::BoolType() : Type(BOOL, BoolType::bkey) {}
+
+const Type * BoolType::get() { return getOrAddType<BoolType>(BoolType::bkey); }
+
+Declarator * BoolType::getGenericDeclarator() const {
+    return basicDeclarator(this);
+}
+
+std::string BoolType::getDemangledName() const { return key; }
+
+IntType::IntType(Sign _sign, int _width)
+    : Type(INT, ikey(_sign, _width)), sign(_sign), width(_width) {
+    BJOU_DEBUG_ASSERT(VALID_IWIDTH(_width));
+}
+
+const Type * IntType::get(Sign sign, int width) {
+    return getOrAddType<IntType>(ikey(sign, width), sign, width);
+}
+
+Declarator * IntType::getGenericDeclarator() const {
+    return basicDeclarator(this);
+}
+
+std::string IntType::getDemangledName() const { return key; }
+
+FloatType::FloatType(int _width) : Type(FLOAT, fkey(_width)), width(_width) {
+
+    BJOU_DEBUG_ASSERT(VALID_FWIDTH(_width));
+}
+
+const Type * FloatType::get(int width) {
+    return getOrAddType<FloatType>(fkey(width), width);
+}
+
+Declarator * FloatType::getGenericDeclarator() const {
+    return basicDeclarator(this);
+}
+
+std::string FloatType::getDemangledName() const { return key; }
+
+CharType::CharType() : Type(CHAR, CharType::ckey) {}
+
+const Type * CharType::get() { return getOrAddType<CharType>(CharType::ckey); }
+
+Declarator * CharType::getGenericDeclarator() const {
+    return basicDeclarator(this);
+}
+
+std::string CharType::getDemangledName() const { return key; }
+
+PointerType::PointerType(const Type * _elem_t)
+    : Type(POINTER, pkey(_elem_t)), elem_t(_elem_t) {}
+
+const Type * PointerType::get(const Type * elem_t) {
+    return getOrAddType<PointerType>(pkey(elem_t), elem_t);
+}
+
+const Type * PointerType::under() const { return elem_t; }
+
+Declarator * PointerType::getGenericDeclarator() const {
+    PointerDeclarator * decl =
+        new PointerDeclarator(under()->getGenericDeclarator());
+    decl->createdFromType = true;
+    return decl;
+}
+
+std::string PointerType::getDemangledName() const {
+    return under()->getDemangledName() + "*";
+}
+
+const Type * PointerType::replacePlaceholders(const Type * t) const {
+    return PointerType::get(under()->replacePlaceholders(t));
+}
+
+RefType::RefType(const Type * _t) : Type(REF, rkey(_t)), t(_t) {}
+
+const Type * RefType::get(const Type * t) {
+    return getOrAddType<RefType>(rkey(t), t);
+}
+
+const Type * RefType::under() const { return t; }
+
+Declarator * RefType::getGenericDeclarator() const {
+    RefDeclarator * decl = new RefDeclarator(under()->getGenericDeclarator());
+    decl->createdFromType = true;
+    return decl;
+}
+
+std::string RefType::getDemangledName() const {
+    return under()->getDemangledName() + " ref";
+}
+
+const Type * RefType::replacePlaceholders(const Type * t) const {
+    return RefType::get(under()->replacePlaceholders(t));
+}
+
+ArrayType::ArrayType(const Type * _elem_t, int _width)
+    : Type(ARRAY, akey(_elem_t, _width)), elem_t(_elem_t), width(_width) {}
+
+const Type * ArrayType::get(const Type * elem_t, int width) {
+    return getOrAddType<ArrayType>(akey(elem_t, width), elem_t, width);
+}
+
+const Type * ArrayType::under() const { return elem_t; }
+
+Declarator * ArrayType::getGenericDeclarator() const {
+    IntegerLiteral * expr = new IntegerLiteral;
+    ArrayDeclarator * decl =
+        new ArrayDeclarator(under()->getGenericDeclarator(), expr);
+    decl->createdFromType = true;
+    expr->scope = decl->scope;
+    expr->context = decl->context;
+    expr->contents = std::to_string(width);
+    return decl;
+}
+
+std::string ArrayType::getDemangledName() const {
+    return under()->getDemangledName() + "[" + std::to_string(width) + "]";
+}
+
+const Type * ArrayType::replacePlaceholders(const Type * t) const {
+    return ArrayType::get(under()->replacePlaceholders(t), width);
+}
+
+SliceType::SliceType(const Type * _elem_t)
+    : Type(SLICE, skey(_elem_t)), elem_t(_elem_t) {}
+
+const Type * SliceType::get(const Type * elem_t) {
+    return getOrAddType<SliceType>(skey(elem_t), elem_t);
+}
+
+const Type * SliceType::getRealType() const {
+    /////////////////////////////////////////////////////// @bad hack
+    /////////////////////////////////////////////////////////////////
+    Declarator * elem_decl = under()->getGenericDeclarator();
+
+    Declarator * new_decl = new Declarator;
+    new_decl->setScope(compilation->frontEnd.globalScope);
+
+    Identifier * ident = new Identifier;
+    ident->setScope(compilation->frontEnd.globalScope);
+    ident->setUnqualified("__bjou_slice");
+
+    new_decl->setIdentifier(ident);
+
+    TemplateInstantiation * new_inst = new TemplateInstantiation;
+    new_inst->setScope(compilation->frontEnd.globalScope);
+    new_inst->addElement(elem_decl);
+
+    new_decl->setTemplateInst(new_inst);
+
+    new_decl->addSymbols(compilation->frontEnd.globalScope);
+
+    PointerDeclarator * holder = new PointerDeclarator(new_decl);
+
+    new_decl->analyze();
+    new_decl->desugar();
+
+    const Type * t = holder->getPointerOf()->getType();
+
+    delete holder;
+
+    return t;
+}
+
+const Type * SliceType::under() const { return elem_t; }
+
+Declarator * SliceType::getGenericDeclarator() const {
+    SliceDeclarator * decl =
+        new SliceDeclarator(under()->getGenericDeclarator());
+    decl->createdFromType = true;
+    return decl;
+}
+
+std::string SliceType::getDemangledName() const {
+    return under()->getDemangledName() + "[]";
+}
+
+const Type * SliceType::replacePlaceholders(const Type * t) const {
+    return SliceType::get(under()->replacePlaceholders(t));
+}
+
+DynamicArrayType::DynamicArrayType(const Type * _elem_t)
+    : Type(DYNAMIC_ARRAY, dkey(_elem_t)), elem_t(_elem_t) {}
+
+const Type * DynamicArrayType::get(const Type * elem_t) {
+    return getOrAddType<DynamicArrayType>(dkey(elem_t), elem_t);
+}
+
+const Type * DynamicArrayType::getRealType() const {
+    /////////////////////////////////////////////////////// @bad hack
+    /////////////////////////////////////////////////////////////////
+    Declarator * elem_decl = under()->getGenericDeclarator();
+
+    Declarator * new_decl = new Declarator;
+    new_decl->setScope(compilation->frontEnd.globalScope);
+
+    Identifier * ident = new Identifier;
+    ident->setScope(compilation->frontEnd.globalScope);
+    ident->setUnqualified("__bjou_dyn_array");
+
+    new_decl->setIdentifier(ident);
+
+    TemplateInstantiation * new_inst = new TemplateInstantiation;
+    new_inst->setScope(compilation->frontEnd.globalScope);
+    new_inst->addElement(elem_decl);
+
+    new_decl->setTemplateInst(new_inst);
+
+    new_decl->addSymbols(compilation->frontEnd.globalScope);
+
+    PointerDeclarator * holder = new PointerDeclarator(new_decl);
+
+    new_decl->analyze();
+    new_decl->desugar();
+
+    const Type * t = holder->getPointerOf()->getType();
+
+    delete holder;
+
+    return t;
+}
+
+const Type * DynamicArrayType::under() const { return elem_t; }
+
+Declarator * DynamicArrayType::getGenericDeclarator() const {
+    DynamicArrayDeclarator * decl =
+        new DynamicArrayDeclarator(under()->getGenericDeclarator());
+    decl->createdFromType = true;
+    return decl;
+}
+
+std::string DynamicArrayType::getDemangledName() const {
+    return under()->getDemangledName() + "[...]";
+}
+
+const Type * DynamicArrayType::replacePlaceholders(const Type * t) const {
+    return DynamicArrayType::get(under()->replacePlaceholders(t));
+}
 
 StructType::StructType(std::string & name, Struct * __struct,
                        TemplateInstantiation * _inst)
     : Type(STRUCT, name), isAbstract(__struct->getFlag(Struct::IS_ABSTRACT)),
-      _struct(__struct), inst(_inst), extends(nullptr), idestroy_link(nullptr) {}
+      isComplete(false), _struct(__struct), inst(_inst), extends(nullptr),
+      idestroy_link(nullptr) {}
+
+const Type * StructType::get(std::string name) {
+    return getOrAddType<StructType>(name, name);
+}
+
+const Type * StructType::get(std::string name, Struct * _struct,
+                             TemplateInstantiation * inst) {
+    return getOrAddType<StructType>(name, name, _struct, inst);
+}
 
 static void insertProcSet(StructType * This, Procedure * proc) {
     // if (This->memberProcs.find(proc->getName()) == This->memberProcs.end()) {
@@ -264,460 +507,37 @@ void StructType::complete() {
             }
         }
     }
+    isComplete = true;
 }
 
-bool StructType::opApplies(std::string & op) const {
-    const char * applicable[] = {"==", "!=", "=", "&"};
-    return s_in_a(op.c_str(), applicable);
+bool StructType::implementsInterfaces() const {
+    BJOU_DEBUG_ASSERT(isComplete);
+
+    return interfaces.size() != 0;
 }
 
-bool StructType::isValidOperand(const Type * operand, std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"==", "!=", "="};
-    if (s_in_a(op.c_str(), same))
-        return equivalent(operand);
-    return false;
+Declarator * StructType::getGenericDeclarator() const {
+    return basicDeclarator(this);
 }
 
-const Type * StructType::binResultType(const Type * operand,
-                                       std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"="};
-    const char * boolean[] = {"==", "!="};
-
-    if (s_in_a(op.c_str(), same))
-        return this;
-    else if (s_in_a(op.c_str(), boolean))
-        return compilation->frontEnd.typeTable["bool"];
-    else
-        return nullptr;
+std::string StructType::getDemangledName() const {
+    return demangledString(key);
 }
 
-const Type * StructType::unResultType(std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && unary(op.c_str()));
-    const char * pointer[] = {"&"};
-
-    if (s_in_a(op.c_str(), pointer))
-        return pointerOf();
-    return nullptr;
+TupleType::TupleType(const std::vector<const Type *> & _types)
+    : Type(TUPLE, tkey(_types)), types(_types) {
+    BJOU_DEBUG_ASSERT(!types.empty());
 }
 
-const Type * StructType::replacePlaceholders(const Type * t) const {
-    return new StructType(*this);
+const Type * TupleType::get(const std::vector<const Type *> & types) {
+    return getOrAddType<TupleType>(tkey(types), types);
 }
 
-EnumType::EnumType() : Type(ENUM) {}
-
-EnumType::EnumType(std::string & name, ASTNode * __enum) : Type(ENUM, name) {
-    Enum * _enum = (Enum *)__enum;
-    std::vector<std::string> & idents = _enum->getIdentifiers();
-    for (unsigned int i = 0; i < idents.size(); i += 1)
-        valMap[idents[i]] = i;
-}
-
-AliasType::AliasType() : Type(ALIAS) {}
-
-AliasType::AliasType(std::string & name, Alias * _alias)
-    : Type(ALIAS, name), alias(_alias) {
-    code = name;
-}
-
-const Type * AliasType::getOriginal() const { return alias_of; }
-
-bool AliasType::equivalent(const Type * other, bool exactMatch) const {
-    return alias_of->equivalent(other, exactMatch);
-}
-
-bool AliasType::opApplies(std::string & op) const {
-    // @future check overloads here instead of alias_of?
-    return alias_of->opApplies(op);
-}
-
-bool AliasType::isValidOperand(const Type * operand, std::string & op) const {
-    return alias_of->isValidOperand(operand, op);
-}
-
-const Type * AliasType::binResultType(const Type * operand,
-                                      std::string & op) const {
-    return alias_of->binResultType(operand, op);
-}
-
-const Type * AliasType::unResultType(std::string & op) const {
-    return alias_of->unResultType(op);
-}
-
-const Type * AliasType::replacePlaceholders(const Type * t) const {
-    AliasType * result = new AliasType(*this);
-    result->alias_of = alias_of->replacePlaceholders(t);
-    return result;
-}
-
-void AliasType::complete() { alias_of = alias->getDeclarator()->getType(); }
-
-ArrayType::ArrayType() : Type(ARRAY) {}
-
-ArrayType::ArrayType(const Type * _array_of)
-    : Type(ARRAY), array_of(_array_of), expression(nullptr), size(-1) {
-    code = array_of->code + "[]";
-}
-
-ArrayType::ArrayType(const Type * _array_of, Expression * _expression)
-    : Type(ARRAY), array_of(_array_of), expression(_expression) {
-    code = array_of->code + "[]";
-    if (expression->isConstant())
-        size = (int)expression->eval().as_i64;
-    else
-        size = -1;
-}
-
-bool ArrayType::equivalent(const Type * other, bool exactMatch) const {
-    return (Type::equivalent(other, exactMatch)) ||
-           ((other->isPointer() &&
-             array_of->equivalent(((PointerType *)other)->pointer_of,
-                                  exactMatch)));
-}
-
-const Type * ArrayType::getBase() const { return array_of->getBase(); }
-
-Declarator * ArrayType::getGenericDeclarator() const {
-    ArrayDeclarator * decl =
-        new ArrayDeclarator(array_of->getGenericDeclarator(), expression);
-    decl->size = size;
-    decl->createdFromType = true;
-    return decl;
-}
-
-std::string ArrayType::getDemangledName() const {
-    return array_of->getDemangledName() + "[]";
-}
-
-bool ArrayType::opApplies(std::string & op) const {
-    const char * applicable[] = {"&", "@", "+", "-", "==", "!=", "=", "[]"};
-
-    return s_in_a(op.c_str(), applicable);
-}
-
-bool ArrayType::isValidOperand(const Type * operand, std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"+", "-", "==", "!=", "="};
-    const char * access[] = {"[]"};
-
-    if (s_in_a(op.c_str(), same))
-        return equivalent(operand);
-    if (s_in_a(op.c_str(), access))
-        return operand->enumerableEquivalent();
-    return false;
-}
-
-const Type * ArrayType::binResultType(const Type * operand,
-                                      std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"+", "-", "="};
-    const char * boolean[] = {"==", "!="};
-    const char * access[] = {"[]"};
-
-    if (s_in_a(op.c_str(), same))
-        return this;
-    if (s_in_a(op.c_str(), boolean))
-        return compilation->frontEnd.typeTable["bool"];
-    if (s_in_a(op.c_str(), access))
-        return array_of;
-    return nullptr;
-}
-
-const Type * ArrayType::unResultType(std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && unary(op.c_str()));
-    const char * pointer[] = {"&"};
-
-    if (s_in_a(op.c_str(), pointer))
-        return pointerOf();
-    return nullptr;
-}
-
-const Type * ArrayType::replacePlaceholders(const Type * t) const {
-    ArrayType * result = new ArrayType(*this);
-    result->array_of = array_of->replacePlaceholders(t);
-    return result;
-}
-
-DynamicArrayType::DynamicArrayType() : Type(DYNAMIC_ARRAY) {}
-
-DynamicArrayType::DynamicArrayType(const Type * _array_of)
-    : Type(DYNAMIC_ARRAY), array_of(_array_of) {
-    code = array_of->code + "[...]";
-}
-
-bool DynamicArrayType::equivalent(const Type * other, bool exactMatch) const {
-    return (Type::equivalent(other, exactMatch)) ||
-           ((other->isPointer() &&
-             array_of->equivalent(((PointerType *)other)->pointer_of,
-                                  exactMatch)));
-}
-
-const Type * DynamicArrayType::getBase() const { return array_of->getBase(); }
-
-Declarator * DynamicArrayType::getGenericDeclarator() const {
-    DynamicArrayDeclarator * decl =
-        new DynamicArrayDeclarator(array_of->getGenericDeclarator());
-    decl->createdFromType = true;
-    return decl;
-}
-
-std::string DynamicArrayType::getDemangledName() const {
-    return array_of->getDemangledName() + "[]";
-}
-
-bool DynamicArrayType::opApplies(std::string & op) const {
-    const char * applicable[] = {"&", "@", "+", "-", "==", "!=", "=", "[]"};
-
-    return s_in_a(op.c_str(), applicable);
-}
-
-bool DynamicArrayType::isValidOperand(const Type * operand,
-                                      std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"+", "-", "==", "!=", "="};
-    const char * access[] = {"[]"};
-
-    if (s_in_a(op.c_str(), same))
-        return equivalent(operand);
-    if (s_in_a(op.c_str(), access))
-        return operand->enumerableEquivalent();
-    return false;
-}
-
-const Type * DynamicArrayType::binResultType(const Type * operand,
-                                             std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"+", "-", "="};
-    const char * boolean[] = {"==", "!="};
-    const char * access[] = {"[]"};
-
-    if (s_in_a(op.c_str(), same))
-        return this;
-    if (s_in_a(op.c_str(), boolean))
-        return compilation->frontEnd.typeTable["bool"];
-    if (s_in_a(op.c_str(), access))
-        return array_of;
-    return nullptr;
-}
-
-const Type * DynamicArrayType::unResultType(std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && unary(op.c_str()));
-    const char * pointer[] = {"&"};
-
-    if (s_in_a(op.c_str(), pointer))
-        return pointerOf();
-    return nullptr;
-}
-
-const Type * DynamicArrayType::replacePlaceholders(const Type * t) const {
-    DynamicArrayType * result = new DynamicArrayType(*this);
-    result->array_of = array_of->replacePlaceholders(t);
-    return result;
-}
-
-PointerType::PointerType() : Type(POINTER) {}
-
-PointerType::PointerType(const Type * _pointer_of)
-    : Type(POINTER), pointer_of(_pointer_of) {
-    code = pointer_of->code + "*";
-}
-
-bool PointerType::equivalent(const Type * other, bool exactMatch) const {
-    if (other->isPointer())
-        if (pointer_of->equivalent(((PointerType *)other)->pointer_of,
-                                   exactMatch))
-            return true;
-    if (other->isArray() &&
-        ((ArrayType *)other)->array_of->equivalent(pointer_of, exactMatch))
-        return true;
-    if (pointer_of->isStruct() && other->isPointer()) {
-        const PointerType * other_p = (const PointerType *)other;
-        if (other_p->pointer_of->isStruct()) {
-            const StructType * my_t = (StructType *)pointer_of;
-            const StructType * other_t = (StructType *)other_p->pointer_of;
-            bool extends = false;
-            while (my_t->extends) {
-                my_t = (const StructType *)my_t->extends;
-                if (my_t->equivalent(other_t, exactMatch)) {
-                    extends = true;
-                    break;
-                }
-            }
-            if (!exactMatch)
-                return extends;
-        }
-    }
-    return false;
-}
-
-const Type * PointerType::getBase() const { return pointer_of->getBase(); }
-
-Declarator * PointerType::getGenericDeclarator() const {
-    PointerDeclarator * decl =
-        new PointerDeclarator(pointer_of->getGenericDeclarator());
-    decl->createdFromType = true;
-    return decl;
-}
-
-std::string PointerType::getDemangledName() const {
-    return pointer_of->getDemangledName() + "*";
-}
-
-bool PointerType::opApplies(std::string & op) const {
-    const char * applicable[] = {"&", "@",
-                                 // "+", "-",
-                                 "==", "!=", "=", "[]"};
-
-    return s_in_a(op.c_str(), applicable);
-}
-
-bool PointerType::isValidOperand(const Type * operand, std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {// "+", "-",
-                           "==", "!=", "="};
-    const char * access[] = {"[]"};
-
-    if (s_in_a(op.c_str(), same))
-        return equivalent(operand);
-    if (s_in_a(op.c_str(), access))
-        return operand->enumerableEquivalent();
-    return false;
-}
-
-const Type * PointerType::binResultType(const Type * operand,
-                                        std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {// "+", "-",
-                           "="};
-    const char * boolean[] = {"==", "!="};
-    const char * access[] = {"[]"};
-
-    if (s_in_a(op.c_str(), same))
-        return this;
-    if (s_in_a(op.c_str(), boolean))
-        return compilation->frontEnd.typeTable["bool"];
-    if (s_in_a(op.c_str(), access))
-        return pointer_of;
-    return nullptr;
-}
-
-const Type * PointerType::unResultType(std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && unary(op.c_str()));
-    const char * pointer[] = {"&"};
-    const char * deref[] = {"@"};
-
-    if (s_in_a(op.c_str(), pointer))
-        return pointerOf();
-    if (s_in_a(op.c_str(), deref))
-        return pointer_of;
-    return nullptr;
-}
-
-const Type * PointerType::replacePlaceholders(const Type * t) const {
-    PointerType * result = new PointerType(*this);
-    result->pointer_of = pointer_of->replacePlaceholders(t);
-    return result;
-}
-
-MaybeType::MaybeType() : Type(MAYBE) {}
-
-MaybeType::MaybeType(const Type * _maybe_of)
-    : Type(MAYBE), maybe_of(_maybe_of) {
-    code = maybe_of->code + "?";
-}
-
-const Type * MaybeType::getBase() const { return maybe_of->getBase(); }
-
-Declarator * MaybeType::getGenericDeclarator() const {
-    MaybeDeclarator * decl =
-        new MaybeDeclarator(maybe_of->getGenericDeclarator());
-    decl->createdFromType = true;
-    return decl;
-}
-
-std::string MaybeType::getDemangledName() const {
-    return maybe_of->getDemangledName() + "?";
-}
-
-bool MaybeType::opApplies(std::string & op) const {
-    const char * applicable[] = {"&", "==", "!=", "=", "?", "??"};
-
-    return s_in_a(op.c_str(), applicable);
-}
-
-bool MaybeType::isValidOperand(const Type * operand, std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"==", "!=", "="};
-    const char * transfer[] = {"??"};
-
-    if (s_in_a(op.c_str(), same))
-        return equivalent(operand);
-    if (s_in_a(op.c_str(), transfer))
-        return operand->equivalent(maybe_of);
-    return false;
-}
-
-const Type * MaybeType::binResultType(const Type * operand,
-                                      std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"="};
-    const char * boolean[] = {"==", "!=", "??"};
-
-    if (s_in_a(op.c_str(), same))
-        return this;
-    if (s_in_a(op.c_str(), boolean))
-        return compilation->frontEnd.typeTable["bool"];
-    return nullptr;
-}
-
-const Type * MaybeType::unResultType(std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && unary(op.c_str()));
-    const char * pointer[] = {"&"};
-    const char * good[] = {"?"};
-
-    if (s_in_a(op.c_str(), pointer))
-        return pointerOf();
-    if (s_in_a(op.c_str(), good))
-        return compilation->frontEnd.typeTable["bool"];
-    return nullptr;
-}
-
-const Type * MaybeType::replacePlaceholders(const Type * t) const {
-    MaybeType * result = new MaybeType(*this);
-    result->maybe_of = maybe_of->replacePlaceholders(t);
-    return result;
-}
-
-TupleType::TupleType() : Type(TUPLE) {}
-
-TupleType::TupleType(std::vector<const Type *> _subTypes)
-    : Type(TUPLE), subTypes(_subTypes) {
-    code = "(";
-    for (const Type * st : subTypes) {
-        code += st->code;
-        if (st != subTypes.back())
-            code += st->code + ", ";
-    }
-    code += ")";
-}
-
-bool TupleType::equivalent(const Type * other, bool exactMatch) const {
-    if (!other->isTuple())
-        return false;
-    const TupleType * other_tuple = (const TupleType *)other;
-    if (subTypes.size() != other_tuple->subTypes.size())
-        return false;
-    for (unsigned int i = 0; i < subTypes.size(); i += 1)
-        if (!subTypes[i]->equivalent(other_tuple->subTypes[i], exactMatch))
-            return false;
-    return true;
-}
+const std::vector<const Type *> & TupleType::getTypes() const { return types; }
 
 Declarator * TupleType::getGenericDeclarator() const {
     TupleDeclarator * decl = new TupleDeclarator();
-    for (const Type * st : subTypes)
+    for (const Type * st : types)
         decl->addSubDeclarator(st->getGenericDeclarator());
     decl->createdFromType = true;
     return decl;
@@ -725,9 +545,9 @@ Declarator * TupleType::getGenericDeclarator() const {
 
 std::string TupleType::getDemangledName() const {
     std::string demangled = "(";
-    for (const Type * const & st : subTypes) {
+    for (const Type * const & st : types) {
         demangled += st->getDemangledName();
-        if (&st != &subTypes.back())
+        if (&st != &types.back())
             demangled += ", ";
     }
     demangled += ")";
@@ -735,110 +555,29 @@ std::string TupleType::getDemangledName() const {
     return demangled;
 }
 
-bool TupleType::opApplies(std::string & op) const {
-    const char * applicable[] = {"&", "==", "!=", "=", "[]"};
-
-    return s_in_a(op.c_str(), applicable);
-}
-
-bool TupleType::isValidOperand(const Type * operand, std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"==", "!=", "="};
-    const char * access[] = {"[]"};
-
-    if (s_in_a(op.c_str(), same))
-        return equivalent(operand);
-    if (s_in_a(op.c_str(), access))
-        return operand->enumerableEquivalent();
-    return false;
-}
-
-const Type * TupleType::binResultType(const Type * operand,
-                                      std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"="};
-    const char * boolean[] = {"==", "!="};
-    const char * access[] = {"[]"};
-
-    if (s_in_a(op.c_str(), same))
-        return this;
-    if (s_in_a(op.c_str(), boolean))
-        return compilation->frontEnd.typeTable["bool"];
-    if (s_in_a(op.c_str(), access))
-        return new InvalidType(); // @fix -- what should we do here?
-    return nullptr;
-}
-
-const Type * TupleType::unResultType(std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && unary(op.c_str()));
-    const char * pointer[] = {"&"};
-
-    if (s_in_a(op.c_str(), pointer))
-        return pointerOf();
-    return nullptr;
-}
-
 const Type * TupleType::replacePlaceholders(const Type * t) const {
-    TupleType * result = new TupleType(*this);
-    for (const Type *& s_t : result->subTypes)
-        s_t = s_t->replacePlaceholders(t);
-    return result;
+    std::vector<const Type *> newTypes;
+    for (auto st : types)
+        newTypes.push_back(st->replacePlaceholders(t));
+    return TupleType::get(newTypes);
 }
 
-ProcedureType::ProcedureType() : Type(PROCEDURE) {}
-
-ProcedureType::ProcedureType(std::vector<const Type *> _paramTypes,
+ProcedureType::ProcedureType(const std::vector<const Type *> & _paramTypes,
                              const Type * _retType, bool _isVararg)
-    : Type(PROCEDURE), paramTypes(_paramTypes), isVararg(_isVararg),
-      retType(_retType) {
-    code = "<(";
-    for (const Type * paramT : paramTypes) {
-        code += paramT->code;
-        if (&paramT != &paramTypes.back())
-            code += ", ";
-    }
-    code += ")";
-    if (retType->code != compilation->frontEnd.getBuiltinVoidTypeName())
-        code += " : " + retType->code;
-    code += ">";
+    : Type(PROCEDURE, prkey(_paramTypes, _retType, _isVararg)),
+      paramTypes(_paramTypes), isVararg(_isVararg), retType(_retType) {}
+
+const Type * ProcedureType::get(const std::vector<const Type *> & paramTypes,
+                                const Type * retType, bool isVararg) {
+    return getOrAddType<ProcedureType>(prkey(paramTypes, retType, isVararg),
+                                       paramTypes, retType, isVararg);
 }
 
-bool ProcedureType::argMatch(const Type * _other, bool exactMatch) {
-    if (_other->kind != PROCEDURE)
-        return false;
-
-    ProcedureType * other = (ProcedureType *)_other;
-
-    size_t my_nparams = paramTypes.size();
-    size_t other_nparams = other->paramTypes.size();
-
-    size_t min_nparams =
-        my_nparams <= other_nparams ? my_nparams : other_nparams;
-
-    if (my_nparams < other_nparams && !isVararg)
-        return false;
-    if (other_nparams < my_nparams && !other->isVararg)
-        return false;
-
-    for (unsigned int i = 0; i < min_nparams; i += 1)
-        if (!paramTypes[i]->equivalent(other->paramTypes[i], exactMatch))
-            return false;
-    return true;
+const std::vector<const Type *> & ProcedureType::getParamTypes() const {
+    return paramTypes;
 }
 
-bool ProcedureType::equivalent(const Type * _other, bool exactMatch) const {
-    if (!_other->isProcedure())
-        return false;
-    ProcedureType * other = (ProcedureType *)_other;
-    if (paramTypes.size() != other->paramTypes.size())
-        return false;
-    for (unsigned int i = 0; i < paramTypes.size(); i += 1)
-        if (!paramTypes[i]->equivalent(other->paramTypes[i], exactMatch))
-            return false;
-    if (!retType->equivalent(other->retType, exactMatch))
-        return false;
-    return true;
-}
+const Type * ProcedureType::getRetType() const { return retType; }
 
 Declarator * ProcedureType::getGenericDeclarator() const {
     ProcedureDeclarator * decl = new ProcedureDeclarator();
@@ -859,139 +598,273 @@ std::string ProcedureType::getDemangledName() const {
     if (isVararg)
         demangled += "...";
     demangled += ")";
-    if (retType->getDemangledName() !=
-        compilation->frontEnd.getBuiltinVoidTypeName())
+    if (retType != VoidType::get())
         demangled += " : " + retType->getDemangledName();
     demangled += ">";
 
     return demangled;
 }
 
-bool ProcedureType::opApplies(std::string & op) const {
-    const char * applicable[] = {"&", "==", "!=", "=", "()"};
-
-    return s_in_a(op.c_str(), applicable);
+const Type * ProcedureType::replacePlaceholders(const Type * t) const {
+    std::vector<const Type *> newParamTypes;
+    for (auto pt : paramTypes)
+        newParamTypes.push_back(pt->replacePlaceholders(t));
+    return ProcedureType::get(newParamTypes, retType->replacePlaceholders(t),
+                              isVararg);
 }
 
-bool ProcedureType::isValidOperand(const Type * operand,
-                                   std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    BJOU_DEBUG_ASSERT(
-        op != "()" &&
-        "Operand for call must be ArgList, which does not have a type.");
-    const char * same[] = {"==", "!=", "="};
+bool equal(const Type * t1, const Type * t2) {
+    if (t1->kind != t2->kind)
+        return false;
 
-    if (s_in_a(op.c_str(), same))
-        return equivalent(operand);
+    switch (t1->kind) {
+    case Type::VOID:
+        return true;
+    case Type::BOOL:
+        return t1 == t2;
+    case Type::INT: {
+        const IntType * i1 = (const IntType *)t1;
+        const IntType * i2 = (const IntType *)t2;
+
+        return (i1->sign == i2->sign) && (i1->width == i2->width);
+    }
+    case Type::FLOAT: {
+        const FloatType * f1 = (const FloatType *)t1;
+        const FloatType * f2 = (const FloatType *)t2;
+
+        return f1->width == f2->width;
+    }
+    case Type::CHAR:
+        return t1 == t2;
+    case Type::POINTER:
+        if (t2->isPointer())
+            return equal(t1->under(), t2->under());
+        break;
+    case Type::REF: {
+        if (t2->isRef())
+            return equal(t1->unRef(), t2->unRef());
+        return false;
+        break;
+    }
+    case Type::ARRAY: {
+        if (t2->isArray()) {
+            ArrayType * a1 = (ArrayType *)t1;
+            ArrayType * a2 = (ArrayType *)t2;
+            if (!equal(a1->under(), a2->under()))
+                return false;
+            return a1->width == a2->width;
+        }
+        break;
+    }
+    case Type::SLICE: {
+        if (t2->isSlice())
+            if (equal(t1->under(), t2->under()))
+                return true;
+        break;
+    }
+    case Type::DYNAMIC_ARRAY: {
+        if (t2->isDynamicArray())
+            if (equal(t1->under(), t2->under()))
+                return true;
+        break;
+    }
+    case Type::STRUCT:
+        return t1 == t2;
+    case Type::TUPLE: {
+        const TupleType * tp1 = (const TupleType *)t1;
+        const TupleType * tp2 = (const TupleType *)t2;
+
+        if (tp1->getTypes().size() != tp2->getTypes().size())
+            return false;
+
+        for (int i = 0; i < (int)tp1->getTypes().size(); i += 1)
+            if (!equal(tp1->getTypes()[i], tp2->getTypes()[i]))
+                return false;
+        return true;
+    }
+    case Type::PROCEDURE: {
+        const ProcedureType * p1 = (const ProcedureType *)t1;
+        const ProcedureType * p2 = (const ProcedureType *)t2;
+
+        if (p1->getParamTypes().size() != p2->getParamTypes().size())
+            return false;
+
+        for (int i = 0; i < (int)p1->getParamTypes().size(); i += 1)
+            if (!equal(p1->getParamTypes()[i], p2->getParamTypes()[i]))
+                return false;
+
+        return equal(p1->getRetType(), p2->getRetType());
+    }
+    }
+
     return false;
 }
 
-const Type * ProcedureType::binResultType(const Type * operand,
-                                          std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && binary(op.c_str()));
-    const char * same[] = {"="};
-    const char * boolean[] = {"==", "!="};
+// returns a conversion type if t1 and t2 can convert to a common type
+// order of t1 and t2 matters in some cases:
+//      conv(Derived*, Base*) = nullptr
+//      conv(Base*, Derived*) = Base*
+// think of conv(t1*, t2*) asking whether the following expression can
+// implicitly convert:
+//      b : t1*
+//      b = new t2.create()
+const Type * conv(const Type * t1, const Type * t2) {
+    if (equal(t1, t2))
+        return t1;
 
-    if (s_in_a(op.c_str(), same))
-        return this;
-    if (s_in_a(op.c_str(), boolean))
-        return compilation->frontEnd.typeTable["bool"];
-    return nullptr;
-}
-
-const Type * ProcedureType::unResultType(std::string & op) const {
-    BJOU_DEBUG_ASSERT(opApplies(op) && unary(op.c_str()));
-    const char * pointer[] = {"&"};
-
-    if (s_in_a(op.c_str(), pointer))
-        return pointerOf();
-    return nullptr;
-}
-
-const Type * ProcedureType::replacePlaceholders(const Type * t) const {
-    ProcedureType * result = new ProcedureType(*this);
-    for (const Type *& p_t : result->paramTypes)
-        p_t = p_t->replacePlaceholders(t);
-    result->retType = result->retType->replacePlaceholders(t);
-    return result;
-}
-
-TemplateStructType::TemplateStructType() : Type(TEMPLATE_STRUCT) {}
-
-TemplateStructType::TemplateStructType(std::string & name)
-    : Type(TEMPLATE_STRUCT, name) {}
-
-TemplateAliasType::TemplateAliasType() : Type(TEMPLATE_ALIAS) {}
-
-TemplateAliasType::TemplateAliasType(std::string & name)
-    : Type(TEMPLATE_ALIAS, name) {}
-
-void compilationAddPrimativeTypes() {
-    const std::tuple<const char *, Type::Sign, int> primatives[] = {
-
-        std::make_tuple("u1", Type::UNSIGNED, 1),
-        std::make_tuple("u8", Type::UNSIGNED, 8),
-        std::make_tuple("i8", Type::SIGNED, 8),
-        std::make_tuple("u16", Type::UNSIGNED, 16),
-        std::make_tuple("i16", Type::SIGNED, 16),
-        std::make_tuple("u32", Type::UNSIGNED, 32),
-        std::make_tuple("i32", Type::SIGNED, 32),
-        std::make_tuple("u64", Type::UNSIGNED, 64),
-        std::make_tuple("i64", Type::SIGNED, 64),
-        std::make_tuple("f32", Type::NA, 32),
-        std::make_tuple("f64", Type::NA, 64),
-        std::make_tuple("void", Type::NA, -1),
-        std::make_tuple("bool", Type::UNSIGNED, 1),
-        std::make_tuple("int", Type::SIGNED, 32),
-        std::make_tuple("uint", Type::UNSIGNED, 32),
-        std::make_tuple("long", Type::SIGNED, 64),
-        std::make_tuple("ulong", Type::UNSIGNED, 64),
-        std::make_tuple("char", Type::SIGNED, 8),
-        std::make_tuple("short", Type::SIGNED, 16),
-        std::make_tuple("float", Type::NA, 32),
-        std::make_tuple("double", Type::NA, 64)};
-
-    for (auto & p : primatives)
-        compilation->frontEnd.primativeTypeTable[std::get<0>(p)] = new Type(
-            Type::PRIMATIVE, std::get<0>(p), std::get<1>(p), std::get<2>(p));
-}
-
-const Type * primativeConversionResult(const Type * l, const Type * r) {
-    // one of l and r is fp, then we choose the fp type
-    if (l->isFP() && !r->isFP())
-        return l;
-    if (!l->isFP() && r->isFP())
-        return r;
-    // if both, choose the larger
-    if (l->isFP() && r->isFP()) {
-        if (l->size >= r->size)
-            return l;
-        else
+    if (t2->isRef()) {
+        const Type * r = conv(t1, t2->unRef());
+        if (r)
             return r;
     }
 
-    // both integer types
-    Type::Sign sign = Type::Sign::UNSIGNED;
-    if (l->sign == Type::Sign::SIGNED || r->sign == Type::Sign::SIGNED)
-        sign = Type::Sign::SIGNED;
-    int size = l->size >= r->size ? l->size : r->size;
+    // handle int and float conversions
+    // one of l and r is float, choose float type
+    if (t1->isFloat() && !t2->isFloat())
+        return t1;
+    if (!t1->isFloat() && t2->isFloat())
+        return t2;
+    // if both float, choose larger
+    if (t1->isFloat() && t2->isFloat()) {
+        if (((FloatType *)t1)->width >= ((FloatType *)t2)->width)
+            return t1;
+        else
+            return t2;
+    }
+    // both are ints
+    if (t1->isInt() && t2->isInt()) {
+        // unless both are unsigned, we go signed
+        Type::Sign sign = Type::Sign::UNSIGNED;
+        if (((IntType *)t1)->sign == Type::Sign::SIGNED ||
+            ((IntType *)t2)->sign == Type::Sign::SIGNED)
+            sign = Type::Sign::SIGNED;
+        // choose largest width
+        int width = ((IntType *)t1)->width >= ((IntType *)t2)->width
+                        ? ((IntType *)t1)->width
+                        : ((IntType *)t2)->width;
 
-    if (size == -1)
-        return compilation->frontEnd.typeTable["void"];
+        return IntType::get(sign, width);
+    }
 
-    char buf[32];
-    sprintf(buf, "%c%d", (sign == Type::Sign::SIGNED ? 'i' : 'u'), size);
+    if (t1->isFloat() && t2->isChar())
+        return t1;
+    if (t1->isChar() && t2->isInt())
+        return t1;
+    if (t1->isInt() && t2->isChar())
+        return t1;
 
-    BJOU_DEBUG_ASSERT(compilation->frontEnd.typeTable.count(buf) > 0);
+    switch (t1->kind) {
+    case Type::VOID:
+        return nullptr;
+    case Type::REF: {
+        const Type * un = conv(t1->unRef(), t2->unRef());
+        if (un)
+            return un;
 
-    return compilation->frontEnd.typeTable[buf];
+        const Type * r1 = t1->unRef();
+        const Type * r2 = t2->unRef();
+
+        if (r1->isStruct() &&
+            ((t2->isRef() && r2->isStruct()) || t2->isStruct())) {
+
+            const StructType * s1 = (const StructType *)r1;
+            const StructType * s2 = (const StructType *)r2;
+            const Type * extends = nullptr;
+            while (s2->extends) {
+                s2 = (const StructType *)s2->extends;
+                if (equal(s1, s2)) {
+                    extends = s2;
+                    break;
+                }
+            }
+            return extends;
+        }
+        break;
+    }
+    case Type::POINTER: {
+        const Type * p1 = t1->under();
+        const Type * p2 = t2->under();
+
+        if (t2->isArray() && equal(p1, p2))
+            return t1;
+
+        if (p1->isStruct() && t2->isPointer() && p2->isStruct()) {
+            const StructType * s1 = (const StructType *)p1;
+            const StructType * s2 = (const StructType *)p2;
+            const Type * extends = nullptr;
+            while (s2->extends) {
+                s2 = (const StructType *)s2->extends;
+                if (equal(s1, s2)) {
+                    extends = s2;
+                    break;
+                }
+            }
+            return extends;
+        }
+        break;
+    }
+    case Type::ARRAY: {
+        if (t2->isPointer() && equal(t1->under(), t2->under()))
+            return t2;
+        break;
+    }
+    case Type::SLICE: {
+        if (t2->isSlice())
+            if (equal(t1->under(), t2->under()))
+                return t1;
+        break;
+    }
+    case Type::DYNAMIC_ARRAY: {
+        if (t2->isDynamicArray())
+            if (equal(t1->under(), t2->under()))
+                return t1;
+        break;
+    }
+    }
+
+    return nullptr;
 }
 
-void createCompleteType(Symbol * sym) {
-    if (false) {
-    } else if (false) {
-    } else if (false) {
+bool argMatch(const Type * t1, const Type * t2, bool exact) {
+    if (!t1->isProcedure() || !t2->isProcedure())
+        return false;
+
+    const ProcedureType * p1 = (const ProcedureType *)t1;
+    const ProcedureType * p2 = (const ProcedureType *)t2;
+
+    size_t nparams1 = p1->paramTypes.size();
+    size_t nparams2 = p2->paramTypes.size();
+
+    size_t min_nparams = nparams1 <= nparams2 ? nparams1 : nparams2;
+
+    if (nparams1 < nparams2 && !p1->isVararg)
+        return false;
+    if (nparams2 < nparams1 && !p2->isVararg)
+        return false;
+
+    if (exact) {
+        for (unsigned int i = 0; i < min_nparams; i += 1)
+            if (!equal(p1->paramTypes[i], p2->paramTypes[i]))
+                return false;
+    } else {
+        for (unsigned int i = 0; i < min_nparams; i += 1)
+            if (!conv(p1->paramTypes[i], p2->paramTypes[i]))
+                return false;
     }
+
+    return true;
+}
+
+const Type * getTypeFromTable(const std::string & key) {
+    auto val = compilation->frontEnd.typeTable.find(key);
+
+    if (val != compilation->frontEnd.typeTable.end())
+        return val->second;
+    return nullptr;
+}
+
+void addTypeToTable(const Type * t, const std::string & key) {
+    compilation->frontEnd.typeTable[key] = t;
 }
 
 // @fun
@@ -999,12 +872,12 @@ std::vector<const Type *>
 typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
     size_t size = nonPrimatives.size();
     std::vector<const Type *> sorted, keep;
-    std::vector<std::string> availableByCode;
+    std::vector<std::string> availableByKey;
     std::vector<int> indices;
     int idx, nadded;
     sorted.reserve(size);
     keep.reserve(size);
-    availableByCode.reserve(size);
+    availableByKey.reserve(size);
     indices.reserve(size);
 
     while (sorted.size() < size) {
@@ -1061,20 +934,20 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
                                     terms.push_back(term);
                     }
                 }
-            } else if (t->isAlias()) {
+            } /* else if (t->isAlias()) {
                 // @todo
                 // what should happen here is that we should have access to the
                 // underlying declarator and unwrap that
             }
+            */
             for (ASTNode * term : terms) {
                 const Type * t = term->getType(); // @leak?
-                BJOU_DEBUG_ASSERT(t->isValid());
-                if (t->getBase()->isStruct() || t->getBase()->isAlias()) {
+                BJOU_DEBUG_ASSERT(t);
+                if (t->getBase()->isStruct()) { // || t->getBase()->isAlias()) {
                     // has the type that this term needs already been placed in
                     // 'sorted'?
-                    if (std::find(availableByCode.begin(),
-                                  availableByCode.end(), t->getBase()->code) ==
-                        availableByCode.end()) {
+                    if (std::find(availableByKey.begin(), availableByKey.end(),
+                                  t->getBase()->key) == availableByKey.end()) {
                         good = false;
                         if (!badTerm)
                             badTerm = term; // set for error
@@ -1096,7 +969,7 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
         for (unsigned int i = 0; i < nNonPrimatives; i += 1) {
             if (std::find(indices.begin(), indices.end(), i) != indices.end()) {
                 sorted.push_back(nonPrimatives[i]);
-                availableByCode.push_back(nonPrimatives[i]->code);
+                availableByKey.push_back(nonPrimatives[i]->key);
             } else
                 keep.push_back(nonPrimatives[i]);
         }
@@ -1114,12 +987,15 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
             if (nonPrimatives[0]->isStruct()) {
                 t_context =
                     ((StructType *)nonPrimatives[0])->_struct->getNameContext();
-            } else if (nonPrimatives[0]->isAlias()) {
+            }
+            /*
+            else if (nonPrimatives[0]->isAlias()) {
                 // @todo add suport for aliases
             }
-            std::string demangledA = demangledString(nonPrimatives[0]->code);
+            */
+            std::string demangledA = demangledString(nonPrimatives[0]->key);
             std::string demangledB =
-                demangledString(badTerm->getType()->getBase()->code); // @leak
+                demangledString(badTerm->getType()->getBase()->key); // @leak
             ref_context = badTerm->getContext();
             errorl(t_context,
                    "Definition of type '" + demangledA +
@@ -1138,6 +1014,118 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
     }
 
     return sorted;
+}
+
+void compilationAddPrimativeTypes() {
+    const Type * primatives[] = {VoidType::get(),
+                                 BoolType::get(),
+                                 IntType::get(Type::UNSIGNED, 8),
+                                 IntType::get(Type::UNSIGNED, 16),
+                                 IntType::get(Type::UNSIGNED, 32),
+                                 IntType::get(Type::UNSIGNED, 64),
+                                 IntType::get(Type::SIGNED, 8),
+                                 IntType::get(Type::SIGNED, 16),
+                                 IntType::get(Type::SIGNED, 32),
+                                 IntType::get(Type::SIGNED, 64),
+                                 FloatType::get(32),
+                                 FloatType::get(64),
+                                 CharType::get()};
+
+    for (const Type * p : primatives) {
+        compilation->frontEnd.primativeTypeTable[p->key] = p;
+    }
+
+    compilation->frontEnd.primativeTypeTable["int"] =
+        IntType::get(Type::SIGNED, 32);
+    compilation->frontEnd.primativeTypeTable["float"] = FloatType::get(32);
+}
+
+unsigned int simpleSizer(const Type * t) {
+    unsigned int size = 0;
+
+    if (t->isVoid()) {
+        size = 0;
+    } else if (t->isBool()) {
+        size = 1;
+    } else if (t->isInt()) {
+        size = ((IntType *)t)->width / 8;
+    } else if (t->isFloat()) {
+        size = ((FloatType *)t)->width / 8;
+    } else if (t->isChar()) {
+        size = 1;
+    } else if (t->isPointer() || t->isRef() || t->isProcedure()) {
+        size = sizeof(void *);
+    } else if (t->isArray()) {
+        ArrayType * a_t = (ArrayType *)t;
+        size = a_t->width * simpleSizer(a_t->elem_t);
+    } else if (t->isSlice()) {
+        SliceType * s_t = (SliceType *)t;
+        size = simpleSizer(s_t->getRealType());
+    } else if (t->isDynamicArray()) {
+        DynamicArrayType * d_t = (DynamicArrayType *)t;
+        size = simpleSizer(d_t->getRealType());
+    } else if (t->isStruct()) {
+        StructType * s_t = (StructType *)t;
+        for (const Type * m_t : s_t->memberTypes)
+            size += simpleSizer(m_t);
+        if (s_t->implementsInterfaces())
+            size += sizeof(void *);
+    } else if (t->isTuple()) {
+        TupleType * t_t = (TupleType *)t;
+        for (const Type * s_t : t_t->getTypes())
+            size += simpleSizer(s_t);
+    }
+
+    return size;
+}
+
+int countConversions(ProcedureType * compare_type,
+                     ProcedureType * candidate_type) {
+    int nconv = 0;
+    for (int i = 0; i < (int)candidate_type->paramTypes.size(); i += 1) {
+        const Type * t1 = candidate_type->paramTypes[i];
+        const Type * t2 = compare_type->paramTypes[i];
+        if (!conv(t1, t2))
+            return -1;
+        if (!equal(t1, t2)) {
+            nconv += 2;
+            // account for reference conversions too
+            if (t1->isRef()) {
+                if (!equal(t1->unRef(), t2->unRef()))
+                    nconv += 1;
+            }
+
+            if (t1->isPointer() || t1->isRef()) {
+                const Type * u1 = t1->under();
+                const Type * u2 = nullptr;
+                if (t2->isPointer() || t2->isRef())
+                    u2 = t2->under();
+                else
+                    u2 = t2;
+
+                if (u1->isStruct() && u2->isStruct()) {
+                    int n_extends = 0;
+                    const StructType * s1 = (const StructType *)u1;
+                    const StructType * s2 = (const StructType *)u2;
+                    const Type * extends = nullptr;
+
+                    if (!equal(s1, s2)) {
+                        while (s2->extends) {
+                            s2 = (const StructType *)s2->extends;
+                            if (equal(s1, s2)) {
+                                extends = s2;
+                                break;
+                            }
+                            n_extends += 1;
+                        }
+
+                        nconv += n_extends;
+                    }
+                }
+            }
+        }
+    }
+    return nconv;
 }
 
 } // namespace bjou

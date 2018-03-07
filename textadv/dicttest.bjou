@@ -1,0 +1,16 @@
+import "dict.bjou"
+
+type A!(T) {
+    t : T    
+}
+
+type B!(T) {
+    a : A!(T)    
+}
+
+(proc main() {
+    d := dict!(int, int).create()
+#     a := { A!(int): }
+#     b := { B!(int): }
+#     b.a = a
+})()

@@ -22,7 +22,7 @@ type LinkedList {
     proc create() : LinkedList
         return { LinkedList: .length = 0 }
 
-    proc append(this : LinkedList*, val : float) {
+    proc append(this, val : float) {
         if this.length == 0 {
             this.front = LinkedListNode.create(val)
             this.back = this.front
@@ -34,12 +34,12 @@ type LinkedList {
         }
     }
 
-    proc printall(this : LinkedList*, node : LinkedListNode*) {
+    proc printall(this, node : LinkedListNode*) {
         print "%", node.data
         if node != this.back this.printall(node.next)
     }
 
-    proc printall(this : LinkedList*)
+    proc printall(this)
         this.printall(this.front)
 }
 
@@ -58,17 +58,17 @@ type Derived extends Base {
                     .num = num 
                 }
 
-    proc printall(this : Derived*)
+    proc printall(this)
         print "{ %, %, % }", this.c, this.message, this.num
 }
 
 (proc main() {
     d := Derived.create('b', "derived type", 12345)
-    d->printall()
+    d.printall()
 
     l := LinkedList.create()
-    l->append(3.1415926536)
-    l->append(234.42341)
-    l->append(872.2465)
-    l->printall()
+    l.append(3.1415926536)
+    l.append(234.42341)
+    l.append(872.2465)
+    l.printall()
 })()

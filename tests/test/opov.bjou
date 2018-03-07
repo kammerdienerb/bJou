@@ -1,0 +1,18 @@
+# opov.bjou
+
+type Test$T {
+    x : T
+}
+
+\op { "+" proc _T_plus$T(l : Test$T, r : Test$T) {
+    print "% + %", l, r
+}}
+
+(proc main() {
+    l1 := { Test$int: .x = 1 }
+    r1 := { Test$int: .x = 2 }
+    l1 + r1
+    l2 := { Test$float: .x = 3.0 }
+    r2 := { Test$float: .x = 4.0 }
+    l2 + r2
+})()

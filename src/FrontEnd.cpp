@@ -27,12 +27,13 @@
 #endif
 
 namespace bjou {
-static void fix_typeinfo_v_table_size(FrontEnd & frontEnd) {
+
+void FrontEnd::fix_typeinfo_v_table_size() {
     if (!compilation->max_interface_procs)
         return;
 
-    BJOU_DEBUG_ASSERT(frontEnd.typeTable.count("typeinfo"));
-    StructType * s_t = (StructType *)frontEnd.typeTable["typeinfo"];
+    BJOU_DEBUG_ASSERT(typeTable.count("typeinfo"));
+    StructType * s_t = (StructType *)typeTable["typeinfo"];
     Struct * s = s_t->_struct;
 
     // Fix type
@@ -40,13 +41,7 @@ static void fix_typeinfo_v_table_size(FrontEnd & frontEnd) {
         (Type *)s_t->memberTypes[s_t->memberIndices["_v_table"]];
     BJOU_DEBUG_ASSERT(_v_table_t && _v_table_t->isArray());
     ArrayType * v_table_t = (ArrayType *)_v_table_t;
-    BJOU_DEBUG_ASSERT(v_table_t->expression);
-    BJOU_DEBUG_ASSERT(v_table_t->expression->nodeKind ==
-                      ASTNode::INTEGER_LITERAL);
-    v_table_t->expression = (Expression *)v_table_t->expression->clone();
-    v_table_t->expression->setContents(
-        std::to_string(compilation->max_interface_procs));
-    v_table_t->size = compilation->max_interface_procs;
+    v_table_t->width = compilation->max_interface_procs;
 
     // Fix original declaration
     VariableDeclaration * v_table_member = nullptr;
@@ -71,7 +66,131 @@ static void fix_typeinfo_v_table_size(FrontEnd & frontEnd) {
     decl->size = compilation->max_interface_procs;
 }
 
-FrontEnd::FrontEnd() : n_nodes(0), n_primatives(0) {}
+FrontEnd::FrontEnd()
+    : typeinfo_struct(nullptr), printf_decl(nullptr), malloc_decl(nullptr),
+      free_decl(nullptr), n_nodes(0), n_primatives(0) {
+
+    ctruntime = milliseconds::zero();
+
+    kind2string[ASTNode::NodeKind::NONE] = "NONE";
+    kind2string[ASTNode::NodeKind::PROC_SET] = "PROC_SET";
+    kind2string[ASTNode::NodeKind::EXPRESSION] = "EXPRESSION";
+    kind2string[ASTNode::NodeKind::BINARY_EXPRESSION] = "BINARY_EXPRESSION";
+    kind2string[ASTNode::NodeKind::ADD_EXPRESSION] = "ADD_EXPRESSION";
+    kind2string[ASTNode::NodeKind::SUB_EXPRESSION] = "SUB_EXPRESSION";
+    kind2string[ASTNode::NodeKind::MULT_EXPRESSION] = "MULT_EXPRESSION";
+    kind2string[ASTNode::NodeKind::DIV_EXPRESSION] = "DIV_EXPRESSION";
+    kind2string[ASTNode::NodeKind::MOD_EXPRESSION] = "MOD_EXPRESSION";
+    kind2string[ASTNode::NodeKind::ASSIGNMENT_EXPRESSION] =
+        "ASSIGNMENT_EXPRESSION";
+    kind2string[ASTNode::NodeKind::ADD_ASSIGN_EXPRESSION] =
+        "ADD_ASSIGN_EXPRESSION";
+    kind2string[ASTNode::NodeKind::SUB_ASSIGN_EXPRESSION] =
+        "SUB_ASSIGN_EXPRESSION";
+    kind2string[ASTNode::NodeKind::MULT_ASSIGN_EXPRESSION] =
+        "MULT_ASSIGN_EXPRESSION";
+    kind2string[ASTNode::NodeKind::DIV_ASSIGN_EXPRESSION] =
+        "DIV_ASSIGN_EXPRESSION";
+    kind2string[ASTNode::NodeKind::MOD_ASSIGN_EXPRESSION] =
+        "MOD_ASSIGN_EXPRESSION";
+    kind2string[ASTNode::NodeKind::MAYBE_ASSIGN_EXPRESSION] =
+        "MAYBE_ASSIGN_EXPRESSION";
+    kind2string[ASTNode::NodeKind::LSS_EXPRESSION] = "LSS_EXPRESSION";
+    kind2string[ASTNode::NodeKind::LEQ_EXPRESSION] = "LEQ_EXPRESSION";
+    kind2string[ASTNode::NodeKind::GTR_EXPRESSION] = "GTR_EXPRESSION";
+    kind2string[ASTNode::NodeKind::GEQ_EXPRESSION] = "GEQ_EXPRESSION";
+    kind2string[ASTNode::NodeKind::EQU_EXPRESSION] = "EQU_EXPRESSION";
+    kind2string[ASTNode::NodeKind::NEQ_EXPRESSION] = "NEQ_EXPRESSION";
+    kind2string[ASTNode::NodeKind::LOG_AND_EXPRESSION] = "LOG_AND_EXPRESSION";
+    kind2string[ASTNode::NodeKind::LOG_OR_EXPRESSION] = "LOG_OR_EXPRESSION";
+    kind2string[ASTNode::NodeKind::SUBSCRIPT_EXPRESSION] =
+        "SUBSCRIPT_EXPRESSION";
+    kind2string[ASTNode::NodeKind::CALL_EXPRESSION] = "CALL_EXPRESSION";
+    kind2string[ASTNode::NodeKind::ACCESS_EXPRESSION] = "ACCESS_EXPRESSION";
+    kind2string[ASTNode::NodeKind::INJECT_EXPRESSION] = "INJECT_EXPRESSION";
+    kind2string[ASTNode::NodeKind::UNARY_PRE_EXPRESSION] =
+        "UNARY_PRE_EXPRESSION";
+    kind2string[ASTNode::NodeKind::NOT_EXPRESSION] = "NOT_EXPRESSION";
+    kind2string[ASTNode::NodeKind::DEREF_EXPRESSION] = "DEREF_EXPRESSION";
+    kind2string[ASTNode::NodeKind::ADDRESS_EXPRESSION] = "ADDRESS_EXPRESSION";
+    kind2string[ASTNode::NodeKind::REF_EXPRESSION] = "REF_EXPRESSION";
+    kind2string[ASTNode::NodeKind::NEW_EXPRESSION] = "NEW_EXPRESSION";
+    kind2string[ASTNode::NodeKind::DELETE_EXPRESSION] = "DELETE_EXPRESSION";
+    kind2string[ASTNode::NodeKind::SIZEOF_EXPRESSION] = "SIZEOF_EXPRESSION";
+    kind2string[ASTNode::NodeKind::UNARY_POST_EXPRESSION] =
+        "UNARY_POST_EXPRESSION";
+    kind2string[ASTNode::NodeKind::AS_EXPRESSION] = "AS_EXPRESSION";
+    kind2string[ASTNode::NodeKind::IDENTIFIER] = "IDENTIFIER";
+    kind2string[ASTNode::NodeKind::INITIALZER_LIST] = "INITIALZER_LIST";
+    kind2string[ASTNode::NodeKind::BOOLEAN_LITERAL] = "BOOLEAN_LITERAL";
+    kind2string[ASTNode::NodeKind::INTEGER_LITERAL] = "INTEGER_LITERAL";
+    kind2string[ASTNode::NodeKind::FLOAT_LITERAL] = "FLOAT_LITERAL";
+    kind2string[ASTNode::NodeKind::STRING_LITERAL] = "STRING_LITERAL";
+    kind2string[ASTNode::NodeKind::CHAR_LITERAL] = "CHAR_LITERAL";
+    kind2string[ASTNode::NodeKind::PROC_LITERAL] = "PROC_LITERAL";
+    kind2string[ASTNode::NodeKind::EXTERN_LITERAL] = "EXTERN_LITERAL";
+    kind2string[ASTNode::NodeKind::SOME_LITERAL] = "SOME_LITERAL";
+    kind2string[ASTNode::NodeKind::NOTHING_LITERAL] = "NOTHING_LITERAL";
+    kind2string[ASTNode::NodeKind::TUPLE_LITERAL] = "TUPLE_LITERAL";
+    kind2string[ASTNode::NodeKind::_END_EXPRESSIONS] = "_END_EXPRESSIONS";
+    kind2string[ASTNode::NodeKind::DECLARATOR] = "DECLARATOR";
+    kind2string[ASTNode::NodeKind::ARRAY_DECLARATOR] = "ARRAY_DECLARATOR";
+    kind2string[ASTNode::NodeKind::DYNAMIC_ARRAY_DECLARATOR] =
+        "DYNAMIC_ARRAY_DECLARATOR";
+    kind2string[ASTNode::NodeKind::POINTER_DECLARATOR] = "POINTER_DECLARATOR";
+    kind2string[ASTNode::NodeKind::MAYBE_DECLARATOR] = "MAYBE_DECLARATOR";
+    kind2string[ASTNode::NodeKind::TUPLE_DECLARATOR] = "TUPLE_DECLARATOR";
+    kind2string[ASTNode::NodeKind::PROCEDURE_DECLARATOR] =
+        "PROCEDURE_DECLARATOR";
+    kind2string[ASTNode::NodeKind::REF_DECLARATOR] = "REF_DECLARATOR";
+    kind2string[ASTNode::NodeKind::PLACEHOLDER_DECLARATOR] =
+        "PLACEHOLDER_DECLARATOR";
+    kind2string[ASTNode::NodeKind::_END_DECLARATORS] = "_END_DECLARATORS";
+    kind2string[ASTNode::NodeKind::CONSTANT] = "CONSTANT";
+    kind2string[ASTNode::NodeKind::VARIABLE_DECLARATION] =
+        "VARIABLE_DECLARATION";
+    kind2string[ASTNode::NodeKind::ALIAS] = "ALIAS";
+    kind2string[ASTNode::NodeKind::STRUCT] = "STRUCT";
+    kind2string[ASTNode::NodeKind::INTERFACE_DEF] = "INTERFACE_DEF";
+    kind2string[ASTNode::NodeKind::INTERFACE_IMPLEMENTATION] =
+        "INTERFACE_IMPLEMENTATION";
+    kind2string[ASTNode::NodeKind::ENUM] = "ENUM";
+    kind2string[ASTNode::NodeKind::ARG_LIST] = "ARG_LIST";
+    kind2string[ASTNode::NodeKind::THIS] = "THIS";
+    kind2string[ASTNode::NodeKind::PROCEDURE] = "PROCEDURE";
+    kind2string[ASTNode::NodeKind::NAMESPACE] = "NAMESPACE";
+    kind2string[ASTNode::NodeKind::IMPORT] = "IMPORT";
+    kind2string[ASTNode::NodeKind::PRINT] = "PRINT";
+    kind2string[ASTNode::NodeKind::RETURN] = "RETURN";
+    kind2string[ASTNode::NodeKind::BREAK] = "BREAK";
+    kind2string[ASTNode::NodeKind::CONTINUE] = "CONTINUE";
+    kind2string[ASTNode::NodeKind::IF] = "IF";
+    kind2string[ASTNode::NodeKind::ELSE] = "ELSE";
+    kind2string[ASTNode::NodeKind::FOR] = "FOR";
+    kind2string[ASTNode::NodeKind::WHILE] = "WHILE";
+    kind2string[ASTNode::NodeKind::DO_WHILE] = "DO_WHILE";
+    kind2string[ASTNode::NodeKind::MATCH] = "MATCH";
+    kind2string[ASTNode::NodeKind::WITH] = "WITH";
+    kind2string[ASTNode::NodeKind::TEMPLATE_DEFINE_LIST] =
+        "TEMPLATE_DEFINE_LIST";
+    kind2string[ASTNode::NodeKind::TEMPLATE_DEFINE_ELEMENT] =
+        "TEMPLATE_DEFINE_ELEMENT";
+    kind2string[ASTNode::NodeKind::TEMPLATE_DEFINE_TYPE_DESCRIPTOR] =
+        "TEMPLATE_DEFINE_TYPE_DESCRIPTOR";
+    kind2string[ASTNode::NodeKind::TEMPLATE_DEFINE_VARIADIC_TYPE_ARGS] =
+        "TEMPLATE_DEFINE_VARIADIC_TYPE_ARGS";
+    kind2string[ASTNode::NodeKind::TEMPLATE_DEFINE_EXPRESSION] =
+        "TEMPLATE_DEFINE_EXPRESSION";
+    kind2string[ASTNode::NodeKind::TEMPLATE_INSTANTIATION] =
+        "TEMPLATE_INSTANTIATION";
+    kind2string[ASTNode::NodeKind::TEMPLATE_ALIAS] = "TEMPLATE_ALIAS";
+    kind2string[ASTNode::NodeKind::TEMPLATE_STRUCT] = "TEMPLATE_STRUCT";
+    kind2string[ASTNode::NodeKind::TEMPLATE_PROC] = "TEMPLATE_PROC";
+    kind2string[ASTNode::NodeKind::SL_COMMENT] = "SL_COMMENT";
+    kind2string[ASTNode::NodeKind::MODULE_DECL] = "MODULE_DECL";
+    kind2string[ASTNode::NodeKind::IGNORE] = "IGNORE";
+    kind2string[ASTNode::NodeKind::MACRO_USE] = "MACRO_USE";
+}
 
 FrontEnd::~FrontEnd() {
     for (ASTNode * node : AST)
@@ -81,7 +200,10 @@ FrontEnd::~FrontEnd() {
 milliseconds FrontEnd::go() {
     auto start = Clock::now();
 
+    init_replacementPolicies();
+
     compilationAddPrimativeTypes();
+    // not needed any more due to the way Type objects are created on demand now
     n_primatives = typeTable.size();
     typeTable.insert(primativeTypeTable.begin(), primativeTypeTable.end());
 
@@ -110,10 +232,14 @@ milliseconds FrontEnd::go() {
 
     auto a_time = AnalysisStage();
     if (time_arg)
-        prettyPrintTimeMin(a_time, "Semantic analysis");
+        prettyPrintTimeMin(a_time - ctruntime, "Semantic analysis");
+
+    //     auto d_time = DesugarStage();
+    //     if (time_arg)
+    //         prettyPrintTimeMin(d_time, "Desugaring");
 
     if (!compilation->args.nopreload_arg.isSet())
-        fix_typeinfo_v_table_size(*this);
+        fix_typeinfo_v_table_size();
 
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
@@ -123,8 +249,12 @@ milliseconds FrontEnd::ParseStage() {
     auto start = Clock::now();
 
     unsigned int nthreaded = std::thread::hardware_concurrency() - 1;
-    const std::vector<std::string> & fnames =
-        compilation->args.files.getValue();
+
+    std::vector<std::string> fnames;
+    for (auto & f : compilation->args.files.getValue())
+        if (has_suffix(f, ".bjou"))
+            fnames.push_back(f);
+
     size_t nfiles = fnames.size();
 
     std::unordered_map<std::string, milliseconds> times;
@@ -147,7 +277,7 @@ milliseconds FrontEnd::ParseStage() {
                 std::ifstream in(fname, std::ios::binary);
                 if (!in)
                     error(Context(), "Unable to read file '" + fname + "'.");
-                parserContainer.emplace_back(in, fname, false);
+                parserContainer.emplace_back(in, fname);
                 in.close();
                 futureTimes[fname] = std::async(
                     std::launch::async, std::ref(parserContainer.back()));
@@ -159,9 +289,11 @@ milliseconds FrontEnd::ParseStage() {
             // collect nodes
             for (AsyncParser & p : parserContainer) {
                 AST.insert(AST.end(), p.nodes.begin(), p.nodes.end());
-				structs.insert(structs.end(), p.structs.begin(), p.structs.end());
-				ifaceDefs.insert(ifaceDefs.end(), p.ifaceDefs.begin(), p.ifaceDefs.end());
-			}
+                structs.insert(structs.end(), p.structs.begin(),
+                               p.structs.end());
+                ifaceDefs.insert(ifaceDefs.end(), p.ifaceDefs.begin(),
+                                 p.ifaceDefs.end());
+            }
 
             futureTimes.clear();
             parserContainer.clear();
@@ -177,7 +309,7 @@ milliseconds FrontEnd::ParseStage() {
             std::ifstream in(fname, std::ios::binary);
             if (!in)
                 error(Context(), "Unable to read file '" + fname + "'.");
-            parserContainer.emplace_back(in, fname, false);
+            parserContainer.emplace_back(in, fname);
             in.close();
             futureTimes[fname] = std::async(std::launch::async,
                                             std::ref(parserContainer.back()));
@@ -190,9 +322,10 @@ milliseconds FrontEnd::ParseStage() {
         // collect nodes
         for (AsyncParser & p : parserContainer) {
             AST.insert(AST.end(), p.nodes.begin(), p.nodes.end());
-			structs.insert(structs.end(), p.structs.begin(), p.structs.end());
-			ifaceDefs.insert(ifaceDefs.end(), p.ifaceDefs.begin(), p.ifaceDefs.end());
-		}
+            structs.insert(structs.end(), p.structs.begin(), p.structs.end());
+            ifaceDefs.insert(ifaceDefs.end(), p.ifaceDefs.begin(),
+                             p.ifaceDefs.end());
+        }
 
     } else {
         for (const std::string & fname : fnames) {
@@ -236,23 +369,24 @@ milliseconds FrontEnd::SymbolsStage() {
     auto start = Clock::now();
 
     globalScope = new Scope("global", nullptr);
-   
-	// @incomplete
-	// does this work with namespaces? doubt it
-	for (ASTNode * i : ifaceDefs)
-		((InterfaceDef*)i)->preDeclare(globalScope);
-	for (ASTNode * s : structs)
-		((Struct*)s)->preDeclare(globalScope);
 
-	for (ASTNode * i : ifaceDefs)
-		((InterfaceDef*)i)->addSymbols(globalScope);
-	for (ASTNode * s : structs)
-		((Struct*)s)->addSymbols(globalScope);
-    
-	for (ASTNode * node : AST) {
-		if (node->nodeKind != ASTNode::STRUCT && node->nodeKind != ASTNode::INTERFACE_DEF)
-        	node->addSymbols(globalScope);
-	}
+    // @incomplete
+    // does this work with namespaces? doubt it
+    for (ASTNode * i : ifaceDefs)
+        ((InterfaceDef *)i)->preDeclare(globalScope);
+    for (ASTNode * s : structs)
+        ((Struct *)s)->preDeclare(globalScope);
+
+    for (ASTNode * i : ifaceDefs)
+        ((InterfaceDef *)i)->addSymbols(globalScope);
+    for (ASTNode * s : structs)
+        ((Struct *)s)->addSymbols(globalScope);
+
+    for (ASTNode * node : AST) {
+        if (node->nodeKind != ASTNode::STRUCT &&
+            node->nodeKind != ASTNode::INTERFACE_DEF)
+            node->addSymbols(globalScope);
+    }
 
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
@@ -265,8 +399,7 @@ milliseconds FrontEnd::TypesStage() {
     nonPrimatives.reserve(typeTable.size() - n_primatives);
 
     for (auto & t : typeTable) {
-        BJOU_DEBUG_ASSERT(t.second->isValid());
-        if (t.second->isStruct() || t.second->isAlias()) // @incomplete
+        if (t.second->isStruct()) // || t.second->isAlias()) // @incomplete
             nonPrimatives.push_back(t.second);
     }
 
@@ -274,8 +407,10 @@ milliseconds FrontEnd::TypesStage() {
     for (const Type * t : nonPrimatives) {
         if (t->isStruct())
             ((StructType *)t)->complete();
+        /*
         else if (t->isAlias())
             ((AliasType *)t)->complete();
+        */
     }
 
     auto end = Clock::now();
@@ -292,8 +427,8 @@ milliseconds FrontEnd::AnalysisStage() {
     }
 
     for (ASTNode * node : deferredAST) {
-        // node->parent = nullptr;
-        // node->replace = replacementPolicy_Global_Node;
+        node->parent = nullptr;
+        node->replace = rpget<replacementPolicy_Global_Node>();
         node->analyze();
         AST.push_back(node);
     }
@@ -301,6 +436,17 @@ milliseconds FrontEnd::AnalysisStage() {
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
 }
+
+// milliseconds FrontEnd::DesugarStage() {
+//     auto start = Clock::now();
+//
+//     for (ASTNode * node : AST) {
+//         node->desugar();
+//     }
+//
+//     auto end = Clock::now();
+//     return duration_cast<milliseconds>(end - start);
+// }
 
 /*
 milliseconds FrontEnd::ModuleStage() {

@@ -1,0 +1,147 @@
+# compiler.bjou
+
+module compiler \ct { # this module is only available at compile time
+
+type ASTNode { } # opaque -- bjou::ASTNode
+type Scope   { } # opaque -- bjou::Scope
+
+extern bjou_getVersionString() : char*
+extern bjou_parseAndAppend(char*)
+extern bjou_appendNode(ASTNode*)
+
+extern bjou_getGlobalScope() : Scope*
+
+extern bjou_addSymbols(ASTNode*, Scope*)
+extern bjou_analyze(ASTNode*)
+extern bjou_forceAnalyze(ASTNode*)
+
+################################################## Binary Expressions
+#####################################################################
+extern bjou_createAddExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createSubExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createMultExpression(ASTNode*, ASTNode*) : ASTNode*
+extern bjou_createDivExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createModExpression(ASTNode*, ASTNode*)  : ASTNode*
+
+extern bjou_createAssignExpression(ASTNode*, ASTNode*)     : ASTNode*
+extern bjou_createAddAssignExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createSubAssignExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createMultAssignExpression(ASTNode*, ASTNode*) : ASTNode*
+extern bjou_createDivAssignExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createModAssignExpression(ASTNode*, ASTNode*)  : ASTNode*
+
+extern bjou_createLssExpression(ASTNode*, ASTNode*) : ASTNode*
+extern bjou_createLeqExpression(ASTNode*, ASTNode*) : ASTNode*
+extern bjou_createGtrExpression(ASTNode*, ASTNode*) : ASTNode*
+extern bjou_createGeqExpression(ASTNode*, ASTNode*) : ASTNode*
+extern bjou_createEquExpression(ASTNode*, ASTNode*) : ASTNode*
+extern bjou_createNeqExpression(ASTNode*, ASTNode*) : ASTNode*
+
+extern bjou_createLogAndExpression(ASTNode*, ASTNode*) : ASTNode*
+extern bjou_createLogOrExpression(ASTNode*, ASTNode*)  : ASTNode*
+
+extern bjou_createCallExpression(ASTNode*, ASTNode*)  : ASTNode*
+
+extern bjou_createSubscriptExpression(ASTNode*, ASTNode*)  : ASTNode*
+
+extern bjou_createAccessExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createInjectExpression(ASTNode*, ASTNode*)  : ASTNode*
+
+############################################ Unary Prefix Expressions
+#####################################################################
+extern bjou_createNewExpression(ASTNode*)    : ASTNode*
+extern bjou_createDeleteExpression(ASTNode*) : ASTNode*
+
+extern bjou_createSizeofExpression(ASTNode*) : ASTNode*
+
+extern bjou_createNotExpression(ASTNode*) : ASTNode*
+
+extern bjou_createDerefExpression(ASTNode*)   : ASTNode*
+extern bjou_createAddressExpression(ASTNode*) : ASTNode*
+extern bjou_createRefExpression(ASTNode*)     : ASTNode*
+
+########################################### Unary Postfix Expressions
+#####################################################################
+extern bjou_createAsExpression(ASTNode*, ASTNode*) : ASTNode*
+
+################################################ Terminal Expressions
+#####################################################################
+extern bjou_createIdentifier(char*) : ASTNode*
+
+extern bjou_createInitializerList(ASTNode*, char**, int, ASTNode**, int) : ASTNode*
+
+# SliceExpression
+# LenExpression
+
+extern bjou_createBooleanLiteral(char*) : ASTNode*
+extern bjou_createIntegerLiteral(char*) : ASTNode*
+extern bjou_createFloatLiteral(char*) : ASTNode*
+extern bjou_createStringLiteral(char*) : ASTNode*
+extern bjou_createCharLiteral(char*) : ASTNode*
+
+# ProcLiteral
+# ExternLiteral
+# SomeLiteral
+# NothingLiteral
+# TupleLiteral
+
+######################################################### Declarators
+#####################################################################
+extern bjou_createDeclarator(ASTNode*, ASTNode*, char**, int) : ASTNode*
+extern bjou_createArrayDeclarator(ASTNode*, ASTNode*) : ASTNode*
+# SliceDeclarator
+# DynamicArrayDeclarator
+extern bjou_createPointerDeclarator(ASTNode*) : ASTNode*
+# RefDeclarator
+# MaybeDeclarator
+# TupleDeclarator
+# ProcedureDeclarator
+# PlaceholderDeclarator
+
+#####################################################################
+#####################################################################
+# Constant
+
+extern bjou_createVariableDeclaration(char*, ASTNode*, ASTNode*) : ASTNode*
+
+# Alias
+
+extern bjou_createStruct(
+    char*,
+    ASTNode*,
+    ASTNode**, int,
+    ASTNode**, int,
+    ASTNode**, int,
+    ASTNode**, int,
+    ASTNode**, int)
+    : ASTNode*
+
+# InterfaceDef
+# InterfaceImplementation
+# Enum
+
+extern bjou_createArgList(ASTNode**, int) : ASTNode*
+
+# This
+
+extern bjou_createProcedure(char*, ASTNode**, int, bool, ASTNode*, ASTNode**, int) : ASTNode*
+
+# Namespace
+# Import
+# Print
+
+extern bjou_createReturn(ASTNode*) : ASTNode*
+extern bjou_createBreak() : ASTNode*
+extern bjou_createContinue() : ASTNode*
+
+extern bjou_createIf(ASTNode*, ASTNode**, int, ASTNode*) : ASTNode*
+extern bjou_createElse(ASTNode**, int) : ASTNode*
+extern bjou_createFor(ASTNode**, int, ASTNode*, ASTNode**, int, ASTNode**, int) : ASTNode*
+extern bjou_createWhile(ASTNode*, ASTNode**, int) : ASTNode*
+extern bjou_createDoWhile(ASTNode*, ASTNode**, int) : ASTNode*
+# Match
+# With
+
+# Template Stuff
+
+}

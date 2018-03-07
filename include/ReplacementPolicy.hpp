@@ -9,11 +9,18 @@
 #ifndef ReplacementPolicy_hpp
 #define ReplacementPolicy_hpp
 
+#include <vector>
+
 namespace bjou {
+
 struct ASTNode;
 
+void init_replacementPolicies();
+
 struct replacementPolicy {
-    //                             parent      old     new
+    std::vector<int> allowed_nodeKinds;
+    bool canReplace(ASTNode * node) const;
+    //                             parent      old       new
     virtual ASTNode * operator()(ASTNode *, ASTNode *, ASTNode *) = 0;
     virtual ~replacementPolicy();
 };
@@ -30,17 +37,25 @@ template <typename T> replacementPolicy * rpget();
 
 RP_FUNCTOR_DECL(empty);
 RP_FUNCTOR_DECL(Global_Node);
+RP_FUNCTOR_DECL(MultiNode_Node);
 RP_FUNCTOR_DECL(ExpressionL);
 RP_FUNCTOR_DECL(ExpressionR);
 RP_FUNCTOR_DECL(InitializerList_ObjDeclarator);
 RP_FUNCTOR_DECL(InitializerList_Expression);
+RP_FUNCTOR_DECL(SliceExpression_Src);
+RP_FUNCTOR_DECL(SliceExpression_Start);
+RP_FUNCTOR_DECL(SliceExpression_Length);
+RP_FUNCTOR_DECL(DynamicArrayExpression_TypeDeclarator);
+RP_FUNCTOR_DECL(LenExpression_Expr);
 RP_FUNCTOR_DECL(TupleLiteral_subExpression);
 RP_FUNCTOR_DECL(Declarator_Identifier);
 RP_FUNCTOR_DECL(Declarator_TemplateInst);
 RP_FUNCTOR_DECL(ArrayDeclarator_ArrayOf);
 RP_FUNCTOR_DECL(ArrayDeclarator_Expression);
+RP_FUNCTOR_DECL(SliceDeclarator_SliceOf);
 RP_FUNCTOR_DECL(DynamicArrayDeclarator_ArrayOf);
 RP_FUNCTOR_DECL(PointerDeclarator_PointerOf);
+RP_FUNCTOR_DECL(RefDeclarator_RefOf);
 RP_FUNCTOR_DECL(MaybeDeclarator_MaybeOf);
 RP_FUNCTOR_DECL(TupleDeclarator_subDeclarator);
 RP_FUNCTOR_DECL(ProcedureDeclarator_ParamDeclarators);
@@ -75,6 +90,8 @@ RP_FUNCTOR_DECL(For_Initialization);
 RP_FUNCTOR_DECL(For_Conditional);
 RP_FUNCTOR_DECL(For_Afterthought);
 RP_FUNCTOR_DECL(For_Statement);
+RP_FUNCTOR_DECL(Foreach_Expression);
+RP_FUNCTOR_DECL(Foreach_Statement);
 RP_FUNCTOR_DECL(While_Conditional);
 RP_FUNCTOR_DECL(While_Statement);
 RP_FUNCTOR_DECL(DoWhile_Conditional);
@@ -93,6 +110,7 @@ RP_FUNCTOR_DECL(TemplateStruct_Template);
 RP_FUNCTOR_DECL(TemplateStruct_TemplateDef);
 RP_FUNCTOR_DECL(TemplateProc_Template);
 RP_FUNCTOR_DECL(TemplateProc_TemplateDef);
+RP_FUNCTOR_DECL(MacroUse_Arg);
 } // namespace bjou
 
 #endif /* ReplacementPolicy_hpp */

@@ -1,0 +1,22 @@
+# dlfcn.bjou
+
+# provides basic support for dynamic libraries
+# this is important to run library code at compile time if
+# it is not linked into the compiler by default
+
+module dlfcn
+
+# taken from /usr/include/dlfcn.h
+#define RTLD_LAZY       0x1
+#define RTLD_NOW        0x2
+#define RTLD_LOCAL      0x4
+#define RTLD_GLOBAL     0x8
+const RTLD_LAZY   := 1
+const RTLD_NOW    := 2
+const RTLD_LOCAL  := 4
+const RTLD_GLOBAL := 8
+
+extern dlopen(char*, int) : void*
+extern dlclose(void*)
+extern dlsym(void*, char*) : void*
+extern dlerror() : char*

@@ -10,6 +10,7 @@
 #define FrontEnd_hpp
 
 #include "Compile.hpp"
+#include "Context.hpp"
 #include "Macro.hpp"
 #include "Scope.hpp"
 #include "Symbol.hpp"
@@ -28,20 +29,32 @@ struct FrontEnd {
 
     std::vector<ASTNode *> AST;
     std::vector<ASTNode *> deferredAST;
-	std::vector<ASTNode*> structs, ifaceDefs, namespaces;
-    std::unordered_map<std::string, Type *> typeTable;
-    std::unordered_map<std::string, Type *> primativeTypeTable;
+    std::vector<ASTNode *> structs, ifaceDefs, namespaces;
+    std::unordered_map<std::string, const Type *> typeTable;
+    std::unordered_map<std::string, const Type *> primativeTypeTable;
     Scope * globalScope;
+
+    Struct * typeinfo_struct;
+    Procedure * printf_decl;
+    Procedure * malloc_decl;
+    Procedure * free_decl;
+
+    bool abc = true;
+
     std::stack<ASTNode *> procStack;
     std::stack<const Type *> lValStack;
     std::set<std::string> modulesImported;
-    std::unordered_map<std::string, MacroDispatchInfo> macros;
+    std::map<ASTNode::NodeKind, std::string> kind2string;
+    MacroManager macroManager;
 
     std::unordered_map<std::string, unsigned int> interface_sort_keys;
     unsigned int getInterfaceSortKey(std::string);
+    void fix_typeinfo_v_table_size();
 
     int n_nodes;
     size_t n_primatives;
+
+    milliseconds ctruntime;
 
     milliseconds go();
 
@@ -50,6 +63,7 @@ struct FrontEnd {
     milliseconds SymbolsStage();
     milliseconds TypesStage();
     milliseconds AnalysisStage();
+    // milliseconds DesugarStage();
     // milliseconds ModuleStage();
 
     std::string getBuiltinVoidTypeName() const;

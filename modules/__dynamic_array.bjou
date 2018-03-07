@@ -2,83 +2,137 @@
 
 module __dynamic_array
 
-type __bjou_dyn_array!(T) {
+type __bjou_dyn_array$T {
     const INIT_SIZE := 8
 
-    __capacity 	: int
-	__used		: int
 	__data		: T*
+    __capacity 	: u64
+	__used		: u64
 
-
-    proc create() : __bjou_dyn_array!(T) {
-        return  { __bjou_dyn_array!(T): 
-                    .__capacity = __bjou_dyn_array!(T).INIT_SIZE,
-                    .__used     = 0,
-                    .__data     = new T[__bjou_dyn_array!(T).INIT_SIZE]
-                }
-    }
-
-    proc create(_s : T*, n : int) : __bjou_dyn_array!(T) {
-        a := { __bjou_dyn_array!(T):
-            .__data = new T[n],
-            .__used = n,
-            .__capacity = n
+    proc create() : __bjou_dyn_array$T {
+        return  { __bjou_dyn_array$T: 
+            .__capacity = __bjou_dyn_array$T.INIT_SIZE,
+            .__used     = 0,
+            .__data     = new T[__bjou_dyn_array$T.INIT_SIZE]
         }
-
-        (a.__data).memcpy(_s, n)
-        return a
     }
 
-    proc element_ptr(this, idx : int) : T* {
-        return &this.__data[idx]
-    }
-
-    proc grow(this) {
-        this.__capacity *= 2
-        new__data := new T[this.__capacity]
-        memcpy(new__data, this.__data, (this.__used) * sizeof T)
-        delete this.__data
-        this.__data = new__data
-    }
-
-    proc shrink(this) {
-        this.__capacity /= 2
-        new__data := new T[this.__capacity]
-        memcpy(new__data, this.__data, (this.__used) * sizeof T)
-        delete this.__data
-        this.__data = new__data
-    }
-
-    proc length(this) : int { return this.__used }
-
-    proc append(this, item : T) : T* {
-        if this.__used == this.__capacity
-            this.grow()
-        this.__data[this.__used] = item
-        this.__used += 1
-
-        return &this.__data[this.__used - 1]
-    }
-
-    proc pop(this) : T* {
-        if this.__used == 0
-            return this.__data
-
-        this.__used -= 1
-
-        if this.__used < this.__capacity / 2
-        and this.__capacity > __bjou_dyn_array!(T).INIT_SIZE
-            this.shrink()
-
-        return &this.__data[this.__used - 1]
-    }
-
-    proc erase(this, idx : int) {
-        # @incomplete
-    }
-
-    proc free(this) {
-        delete this.__data
-        @this = { __bjou_dyn_array!(T): }
+    implements idestroy {
+        proc destroy(this) {
+            delete this.__data
+            this.__capacity = 0
+            this.__used = 0
+        }     
     }
 }
+
+\static_if { \abc{}
+    proc __bjou_dynamic_array_subscript$T(
+            _s     : T[...] ref, # the dynamic array
+            _i     : u64,        # the index
+            _loc_f : char*,      # call site file
+            _loc_l : int,        # call site line
+            _loc_c : int)        # call site character
+            : T ref {
+
+        if _i >= |_s| {
+            buff : char[1024]
+            buff.sprintf("panic: dynamic array index out of bounds (index = %d, length = %d)\n    at %s :: %d :: %d",
+                         _i, |_s|, _loc_f, _loc_l, _loc_c)
+            panic(buff)
+        }
+
+        return \__da_data{_s}[_i]
+    }
+}
+\static_if { not \abc{}
+    proc __bjou_dynamic_array_subscript$T(_s : T[...] ref, _i : u64) : T ref {
+        return \__da_data{_s}[_i]
+    }
+}
+
+proc __bjou_dynamic_array_grow$T(da : T[...] ref) {
+    _d := getref(\__da_data{da})
+    _c := getref(\__da_capacity{da})
+    _u := getref(\__da_used{da})
+
+    _c *= 2
+    new__data := new T[_c]
+    memcpy((new__data as void*), (_d as void*), (_u) * sizeof T)
+    delete _d
+    _d = new__data
+}
+
+proc __bjou_dynamic_array_shrink$T(da : T[...] ref) {
+    _d := getref(\__da_data{da})
+    _c := getref(\__da_capacity{da})
+    _u := getref(\__da_used{da})
+
+    _c /= 2
+    new__data := new T[_c]
+    memcpy((new__data as void*), (_d as void*), (_u) * sizeof T)
+    delete _d
+    _d = new__data
+}
+
+proc len$T(da : T[...] ref) : u64 {
+    return |da|    
+}
+
+# push by val
+proc push$T(da : T[...] ref, item : T) {
+    _d := getref(\__da_data{da})
+    _c := getref(\__da_capacity{da})
+    _u := getref(\__da_used{da})
+
+    # make space if necessary
+    if _u == _c
+        da.__bjou_dynamic_array_grow()
+
+    # put the item in
+    _d[_u] = item
+
+    _u += 1
+}
+
+# push by ref
+proc push$T(da : T[...] ref, item : T ref) {
+    _d := getref(\__da_data{da})
+    _c := getref(\__da_capacity{da})
+    _u := getref(\__da_used{da})
+
+    # make space if necessary
+    if _u == _c
+        da.__bjou_dynamic_array_grow()
+
+    # put the item in
+    _d[_u] = item
+
+    _u += 1
+}
+
+proc pop$T(da : T[...] ref) {
+    _d := getref(\__da_data{da})
+    _c := getref(\__da_capacity{da})
+    _u := getref(\__da_used{da})
+
+    if _u == 0
+        return
+
+    _u -= 1
+
+    if _u < (_c / 2)
+    and _c > __bjou_dyn_array$T.INIT_SIZE
+        da.__bjou_dynamic_array_shrink()
+}
+
+proc back$T(da : T[...] ref) : T ref {
+    if |da| == 0
+        panic("panic: called back() on an empty dynamic array")
+    return da[|da| - 1]    
+}
+
+proc clear$T(da : T[...] ref) {
+    \__da_used{da} = 0    
+}
+

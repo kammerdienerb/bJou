@@ -36,6 +36,9 @@ Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
         abort();
     }
 
+    if (args.noabc_arg.getValue())
+        frontEnd.abc = false;
+
     if (args.output_arg.getValue().size()) {
         std::string o = de_quote(args.output_arg.getValue());
         outputpath = o.find('/') == std::string::npos
@@ -53,10 +56,15 @@ Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
             outputbasefilename.substr(outputbasefilename.find_last_of("/") + 1);
     }
 
+    for (auto & f : args.files.getValue())
+        if (has_suffix(f, ".o") || has_suffix(f, ".a") ||
+            has_suffix(f, ".so") || has_suffix(f, ".dylib"))
+            obj_files.push_back(f);
+
     module_search_paths.push_back("");
     for (auto & _path : args.module_search_path_arg.getValue()) {
         std::string path = _path;
-		path = de_quote(path);
+        path = de_quote(path);
         if (_path.back() != '/')
             path += "/";
         module_search_paths.push_back(path);
@@ -72,6 +80,8 @@ Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
 
 void Compilation::go() {
     auto start = Clock::now();
+
+    backEnd.init();
 
     auto f_time = frontEnd.go();
     if (args.time_arg.getValue())

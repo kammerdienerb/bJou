@@ -1,0 +1,11 @@
+# __ref.bjou
+
+# convenience procedure for getting an explicit reference
+
+module __ref
+
+proc getref$T(val : T ref) : T ref
+    return val
+
+proc refcast$(T, U)(val : U ref) : T ref
+    return @((&val) as T*)

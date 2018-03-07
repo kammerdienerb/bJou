@@ -1,3 +1,5 @@
+#if NDEBUG
+
 #include <algorithm>
 #include <cassert>
 #include <cctype>
@@ -68,7 +70,7 @@
 #include <utility>
 #include <vector>
 
-#if !defined(LLVM_DUMP_ENABLED)
+// #if !defined(LLVM_DUMP_ENABLED)
 
 namespace llvm {
 // Value::dump - allow easy printing of Values from the debugger.

@@ -62,6 +62,15 @@ void ASTNode::setFlag(int flag, bool val) {
     setFlags(flags);
 }
 
+bool isCT(ASTNode * node) {
+    while (node) {
+        if (node->getFlag(ASTNode::CT))
+            return true;
+        node = node->parent;
+    }
+    return false;
+}
+
 void ASTNode::printFlags() { std::cout << std::bitset<32>(getFlags()) << "\n"; }
 
 Context & ASTNode::getContext() { return context; }
@@ -71,16 +80,59 @@ Context & ASTNode::getNameContext() { return nameContext; }
 void ASTNode::setNameContext(Context _context) { nameContext = _context; }
 
 Scope * ASTNode::getScope() const { return scope; }
-void ASTNode::setScope(Scope * _scope) { scope = _scope; }
+void ASTNode::setScope(Scope * _scope) {
+    if (IS_DECLARATOR(this))
+        ((Declarator *)this)->propagateScope(_scope);
+    else
+        scope = _scope;
+}
 
 void ASTNode::unwrap(std::vector<ASTNode *> & terminals) {}
 ASTNode * ASTNode::clone() { return nullptr; }
-const Type * ASTNode::getType() { return new InvalidType(); }
+void ASTNode::desugar() {}
+void * ASTNode::generate(BackEnd & backEnd, bool flag) { return nullptr; }
+const Type * ASTNode::getType() { return nullptr; }
 bool ASTNode::isStatement() const { return false; }
 
 #define HANDLE_FORCE()                                                         \
     if (getFlag(ANALYZED) && !force)                                           \
     return
+
+MultiNode::MultiNode(std::vector<ASTNode *> & _nodes) : nodes(_nodes) {
+    nodeKind = MULTINODE;
+    for (ASTNode * node : nodes) {
+        node->parent = this;
+        node->replace = rpget<replacementPolicy_MultiNode_Node>();
+    }
+}
+
+void MultiNode::analyze(bool force) {
+    for (ASTNode * node : nodes)
+        node->analyze(force);
+}
+
+void MultiNode::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    for (ASTNode * node : nodes) {
+        if (node->nodeKind != STRUCT && node->nodeKind != INTERFACE_DEF)
+            node->addSymbols(_scope);
+    }
+}
+
+void MultiNode::unwrap(std::vector<ASTNode *> & terminals) {
+    for (ASTNode * node : nodes)
+        node->unwrap(terminals);
+}
+
+ASTNode * MultiNode::clone() {
+    MultiNode * clone = new MultiNode(*this);
+    return clone;
+}
+
+MultiNode::~MultiNode() {
+    for (ASTNode * node : nodes)
+        delete node;
+}
 
 // ~~~~~ Expression ~~~~~
 
@@ -113,6 +165,111 @@ Val Expression::eval() {
            "expression contents: '" + getContents() + "'");
     internalError("Could not evaluate expression.");
     return {};
+}
+
+bool Expression::opOverload() {
+    BJOU_DEBUG_ASSERT(!getContents().empty());
+
+    const char * op = getContents().c_str();
+
+    if (getLeft())
+        getLeft()->analyze();
+    if (getRight())
+        getRight()->analyze();
+
+    Symbol * sym = nullptr;
+    Maybe<Symbol *> m_sym = getScope()->getSymbol(getScope(), getContents(),
+                                                  nullptr, true, false, false);
+
+    if (m_sym.assignTo(sym)) {
+        BJOU_DEBUG_ASSERT(sym->isProcSet());
+
+        ArgList * args = new ArgList;
+
+        if (binary(op)) {
+            args->addExpression(getLeft()->clone());
+            args->addExpression(getRight()->clone());
+        } else {
+            if (rightAssoc(op))
+                args->addExpression(getRight()->clone());
+            else
+                args->addExpression(getLeft()->clone());
+        }
+
+        ProcSet * set = (ProcSet *)sym->node();
+        Procedure * proc = set->get(args, nullptr, nullptr, false);
+        if (proc) {
+            // need to check args here since there may only be one
+            // overload that is returned without checking
+            std::vector<const Type *> arg_types;
+            for (ASTNode * expr : args->getExpressions())
+                arg_types.push_back(expr->getType());
+
+            const Type * compare_type =
+                ProcedureType::get(arg_types, VoidType::get());
+
+            if (argMatch(compare_type, proc->getType())) {
+                CallExpression * call = new CallExpression;
+
+                call->setContext(getContext());
+                call->setLeft(
+                    mangledStringtoIdentifier(proc->getMangledName()));
+                call->setRight(args);
+
+                call->addSymbols(getScope());
+                call->analyze();
+
+                setType(call->getType());
+
+                (*replace)(parent, this, call);
+                return true;
+            }
+        }
+
+        delete args;
+    }
+
+    return false;
+}
+
+bool Expression::canBeLVal() {
+    if (getType()->isRef())
+        return true;
+
+    if (getFlag(Expression::IDENT)) {
+        Maybe<Symbol *> m_sym =
+            getScope()->getSymbol(getScope(), (Identifier *)this, &getContext(),
+                                  true, true, false, false);
+        Symbol * sym = nullptr;
+        m_sym.assignTo(sym);
+        BJOU_DEBUG_ASSERT(sym);
+
+        if (!sym->isVar())
+            return false;
+    } else {
+        if (getFlag(Expression::TERMINAL))
+            return false;
+
+        // const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
+
+        if (nodeKind == SUBSCRIPT_EXPRESSION) {
+            if (getLeft()->getType()->isSlice())
+                return false;
+        } else if (nodeKind == ACCESS_EXPRESSION) {
+            if (getLeft()->nodeKind == IDENTIFIER) {
+                getLeft()->analyze();
+                Identifier * ident = (Identifier *)getLeft();
+                if (ident->resolved) {
+                    if (ident->resolved->nodeKind != VARIABLE_DECLARATION)
+                        return false;
+                }
+            }
+        } else if (nodeKind == ASSIGNMENT_EXPRESSION) {
+        } else if (nodeKind == DEREF_EXPRESSION) {
+        }
+    }
+
+    return true;
 }
 
 // Node interface
@@ -152,6 +309,13 @@ void Expression::addSymbols(Scope * _scope) {
         right->addSymbols(scope);
 }
 
+void Expression::desugar() {
+    if (getLeft())
+        getLeft()->desugar();
+    if (getRight())
+        getRight()->desugar();
+}
+
 Expression::~Expression() {
     // if (type)
     // delete type;
@@ -182,6 +346,11 @@ bool BinaryExpression::isConstant() {
 
 // Node interface
 void BinaryExpression::analyze(bool force) {
+
+    // don't think we should ever call this
+    BJOU_DEBUG_ASSERT(false);
+
+    /*
     HANDLE_FORCE();
 
     std::string & contents = getContents();
@@ -206,10 +375,15 @@ void BinaryExpression::analyze(bool force) {
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
+    */
 }
 //
 
 static void emplaceConversion(Expression * expr, const Type * dest_t) {
+    if ((dest_t->isRef() && conv(dest_t, expr->getType())) ||
+        (expr->getType()->isRef() && conv(dest_t, expr->getType()->unRef())))
+        return;
+
     ASTNode * p = expr->parent;
 
     AsExpression * conversion = new AsExpression;
@@ -228,18 +402,26 @@ static void emplaceConversion(Expression * expr, const Type * dest_t) {
 }
 
 static void convertOperands(BinaryExpression * expr, const Type * dest_t) {
-    const Type * lt = expr->getLeft()->getType();
-    const Type * rt = expr->getRight()->getType();
+    const Type * lt = expr->getLeft()->getType()->unRef();
+    const Type * rt = expr->getRight()->getType()->unRef();
 
-    if (!lt->equivalent(dest_t, /* exact_match =*/true))
+    // handled by convertAssignmentOperand()
+    if (isAssignmentOp(expr->getContents()))
+        return;
+
+    if (!equal(lt, dest_t))
         emplaceConversion((Expression *)expr->getLeft(), dest_t);
-    if (!rt->equivalent(dest_t, /* exact_match =*/true))
+    if (!equal(rt, dest_t))
         emplaceConversion((Expression *)expr->getRight(), dest_t);
 }
 
 // ~~~~~ AddExpression ~~~~~
 
-AddExpression::AddExpression() { nodeKind = ADD_EXPRESSION; }
+AddExpression::AddExpression() {
+    contents = "+";
+
+    nodeKind = ADD_EXPRESSION;
+}
 
 bool AddExpression::isConstant() { return BinaryExpression::isConstant(); }
 
@@ -259,30 +441,33 @@ Val AddExpression::eval() {
 void AddExpression::analyze(bool force) {
     HANDLE_FORCE();
 
+    if (opOverload())
+        return;
+
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
-    if (lt->enumerableEquivalent()) {
-        if (rt->enumerableEquivalent() || rt->isFP()) {
-            const Type * dest_t = primativeConversionResult(lt, rt);
+    if (lt->isInt()) {
+        if (rt->isInt() || rt->isFloat()) {
+            const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
             setType(dest_t);
         } else if (rt->isPointer()) {
             setType(rt);
         } else
             goto err;
-    } else if (lt->isFP()) {
-        if (rt->enumerableEquivalent() || rt->isFP()) {
-            const Type * dest_t = primativeConversionResult(lt, rt);
+    } else if (lt->isFloat()) {
+        if (rt->isInt() || rt->isFloat()) {
+            const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
             setType(dest_t);
         } else
             goto err;
     } else if (lt->isPointer()) {
-        if (rt->enumerableEquivalent()) {
+        if (rt->isInt()) {
             setType(lt);
         } else
             goto err;
@@ -304,7 +489,11 @@ ASTNode * AddExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ SubExpression ~~~~~
 
-SubExpression::SubExpression() { nodeKind = SUB_EXPRESSION; }
+SubExpression::SubExpression() {
+    contents = "-";
+
+    nodeKind = SUB_EXPRESSION;
+}
 
 bool SubExpression::isConstant() { return BinaryExpression::isConstant(); }
 
@@ -327,25 +516,25 @@ void SubExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
-    if (lt->enumerableEquivalent()) {
-        if (rt->enumerableEquivalent() || rt->isFP()) {
-            const Type * dest_t = primativeConversionResult(lt, rt);
+    if (lt->isInt()) {
+        if (rt->isInt() || rt->isFloat()) {
+            const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
             setType(dest_t);
         } else
             goto err;
-    } else if (lt->isFP()) {
-        if (rt->enumerableEquivalent() || rt->isFP()) {
-            const Type * dest_t = primativeConversionResult(lt, rt);
+    } else if (lt->isFloat()) {
+        if (rt->isInt() || rt->isFloat()) {
+            const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
             setType(dest_t);
         } else
             goto err;
     } else if (lt->isPointer()) {
-        if (rt->enumerableEquivalent()) {
+        if (rt->isInt()) {
             setType(lt);
         } else
             goto err;
@@ -367,7 +556,11 @@ ASTNode * SubExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ MultExpression ~~~~~
 
-MultExpression::MultExpression() { nodeKind = MULT_EXPRESSION; }
+MultExpression::MultExpression() {
+    contents = "*";
+
+    nodeKind = MULT_EXPRESSION;
+}
 
 bool MultExpression::isConstant() { return BinaryExpression::isConstant(); }
 
@@ -390,19 +583,19 @@ void MultExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
-    if (lt->enumerableEquivalent()) {
-        if (rt->enumerableEquivalent() || rt->isFP()) {
-            const Type * dest_t = primativeConversionResult(lt, rt);
+    if (lt->isInt()) {
+        if (rt->isInt() || rt->isFloat()) {
+            const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
             setType(dest_t);
         } else
             goto err;
-    } else if (lt->isFP()) {
-        if (rt->enumerableEquivalent() || rt->isFP()) {
-            const Type * dest_t = primativeConversionResult(lt, rt);
+    } else if (lt->isFloat()) {
+        if (rt->isInt() || rt->isFloat()) {
+            const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
             setType(dest_t);
         } else
@@ -425,7 +618,11 @@ ASTNode * MultExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ DivExpression ~~~~~
 
-DivExpression::DivExpression() { nodeKind = DIV_EXPRESSION; }
+DivExpression::DivExpression() {
+    contents = "/";
+
+    nodeKind = DIV_EXPRESSION;
+}
 
 bool DivExpression::isConstant() { return BinaryExpression::isConstant(); }
 
@@ -448,19 +645,19 @@ void DivExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
-    if (lt->enumerableEquivalent()) {
-        if (rt->enumerableEquivalent() || rt->isFP()) {
-            const Type * dest_t = primativeConversionResult(lt, rt);
+    if (lt->isInt()) {
+        if (rt->isInt() || rt->isFloat()) {
+            const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
             setType(dest_t);
         } else
             goto err;
-    } else if (lt->isFP()) {
-        if (rt->enumerableEquivalent() || rt->isFP()) {
-            const Type * dest_t = primativeConversionResult(lt, rt);
+    } else if (lt->isFloat()) {
+        if (rt->isInt() || rt->isFloat()) {
+            const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
             setType(dest_t);
         } else
@@ -483,7 +680,11 @@ ASTNode * DivExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ ModExpression ~~~~~
 
-ModExpression::ModExpression() { nodeKind = MOD_EXPRESSION; }
+ModExpression::ModExpression() {
+    contents = "%";
+
+    nodeKind = MOD_EXPRESSION;
+}
 
 bool ModExpression::isConstant() { return BinaryExpression::isConstant(); }
 
@@ -492,6 +693,7 @@ Val ModExpression::eval() {
         errorl(getContext(), "Cannot evaluate non-constant expression.", false);
         internalError("There was an expression evaluation error.");
     }
+
     analyze();
     Val a, b;
     a = ((Expression *)getLeft())->eval();
@@ -506,12 +708,12 @@ void ModExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
-    if (lt->enumerableEquivalent()) {
-        if (rt->enumerableEquivalent()) {
-            const Type * dest_t = primativeConversionResult(lt, rt);
+    if (lt->isInt()) {
+        if (rt->isInt()) {
+            const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
             setType(dest_t);
         } else
@@ -533,17 +735,74 @@ ASTNode * ModExpression::clone() { return ExpressionClone(this); }
 //
 
 static void convertAssignmentOperand(BinaryExpression * assign) {
-    const Type * lt = assign->getLeft()->getType();
-    const Type * rt = assign->getRight()->getType();
+    const Type * lt = assign->getLeft()->getType()->unRef();
+    const Type * rt = assign->getRight()->getType()->unRef();
 
+    if (!equal(lt, rt) && conv(lt, rt))
+        emplaceConversion((Expression *)assign->getRight(), lt);
+    /*
     if (lt->isPrimative() && rt->isPrimative())
-        if (!lt->equivalent(rt, /* exact_match =*/true))
+        if (!equal(lt, rt))
             emplaceConversion((Expression *)assign->getRight(), lt);
+    */
 }
 
 // ~~~~~ AssignmentExpression ~~~~~
 
+static void AssignmentCommon(BinaryExpression * expr,
+                             const Type * result_t = nullptr) {
+    std::string & contents = expr->getContents();
+
+    BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
+    BJOU_DEBUG_ASSERT(expr->getLeft() && expr->getRight() &&
+                      "missing operands to binary expression");
+
+    expr->getRight()->analyze();
+
+    // It is important that this part comes before we analyze left.
+    // We want to cut in and set the symbol's initialized field before that
+    // throws an error in regular analysis.
+
+    // We are going to run analysis on right twice -- once to check the symbol,
+    // then again once we have the lval type in place
+    if (expr->getLeft()->getFlag(Expression::IDENT)) {
+        Maybe<Symbol *> m_sym = expr->getLeft()->getScope()->getSymbol(
+            expr->getLeft()->getScope(), (Identifier *)expr->getLeft(),
+            &expr->getLeft()->getContext(), true, true, false);
+        Symbol * sym = nullptr;
+        m_sym.assignTo(sym);
+        BJOU_DEBUG_ASSERT(sym && sym->isVar());
+
+        sym->initializedInScopes.insert(expr->getScope());
+    }
+
+    if (!((Expression *)expr->getLeft())->canBeLVal())
+        errorl(expr->getLeft()->getContext(),
+               "Operand left of '" + contents +
+                   "' operator must be assignable.");
+
+    const Type * lt = expr->getLeft()->getType()->unRef();
+    compilation->frontEnd.lValStack.push(lt);
+    const Type * rt = expr->getRight()->getType()->unRef();
+
+    if (!result_t)
+        result_t = rt;
+
+    if (!conv(lt, result_t))
+        errorl(expr->getContext(), "Can not assign to type '" +
+                                       lt->getDemangledName() + "' with '" +
+                                       result_t->getDemangledName() + "'.");
+
+    convertAssignmentOperand(expr);
+
+    expr->setType(lt);
+
+    compilation->frontEnd.lValStack.pop();
+}
+
 AssignmentExpression::AssignmentExpression() {
+    contents = "=";
+
     nodeKind = ASSIGNMENT_EXPRESSION;
 }
 
@@ -552,69 +811,7 @@ bool AssignmentExpression::isConstant() { return false; }
 void AssignmentExpression::analyze(bool force) {
     HANDLE_FORCE();
 
-    std::string & contents = getContents();
-
-    Expression * left = (Expression *)getLeft();
-    Expression * right = (Expression *)getRight();
-
-    // It is important that this part comes before we analyze left.
-    // We wan't to cut in and set the symbol's initialized field before that
-    // throws an error in regular analysis.
-
-    // We are going to run analysis on right twice -- once to check the symbol,
-    // then again once we have the lval type in place
-
-    right->analyze();
-
-    if (left->getFlag(IDENT)) {
-        Maybe<Symbol *> m_sym =
-            getScope()->getSymbol(getScope(), (Identifier *)left,
-                                  &left->getContext(), true, true, false);
-        Symbol * sym = nullptr;
-        m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym);
-        if (!sym->isVar())
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-        sym->initializedInScopes.insert(getScope());
-    } else {
-        const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
-        if (left->getFlag(TERMINAL) ||
-            !s_in_a(left->getContents().c_str(), assignableOps))
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-    }
-
-    left->analyze();
-
-    // refresh left
-    left = (Expression *)getLeft();
-
-    const Type * lt = left->getType();
-
-    compilation->frontEnd.lValStack.push(lt);
-
-    // refresh right
-    right = (Expression *)getRight();
-
-    right->analyze(true);
-
-    convertAssignmentOperand(this);
-
-    right = (Expression *)getRight(); // refresh again
-    const Type * rt = right->getType();
-
-    BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
-    BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
-
-    if (!lt->opApplies(contents) || !lt->isValidOperand(rt, contents))
-        errorl(getContext(), "Could not match '" + lt->getDemangledName() +
-                                 "' with '" + rt->getDemangledName() +
-                                 "' using the operator '" + contents + "'.");
-
-    setType(lt->binResultType(rt, contents));
-
-    compilation->frontEnd.lValStack.pop();
+    AssignmentCommon(this);
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -625,7 +822,11 @@ ASTNode * AssignmentExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ AddAssignExpression ~~~~~
 
-AddAssignExpression::AddAssignExpression() { nodeKind = ADD_ASSIGN_EXPRESSION; }
+AddAssignExpression::AddAssignExpression() {
+    contents = "+=";
+
+    nodeKind = ADD_ASSIGN_EXPRESSION;
+}
 
 bool AddAssignExpression::isConstant() { return false; }
 
@@ -634,52 +835,7 @@ void AddAssignExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     ((AddExpression *)this)->AddExpression::analyze(force);
-    const Type * result_t = type; // watch out for recursion
-
-    std::string & contents = getContents();
-
-    Expression * left = (Expression *)getLeft();
-    left->analyze();
-    const Type * lt = left->getType();
-
-    compilation->frontEnd.lValStack.push(lt);
-
-    Expression * right = (Expression *)getRight();
-    right->analyze();
-
-    convertAssignmentOperand(this);
-
-    right = (Expression *)getRight(); // refresh again
-    const Type * rt = right->getType();
-
-    BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
-    BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
-
-    std::string assignop = "=";
-
-    if (!lt->opApplies(assignop) || !lt->isValidOperand(result_t, assignop))
-        errorl(getContext(), "Could not match '" + lt->getDemangledName() +
-                                 "' with '" + result_t->getDemangledName() +
-                                 "' using the operator '" + contents + "'.");
-
-    if (left->getFlag(IDENT)) {
-        Maybe<Symbol *> m_sym = getScope()->getSymbol(
-            getScope(), (Identifier *)left, &left->getContext());
-        Symbol * sym = nullptr;
-        m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym);
-        if (!sym->isVar())
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-    } else {
-        const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
-        if (left->getFlag(TERMINAL) ||
-            !s_in_a(left->getContents().c_str(), assignableOps))
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-    }
-
-    setType(lt->binResultType(result_t, assignop));
+    AssignmentCommon(this, type);
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -690,7 +846,11 @@ ASTNode * AddAssignExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ SubAssignExpression ~~~~~
 
-SubAssignExpression::SubAssignExpression() { nodeKind = SUB_ASSIGN_EXPRESSION; }
+SubAssignExpression::SubAssignExpression() {
+    contents = "-=";
+
+    nodeKind = SUB_ASSIGN_EXPRESSION;
+}
 
 bool SubAssignExpression::isConstant() { return false; }
 
@@ -699,52 +859,7 @@ void SubAssignExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     ((SubExpression *)this)->SubExpression::analyze(force);
-    const Type * result_t = type; // watch out for recursion
-
-    std::string & contents = getContents();
-
-    Expression * left = (Expression *)getLeft();
-    left->analyze();
-    const Type * lt = left->getType();
-
-    compilation->frontEnd.lValStack.push(lt);
-
-    Expression * right = (Expression *)getRight();
-    right->analyze();
-
-    convertAssignmentOperand(this);
-
-    right = (Expression *)getRight(); // refresh again
-    const Type * rt = right->getType();
-
-    BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
-    BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
-
-    std::string assignop = "=";
-
-    if (!lt->opApplies(assignop) || !lt->isValidOperand(result_t, assignop))
-        errorl(getContext(), "Could not match '" + lt->getDemangledName() +
-                                 "' with '" + result_t->getDemangledName() +
-                                 "' using the operator '" + contents + "'.");
-
-    if (left->getFlag(IDENT)) {
-        Maybe<Symbol *> m_sym = getScope()->getSymbol(
-            getScope(), (Identifier *)left, &left->getContext());
-        Symbol * sym = nullptr;
-        m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym);
-        if (!sym->isVar())
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-    } else {
-        const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
-        if (left->getFlag(TERMINAL) ||
-            !s_in_a(left->getContents().c_str(), assignableOps))
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-    }
-
-    setType(lt->binResultType(result_t, assignop));
+    AssignmentCommon(this, type);
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -756,6 +871,8 @@ ASTNode * SubAssignExpression::clone() { return ExpressionClone(this); }
 // ~~~~~ MultAssignExpression ~~~~~
 
 MultAssignExpression::MultAssignExpression() {
+    contents = "*=";
+
     nodeKind = MULT_ASSIGN_EXPRESSION;
 }
 
@@ -766,52 +883,7 @@ void MultAssignExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     ((MultExpression *)this)->MultExpression::analyze(force);
-    const Type * result_t = type; // watch out for recursion
-
-    std::string & contents = getContents();
-
-    Expression * left = (Expression *)getLeft();
-    left->analyze();
-    const Type * lt = left->getType();
-
-    compilation->frontEnd.lValStack.push(lt);
-
-    Expression * right = (Expression *)getRight();
-    right->analyze();
-
-    convertAssignmentOperand(this);
-
-    right = (Expression *)getRight(); // refresh again
-    const Type * rt = right->getType();
-
-    BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
-    BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
-
-    std::string assignop = "=";
-
-    if (!lt->opApplies(assignop) || !lt->isValidOperand(result_t, assignop))
-        errorl(getContext(), "Could not match '" + lt->getDemangledName() +
-                                 "' with '" + result_t->getDemangledName() +
-                                 "' using the operator '" + contents + "'.");
-
-    if (left->getFlag(IDENT)) {
-        Maybe<Symbol *> m_sym = getScope()->getSymbol(
-            getScope(), (Identifier *)left, &left->getContext());
-        Symbol * sym = nullptr;
-        m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym);
-        if (!sym->isVar())
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-    } else {
-        const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
-        if (left->getFlag(TERMINAL) ||
-            !s_in_a(left->getContents().c_str(), assignableOps))
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-    }
-
-    setType(lt->binResultType(result_t, assignop));
+    AssignmentCommon(this, type);
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -822,7 +894,11 @@ ASTNode * MultAssignExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ DivAssignExpression ~~~~~
 
-DivAssignExpression::DivAssignExpression() { nodeKind = DIV_ASSIGN_EXPRESSION; }
+DivAssignExpression::DivAssignExpression() {
+    contents = "/=";
+
+    nodeKind = DIV_ASSIGN_EXPRESSION;
+}
 
 bool DivAssignExpression::isConstant() { return false; }
 
@@ -831,52 +907,7 @@ void DivAssignExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     ((DivExpression *)this)->DivExpression::analyze(force);
-    const Type * result_t = type; // watch out for recursion
-
-    std::string & contents = getContents();
-
-    Expression * left = (Expression *)getLeft();
-    left->analyze();
-    const Type * lt = left->getType();
-
-    compilation->frontEnd.lValStack.push(lt);
-
-    Expression * right = (Expression *)getRight();
-    right->analyze();
-
-    convertAssignmentOperand(this);
-
-    right = (Expression *)getRight(); // refresh again
-    const Type * rt = right->getType();
-
-    BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
-    BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
-
-    std::string assignop = "=";
-
-    if (!lt->opApplies(assignop) || !lt->isValidOperand(result_t, assignop))
-        errorl(getContext(), "Could not match '" + lt->getDemangledName() +
-                                 "' with '" + result_t->getDemangledName() +
-                                 "' using the operator '" + contents + "'.");
-
-    if (left->getFlag(IDENT)) {
-        Maybe<Symbol *> m_sym = getScope()->getSymbol(
-            getScope(), (Identifier *)left, &left->getContext());
-        Symbol * sym = nullptr;
-        m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym);
-        if (!sym->isVar())
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-    } else {
-        const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
-        if (left->getFlag(TERMINAL) ||
-            !s_in_a(left->getContents().c_str(), assignableOps))
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-    }
-
-    setType(lt->binResultType(result_t, assignop));
+    AssignmentCommon(this, type);
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -887,7 +918,11 @@ ASTNode * DivAssignExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ ModAssignExpression ~~~~~
 
-ModAssignExpression::ModAssignExpression() { nodeKind = MOD_ASSIGN_EXPRESSION; }
+ModAssignExpression::ModAssignExpression() {
+    contents = "%=";
+
+    nodeKind = MOD_ASSIGN_EXPRESSION;
+}
 
 bool ModAssignExpression::isConstant() { return false; }
 
@@ -896,52 +931,7 @@ void ModAssignExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     ((ModExpression *)this)->ModExpression::analyze(force);
-    const Type * result_t = type; // watch out for recursion
-
-    std::string & contents = getContents();
-
-    Expression * left = (Expression *)getLeft();
-    left->analyze();
-    const Type * lt = left->getType();
-
-    compilation->frontEnd.lValStack.push(lt);
-
-    Expression * right = (Expression *)getRight();
-    right->analyze();
-
-    convertAssignmentOperand(this);
-
-    right = (Expression *)getRight(); // refresh again
-    const Type * rt = right->getType();
-
-    BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
-    BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
-
-    std::string assignop = "=";
-
-    if (!lt->opApplies(assignop) || !lt->isValidOperand(result_t, assignop))
-        errorl(getContext(), "Could not match '" + lt->getDemangledName() +
-                                 "' with '" + result_t->getDemangledName() +
-                                 "' using the operator '" + contents + "'.");
-
-    if (left->getFlag(IDENT)) {
-        Maybe<Symbol *> m_sym = getScope()->getSymbol(
-            getScope(), (Identifier *)left, &left->getContext());
-        Symbol * sym = nullptr;
-        m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym);
-        if (!sym->isVar())
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-    } else {
-        const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
-        if (left->getFlag(TERMINAL) ||
-            !s_in_a(left->getContents().c_str(), assignableOps))
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
-    }
-
-    setType(lt->binResultType(result_t, assignop));
+    AssignmentCommon(this, type);
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -971,17 +961,27 @@ ASTNode * MaybeAssignExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ LssExpression ~~~~~
 
-LssExpression::LssExpression() { nodeKind = LSS_EXPRESSION; }
+LssExpression::LssExpression() {
+    contents = "<";
+
+    nodeKind = LSS_EXPRESSION;
+}
 
 bool LssExpression::isConstant() { return BinaryExpression::isConstant(); }
 
 static void comparisonSignWarn(Context & context, const Type * lt,
                                const Type * rt) {
-    if ((lt->enumerableEquivalent() && rt->enumerableEquivalent()) &&
-        lt->sign != rt->sign) {
+    // @temporary this was just getting annoying
+    return;
+
 #define SIGN_STR(t) (t->sign == Type::Sign::SIGNED ? "signed" : "unsigned")
-        warningl(context, "Comparing types with differing signs.",
-                 SIGN_STR(lt) + std::string(" versus ") + SIGN_STR(rt));
+
+    if (lt->isInt() && rt->isInt()) {
+        const IntType * ilt = (const IntType *)lt;
+        const IntType * irt = (const IntType *)rt;
+        if (ilt->sign != irt->sign)
+            warningl(context, "Comparing types with differing signs.",
+                     SIGN_STR(ilt) + std::string(" versus ") + SIGN_STR(irt));
     }
 }
 
@@ -992,20 +992,26 @@ void LssExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
     comparisonSignWarn(getContext(), lt, rt);
 
-    if (lt->enumerableEquivalent()) {
-        if (rt->enumerableEquivalent() || rt->isFP()) {
-            const Type * dest_t = primativeConversionResult(lt, rt);
+    if (lt->isInt()) {
+        if (rt->isInt() || rt->isFloat() || rt->isChar()) {
+            const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
         } else
             goto err;
-    } else if (lt->isFP()) {
-        if (rt->enumerableEquivalent() || rt->isFP()) {
-            const Type * dest_t = primativeConversionResult(lt, rt);
+    } else if (lt->isFloat()) {
+        if (rt->isInt() || rt->isFloat()) {
+            const Type * dest_t = conv(lt, rt);
+            convertOperands(this, dest_t);
+        } else
+            goto err;
+    } else if (lt->isChar()) {
+        if (rt->isChar() || rt->isInt()) {
+            const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
         } else
             goto err;
@@ -1023,7 +1029,7 @@ err:
                              "' using the operator '" + contents + "'.");
 out:
 
-    setType(compilation->frontEnd.typeTable["bool"]);
+    setType(BoolType::get());
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -1034,7 +1040,11 @@ ASTNode * LssExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ LeqExpression ~~~~~
 
-LeqExpression::LeqExpression() { nodeKind = LEQ_EXPRESSION; }
+LeqExpression::LeqExpression() {
+    contents = "<=";
+
+    nodeKind = LEQ_EXPRESSION;
+}
 
 bool LeqExpression::isConstant() { return BinaryExpression::isConstant(); }
 
@@ -1053,7 +1063,11 @@ ASTNode * LeqExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ GtrExpression ~~~~~
 
-GtrExpression::GtrExpression() { nodeKind = GTR_EXPRESSION; }
+GtrExpression::GtrExpression() {
+    contents = ">";
+
+    nodeKind = GTR_EXPRESSION;
+}
 
 bool GtrExpression::isConstant() { return BinaryExpression::isConstant(); }
 
@@ -1072,7 +1086,11 @@ ASTNode * GtrExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ GeqExpression ~~~~~
 
-GeqExpression::GeqExpression() { nodeKind = GEQ_EXPRESSION; }
+GeqExpression::GeqExpression() {
+    contents = ">=";
+
+    nodeKind = GEQ_EXPRESSION;
+}
 
 bool GeqExpression::isConstant() { return BinaryExpression::isConstant(); }
 
@@ -1091,9 +1109,25 @@ ASTNode * GeqExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ EquExpression ~~~~~
 
-EquExpression::EquExpression() { nodeKind = EQU_EXPRESSION; }
+EquExpression::EquExpression() {
+    contents = "==";
+
+    nodeKind = EQU_EXPRESSION;
+}
 
 bool EquExpression::isConstant() { return BinaryExpression::isConstant(); }
+
+Val EquExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a, b;
+    a = ((Expression *)getLeft())->eval();
+    b = ((Expression *)getRight())->eval();
+    return evalEqu(a, b, getType());
+}
 
 // Node interface
 void EquExpression::analyze(bool force) {
@@ -1110,9 +1144,25 @@ ASTNode * EquExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ NeqExpression ~~~~~
 
-NeqExpression::NeqExpression() { nodeKind = NEQ_EXPRESSION; }
+NeqExpression::NeqExpression() {
+    contents = "!=";
+
+    nodeKind = NEQ_EXPRESSION;
+}
 
 bool NeqExpression::isConstant() { return BinaryExpression::isConstant(); }
+
+Val NeqExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a, b;
+    a = ((Expression *)getLeft())->eval();
+    b = ((Expression *)getRight())->eval();
+    return evalNeq(a, b, getType());
+}
 
 // Node interface
 void NeqExpression::analyze(bool force) {
@@ -1129,7 +1179,11 @@ ASTNode * NeqExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ LogAndExpression ~~~~~
 
-LogAndExpression::LogAndExpression() { nodeKind = LOG_AND_EXPRESSION; }
+LogAndExpression::LogAndExpression() {
+    contents = "and";
+
+    nodeKind = LOG_AND_EXPRESSION;
+}
 
 bool LogAndExpression::isConstant() { return BinaryExpression::isConstant(); }
 
@@ -1140,15 +1194,15 @@ void LogAndExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
-    const Type * _bool = compilation->frontEnd.typeTable["bool"];
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
+    const Type * _bool = BoolType::get();
 
     ASTNode * badop = nullptr;
 
-    if (!lt->equivalent(_bool))
+    if (!equal(lt, _bool))
         badop = getLeft();
-    else if (!rt->equivalent(_bool))
+    if (!equal(rt, _bool))
         badop = getRight();
 
     if (badop)
@@ -1168,7 +1222,11 @@ ASTNode * LogAndExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ LogOrExpression ~~~~~
 
-LogOrExpression::LogOrExpression() { nodeKind = LOG_OR_EXPRESSION; }
+LogOrExpression::LogOrExpression() {
+    contents = "or";
+
+    nodeKind = LOG_OR_EXPRESSION;
+}
 
 bool LogOrExpression::isConstant() { return BinaryExpression::isConstant(); }
 
@@ -1187,7 +1245,11 @@ ASTNode * LogOrExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ SubscriptExpression ~~~~~
 
-SubscriptExpression::SubscriptExpression() { nodeKind = SUBSCRIPT_EXPRESSION; }
+SubscriptExpression::SubscriptExpression() {
+    contents = "[]";
+
+    nodeKind = SUBSCRIPT_EXPRESSION;
+}
 
 // @temporary
 // I guess in some circumstances, subscript could be made to be constant
@@ -1200,52 +1262,173 @@ void SubscriptExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
-    if (!lt->isPointer() && !lt->isArray()) // && !lt->isDynamicArray)
-        errorl(getLeft()->getContext(), "Could not match '" +
-                                            lt->getDemangledName() +
-                                            "' with subscript operator.");
+    if (!lt->isPointer() && !lt->isArray() && !lt->isSlice() &&
+        !lt->isDynamicArray())
+        errorl(getContext(), "Could not match '" + lt->getDemangledName() +
+                                 "' with subscript operator.");
 
-    if (!rt->enumerableEquivalent())
+    if (!rt->isInt())
         errorl(getRight()->getContext(),
                "Operand right of subscript operator must be an integer type.");
 
-    if (lt->isPointer())
-        setType(((PointerType *)lt)->pointer_of);
+    if (lt->isPointer() || lt->isSlice() || lt->isDynamicArray())
+        setType(lt->under());
     else if (lt->isArray()) {
-        Expression * r = (Expression *)getRight();
-
+        getRight()->analyze();
         if (getLeft()->nodeKind == ASTNode::INITIALZER_LIST)
-            if (!r->isConstant())
-                errorl(r->getContext(), "Cannot index into constant array "
-                                        "initializer list with non-constant "
-                                        "index.");
+            if (!((Expression *)getRight())->isConstant())
+                errorl(getRight()->getContext(),
+                       "Cannot index into constant array "
+                       "initializer list with non-constant "
+                       "index.");
 
-        if (r->isConstant()) {
+        if (((Expression *)getRight())->isConstant()) {
             ArrayType * at = (ArrayType *)lt;
-            Val rv = r->eval();
-            if (rv.as_i64 >= at->size)
+            Val rv = ((Expression *)getRight())->eval();
+            if (rv.as_i64 >= at->width)
                 errorl(
-                    r->getContext(), "Array index is out of bounds.", true,
-                    "array contains " + std::to_string(at->size) + " elements",
+                    getRight()->getContext(), "Array index is out of bounds.",
+                    true,
+                    "array contains " + std::to_string(at->width) + " elements",
                     "attempting to index element " + std::to_string(rv.as_i64));
         }
 
-        setType(((ArrayType *)lt)->array_of);
+        setType(lt->under());
     }
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+
     setFlag(ANALYZED, true);
+
+    desugar();
 }
 
 ASTNode * SubscriptExpression::clone() { return ExpressionClone(this); }
+
+void SubscriptExpression::desugar() {
+    if (getLeft()->getType()->unRef()->isSlice()) {
+        CallExpression * call = new CallExpression;
+        call->setContext(getContext());
+
+        // __bjou_slice_subscript
+        Identifier * __bjou_slice_subscript = new Identifier;
+        __bjou_slice_subscript->setUnqualified("__bjou_slice_subscript");
+
+        ArgList * r = new ArgList;
+        // (slice, index)
+        r->addExpression(getLeft());
+        r->addExpression(getRight());
+
+        if (compilation->frontEnd.abc) {
+            // ... filename, line, col)
+            StringLiteral * f = new StringLiteral;
+            f->setContents(getRight()->getContext().filename);
+            IntegerLiteral * l = new IntegerLiteral;
+            l->setContents(std::to_string(getRight()->getContext().begin.line));
+            IntegerLiteral * c = new IntegerLiteral;
+            c->setContents(
+                std::to_string(getRight()->getContext().begin.character));
+
+            r->addExpression(f);
+            r->addExpression(l);
+            r->addExpression(c);
+        }
+
+        call->setLeft(__bjou_slice_subscript);
+        call->setRight(r);
+
+        call->addSymbols(getScope());
+
+        (*replace)(parent, this, call);
+
+        call->analyze();
+    } else if (getLeft()->getType()->unRef()->isDynamicArray()) {
+        CallExpression * call = new CallExpression;
+        call->setContext(getContext());
+
+        // __bjou_dynamic_array_subscript
+        Identifier * __bjou_dynamic_array_subscript = new Identifier;
+        __bjou_dynamic_array_subscript->setUnqualified(
+            "__bjou_dynamic_array_subscript");
+
+        ArgList * r = new ArgList;
+        // (dynamic_array, index)
+        r->addExpression(getLeft());
+        r->addExpression(getRight());
+
+        if (compilation->frontEnd.abc) {
+            // ... filename, line, col)
+            StringLiteral * f = new StringLiteral;
+            f->setContents(getRight()->getContext().filename);
+            IntegerLiteral * l = new IntegerLiteral;
+            l->setContents(std::to_string(getRight()->getContext().begin.line));
+            IntegerLiteral * c = new IntegerLiteral;
+            c->setContents(
+                std::to_string(getRight()->getContext().begin.character));
+
+            r->addExpression(f);
+            r->addExpression(l);
+            r->addExpression(c);
+        }
+
+        call->setLeft(__bjou_dynamic_array_subscript);
+        call->setRight(r);
+
+        call->addSymbols(getScope());
+
+        (*replace)(parent, this, call);
+
+        call->analyze();
+    } else if (getLeft()->getType()->unRef()->isArray() &&
+               compilation->frontEnd.abc) {
+        CallExpression * call = new CallExpression;
+        call->setContext(getContext());
+
+        // __bjou_array_subscript
+        Identifier * __bjou_array_subscript = new Identifier;
+        __bjou_array_subscript->setUnqualified("__bjou_array_subscript");
+
+        ArgList * r = new ArgList;
+        // (array, len, index, filename, line, col)
+        r->addExpression(getLeft());
+        IntegerLiteral * len = new IntegerLiteral;
+        len->setContents(
+            std::to_string(((ArrayType *)getLeft()->getType())->width));
+        r->addExpression(len);
+        r->addExpression(getRight());
+
+        StringLiteral * f = new StringLiteral;
+        f->setContents(getRight()->getContext().filename);
+        IntegerLiteral * l = new IntegerLiteral;
+        l->setContents(std::to_string(getRight()->getContext().begin.line));
+        IntegerLiteral * c = new IntegerLiteral;
+        c->setContents(
+            std::to_string(getRight()->getContext().begin.character));
+
+        r->addExpression(f);
+        r->addExpression(l);
+        r->addExpression(c);
+
+        call->setLeft(__bjou_array_subscript);
+        call->setRight(r);
+
+        call->addSymbols(getScope());
+
+        (*replace)(parent, this, call);
+
+        call->analyze();
+    }
+}
+
 //
 
 // ~~~~~ CallExpression ~~~~~
 
 CallExpression::CallExpression() : resolved_proc(nullptr) {
+    contents = "()";
     nodeKind = CALL_EXPRESSION;
 }
 
@@ -1286,14 +1469,17 @@ void CallExpression::analyze(bool force) {
                 l->right = nullptr; // l->setRight(nullptr);
             lt = proc->getType();
         } else {
-            lt = getLeft()->getType();
+            lt = getLeft()->getType()->unRef();
         }
         l->setType(lt);
     } else {
-        lt = getLeft()->getType();
+        lt = getLeft()->getType()->unRef();
     }
 
     if (proc) {
+        if (getLeft()->nodeKind == ASTNode::IDENTIFIER)
+            ((Identifier *)getLeft())->resolved = proc;
+
         resolved_proc = proc;
         if (proc->parent &&
             proc->parent->nodeKind == ASTNode::INTERFACE_IMPLEMENTATION) {
@@ -1315,14 +1501,15 @@ void CallExpression::analyze(bool force) {
     int nexpected = (int)plt->paramTypes.size();
 
     bool arg_err = false;
-    Context errConext;
+    bool l_val_err = false;
+    Context errContext;
 
     if (nargs > nexpected && !plt->isVararg) {
         arg_err = true;
-        errConext = args->getExpressions()[nexpected]->getContext();
+        errContext = args->getExpressions()[nexpected]->getContext();
     } else if (nargs < nexpected) {
         arg_err = true;
-        errConext = args->getContext();
+        errContext = args->getContext();
     }
 
     if (!arg_err) {
@@ -1330,17 +1517,23 @@ void CallExpression::analyze(bool force) {
             const Type * expected_t = plt->paramTypes[i];
             const Type * arg_t = args->getExpressions()[i]->getType();
 
-            if (!arg_t->equivalent(expected_t)) {
+            if (expected_t->isRef() &&
+                !((Expression *)args->getExpressions()[i])->canBeLVal()) {
                 arg_err = true;
-                errConext = args->getExpressions()[i]->getContext();
+                l_val_err = true;
+                errContext = args->getExpressions()[i]->getContext();
                 break;
             }
 
-            // add auto primative conversions
-            if (expected_t->isPrimative() && arg_t->isPrimative())
-                if (!arg_t->equivalent(expected_t, /* exact_match =*/true))
-                    emplaceConversion((Expression *)args->getExpressions()[i],
-                                      expected_t);
+            if (!conv(expected_t, arg_t)) {
+                arg_err = true;
+                errContext = args->getExpressions()[i]->getContext();
+                break;
+            }
+
+            if (!equal(expected_t, arg_t))
+                emplaceConversion((Expression *)args->getExpressions()[i],
+                                  expected_t);
         }
     }
 
@@ -1352,18 +1545,24 @@ void CallExpression::analyze(bool force) {
                 passedTypes += ", ";
         }
 
+        std::vector<std::string> help = {
+            "Note: procedure type: " + plt->getDemangledName(),
+            "arguments passed were (" + passedTypes + ")"};
+
+        if (l_val_err)
+            help.insert(help.begin(),
+                        "expression can't be used as a reference");
+
         if (proc)
-            errorl(errConext,
+            errorl(errContext,
                    "No matching call for '" +
                        demangledString(
                            mangledIdentifier((Identifier *)getLeft())) +
                        "' found.",
-                   true, "Note: procedure type: " + plt->getDemangledName(),
-                   "arguments passed were (" + passedTypes + ")");
+                   true, help);
         else
-            errorl(errConext, "No matching call to indirect procedure.", true,
-                   "Note: procedure type: " + plt->getDemangledName(),
-                   "arguments passed were (" + passedTypes + ")");
+            errorl(errContext, "No matching call to indirect procedure.", true,
+                   help);
     }
 
     setType(plt->retType);
@@ -1378,6 +1577,8 @@ ASTNode * CallExpression::clone() { return ExpressionClone(this); }
 // ~~~~~ AccessExpression ~~~~~
 
 AccessExpression::AccessExpression() {
+    contents = ".";
+
     nodeKind = ACCESS_EXPRESSION;
     injection = nullptr;
 }
@@ -1393,10 +1594,9 @@ static Identifier * createIdentifierFromAccess(AccessExpression * access,
 
     if (t->isStruct()) {
         struct_t = (StructType *)t;
-    } else if (t->isPointer()) {
-        PointerType * p_t = (PointerType *)t;
-        if (p_t->pointer_of->isStruct())
-            struct_t = (StructType *)p_t->pointer_of;
+    } else if (t->isPointer() || t->isRef()) {
+        if (t->under()->isStruct())
+            struct_t = (StructType *)t->under();
     }
 
     BJOU_DEBUG_ASSERT(struct_t);
@@ -1409,6 +1609,8 @@ static Identifier * createIdentifierFromAccess(AccessExpression * access,
     proc_ident->setUnqualified(lookup);
     proc_ident->addSymbols(access->getScope());
 
+    proc_ident->setFlag(ASTNode::CT, isCT(access));
+
     proc_ident->analyze();
 
     return proc_ident;
@@ -1419,15 +1621,14 @@ static Identifier * createIdentifierFromAccess(AccessExpression * access,
                                                Declarator * decl,
                                                Identifier * iface_ident,
                                                Identifier * ident) {
-    const Type * t = decl->getType();
+    const Type * t = decl->getType()->unRef();
     StructType * struct_t = nullptr;
 
     if (t->isStruct()) {
         struct_t = (StructType *)t;
-    } else if (t->isPointer()) {
-        PointerType * p_t = (PointerType *)t;
-        if (p_t->pointer_of->isStruct())
-            struct_t = (StructType *)p_t->pointer_of;
+    } else if (t->isPointer() || t->isRef()) {
+        if (t->under()->isStruct())
+            struct_t = (StructType *)t->under();
     }
 
     BJOU_DEBUG_ASSERT(struct_t);
@@ -1441,6 +1642,8 @@ static Identifier * createIdentifierFromAccess(AccessExpression * access,
     proc_ident->setUnqualified(lookup);
     proc_ident->addSymbols(access->getScope());
 
+    proc_ident->setFlag(ASTNode::CT, isCT(access));
+
     proc_ident->analyze();
 
     return proc_ident;
@@ -1451,15 +1654,14 @@ static Identifier * createIdentifierFromAccess(AccessExpression * access,
                                                Identifier * obj_ident,
                                                Identifier * iface_ident,
                                                Identifier * ident) {
-    const Type * t = obj_ident->getType();
+    const Type * t = obj_ident->getType()->unRef();
     StructType * struct_t = nullptr;
 
     if (t->isStruct()) {
         struct_t = (StructType *)t;
     } else if (t->isPointer()) {
-        PointerType * p_t = (PointerType *)t;
-        if (p_t->pointer_of->isStruct())
-            struct_t = (StructType *)p_t->pointer_of;
+        if (t->under()->isStruct())
+            struct_t = (StructType *)t->under();
     }
 
     BJOU_DEBUG_ASSERT(struct_t);
@@ -1499,15 +1701,14 @@ int AccessExpression::handleInterfaceSpecificCall() {
         // only base declarators
         if (l->getRight()->nodeKind == IDENTIFIER) {
             Identifier * interface_ident = (Identifier *)l->getRight();
-            const Type * t = l->getLeft()->getType();
+            const Type * t = l->getLeft()->getType()->unRef();
             StructType * struct_t = nullptr;
 
             if (t->isStruct()) {
                 struct_t = (StructType *)t;
             } else if (t->isPointer()) {
-                PointerType * p_t = (PointerType *)t;
-                if (p_t->pointer_of->isStruct())
-                    struct_t = (StructType *)p_t->pointer_of;
+                if (t->under()->isStruct())
+                    struct_t = (StructType *)t->under();
             }
 
             BJOU_DEBUG_ASSERT(struct_t);
@@ -1711,8 +1912,17 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
                     if (nodeKind == INJECT_EXPRESSION)
                         errorl(getContext(), "To access type data members, use "
                                              "'.' instead of '->'.");
-                    setType(struct_t->constantMap[r_id->getUnqualified()]
-                                ->getType());
+
+                    Expression * const_expr =
+                        (Expression *)struct_t
+                            ->constantMap[r_id->getUnqualified()]
+                            ->getInitialization();
+                    const_expr = (Expression *)const_expr->clone();
+                    const_expr->setScope(getScope());
+                    const_expr->setContext(getContext());
+                    (*this->replace)(parent, this, const_expr);
+                    setType(const_expr->getType());
+                    return -1;
                 } else if (struct_t->memberProcs.count(r_id->getUnqualified()) >
                            0) {
                     Identifier * proc_ident = createIdentifierFromAccess(
@@ -1761,16 +1971,16 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
 }
 
 int AccessExpression::handleContainerAccess() {
-    const Type * lt = getLeft()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
     Identifier * r_id = (Identifier *)getRight();
     Expression * next_call = nextCall();
 
     // check for regular access
-    if (lt->isStruct() ||
-        (lt->isPointer() && ((PointerType *)lt)->pointer_of->isStruct())) {
+    if (lt->isStruct() || (lt->isPointer() && lt->under()->isStruct())) {
+
         StructType * struct_t = (StructType *)lt; // can't have constness here
         if (lt->isPointer())
-            struct_t = (StructType *)((PointerType *)lt)->pointer_of;
+            struct_t = (StructType *)lt->under();
 
         if (getRight()->nodeKind == ASTNode::IDENTIFIER) {
             // don't analyze here else we probably get 'use of undeclared
@@ -1807,8 +2017,7 @@ int AccessExpression::handleContainerAccess() {
         } else
             errorl(getRight()->getContext(), "Invalid structure accessor.",
                    true, "expected member name");
-    } else if (lt->isTuple() || (lt->isPointer() &&
-                                 ((PointerType *)lt)->pointer_of->isTuple())) {
+    } else if (lt->isTuple() || (lt->isPointer() && lt->under()->isTuple())) {
         TupleType * tuple_t = (TupleType *)lt;
 
         if (nodeKind == INJECT_EXPRESSION)
@@ -1816,14 +2025,14 @@ int AccessExpression::handleContainerAccess() {
                    "To access tuple elements, use '.' instead of '->'.");
 
         if (lt->isPointer())
-            tuple_t = (TupleType *)((PointerType *)lt)->pointer_of;
+            tuple_t = (TupleType *)lt->under();
 
         if (getRight()->nodeKind == ASTNode::INTEGER_LITERAL) {
             int elem = (int)((Expression *)getRight())->eval().as_i64;
             if (elem < 0)
                 errorl(getRight()->getContext(),
                        "Tuple element access must be non-negative.");
-            int nsubtypes = (int)tuple_t->subTypes.size();
+            int nsubtypes = (int)tuple_t->types.size();
             if (elem >= nsubtypes)
                 errorl(getRight()->getContext(),
                        "Attempting to access tuple element " +
@@ -1833,7 +2042,7 @@ int AccessExpression::handleContainerAccess() {
                        "tuple type: '" + tuple_t->getDemangledName() + "'",
                        "Note: Tuple element access begins at 0");
 
-            setType(tuple_t->subTypes[elem]);
+            setType(tuple_t->types[elem]);
             return 1;
         } else if (!next_call) {
             if (getRight()->nodeKind == ASTNode::FLOAT_LITERAL)
@@ -1884,10 +2093,8 @@ bool AccessExpression::handleInjection() {
                            true,
                            "Cannot take the address of a template definition.");
             } else {
-                const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
                 if (getLeft()->getFlag(TERMINAL) ||
-                    !s_in_a(((Expression *)getLeft())->getContents().c_str(),
-                            assignableOps))
+                    !((Expression *)getLeft())->canBeLVal())
                     errorl(
                         getLeft()->getContext(),
                         "Operand left of '->' operator must be addressable.");
@@ -1970,7 +2177,11 @@ ASTNode * AccessExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ InjectExpression ~~~~~
 
-InjectExpression::InjectExpression() { nodeKind = INJECT_EXPRESSION; }
+InjectExpression::InjectExpression() {
+    contents = "->";
+
+    nodeKind = INJECT_EXPRESSION;
+}
 
 bool InjectExpression::isConstant() { return false; }
 
@@ -1999,18 +2210,8 @@ bool UnaryPreExpression::isConstant() {
 void UnaryPreExpression::analyze(bool force) {
     HANDLE_FORCE();
 
-    BJOU_DEBUG_ASSERT(unary(getContents().c_str()));
-    BJOU_DEBUG_ASSERT(getRight());
-
-    getRight()->analyze();
-
-    const Type * rt = getRight()->getType();
-
-    if (!rt->opApplies(contents))
-        errorl(getContext(), "Could not match '" + rt->getDemangledName() +
-                                 "' with the operator '" + contents + "'.");
-
-    setType(getRight()->getType()->unResultType(getContents()));
+    // should never be called
+    BJOU_DEBUG_ASSERT(false);
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -2018,7 +2219,11 @@ void UnaryPreExpression::analyze(bool force) {
 
 // ~~~~~ NewExpression ~~~~~
 
-NewExpression::NewExpression() { nodeKind = NEW_EXPRESSION; }
+NewExpression::NewExpression() {
+    contents = "new";
+
+    nodeKind = NEW_EXPRESSION;
+}
 
 bool NewExpression::isConstant() { return false; }
 
@@ -2026,8 +2231,6 @@ void NewExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     BJOU_DEBUG_ASSERT(IS_DECLARATOR(getRight()));
-    getRight()->analyze();
-
     // we have given the resposibility of everything below to the backend
 
     /*
@@ -2116,9 +2319,9 @@ void NewExpression::analyze(bool force) {
     const Type * r_t = getRight()->getType();
 
     if (r_t->isArray())
-        setType(((ArrayType *)r_t)->array_of->pointerOf());
+        setType(r_t->under()->getPointer());
     else
-        setType(r_t->pointerOf());
+        setType(r_t->getPointer());
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -2129,7 +2332,11 @@ ASTNode * NewExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ DeleteExpression ~~~~~
 
-DeleteExpression::DeleteExpression() { nodeKind = DELETE_EXPRESSION; }
+DeleteExpression::DeleteExpression() {
+    contents = "delete";
+
+    nodeKind = DELETE_EXPRESSION;
+}
 
 bool DeleteExpression::isConstant() { return false; }
 
@@ -2137,7 +2344,7 @@ void DeleteExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     getRight()->analyze();
-    const Type * t = getRight()->getType();
+    const Type * t = getRight()->getType()->unRef();
 
     if (!t->isPointer())
         errorl(getRight()->getContext(), "Operand of delete must be a pointer.",
@@ -2145,7 +2352,7 @@ void DeleteExpression::analyze(bool force) {
 
     std::string & r_c = ((Expression *)getRight())->getContents();
     if (getRight()->nodeKind == IDENTIFIER ||
-        (r_c == "." || r_c == "[]" || r_c == "()"))
+        (r_c == "&" || r_c == "." || r_c == "[]" || r_c == "()"))
         setType(compilation->frontEnd
                     .typeTable[compilation->frontEnd.getBuiltinVoidTypeName()]);
     else
@@ -2161,7 +2368,11 @@ ASTNode * DeleteExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ SizeofExpression ~~~~~
 
-SizeofExpression::SizeofExpression() { nodeKind = SIZEOF_EXPRESSION; }
+SizeofExpression::SizeofExpression() {
+    contents = "sizeof";
+
+    nodeKind = SIZEOF_EXPRESSION;
+}
 
 bool SizeofExpression::isConstant() { return true; }
 
@@ -2169,10 +2380,11 @@ void SizeofExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     getRight()->analyze();
-    if (getRight()->getType()->isPrimative() &&
-        getRight()->getType()->size == -1)
+
+    if (getRight()->getType() == VoidType::get())
         errorl(getContext(), "Taking sizeof void.");
-    setType(compilation->frontEnd.typeTable["ulong"]);
+
+    setType(IntType::get(Type::UNSIGNED, 64));
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -2183,17 +2395,32 @@ ASTNode * SizeofExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ NotExpression ~~~~~
 
-NotExpression::NotExpression() { nodeKind = NOT_EXPRESSION; }
+NotExpression::NotExpression() {
+    contents = "not";
+
+    nodeKind = NOT_EXPRESSION;
+}
+
+Val NotExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a;
+    a = ((Expression *)getRight())->eval();
+    return evalNot(a, getType());
+}
 
 void NotExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     getRight()->analyze(force);
 
-    const Type * rt = getRight()->getType();
-    const Type * _bool = compilation->frontEnd.typeTable["bool"];
+    const Type * rt = getRight()->getType()->unRef();
+    const Type * _bool = BoolType::get();
 
-    if (!rt->equivalent(_bool))
+    if (!equal(rt, _bool))
         errorl(getRight()->getContext(),
                "Operand right operator '" + getContents() +
                    "' must be convertible to type 'bool'.",
@@ -2210,7 +2437,11 @@ ASTNode * NotExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ DerefExpression ~~~~~
 
-DerefExpression::DerefExpression() { nodeKind = DEREF_EXPRESSION; }
+DerefExpression::DerefExpression() {
+    contents = "@";
+
+    nodeKind = DEREF_EXPRESSION;
+}
 
 bool DerefExpression::isConstant() { return false; }
 
@@ -2219,14 +2450,14 @@ void DerefExpression::analyze(bool force) {
 
     getRight()->analyze(force);
 
-    const Type * rt = getRight()->getType();
+    const Type * rt = getRight()->getType()->unRef();
 
     if (!rt->isPointer())
         errorl(getRight()->getContext(),
                "Operand right of '" + getContents() + "' must be a pointer.",
                true, "got '" + rt->getDemangledName() + "'");
 
-    setType(((PointerType *)rt)->pointer_of);
+    setType(rt->under());
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -2237,7 +2468,11 @@ ASTNode * DerefExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ AddressExpression ~~~~~
 
-AddressExpression::AddressExpression() { nodeKind = ADDRESS_EXPRESSION; }
+AddressExpression::AddressExpression() {
+    contents = "&";
+
+    nodeKind = ADDRESS_EXPRESSION;
+}
 
 bool AddressExpression::isConstant() { return false; }
 
@@ -2250,6 +2485,66 @@ void AddressExpression::analyze(bool force) {
 
     const Type * rt = right->getType();
 
+    if (rt->isRef()) {
+        rt = rt->unRef();
+    } else {
+        rt = rt->unRef();
+
+        if (right->getFlag(IDENT)) {
+            Maybe<Symbol *> m_sym = getScope()->getSymbol(
+                getScope(), (Identifier *)right, &right->getContext());
+            Symbol * sym = nullptr;
+            m_sym.assignTo(sym);
+            BJOU_DEBUG_ASSERT(sym);
+            if (sym->isType())
+                errorl(right->getContext(),
+                       "Cannot take the address of a type.");
+            else if (sym->isProcSet())
+                errorl(right->getContext(), "Use of '" +
+                                                sym->demangledString() +
+                                                "' is ambiguous."); // @bad
+            else if (sym->isInterface())
+                errorl(right->getContext(),
+                       "Cannot take the address of an interface.");
+            else if (sym->node()->getFlag(ASTNode::IS_TEMPLATE))
+                errorl(right->getContext(),
+                       "Cannot take the address of a template definition.");
+        } else {
+            if (right->getFlag(TERMINAL) || !((Expression *)right)->canBeLVal())
+                errorl(right->getContext(),
+                       "Operand right of '" + contents +
+                           "' operator must be addressable.");
+        }
+    }
+
+    setType(rt->getPointer());
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * AddressExpression::clone() { return ExpressionClone(this); }
+//
+
+// ~~~~~ RefExpression ~~~~~
+
+RefExpression::RefExpression() {
+    contents = "~";
+
+    nodeKind = REF_EXPRESSION;
+}
+
+bool RefExpression::isConstant() { return false; }
+
+void RefExpression::analyze(bool force) {
+    HANDLE_FORCE();
+
+    ASTNode * right = getRight();
+
+    right->analyze(force);
+
+    const Type * rt = right->getType()->unRef();
+
     if (right->getFlag(IDENT)) {
         Maybe<Symbol *> m_sym = getScope()->getSymbol(
             getScope(), (Identifier *)right, &right->getContext());
@@ -2257,32 +2552,29 @@ void AddressExpression::analyze(bool force) {
         m_sym.assignTo(sym);
         BJOU_DEBUG_ASSERT(sym);
         if (sym->isType())
-            errorl(right->getContext(), "Cannot take the address of a type.");
+            errorl(right->getContext(), "Cannot take a reference of a type.");
         else if (sym->isProcSet())
             errorl(right->getContext(), "Use of '" + sym->demangledString() +
                                             "' is ambiguous."); // @bad
         else if (sym->isInterface())
             errorl(right->getContext(),
-                   "Cannot take the address of an interface.");
+                   "Cannot take a reference of an interface.");
         else if (sym->node()->getFlag(ASTNode::IS_TEMPLATE))
             errorl(right->getContext(),
-                   "Cannot take the address of a template definition.");
+                   "Cannot take a reference of a template definition.");
     } else {
-        const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
-        if (right->getFlag(TERMINAL) ||
-            !s_in_a(((Expression *)right)->getContents().c_str(),
-                    assignableOps))
+        if (right->getFlag(TERMINAL) || !((Expression *)right)->canBeLVal())
             errorl(right->getContext(), "Operand right of '" + contents +
                                             "' operator must be addressable.");
     }
 
-    setType(rt->pointerOf());
+    setType(rt->getRef());
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
 }
 
-ASTNode * AddressExpression::clone() { return ExpressionClone(this); }
+ASTNode * RefExpression::clone() { return ExpressionClone(this); }
 //
 
 // ~~~~~ UnaryPostExpression ~~~~~
@@ -2303,9 +2595,15 @@ void UnaryPostExpression::analyze(bool force) {
 
 // ~~~~~ AsExpression ~~~~~
 
-AsExpression::AsExpression() { nodeKind = AS_EXPRESSION; }
+AsExpression::AsExpression() {
+    contents = "as";
 
-bool AsExpression::isConstant() { return true; }
+    nodeKind = AS_EXPRESSION;
+}
+
+bool AsExpression::isConstant() {
+    return ((Expression *)getLeft())->isConstant();
+}
 
 void AsExpression::analyze(bool force) {
     HANDLE_FORCE();
@@ -2313,10 +2611,10 @@ void AsExpression::analyze(bool force) {
     getLeft()->analyze();
     getRight()->analyze();
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
-    if (lt->equivalent(rt, /*exact_match = */ true)) {
+    if (equal(lt, rt)) {
         if (!rt->isPointer())
             errorl(getContext(),
                    "Cast to same type (" + lt->getDemangledName() + " to " +
@@ -2325,17 +2623,15 @@ void AsExpression::analyze(bool force) {
 
     if (!(
             // @incomplete
-            (lt->equivalent(rt)) ||
-            // (lt->enumerableEquivalent() && rt->isPointer()) || // for a NULL
-            (lt->isPointer() && rt->isPointer()) ||
-            (lt->isArray() && rt->isPointer() &&
-             (((ArrayType *)lt)
-                  ->array_of->equivalent(((PointerType *)rt)->pointer_of,
-                                         /* exact_match =*/true) ||
-              ((PointerType *)rt)->pointer_of->size == -1)) ||
-            (lt->isPointer() && rt->isProcedure()) || // @temporary
-            (lt->isProcedure() && rt->isPointer())    // @temporary
-            )) {
+            (conv(lt, rt) ||
+             // (lt->isInt() && rt->isPointer()) || // for a NULL
+             (lt->isPointer() && rt->isPointer()) ||
+             (lt->isArray() && rt->isPointer() &&
+              (equal(lt->under(), rt->under()) ||
+               rt->under() == VoidType::get())) ||
+             (lt->isPointer() && rt->isProcedure()) || // @temporary
+             (lt->isProcedure() && rt->isPointer())    // @temporary
+             ))) {
         errorl(getContext(), "Invalid cast: '" + lt->getDemangledName() +
                                  "' to '" + rt->getDemangledName() + "'.");
     }
@@ -2351,7 +2647,7 @@ ASTNode * AsExpression::clone() { return ExpressionClone(this); }
 
 // ~~~~~ Identifier ~~~~~
 
-Identifier::Identifier() : unqualified({}), namespaces({}) {
+Identifier::Identifier() : unqualified({}), namespaces({}), resolved(nullptr) {
     nodeKind = IDENTIFIER;
     setFlag(IDENT, true);
 }
@@ -2429,6 +2725,17 @@ const Type * Identifier::getType() {
             BJOU_DEBUG_ASSERT(proc);
             qualified = proc->getMangledName();
             setType(proc->getType());
+        } else {
+            std::string sym_kind = "???";
+
+            if (sym->isType() || sym->isTemplateType())
+                sym_kind = "Type declarator";
+            else if (sym->isInterface())
+                sym_kind = "Interface name";
+
+            errorl(getContext(),
+                   sym_kind + " '" + sym->demangledString() +
+                       "' not allowed here."); // @bad error message
         }
     }
 
@@ -2465,6 +2772,7 @@ void Identifier::analyze(bool force) {
                      false); // don't fail.. will catch in getType()
         if (proc) {
             qualified = proc->getMangledName();
+            resolved = proc;
             setType(proc->getType());
         }
     } else if (sym->isType() || sym->isTemplateType()) {
@@ -2480,6 +2788,13 @@ void Identifier::analyze(bool force) {
             setType(sym->node()->getType());
         else internalError("Identifier error."); // @bad!
          */
+
+        if (parent && IS_EXPRESSION(parent) || parent->nodeKind == ARG_LIST) {
+            if (parent->nodeKind != ASTNode::ACCESS_EXPRESSION)
+                errorl(getContext(), "Can't use type name '" + unqualified +
+                                         "' as expression.");
+        }
+
         Declarator * decl = new Declarator;
         decl->setContext(getContext());
         decl->setScope(getScope());
@@ -2488,6 +2803,15 @@ void Identifier::analyze(bool force) {
             decl->setTemplateInst(getRight());
         (*replace)(parent, this, decl);
         decl->setIdentifier(this);
+    }
+
+    if (!resolved && sym && !sym->isProcSet())
+        resolved = sym->node();
+
+    if (resolved) {
+        if (!isCT(this) && isCT(resolved))
+            errorl(getContext(), "Referenced symbol '" + unqualified +
+                                     "' is only available at compile time.");
     }
 
     // Identifier get's its type lazily because it might be a reference
@@ -2569,7 +2893,7 @@ void InitializerList::analyze(bool force) {
 
     if (getObjDeclarator()) {
         getObjDeclarator()->analyze(force);
-        const Type * t = getObjDeclarator()->getType()->getOriginal();
+        const Type * t = getObjDeclarator()->getType();
         BJOU_DEBUG_ASSERT(t);
         if (!t->isStruct())
             errorl(getObjDeclarator()->getContext(),
@@ -2585,26 +2909,25 @@ void InitializerList::analyze(bool force) {
         BJOU_DEBUG_ASSERT(names.size() == expressions.size());
         for (int i = 0; i < (int)names.size(); i += 1) {
             std::string & name = names[i];
-            ASTNode * expr = expressions[i];
             if (s_t->memberIndices.count(name) == 0)
-                errorl(expr->getContext(), "No member variable named '" + name +
-                                               "' in '" +
-                                               s_t->getDemangledName() + "'.");
+                errorl(expressions[i]->getContext(),
+                       "No member variable named '" + name + "' in '" +
+                           s_t->getDemangledName() + "'.");
             int index = s_t->memberIndices[name];
             const Type * mt = s_t->memberTypes[index];
             compilation->frontEnd.lValStack.push(mt);
-            const Type * expr_t = expr->getType();
+            const Type * expr_t = expressions[i]->getType();
             compilation->frontEnd.lValStack.pop();
-            if (!expr_t->equivalent(mt))
-                errorl(expr->getContext(),
+            if (!conv(expr_t, mt))
+                errorl(expressions[i]->getContext(),
                        "Element for '" + name + "' in '" +
                            s_t->getDemangledName() +
                            "' literal differs from expected type '" +
                            mt->getDemangledName() + "'.",
                        true, "got '" + expr_t->getDemangledName() + "'");
             if (expr_t->isPrimative() && mt->isPrimative())
-                if (!expr_t->equivalent(mt, /* exact_match =*/true))
-                    emplaceConversion((Expression *)expr, mt);
+                if (!equal(expr_t, mt))
+                    emplaceConversion((Expression *)expressions[i], mt);
         }
         setType(getObjDeclarator()->getType());
     } else {
@@ -2627,28 +2950,23 @@ void InitializerList::analyze(bool force) {
             const Type * t = lValStack.top();
             if (t->isArray()) {
                 const ArrayType * a_t = (const ArrayType *)t;
-                if (a_t->expression) {
-                    Expression * expr = (Expression *)a_t->expression;
-                    if (expr->isConstant()) {
-                        int destLen = (int)expr->eval().as_i64;
-                        if (destLen < (int)getExpressions().size())
-                            errorl(getExpressions()[destLen]->getContext(),
-                                   "Excess element in array initializer.");
-                    }
-                }
+                int destLen = a_t->width;
+                if (destLen < (int)getExpressions().size())
+                    errorl(getExpressions()[destLen]->getContext(),
+                           "Excess element in array initializer.");
             }
         }
         const Type * first_t = getExpressions()[0]->getType();
         for (ASTNode * expr : getExpressions()) {
             const Type * a_t = expr->getType();
-            if (!a_t->equivalent(first_t))
+            if (!conv(a_t, first_t))
                 errorl(expr->getContext(),
                        "Element in '" + first_t->getDemangledName() +
                            "' array literal differs in type.");
         }
 
-        ArrayType * array_t = (ArrayType *)first_t->arrayOf();
-        array_t->size = (int)getExpressions().size();
+        const Type * array_t =
+            ArrayType::get(first_t, (int)getExpressions().size());
 
         setType(array_t);
     }
@@ -2670,7 +2988,390 @@ ASTNode * InitializerList::clone() {
     return c;
 }
 
-InitializerList::~InitializerList() {}
+void InitializerList::desugar() {
+    if (getObjDeclarator())
+        getObjDeclarator()->desugar();
+    for (ASTNode * node : getExpressions())
+        node->desugar();
+}
+
+InitializerList::~InitializerList() {
+    if (objDeclarator)
+        delete objDeclarator;
+    for (ASTNode * expr : expressions)
+        delete expr;
+}
+//
+
+// ~~~~~ SliceExpression ~~~~~
+
+SliceExpression::SliceExpression()
+    : src(nullptr), start(nullptr), length(nullptr) {
+    nodeKind = SLICE_EXPRESSION;
+}
+
+bool SliceExpression::isConstant() {
+    if (!((Expression *)getSrc())->isConstant())
+        return false;
+    if (!((Expression *)getStart())->isConstant())
+        return false;
+    if (!((Expression *)getLength())->isConstant())
+        return false;
+    return true;
+}
+
+ASTNode * SliceExpression::getSrc() const { return src; }
+void SliceExpression::setSrc(ASTNode * _src) {
+    src = _src;
+    src->parent = this;
+    src->replace = rpget<replacementPolicy_SliceExpression_Src>();
+}
+
+ASTNode * SliceExpression::getStart() const { return start; }
+void SliceExpression::setStart(ASTNode * _start) {
+    start = _start;
+    start->parent = this;
+    start->replace = rpget<replacementPolicy_SliceExpression_Start>();
+}
+
+ASTNode * SliceExpression::getLength() const { return length; }
+void SliceExpression::setLength(ASTNode * _length) {
+    length = _length;
+    length->parent = this;
+    length->replace = rpget<replacementPolicy_SliceExpression_Length>();
+}
+
+// Node interface
+void SliceExpression::unwrap(std::vector<ASTNode *> & terminals) {
+    src->unwrap(terminals);
+    start->unwrap(terminals);
+    length->unwrap(terminals);
+}
+
+void SliceExpression::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    src->addSymbols(_scope);
+    start->addSymbols(_scope);
+    length->addSymbols(_scope);
+}
+
+void SliceExpression::analyze(bool force) {
+    HANDLE_FORCE();
+
+    getSrc()->analyze(force);
+    getStart()->analyze(force);
+    getLength()->analyze(force);
+
+    const Type * src_t = getSrc()->getType()->unRef();
+    const Type * start_t = getStart()->getType()->unRef();
+    const Type * length_t = getLength()->getType()->unRef();
+
+    if (!src_t->isPointer() && !src_t->isArray() &&
+        !src_t->isSlice()) // dynamic array?
+        errorl(getSrc()->getContext(),
+               "Slice source must be either a pointer, an array, or another "
+               "slice.",
+               true, "got '" + src_t->getDemangledName() + "'");
+
+    if (!conv(IntType::get(Type::Sign::UNSIGNED, 64), start_t))
+        errorl(getStart()->getContext(),
+               "Can't use expression of type '" + start_t->getDemangledName() +
+                   "' as starting index in slice expression.");
+
+    if (!conv(IntType::get(Type::Sign::UNSIGNED, 64), length_t))
+        errorl(getLength()->getContext(),
+               "Can't use expression of type '" + length_t->getDemangledName() +
+                   "' as length in slice expression.");
+
+    setType(SliceType::get(src_t->under()));
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+
+    setFlag(ANALYZED, true);
+
+    desugar();
+}
+
+ASTNode * SliceExpression::clone() {
+    SliceExpression * c = ExpressionClone(this);
+
+    c->setSrc(getSrc());
+    c->setStart(getStart());
+    c->setLength(getLength());
+
+    return c;
+}
+
+void SliceExpression::desugar() {
+    getSrc()->desugar();
+    getStart()->desugar();
+    getLength()->desugar();
+
+    CallExpression * call = new CallExpression;
+    call->setContext(getContext());
+
+    // __bjou_slice!(T).create
+    Declarator * slice_decl =
+        ((SliceType *)getType())->getRealType()->getGenericDeclarator();
+    Identifier * create = new Identifier;
+    create->setUnqualified("create");
+    AccessExpression * l = new AccessExpression;
+    l->setLeft(slice_decl);
+    l->setRight(create);
+
+    // (src, start, len)
+    ArgList * r = new ArgList;
+    r->addExpression(getSrc());
+    r->addExpression(getStart());
+    r->addExpression(getLength());
+
+    call->setLeft(l);
+    call->setRight(r);
+
+    call->addSymbols(getScope());
+
+    slice_decl->desugar();
+
+    call->analyze();
+
+    call->setType(getType());
+
+    (*replace)(parent, this, call);
+}
+
+SliceExpression::~SliceExpression() {
+    BJOU_DEBUG_ASSERT(src);
+    delete src;
+    BJOU_DEBUG_ASSERT(start);
+    delete start;
+    BJOU_DEBUG_ASSERT(length);
+    delete length;
+}
+//
+
+// ~~~~~ DynamicArrayExpression ~~~~~
+
+DynamicArrayExpression::DynamicArrayExpression() : typeDeclarator(nullptr) {
+    nodeKind = DYNAMIC_ARRAY_EXPRESSION;
+}
+
+bool DynamicArrayExpression::isConstant() { return false; }
+
+ASTNode * DynamicArrayExpression::getTypeDeclarator() const {
+    return typeDeclarator;
+}
+void DynamicArrayExpression::setTypeDeclarator(ASTNode * _decl) {
+    typeDeclarator = _decl;
+    typeDeclarator->parent = this;
+    typeDeclarator->replace =
+        rpget<replacementPolicy_DynamicArrayExpression_TypeDeclarator>();
+}
+
+// Node interface
+void DynamicArrayExpression::unwrap(std::vector<ASTNode *> & terminals) {
+    typeDeclarator->unwrap(terminals);
+}
+
+void DynamicArrayExpression::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    typeDeclarator->addSymbols(_scope);
+}
+
+void DynamicArrayExpression::analyze(bool force) {
+    HANDLE_FORCE();
+
+    getTypeDeclarator()->analyze(force);
+
+    const Type * t = getTypeDeclarator()->getType();
+
+    setType(DynamicArrayType::get(t));
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+
+    setFlag(ANALYZED, true);
+
+    desugar();
+}
+
+ASTNode * DynamicArrayExpression::clone() {
+    DynamicArrayExpression * c = ExpressionClone(this);
+
+    c->setTypeDeclarator(getTypeDeclarator());
+
+    return c;
+}
+
+void DynamicArrayExpression::desugar() {
+    getTypeDeclarator()->desugar();
+
+    CallExpression * call = new CallExpression;
+    call->setContext(getContext());
+
+    // __bjou_dynamic_array!(T).create
+    Declarator * da_decl =
+        ((DynamicArrayType *)getType())->getRealType()->getGenericDeclarator();
+    Identifier * create = new Identifier;
+    create->setUnqualified("create");
+    AccessExpression * l = new AccessExpression;
+    l->setLeft(da_decl);
+    l->setRight(create);
+
+    // ()
+    ArgList * r = new ArgList;
+
+    call->setLeft(l);
+    call->setRight(r);
+
+    call->addSymbols(getScope());
+
+    da_decl->desugar();
+
+    call->analyze();
+
+    call->setType(getType());
+
+    (*replace)(parent, this, call);
+}
+
+DynamicArrayExpression::~DynamicArrayExpression() {
+    BJOU_DEBUG_ASSERT(typeDeclarator);
+    delete typeDeclarator;
+}
+//
+
+// ~~~~~ LenExpression ~~~~~
+
+LenExpression::LenExpression() : expr(nullptr) { nodeKind = LEN_EXPRESSION; }
+
+bool LenExpression::isConstant() {
+    if (((Expression *)getLeft())->isConstant()) {
+        if (getLeft()->getType()->isArray())
+            return true;
+    }
+    return false;
+}
+
+ASTNode * LenExpression::getExpr() const { return expr; }
+void LenExpression::setExpr(ASTNode * _expr) {
+    expr = _expr;
+    expr->parent = this;
+    expr->replace = rpget<replacementPolicy_LenExpression_Expr>();
+}
+
+// Node interface
+void LenExpression::unwrap(std::vector<ASTNode *> & terminals) {
+    expr->unwrap(terminals);
+}
+
+void LenExpression::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    expr->addSymbols(_scope);
+}
+
+void LenExpression::analyze(bool force) {
+    HANDLE_FORCE();
+
+    const Type * expr_t = getExpr()->getType()->unRef();
+
+    getExpr()->analyze(force);
+
+    if (!expr_t->isArray() && !expr_t->isSlice() && !expr_t->isDynamicArray())
+        errorl(getExpr()->getContext(),
+               "Object of cardinality expression must be an array, slice, or "
+               "dynamic array.",
+               true, "got '" + expr_t->getDemangledName() + "'");
+
+    setType(IntType::get(Type::Sign::UNSIGNED, 64));
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+
+    setFlag(ANALYZED, true);
+
+    desugar();
+}
+
+ASTNode * LenExpression::clone() {
+    LenExpression * c = ExpressionClone(this);
+
+    c->setExpr(getExpr());
+
+    return c;
+}
+
+void LenExpression::desugar() {
+    const Type * expr_t = getExpr()->getType()->unRef();
+
+    ASTNode * replacement = nullptr;
+
+    if (expr_t->isArray()) {
+        AsExpression * as = new AsExpression;
+        as->setContext(getContext());
+
+        ArrayType * array_t = (ArrayType *)expr_t;
+        unsigned int len = array_t->width;
+
+        IntegerLiteral * lit = new IntegerLiteral;
+        lit->setContents(std::to_string(len));
+        lit->setContext(getContext());
+
+        Declarator * decl =
+            IntType::get(Type::Sign::UNSIGNED, 64)->getGenericDeclarator();
+        decl->setContext(getContext());
+
+        as->setLeft(lit);
+        as->setRight(decl);
+
+        replacement = as;
+    } else if (expr_t->isSlice()) {
+        AccessExpression * access = new AccessExpression;
+        access->setContext(getContext());
+
+        Identifier * __len = new Identifier;
+        __len->setContext(getContext());
+        __len->setUnqualified("__len");
+
+        Expression * l = (Expression *)getExpr();
+
+        l->setType(((SliceType *)expr_t)->getRealType());
+        l->setFlag(ANALYZED, true);
+
+        access->setLeft(l->clone());
+        access->setRight(__len);
+
+        replacement = access;
+    } else if (expr_t->isDynamicArray()) {
+        AccessExpression * access = new AccessExpression;
+        access->setContext(getContext());
+
+        Identifier * __len = new Identifier;
+        __len->setContext(getContext());
+        __len->setUnqualified("__used");
+
+        Expression * l = (Expression *)getExpr();
+
+        l->setType(((DynamicArrayType *)expr_t)->getRealType());
+        l->setFlag(ANALYZED, true);
+
+        access->setLeft(l->clone());
+        access->setRight(__len);
+
+        replacement = access;
+    } else
+        BJOU_DEBUG_ASSERT(false);
+
+    replacement->addSymbols(getScope());
+    replacement->desugar();
+    // @bad hack
+    replacement->setFlag(ANALYZED, true);
+    ((Expression *)replacement)
+        ->setType(IntType::get(Type::Sign::UNSIGNED, 64));
+    (*replace)(parent, this, replacement);
+}
+
+LenExpression::~LenExpression() {
+    BJOU_DEBUG_ASSERT(expr);
+    delete expr;
+}
 //
 
 // ~~~~~ BooleanLiteral ~~~~~
@@ -2689,7 +3390,7 @@ Val BooleanLiteral::eval() {
 void BooleanLiteral::analyze(bool force) {
     HANDLE_FORCE();
 
-    setType(compilation->frontEnd.typeTable["bool"]);
+    setType(BoolType::get());
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -2714,7 +3415,7 @@ Val IntegerLiteral::eval() {
 void IntegerLiteral::analyze(bool force) {
     HANDLE_FORCE();
 
-    setType(compilation->frontEnd.typeTable["int"]);
+    setType(IntType::get(Type::SIGNED, 32));
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -2739,7 +3440,7 @@ Val FloatLiteral::eval() {
 void FloatLiteral::analyze(bool force) {
     HANDLE_FORCE();
 
-    setType(compilation->frontEnd.typeTable["float"]);
+    setType(FloatType::get(32));
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -2764,7 +3465,10 @@ Val StringLiteral::eval() {
 void StringLiteral::analyze(bool force) {
     HANDLE_FORCE();
 
-    setType(compilation->frontEnd.typeTable["char"]->pointerOf());
+    std::string str = str_escape(getContents());
+    setContents(de_quote(str));
+
+    setType(CharType::get()->getPointer());
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -2789,7 +3493,7 @@ Val CharLiteral::eval() {
 void CharLiteral::analyze(bool force) {
     HANDLE_FORCE();
 
-    setType(compilation->frontEnd.typeTable["char"]);
+    setType(CharType::get());
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -2828,6 +3532,7 @@ void ProcLiteral::analyze(bool force) {
     proc_ident->setUnqualified(proc->getName());
     proc_ident->qualified = proc->getMangledName();
     proc_ident->setFlag(Identifier::DIRECT_PROC_REF, true);
+    proc_ident->setFlag(Expression::TERMINAL, true);
     proc_ident->addSymbols(getScope());
 
     (*this->replace)(parent, this, proc_ident);
@@ -2862,13 +3567,22 @@ void ExternLiteral::analyze(bool force) {
 
     BJOU_DEBUG_ASSERT(getRight());
 
-    // getRight()->addSymbols(compilation->frontEnd.globalScope);
     getRight()->analyze(force);
 
     setType(getRight()->getType());
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
+}
+
+void ExternLiteral::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    ASTNode * left = getLeft();
+    ASTNode * right = getRight();
+    if (left)
+        left->addSymbols(scope);
+    if (right)
+        right->addSymbols(compilation->frontEnd.globalScope);
 }
 
 ASTNode * ExternLiteral::clone() { return ExpressionClone(this); }
@@ -2885,7 +3599,7 @@ void SomeLiteral::analyze(bool force) {
 
     getRight()->analyze();
 
-    setType(getRight()->getType()->maybeOf());
+    setType(getRight()->getType()->getMaybe());
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -2957,13 +3671,13 @@ void TupleLiteral::addSymbols(Scope * _scope) {
 void TupleLiteral::analyze(bool force) {
     HANDLE_FORCE();
 
-    std::vector<const Type *> subTypes;
+    std::vector<const Type *> types;
     for (ASTNode * expr : getSubExpressions()) {
         expr->analyze();
-        subTypes.push_back(expr->getType());
+        types.push_back(expr->getType());
     }
 
-    setType(new TupleType(subTypes));
+    setType(TupleType::get(types));
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -2977,6 +3691,11 @@ ASTNode * TupleLiteral::clone() {
     for (ASTNode * e : expressions)
         t->addSubExpression(e->clone());
     return t;
+}
+
+void TupleLiteral::desugar() {
+    for (ASTNode * expr : getSubExpressions())
+        expr->desugar();
 }
 //
 
@@ -3027,39 +3746,32 @@ void Declarator::analyze(bool force) {
     Symbol * sym = nullptr;
 
     if (m_sym.assignTo(sym)) {
-        if (compilation->frontEnd.typeTable.count(sym->name)) {
-            const Type * t = sym->node()->getType();
-            BJOU_DEBUG_ASSERT(t);
-            if (!t->isPrimative()) {
-                if (t->isTemplateStruct() || t->isTemplateAlias()) {
-                    if (!getTemplateInst())
-                        errorl(getContext(),
-                               "Missing template instantiation arguments.");
-                    if (t->isTemplateStruct()) {
-                        TemplateStruct * ttype = (TemplateStruct *)sym->node();
-                        Declarator * new_decl =
-                            makeTemplateStruct(ttype, getTemplateInst())
-                                ->getType()
-                                ->getGenericDeclarator();
-                        new_decl->setScope(getScope());
-                        new_decl->setContext(getContext());
-                        (*replace)(parent, this, new_decl);
-                        new_decl->templateInst = nullptr;
-                        new_decl->analyze(true);
-                        return;
-                    }
-                } else if (t->isStruct() || t->isAlias()) {
-                    if (getTemplateInst())
-                        errorl(getTemplateInst()->getContext(),
-                               "'" + sym->demangledString() +
-                                   "' is not a template type.");
-                } else
-                    errorl(getContext(),
-                           "'" + sym->demangledString() + "' is not a type.");
-            }
-        } else
+        const Type * t = sym->node()->getType();
+        BJOU_DEBUG_ASSERT(t);
+
+        if (t->isStruct()) {
+            if (getTemplateInst())
+                errorl(getTemplateInst()->getContext(),
+                       "'" + sym->demangledString() +
+                           "' is not a template type.");
+        } else if (sym->isTemplateType()) {
+            if (!getTemplateInst())
+                errorl(getContext(),
+                       "Missing template instantiation arguments.");
+            TemplateStruct * ttype = (TemplateStruct *)sym->node();
+            Declarator * new_decl = makeTemplateStruct(ttype, getTemplateInst())
+                                        ->getType()
+                                        ->getGenericDeclarator();
+            new_decl->setScope(getScope());
+            new_decl->setContext(getContext());
+            (*replace)(parent, this, new_decl);
+            new_decl->templateInst = nullptr;
+            new_decl->analyze(true);
+            return;
+        } else if (!t->isPrimative()) {
             errorl(getContext(),
                    "'" + sym->demangledString() + "' is not a type.");
+        }
     } else if (compilation->frontEnd.typeTable.count(mangled) == 0 ||
                !compilation->frontEnd.typeTable[mangled]->isPrimative())
         getScope()->getSymbol(getScope(), getIdentifier(),
@@ -3078,6 +3790,12 @@ void Declarator::unwrap(std::vector<ASTNode *> & terminals) {
 
 ASTNode * Declarator::clone() { return DeclaratorClone(this); }
 
+void Declarator::desugar() {
+    getIdentifier()->desugar();
+    if (getTemplateInst())
+        getTemplateInst()->desugar();
+}
+
 const Type * Declarator::getType() {
     analyze();
 
@@ -3093,11 +3811,10 @@ const Type * Declarator::getType() {
     m_sym.assignTo(sym);
     BJOU_DEBUG_ASSERT(sym);
 
-#ifdef BJOU_DEBUG_BUILD
-    if (!compilation->frontEnd.typeTable.count(sym->name))
-        internalError("'" + sym->name + "' not found in type table.");
-#endif
-    return compilation->frontEnd.typeTable[sym->name];
+    if (sym->isTemplateType())
+        return PlaceholderType::get(); // @bad -- not intended use of
+                                       // PlaceholderType
+    return sym->node()->getType();
 }
 
 void Declarator::addSymbols(Scope * _scope) {
@@ -3143,6 +3860,9 @@ std::string Declarator::mangleAndPrefixSymbol() {
 }
 
 const ASTNode * Declarator::getBase() const { return this; }
+ASTNode * Declarator::under() const { return (ASTNode *)this; }
+
+void Declarator::propagateScope(Scope * _scope) { scope = _scope; }
 //
 
 // ~~~~~ ArrayDeclarator ~~~~~
@@ -3155,6 +3875,7 @@ ArrayDeclarator::ArrayDeclarator()
 ArrayDeclarator::ArrayDeclarator(ASTNode * _arrayOf)
     : arrayOf(_arrayOf), expression(nullptr), size(-2) {
     nodeKind = ARRAY_DECLARATOR;
+    setArrayOf(_arrayOf);
 }
 
 ArrayDeclarator::ArrayDeclarator(ASTNode * _arrayOf, ASTNode * _expression)
@@ -3183,6 +3904,7 @@ void ArrayDeclarator::analyze(bool force) {
     if (getExpression()) {
         Expression * expr = (Expression *)getExpression();
         expr->analyze();
+        expr = (Expression *)getExpression(); // refresh
         if (expr->isConstant()) {
             Val v = expr->eval();
             size = (int)v.as_i64;
@@ -3225,17 +3947,25 @@ ASTNode * ArrayDeclarator::clone() {
     return c;
 }
 
+void ArrayDeclarator::desugar() {
+    getArrayOf()->desugar();
+    getExpression()->desugar();
+}
+
 const Type * ArrayDeclarator::getType() {
     ASTNode * expression = getExpression();
     Declarator * arrayOf = (Declarator *)getArrayOf();
-    ArrayType * arrayt = nullptr;
-    if (expression) {
-        arrayt = new ArrayType(arrayOf->getType(), (Expression *)expression);
-    } else {
-        arrayt = new ArrayType(arrayOf->getType());
-        arrayt->size = size;
+    const Type * array_t = nullptr;
+    BJOU_DEBUG_ASSERT(expression);
+    Expression * expr = (Expression *)getExpression();
+    expr->analyze();
+    int width = -1;
+    if (expr->isConstant()) {
+        expr = (Expression *)getExpression(); // refresh
+        width = (int)expr->eval().as_i64;
     }
-    return arrayt;
+    array_t = ArrayType::get(arrayOf->getType(), width);
+    return array_t;
 }
 
 //
@@ -3255,6 +3985,111 @@ std::string ArrayDeclarator::mangleAndPrefixSymbol() {
 const ASTNode * ArrayDeclarator::getBase() const {
     return ((Declarator *)getArrayOf())->getBase();
 }
+
+ASTNode * ArrayDeclarator::under() const { return (Declarator *)getArrayOf(); }
+
+void ArrayDeclarator::propagateScope(Scope * _scope) {
+    scope = _scope;
+    ((Declarator *)getArrayOf())->propagateScope(_scope);
+}
+
+//
+
+// ~~~~~ SliceDeclarator ~~~~~
+
+SliceDeclarator::SliceDeclarator() : sliceOf(nullptr) {
+    nodeKind = SLICE_DECLARATOR;
+}
+
+SliceDeclarator::SliceDeclarator(ASTNode * _sliceOf) : sliceOf(_sliceOf) {
+    nodeKind = SLICE_DECLARATOR;
+    setSliceOf(_sliceOf);
+}
+
+ASTNode * SliceDeclarator::getSliceOf() const { return sliceOf; }
+void SliceDeclarator::setSliceOf(ASTNode * _sliceOf) {
+    sliceOf = _sliceOf;
+    sliceOf->parent = this;
+    sliceOf->replace = rpget<replacementPolicy_SliceDeclarator_SliceOf>();
+}
+
+// Node interface
+void SliceDeclarator::analyze(bool force) {
+    HANDLE_FORCE();
+
+    getSliceOf()->analyze();
+
+    setFlag(ANALYZED, true);
+
+    desugar();
+}
+
+SliceDeclarator::~SliceDeclarator() {
+    BJOU_DEBUG_ASSERT(sliceOf);
+    delete sliceOf;
+}
+
+void SliceDeclarator::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    getSliceOf()->addSymbols(_scope);
+}
+
+void SliceDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
+    getSliceOf()->unwrap(terminals);
+}
+
+ASTNode * SliceDeclarator::clone() {
+    SliceDeclarator * c = DeclaratorClone(this);
+
+    c->setSliceOf(c->getSliceOf()->clone());
+
+    return c;
+}
+
+void SliceDeclarator::desugar() {
+    /*
+    getSliceOf()->desugar();
+
+    SliceType * slice_t = (SliceType*)getType();
+
+    Declarator * new_decl = slice_t->getRealType()->getGenericDeclarator();
+
+    (*replace)(parent, this, new_decl);
+
+    new_decl->addSymbols(getScope());
+    new_decl->analyze();
+    */
+}
+
+const Type * SliceDeclarator::getType() {
+    return SliceType::get(getSliceOf()->getType());
+}
+
+//
+
+// Declarator interface
+std::string SliceDeclarator::mangleSymbol() {
+    return "s" + ((Declarator *)getSliceOf())->mangleSymbol();
+}
+
+std::string SliceDeclarator::mangleAndPrefixSymbol() {
+    std::string baseMangled =
+        ((Declarator *)getSliceOf())->mangleAndPrefixSymbol();
+    return baseMangled.substr(0, strlen("T")) + "s" +
+           baseMangled.substr(strlen("T") /* to end */);
+}
+
+const ASTNode * SliceDeclarator::getBase() const {
+    return ((Declarator *)getSliceOf())->getBase();
+}
+
+ASTNode * SliceDeclarator::under() const { return (Declarator *)getSliceOf(); }
+
+void SliceDeclarator::propagateScope(Scope * _scope) {
+    scope = _scope;
+    ((Declarator *)getSliceOf())->propagateScope(_scope);
+}
+
 //
 
 // ~~~~~ DynamicArrayDeclarator ~~~~~
@@ -3266,6 +4101,7 @@ DynamicArrayDeclarator::DynamicArrayDeclarator() : arrayOf(nullptr) {
 DynamicArrayDeclarator::DynamicArrayDeclarator(ASTNode * _arrayOf)
     : arrayOf(_arrayOf) {
     nodeKind = DYNAMIC_ARRAY_DECLARATOR;
+    setArrayOf(_arrayOf);
 }
 
 ASTNode * DynamicArrayDeclarator::getArrayOf() const { return arrayOf; }
@@ -3279,9 +4115,12 @@ void DynamicArrayDeclarator::setArrayOf(ASTNode * _arrayOf) {
 // Node interface
 void DynamicArrayDeclarator::analyze(bool force) {
     HANDLE_FORCE();
+
     getArrayOf()->analyze();
-    // more to be done here
+
     setFlag(ANALYZED, true);
+
+    desugar();
 }
 
 DynamicArrayDeclarator::~DynamicArrayDeclarator() {
@@ -3301,15 +4140,28 @@ void DynamicArrayDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
 ASTNode * DynamicArrayDeclarator::clone() {
     DynamicArrayDeclarator * c = DeclaratorClone(this);
 
-    // if (c->getArrayOf())
     c->setArrayOf(c->getArrayOf()->clone());
 
     return c;
 }
 
+void DynamicArrayDeclarator::desugar() {
+    /*
+    getArrayOf()->desugar();
+
+    DynamicArrayType * dyn_t = (DynamicArrayType*)getType();
+
+    Declarator * new_decl = dyn_t->getRealType()->getGenericDeclarator();
+
+    (*replace)(parent, this, new_decl);
+
+    new_decl->addSymbols(getScope());
+    new_decl->analyze();
+    */
+}
+
 const Type * DynamicArrayDeclarator::getType() {
-    Declarator * arrayOf = (Declarator *)getArrayOf();
-    return new DynamicArrayType(arrayOf->getType());
+    return DynamicArrayType::get(getArrayOf()->getType());
 }
 
 //
@@ -3329,6 +4181,16 @@ std::string DynamicArrayDeclarator::mangleAndPrefixSymbol() {
 const ASTNode * DynamicArrayDeclarator::getBase() const {
     return ((Declarator *)getArrayOf())->getBase();
 }
+
+ASTNode * DynamicArrayDeclarator::under() const {
+    return (Declarator *)getArrayOf();
+}
+
+void DynamicArrayDeclarator::propagateScope(Scope * _scope) {
+    scope = _scope;
+    ((Declarator *)getArrayOf())->propagateScope(_scope);
+}
+
 //
 
 // ~~~~~ PointerDeclarator ~~~~~
@@ -3343,6 +4205,7 @@ PointerDeclarator::PointerDeclarator(ASTNode * _pointerOf)
     // a pointer anywhere in the chain of different declarator types implies
     // that the base type does not need to be complete in order for the total
     // declarator to be valid in any context
+    setPointerOf(_pointerOf);
     ((Declarator *)getBase())->setFlag(IMPLIES_COMPLETE, false);
 }
 
@@ -3383,12 +4246,12 @@ ASTNode * PointerDeclarator::clone() {
     return c;
 }
 
+void PointerDeclarator::desugar() { getPointerOf()->desugar(); }
+
 const Type * PointerDeclarator::getType() {
     Declarator * pointerOf = (Declarator *)getPointerOf();
-    return new PointerType(pointerOf->getType());
+    return PointerType::get(pointerOf->getType());
 }
-
-//
 
 // Declarator interface
 std::string PointerDeclarator::mangleSymbol() {
@@ -3405,6 +4268,98 @@ std::string PointerDeclarator::mangleAndPrefixSymbol() {
 const ASTNode * PointerDeclarator::getBase() const {
     return ((Declarator *)getPointerOf())->getBase();
 }
+
+ASTNode * PointerDeclarator::under() const {
+    return (Declarator *)getPointerOf();
+}
+
+void PointerDeclarator::propagateScope(Scope * _scope) {
+    scope = _scope;
+    ((Declarator *)getPointerOf())->propagateScope(_scope);
+}
+//
+//
+
+// ~~~~~ RefDeclarator ~~~~~
+
+RefDeclarator::RefDeclarator() : refOf(nullptr) { nodeKind = REF_DECLARATOR; }
+
+RefDeclarator::RefDeclarator(ASTNode * _refOf) : refOf(_refOf) {
+    nodeKind = REF_DECLARATOR;
+    // a ref anywhere in the chain of different declarator types implies
+    // that the base type does not need to be complete in order for the total
+    // declarator to be valid in any context
+    setRefOf(_refOf);
+    ((Declarator *)getBase())->setFlag(IMPLIES_COMPLETE, false);
+}
+
+ASTNode * RefDeclarator::getRefOf() const { return refOf; }
+void RefDeclarator::setRefOf(ASTNode * _refOf) {
+    refOf = _refOf;
+    refOf->parent = this;
+    refOf->replace = rpget<replacementPolicy_RefDeclarator_RefOf>();
+}
+
+// Node interface
+void RefDeclarator::analyze(bool force) {
+    HANDLE_FORCE();
+    getRefOf()->analyze();
+    setFlag(ANALYZED, true);
+}
+
+RefDeclarator::~RefDeclarator() {
+    BJOU_DEBUG_ASSERT(refOf);
+    delete refOf;
+}
+
+void RefDeclarator::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    getRefOf()->addSymbols(_scope);
+}
+
+void RefDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
+    getRefOf()->unwrap(terminals);
+}
+
+ASTNode * RefDeclarator::clone() {
+    RefDeclarator * c = DeclaratorClone(this);
+
+    // if (c->getRefOf())
+    c->setRefOf(c->getRefOf()->clone());
+
+    return c;
+}
+
+void RefDeclarator::desugar() { getRefOf()->desugar(); }
+
+const Type * RefDeclarator::getType() {
+    Declarator * refOf = (Declarator *)getRefOf();
+    return RefType::get(refOf->getType());
+}
+//
+
+// Declarator interface
+std::string RefDeclarator::mangleSymbol() {
+    return "r" + ((Declarator *)getRefOf())->mangleSymbol();
+}
+
+std::string RefDeclarator::mangleAndPrefixSymbol() {
+    std::string baseMangled =
+        ((Declarator *)getRefOf())->mangleAndPrefixSymbol();
+    return baseMangled.substr(0, strlen("T")) + "r" +
+           baseMangled.substr(strlen("T") /* to end */);
+}
+
+const ASTNode * RefDeclarator::getBase() const {
+    return ((Declarator *)getRefOf())->getBase();
+}
+
+ASTNode * RefDeclarator::under() const { return (Declarator *)getRefOf(); }
+
+void RefDeclarator::propagateScope(Scope * _scope) {
+    scope = _scope;
+    ((Declarator *)getRefOf())->propagateScope(_scope);
+}
 //
 
 // ~~~~~ MaybeDeclarator ~~~~~
@@ -3413,7 +4368,10 @@ MaybeDeclarator::MaybeDeclarator() : maybeOf(nullptr) {
     nodeKind = MAYBE_DECLARATOR;
 }
 
-MaybeDeclarator::MaybeDeclarator(ASTNode * _maybeOf) : maybeOf(_maybeOf) {}
+MaybeDeclarator::MaybeDeclarator(ASTNode * _maybeOf) : maybeOf(_maybeOf) {
+    nodeKind = MAYBE_DECLARATOR;
+    setMaybeOf(_maybeOf);
+}
 
 ASTNode * MaybeDeclarator::getMaybeOf() const { return maybeOf; }
 void MaybeDeclarator::setMaybeOf(ASTNode * _maybeOf) {
@@ -3446,15 +4404,19 @@ void MaybeDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
 ASTNode * MaybeDeclarator::clone() {
     MaybeDeclarator * c = DeclaratorClone(this);
 
-    // if (c->getMaybeOf())
+    // if (c->maybeOfOf())
     c->setMaybeOf(c->getMaybeOf()->clone());
 
     return c;
 }
 
+void MaybeDeclarator::desugar() { getMaybeOf()->desugar(); }
+
 const Type * MaybeDeclarator::getType() {
     Declarator * maybeOf = (Declarator *)getMaybeOf();
-    return new MaybeType(maybeOf->getType());
+    BJOU_DEBUG_ASSERT(false);
+    // return new MaybeType(maybeOf->getType());
+    return nullptr;
 }
 //
 
@@ -3472,6 +4434,13 @@ std::string MaybeDeclarator::mangleAndPrefixSymbol() {
 
 const ASTNode * MaybeDeclarator::getBase() const {
     return ((Declarator *)getMaybeOf())->getBase();
+}
+
+ASTNode * MaybeDeclarator::under() const { return (Declarator *)getMaybeOf(); }
+
+void MaybeDeclarator::propagateScope(Scope * _scope) {
+    scope = _scope;
+    ((Declarator *)getMaybeOf())->propagateScope(_scope);
 }
 //
 
@@ -3531,16 +4500,21 @@ ASTNode * TupleDeclarator::clone() {
     return c;
 }
 
+void TupleDeclarator::desugar() {
+    for (ASTNode * decl : getSubDeclarators())
+        decl->desugar();
+}
+
 const Type * TupleDeclarator::getType() {
     std::vector<ASTNode *> & subDeclarators = getSubDeclarators();
-    std::vector<const Type *> subTypes;
+    std::vector<const Type *> types;
 
     std::transform(subDeclarators.begin(), subDeclarators.end(),
-                   std::back_inserter(subTypes), [](ASTNode * declarator) {
+                   std::back_inserter(types), [](ASTNode * declarator) {
                        return ((Declarator *)declarator)->getType();
                    });
 
-    return new TupleType(subTypes);
+    return TupleType::get(types);
 }
 
 //
@@ -3559,6 +4533,12 @@ std::string TupleDeclarator::mangleSymbol() {
 std::string TupleDeclarator::mangleAndPrefixSymbol() { return mangleSymbol(); }
 
 const ASTNode * TupleDeclarator::getBase() const { return this; }
+
+void TupleDeclarator::propagateScope(Scope * _scope) {
+    scope = _scope;
+    for (ASTNode * sd : getSubDeclarators())
+        ((Declarator *)sd)->propagateScope(_scope);
+}
 //
 
 // ~~~~~ ProcedureDeclarator ~~~~~
@@ -3595,9 +4575,20 @@ void ProcedureDeclarator::setRetDeclarator(ASTNode * _retDeclarator) {
 // Node interface
 void ProcedureDeclarator::analyze(bool force) {
     HANDLE_FORCE();
-    for (ASTNode * pd : getParamDeclarators())
+    for (ASTNode * pd : getParamDeclarators()) {
         ((Declarator *)pd)->analyze();
+        const Type * pd_t = pd->getType();
+        if (pd_t->isStruct() && ((StructType *)pd_t)->isAbstract)
+            errorl(pd->getContext(),
+                   "Can't use '" + pd_t->getDemangledName() +
+                       "' as a parameter type because it is an abstract type.");
+    }
     ((Declarator *)getRetDeclarator())->analyze();
+    const Type * rd_t = getRetDeclarator()->getType();
+    if (rd_t->isStruct() && ((StructType *)rd_t)->isAbstract)
+        errorl(getRetDeclarator()->getContext(),
+               "Can't use '" + rd_t->getDemangledName() +
+                   "' as a return type because it is an abstract type.");
     setFlag(ANALYZED, true);
 }
 
@@ -3636,6 +4627,12 @@ ASTNode * ProcedureDeclarator::clone() {
     return c;
 }
 
+void ProcedureDeclarator::desugar() {
+    for (ASTNode * p : getParamDeclarators())
+        p->desugar();
+    getRetDeclarator()->desugar();
+}
+
 const Type * ProcedureDeclarator::getType() {
     std::vector<ASTNode *> & paramDeclarators = getParamDeclarators();
     std::vector<const Type *> paramTypes;
@@ -3646,7 +4643,7 @@ const Type * ProcedureDeclarator::getType() {
     const Type * retType = ((Declarator *)getRetDeclarator())->getType();
     bool isVararg = getFlag(IS_VARARG);
 
-    return new ProcedureType(paramTypes, retType, isVararg);
+    return ProcedureType::get(paramTypes, retType, isVararg);
 }
 //
 
@@ -3668,6 +4665,13 @@ std::string ProcedureDeclarator::mangleAndPrefixSymbol() {
 }
 
 const ASTNode * ProcedureDeclarator::getBase() const { return this; }
+
+void ProcedureDeclarator::propagateScope(Scope * _scope) {
+    scope = _scope;
+    for (ASTNode * pd : getParamDeclarators())
+        ((Declarator *)pd)->propagateScope(_scope);
+    ((Declarator *)getRetDeclarator())->propagateScope(_scope);
+}
 //
 
 // ~~~~~ PlaceholderDeclarator ~~~~~
@@ -3695,7 +4699,9 @@ void PlaceholderDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
 
 ASTNode * PlaceholderDeclarator::clone() { return DeclaratorClone(this); }
 
-const Type * PlaceholderDeclarator::getType() { return new PlaceholderType; }
+void PlaceholderDeclarator::desugar() {}
+
+const Type * PlaceholderDeclarator::getType() { return PlaceholderType::get(); }
 //
 
 // Declarator interface
@@ -3747,7 +4753,7 @@ void Constant::analyze(bool force) {
 
         const Type * t = getTypeDeclarator()->getType(); // @leak
         lValStack.push(t);
-        if (!t->equivalent(getInitialization()->getType()))
+        if (!conv(t, getInitialization()->getType()))
             errorl(
                 getInitialization()->getContext(),
                 "Can't create '" + t->getDemangledName() + "'" + " constant " +
@@ -3799,6 +4805,13 @@ ASTNode * Constant::clone() {
     c->setInitialization(c->getInitialization()->clone());
 
     return c;
+}
+
+void Constant::desugar() {
+    if (getTypeDeclarator())
+        getTypeDeclarator()->desugar();
+    if (getInitialization())
+        getInitialization()->desugar();
 }
 
 bool Constant::isStatement() const { return true; }
@@ -3858,45 +4871,58 @@ void VariableDeclaration::analyze(bool force) {
     setFlag(ANALYZED, true); // prevents endless recursion if initialization
                              // references self (i.e. 'f : f32 = f')
 
+    const Type * my_t = nullptr;
     Symbol * sym = nullptr;
 
     if (!getFlag(IS_TYPE_MEMBER)) {
         Maybe<Symbol *> m_sym = getScope()->getSymbol(
-            getScope(), getMangledName(), &getNameContext());
+            getScope(), getMangledName(), &getNameContext(), true, true, false);
         m_sym.assignTo(sym);
         BJOU_DEBUG_ASSERT(sym);
     }
 
     if (getInitialization()) {
+        const Type * init_t = nullptr;
+
+        sym->initializedInScopes.insert(getScope());
+
         if (getFlag(IS_TYPE_MEMBER))
             errorl(getInitialization()->getContext(),
                    "Type member variables cannot be initialized.", true,
                    "did you mean to make '" + getName() + "' a constant?");
 
         if (getTypeDeclarator()) {
+            const Type * decl_t = getTypeDeclarator()->getType();
+
+            my_t = decl_t;
+
+            decl_t = decl_t->unRef();
+
             std::stack<const Type *> & lValStack =
                 compilation->frontEnd.lValStack;
 
-            const Type * t = getTypeDeclarator()->getType(); // @leak
-            lValStack.push(t);
+            lValStack.push(decl_t);
 
-            if (!t->equivalent(getInitialization()->getType()))
+            init_t = getInitialization()->getType();
+
+            if (my_t->isRef() &&
+                !((Expression *)getInitialization())->canBeLVal())
                 errorl(getInitialization()->getContext(),
-                       "Can't initialize " + t->getDemangledName() + " '" +
-                           getName() + "' with expression of type '" +
-                           getInitialization()->getType()->getDemangledName() +
-                           "'.");
+                       "Reference initializer can't be used as a reference.");
 
-            const Type * init_t = getInitialization()->getType();
-            if (t->isPrimative() && init_t->isPrimative())
-                if (!t->equivalent(getInitialization()->getType(),
-                                   /* exact_match =*/true))
-                    emplaceConversion((Expression *)getInitialization(), t);
+            if (!conv(decl_t, init_t))
+                errorl(getInitialization()->getContext(),
+                       "Can't initialize " + decl_t->getDemangledName() + " '" +
+                           getName() + "' with expression of type '" +
+                           init_t->getDemangledName() + "'.");
+
+            if (!equal(decl_t, init_t))
+                emplaceConversion((Expression *)getInitialization(), decl_t);
 
             lValStack.pop();
         } else {
-            setTypeDeclarator(
-                getInitialization()->getType()->getGenericDeclarator());
+            my_t = init_t = getInitialization()->getType();
+            setTypeDeclarator(init_t->getGenericDeclarator());
             getTypeDeclarator()->addSymbols(getScope());
         }
         if ((getScope()->nspace || !getScope()->parent) &&
@@ -3904,13 +4930,20 @@ void VariableDeclaration::analyze(bool force) {
             errorl(getInitialization()->getContext(),
                    "Global variable initializations must be compile time "
                    "constants.");
+    } else {
+        my_t = getTypeDeclarator()->getType();
 
-        sym->initializedInScopes.insert(getScope());
+        if (!getFlag(IS_PROC_PARAM) && !getFlag(IS_TYPE_MEMBER) &&
+            getTypeDeclarator()->getType()->isRef()) {
+
+            errorl(getContext(),
+                   "'" + getName() +
+                       "' is a reference and must be initialized.");
+        }
     }
+
     BJOU_DEBUG_ASSERT(getTypeDeclarator() &&
                       "No typeDeclarator in VariableDeclaration");
-
-    getTypeDeclarator()->analyze(force);
 
     if (getTypeDeclarator()->nodeKind == ARRAY_DECLARATOR) {
         if (sym) {
@@ -3934,7 +4967,8 @@ void VariableDeclaration::analyze(bool force) {
         }
     }
 
-    const Type * my_t = getTypeDeclarator()->getType(); // @leak
+    BJOU_DEBUG_ASSERT(my_t);
+
     if (my_t->isStruct() && ((StructType *)my_t)->isAbstract)
         errorl(getTypeDeclarator()->getContext(),
                "Can't instantiate '" + my_t->getDemangledName() +
@@ -3973,6 +5007,13 @@ ASTNode * VariableDeclaration::clone() {
     return c;
 }
 
+void VariableDeclaration::desugar() {
+    if (getTypeDeclarator())
+        getTypeDeclarator()->desugar();
+    if (getInitialization())
+        getInitialization()->desugar();
+}
+
 VariableDeclaration::~VariableDeclaration() {
     if (typeDeclarator)
         delete typeDeclarator;
@@ -3984,7 +5025,7 @@ VariableDeclaration::~VariableDeclaration() {
 const Type * VariableDeclaration::getType() {
     if (!getTypeDeclarator())
         analyze();
-    return ((Declarator *)getTypeDeclarator())->getType();
+    return getTypeDeclarator()->getType();
 }
 
 bool VariableDeclaration::isStatement() const { return true; }
@@ -4026,8 +5067,11 @@ void Alias::addSymbols(Scope * _scope) {
     setMangledName(symbol->mangledString(_scope));
     _scope->addSymbol(symbol, &getNameContext());
 
+    BJOU_DEBUG_ASSERT(false);
+    /*
     compilation->frontEnd.typeTable[getMangledName()] =
         new AliasType(getMangledName(), this);
+    */
     getDeclarator()->addSymbols(_scope);
 }
 
@@ -4035,11 +5079,8 @@ const Type * Alias::getType() {
     analyze();
     std::string mangled = getMangledName();
 
-#ifdef BJOU_DEBUG_BUILD
-    if (!compilation->frontEnd.typeTable.count(mangled))
-        internalError("'" + mangled + "' not found in type table.");
-#endif
-    return compilation->frontEnd.typeTable[mangled];
+    BJOU_DEBUG_ASSERT(false);
+    return nullptr;
 }
 
 void Alias::unwrap(std::vector<ASTNode *> & terminals) {
@@ -4054,6 +5095,8 @@ ASTNode * Alias::clone() {
 
     return c;
 }
+
+void Alias::desugar() { getDeclarator()->desugar(); }
 
 Alias::~Alias() {
     BJOU_DEBUG_ASSERT(declarator);
@@ -4263,7 +5306,7 @@ void Struct::analyze(bool force) {
     if (getExtends()) {
         ASTNode * extends = getExtends();
         const Type * e_t = extends->getType();
-        if (e_t->getOriginal()->isStruct()) {
+        if (e_t->isStruct()) {
             const StructType * e_s_t = (const StructType *)e_t;
             Struct * extendsStruct = (Struct *)e_s_t->_struct;
             std::vector<std::string> implNames;
@@ -4324,9 +5367,11 @@ void Struct::preDeclare(Scope * _scope) {
     setMangledName(symbol->mangledString(_scope));
     _scope->addSymbol(symbol, &getNameContext());
 
+    if (getMangledName() == "typeinfo")
+        compilation->frontEnd.typeinfo_struct = this;
+
     // @refactor? should this really be here?
-    compilation->frontEnd.typeTable[getMangledName()] =
-        new StructType(getMangledName(), this, (TemplateInstantiation *)inst);
+    StructType::get(getMangledName(), this, (TemplateInstantiation *)inst);
 }
 
 void Struct::addSymbols(Scope * _scope) {
@@ -4408,6 +5453,19 @@ ASTNode * Struct::clone() {
     return c;
 }
 
+void Struct::desugar() {
+    if (getExtends())
+        getExtends()->desugar();
+    for (ASTNode * mem : getMemberVarDecls())
+        mem->desugar();
+    for (ASTNode * constant : getConstantDecls())
+        constant->desugar();
+    for (ASTNode * proc : getMemberProcs())
+        proc->desugar();
+    for (ASTNode * impl : getInterfaceImpls())
+        impl->desugar();
+}
+
 Struct::~Struct() {
     for (ASTNode * mvd : memberVarDecls)
         delete mvd;
@@ -4425,11 +5483,7 @@ const Type * Struct::getType() {
     // analyze(); // should not be necessary
     std::string mangled = getMangledName();
 
-#ifdef BJOU_DEBUG_BUILD
-    if (!compilation->frontEnd.typeTable.count(mangled))
-        internalError("'" + mangled + "' not found in type table.");
-#endif
-    return compilation->frontEnd.typeTable[mangled];
+    return StructType::get(mangled);
 }
 
 // ~~~~~ InterfaceDef ~~~~~
@@ -4498,7 +5552,7 @@ void InterfaceDef::analyze(bool force) {
                 if (proc != pt.first) {
                     ProcedureType * proc_type =
                         (ProcedureType *)proc_types[proc];
-                    if (proc_type->argMatch(pt.second, /*exact_match =*/true)) {
+                    if (argMatch(proc_type, pt.second)) {
                         errorl(pt.first->getNameContext(),
                                "Interface procedure declaration matches "
                                "previous declaration.",
@@ -4573,6 +5627,12 @@ ASTNode * InterfaceDef::clone() {
             c->addProc(it.first, p->clone());
 
     return c;
+}
+
+void InterfaceDef::desugar() {
+    for (auto & procs : getProcs())
+        for (ASTNode * proc : procs.second)
+            proc->desugar();
 }
 
 InterfaceDef::~InterfaceDef() {
@@ -4656,14 +5716,14 @@ void InterfaceImplementation::analyze(bool force) {
                 for (ASTNode * _def : defs) {
                     Procedure * def = (Procedure *)_def;
 
-                    const Type * parent_t = parent->getType(); // @leak?
-					
+                    const Type * parent_t = parent->getType();
+
                     const Type * placeholder_def_t =
                         (const Type *)def->getType();
                     const Type * def_t =
                         placeholder_def_t->replacePlaceholders(parent_t);
 
-                    reqs.push_back(def_t->getDemangledName()); // @leak
+                    reqs.push_back(def_t->getDemangledName());
                     errorl(id->getContext(),
                            "'" +
                                demangledString(
@@ -4682,21 +5742,22 @@ void InterfaceImplementation::analyze(bool force) {
 
                 const Type * parent_t = parent->getType(); // @leak?
 
-				const Type * placeholder_def_t = (const Type *)def->getType();
+                const Type * placeholder_def_t = (const Type *)def->getType();
                 const Type * def_t =
                     placeholder_def_t->replacePlaceholders(parent_t);
 
                 bool found = false;
                 std::vector<ASTNode *> & procImpls = getProcs()[procName];
                 for (ASTNode * proc : procImpls) {
-                    if (def_t->equivalent(proc->getType(),
-                                          /* exactMatch = */ true)) {
+                    if (equal(def_t, proc->getType())) {
                         found = true;
                         used.insert(proc);
-				
-						if (ifaceDef->getMangledName() == "idestroy" && procName == "destroy")
-							((StructType*)parent_t)->idestroy_link = (Procedure*)proc;
-                
+
+                        if (ifaceDef->getMangledName() == "idestroy" &&
+                            procName == "destroy")
+                            ((StructType *)parent_t)->idestroy_link =
+                                (Procedure *)proc;
+
                         break;
                     }
                 }
@@ -4756,8 +5817,8 @@ void InterfaceImplementation::addSymbols(Scope * _scope) {
 
                 for (ASTNode * _param : proc->getParamVarDeclarations()) {
                     VariableDeclaration * param = (VariableDeclaration *)_param;
-					param->setScope(ifaceDef->getScope());
-					param->getTypeDeclarator()->setScope(ifaceDef->getScope());
+                    param->setScope(ifaceDef->getScope());
+                    param->getTypeDeclarator()->setScope(ifaceDef->getScope());
 
                     BJOU_DEBUG_ASSERT(param->getTypeDeclarator());
 
@@ -4803,11 +5864,19 @@ ASTNode * InterfaceImplementation::clone() {
 
     my_procs.clear();
 
+    c->setIdentifier(getIdentifier()->clone());
+
     for (auto & it : _procs)
         for (ASTNode * p : it.second)
             c->addProc(it.first, p->clone());
 
     return c;
+}
+
+void InterfaceImplementation::desugar() {
+    for (auto & procs : getProcs())
+        for (ASTNode * proc : procs.second)
+            proc->desugar();
 }
 
 InterfaceImplementation::~InterfaceImplementation() {
@@ -4859,11 +5928,8 @@ const Type * Enum::getType() {
     analyze();
     std::string mangled = getMangledName();
 
-#ifdef BJOU_DEBUG_BUILD
-    if (!compilation->frontEnd.typeTable.count(mangled))
-        internalError("'" + mangled + "' not found in type table.");
-#endif
-    return compilation->frontEnd.typeTable[mangled];
+    BJOU_DEBUG_ASSERT(false);
+    return nullptr;
 }
 
 // ~~~~~ ArgList ~~~~~
@@ -4914,6 +5980,11 @@ ASTNode * ArgList::clone() {
     return c;
 }
 
+void ArgList::desugar() {
+    for (ASTNode * expr : getExpressions())
+        expr->desugar();
+}
+
 void ArgList::addSymbols(Scope * _scope) {
     setScope(_scope);
     for (ASTNode * expr : getExpressions())
@@ -4926,12 +5997,46 @@ ArgList::~ArgList() {
 }
 //
 
+static void handleTerminators(ASTNode * statement,
+                              std::vector<ASTNode *> & statements,
+                              ASTNode *& node) {
+    if (node->nodeKind == ASTNode::RETURN || node->nodeKind == ASTNode::BREAK ||
+        node->nodeKind == ASTNode::CONTINUE) {
+
+        statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
+
+        auto search = std::find(statements.begin(), statements.end(), node);
+
+        BJOU_DEBUG_ASSERT(search != statements.end());
+
+        search++;
+
+        for (; search != statements.end(); search++) {
+            if ((*search)->nodeKind != ASTNode::MACRO_USE &&
+                (*search)->nodeKind != ASTNode::IGNORE) {
+
+                std::string err_str;
+
+                if (node->nodeKind == ASTNode::RETURN)
+                    err_str = "return";
+                else if (node->nodeKind == ASTNode::BREAK)
+                    err_str = "break";
+                else if (node->nodeKind == ASTNode::CONTINUE)
+                    err_str = "continue";
+
+                errorl(node->getContext(),
+                       "Code below this " + err_str + " will never execute.");
+            }
+        }
+    }
+}
+
 // ~~~~~ This ~~~~~
 
 This::This() { nodeKind = THIS; }
 
 // Node interface
-const Type * This::getType() { return (new PlaceholderType)->pointerOf(); }
+const Type * This::getType() { return PlaceholderType::get()->getRef(); }
 
 void This::analyze(bool force) {
     HANDLE_FORCE();
@@ -5052,7 +6157,7 @@ void Procedure::desugarThis() {
 
             Declarator * base = s->getType()->getGenericDeclarator();
 
-            param->setTypeDeclarator(new PointerDeclarator(base));
+            param->setTypeDeclarator(new RefDeclarator(base));
             param->getTypeDeclarator()->addSymbols(
                 node->getScope()); // @bad. does this make sense?
 
@@ -5070,24 +6175,29 @@ void Procedure::analyze(bool force) {
 
     compilation->frontEnd.procStack.push(this);
 
-    for (ASTNode * param : getParamVarDeclarations())
+    for (ASTNode * param : getParamVarDeclarations()) {
         param->analyze(force);
+        const Type * p_t = param->getType();
+        if (p_t->isStruct() && ((StructType *)p_t)->isAbstract)
+            errorl(param->getContext(),
+                   "Can't use '" + p_t->getDemangledName() +
+                       "' as a parameter type because it is an abstract type.");
+    }
     getRetDeclarator()->analyze(force);
+    const Type * r_t = getRetDeclarator()->getType();
+    if (r_t->isStruct() && ((StructType *)r_t)->isAbstract)
+        errorl(getRetDeclarator()->getContext(),
+               "Can't use '" + r_t->getDemangledName() +
+                   "' as a return type because it is an abstract type.");
 
     for (ASTNode *& statement : getStatements()) {
         statement->analyze(force);
-        if (statement->nodeKind == RETURN) {
-            setFlag(HAS_TOP_LEVEL_RETURN, true);
-            if (&statement != &getStatements().back())
-                errorl(statement->getContext(),
-                       "Code below this return will never execute.");
-        }
+        handleTerminators(this, getStatements(), statement);
     }
 
     if (!getFlag(HAS_TOP_LEVEL_RETURN) && !getFlag(IS_EXTERN) &&
-        !getRetDeclarator()->getType()->equivalent(
-            compilation->frontEnd
-                .typeTable[compilation->frontEnd.getBuiltinVoidTypeName()])) {
+        !conv(getRetDeclarator()->getType(), VoidType::get())) {
+
         errorl(getContext().lastchar(),
                "'" + getName() + "' must explicitly return a value of type '" +
                    retDeclarator->getType()->getDemangledName() + "'");
@@ -5136,6 +6246,13 @@ void Procedure::addSymbols(Scope * _scope) {
         "scope opened by " + demangledString(getMangledName());
 
     _scope->addSymbol(symbol, &getNameContext());
+
+    if (getMangledName() == "printf" && getFlag(IS_EXTERN))
+        compilation->frontEnd.printf_decl = this;
+    if (getMangledName() == "malloc" && getFlag(IS_EXTERN))
+        compilation->frontEnd.malloc_decl = this;
+    if (getMangledName() == "free" && getFlag(IS_EXTERN))
+        compilation->frontEnd.free_decl = this;
 }
 
 void Procedure::unwrap(std::vector<ASTNode *> & terminals) {
@@ -5175,6 +6292,16 @@ ASTNode * Procedure::clone() {
     return c;
 }
 
+void Procedure::desugar() {
+    if (getProcDeclarator())
+        getProcDeclarator()->desugar();
+    for (ASTNode * p : getParamVarDeclarations())
+        p->desugar();
+    getRetDeclarator()->desugar();
+    for (ASTNode * s : getStatements())
+        s->desugar();
+}
+
 Procedure::~Procedure() {
     for (ASTNode * pvd : paramVarDeclarations)
         delete pvd;
@@ -5193,22 +6320,20 @@ const Type * Procedure::getType() {
     if (procDeclarator)
         return procDeclarator->getType();
     procDeclarator = new ProcedureDeclarator();
-    std::vector<ASTNode *> paramVarDeclarations = getParamVarDeclarations();
-    std::transform(
-        paramVarDeclarations.begin(), paramVarDeclarations.end(),
-        std::back_inserter(procDeclarator->getParamDeclarators()),
-        [&](ASTNode * paramVarDeclaration) {
-            Declarator * d =
-                paramVarDeclaration->getType()->getGenericDeclarator();
-            d->addSymbols(paramVarDeclaration->getScope());
-            return d;
-        });
+
+    for (ASTNode * p : getParamVarDeclarations()) {
+        Declarator * d = p->getType()->getGenericDeclarator();
+        d->addSymbols(p->getScope());
+        procDeclarator->addParamDeclarator(d);
+    }
+
     procDeclarator->setRetDeclarator(
         getRetDeclarator()->getType()->getGenericDeclarator());
     procDeclarator->addSymbols(getRetDeclarator()->getScope());
     procDeclarator->setFlag(ProcedureDeclarator::eBitFlags::IS_VARARG,
                             getFlag(IS_VARARG));
     setProcDeclarator(procDeclarator);
+
     return procDeclarator->getType();
 }
 
@@ -5297,6 +6422,11 @@ ASTNode * Namespace::clone() {
     return c;
 }
 
+void Namespace::desugar() {
+    for (ASTNode * node : getNodes())
+        node->desugar();
+}
+
 Namespace::~Namespace() {
     for (ASTNode * n : nodes)
         delete n;
@@ -5311,6 +6441,10 @@ std::string & Import::getModule() { return module; }
 void Import::setModule(std::string _module) { module = _module; }
 
 // Node interface
+void Import::unwrap(std::vector<ASTNode *> & terminals) {
+    terminals.push_back(this);
+}
+
 void Import::analyze(bool force) {
     HANDLE_FORCE();
     setFlag(ANALYZED, true);
@@ -5345,8 +6479,7 @@ void Print::analyze(bool force) {
     ArgList * args = (ArgList *)getArgs();
     Expression * formatArg = (Expression *)args->getExpressions()[0];
 
-    if (!formatArg->getType()->equivalent(
-            compilation->frontEnd.typeTable["char"]->pointerOf()) ||
+    if (!conv(formatArg->getType(), CharType::get()->getPointer()) ||
         !formatArg->isConstant())
         errorl(formatArg->getContext(),
                "First argument to print must be a constant string.");
@@ -5378,6 +6511,8 @@ ASTNode * Print::clone() {
 
     return c;
 }
+
+void Print::desugar() { getArgs()->desugar(); }
 
 bool Print::isStatement() const { return true; }
 
@@ -5415,14 +6550,12 @@ void Return::analyze(bool force) {
             Expression * expr = (Expression *)getExpression();
             expr->analyze(force);
             // @leaks abound
-            if (retLVal->equivalent(
-                    compilation->frontEnd.typeTable
-                        [compilation->frontEnd.getBuiltinVoidTypeName()])) {
+            if (retLVal == VoidType::get()) {
                 errorl(expr->getContext(),
                        "'" + proc->getName() + "' does not return a value.");
             } else {
                 const Type * expr_t = expr->getType();
-                if (!expr_t->equivalent(retLVal))
+                if (!conv(expr_t, retLVal))
                     errorl(expr->getContext(),
                            "return statement does not match the return type "
                            "for procedure '" +
@@ -5431,13 +6564,11 @@ void Return::analyze(bool force) {
                            "expected '" + retLVal->getDemangledName() + "'",
                            "got '" + expr_t->getDemangledName() + "'");
                 if (retLVal->isPrimative() && expr_t->isPrimative())
-                    if (!expr_t->equivalent(retLVal, /* exact_match =*/true))
+                    if (!equal(expr_t, retLVal))
                         emplaceConversion((Expression *)getExpression(),
                                           retLVal);
             }
-        } else if (!retLVal->equivalent(
-                       compilation->frontEnd.typeTable
-                           [compilation->frontEnd.getBuiltinVoidTypeName()])) {
+        } else if (retLVal != VoidType::get()) {
             errorl(getContext(), "'" + proc->getName() +
                                      "' must return an expression of type '" +
                                      retLVal->getDemangledName());
@@ -5458,7 +6589,8 @@ void Return::addSymbols(Scope * _scope) {
 }
 
 void Return::unwrap(std::vector<ASTNode *> & terminals) {
-    getExpression()->unwrap(terminals);
+    if (getExpression())
+        getExpression()->unwrap(terminals);
 }
 
 ASTNode * Return::clone() {
@@ -5468,6 +6600,11 @@ ASTNode * Return::clone() {
         c->setExpression(c->getExpression()->clone());
 
     return c;
+}
+
+void Return::desugar() {
+    if (getExpression())
+        getExpression()->desugar();
 }
 
 bool Return::isStatement() const { return true; }
@@ -5550,27 +6687,6 @@ bool Continue::isStatement() const { return true; }
 Continue::~Continue() {}
 //
 
-static void handleTerminators(ASTNode * statement,
-                              std::vector<ASTNode *> & statements,
-                              ASTNode *& node) {
-    if (node->nodeKind == ASTNode::RETURN) {
-        statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
-        if (&node != &statements.back())
-            errorl(node->getContext(),
-                   "Code below this return will never execute.");
-    } else if (node->nodeKind == ASTNode::BREAK) {
-        statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
-        if (&node != &statements.back())
-            errorl(node->getContext(),
-                   "Code below this break will never execute.");
-    } else if (node->nodeKind == ASTNode::CONTINUE) {
-        statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
-        if (&node != &statements.back())
-            errorl(node->getContext(),
-                   "Code below this continue will never execute.");
-    }
-}
-
 // ~~~~~ If ~~~~~
 
 If::If() : conditional(nullptr), statements({}), _else(nullptr) {
@@ -5607,8 +6723,7 @@ void If::analyze(bool force) {
 
     getConditional()->analyze(force);
 
-    if (!getConditional()->getType()->equivalent(
-            compilation->frontEnd.typeTable["bool"], true))
+    if (!equal(getConditional()->getType(), BoolType::get()))
         errorl(
             getConditional()->getContext(),
             "Expression resulting in type 'bool' is required for conditionals.",
@@ -5661,6 +6776,14 @@ ASTNode * If::clone() {
         c->setElse(c->getElse()->clone());
 
     return c;
+}
+
+void If::desugar() {
+    getConditional()->desugar();
+    for (ASTNode * s : getStatements())
+        s->desugar();
+    if (getElse())
+        getElse()->desugar();
 }
 
 bool If::isStatement() const { return true; }
@@ -5726,6 +6849,11 @@ ASTNode * Else::clone() {
     return c;
 }
 
+void Else::desugar() {
+    for (ASTNode * s : getStatements())
+        s->desugar();
+}
+
 bool Else::isStatement() const { return true; }
 
 Else::~Else() {
@@ -5788,8 +6916,7 @@ void For::analyze(bool force) {
 
     getConditional()->analyze(force);
 
-    if (!getConditional()->getType()->equivalent(
-            compilation->frontEnd.typeTable["bool"]))
+    if (!equal(getConditional()->getType(), BoolType::get()))
         errorl(
             getConditional()->getContext(),
             "Expression resulting in type 'bool' is required for conditionals.",
@@ -5853,6 +6980,16 @@ ASTNode * For::clone() {
     return c;
 }
 
+void For::desugar() {
+    for (ASTNode * i : getInitializations())
+        i->desugar();
+    getConditional()->desugar();
+    for (ASTNode * at : getAfterthoughts())
+        at->desugar();
+    for (ASTNode * s : getStatements())
+        s->desugar();
+}
+
 bool For::isStatement() const { return true; }
 
 For::~For() {
@@ -5866,6 +7003,148 @@ For::~For() {
     for (ASTNode * s : statements)
         delete s;
 }
+//
+
+// ~~~~~ Foreach ~~~~~
+
+Foreach::Foreach() : expression(nullptr), statements({}) { nodeKind = FOREACH; }
+
+Context & Foreach::getIdentContext() { return identContext; }
+void Foreach::setIdentContext(Context & _context) { identContext = _context; }
+
+std::string & Foreach::getIdent() { return ident; }
+void Foreach::setIdent(std::string & _ident) { ident = _ident; }
+
+ASTNode * Foreach::getExpression() { return expression; }
+void Foreach::setExpression(ASTNode * _expr) {
+    expression = _expr;
+    expression->parent = this;
+    expression->replace = rpget<replacementPolicy_Foreach_Expression>();
+}
+
+std::vector<ASTNode *> & Foreach::getStatements() { return statements; }
+void Foreach::setStatements(std::vector<ASTNode *> _statements) {
+    statements = _statements;
+}
+void Foreach::addStatement(ASTNode * _statement) {
+    _statement->parent = this;
+    _statement->replace = rpget<replacementPolicy_Foreach_Statement>();
+    statements.push_back(_statement);
+}
+
+// Node interface
+void Foreach::analyze(bool force) {
+    HANDLE_FORCE();
+
+    const Type * t = getExpression()->getType()->unRef();
+
+    if (!t->isArray() && !t->isSlice() && !t->isDynamicArray())
+        errorl(getExpression()->getContext(),
+               "Can't loop over '" + t->getDemangledName() + "'.", true,
+               "array, slice, or dynamic array is required");
+
+    if (t->isSlice() && getFlag(TAKE_REF))
+        errorl(getExpression()->getContext(),
+               "Can't take references from slice.");
+
+    desugar();
+
+    setFlag(ANALYZED, true);
+}
+
+void Foreach::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    getExpression()->addSymbols(_scope);
+}
+
+void Foreach::unwrap(std::vector<ASTNode *> & terminals) {
+    getExpression()->unwrap(terminals);
+}
+
+ASTNode * Foreach::clone() {
+    Foreach * c = new Foreach(*this);
+
+    c->setExpression(getExpression()->clone());
+
+    return c;
+}
+
+void Foreach::desugar() {
+    const Type * t = getExpression()->getType()->unRef();
+    const Type * elem_t = t->under();
+
+    For * _for = new For;
+    _for->setContext(getContext());
+
+    VariableDeclaration * it = new VariableDeclaration;
+    it->setName(compilation->frontEnd.makeUID("__bjou_foreach_it"));
+
+    IntegerLiteral * zero = new IntegerLiteral;
+    zero->setContents("0");
+
+    it->setInitialization(zero);
+
+    _for->addInitialization(it);
+
+    LssExpression * lss = new LssExpression;
+
+    Identifier * i_it = new Identifier;
+    i_it->setUnqualified(it->getName());
+
+    LenExpression * len = new LenExpression;
+    len->setExpr(getExpression());
+
+    lss->setLeft(i_it);
+    lss->setRight(len);
+
+    _for->setConditional(lss);
+
+    AddAssignExpression * inc = new AddAssignExpression;
+
+    Identifier * _i_it = new Identifier;
+    _i_it->setUnqualified(it->getName());
+
+    IntegerLiteral * one = new IntegerLiteral;
+    one->setContents("1");
+
+    inc->setLeft(_i_it);
+    inc->setRight(one);
+
+    _for->addAfterthought(inc);
+
+    VariableDeclaration * elem = new VariableDeclaration;
+    elem->setContext(getIdentContext());
+    elem->setNameContext(getIdentContext());
+    elem->setName(getIdent());
+    if (getFlag(TAKE_REF))
+        elem->setTypeDeclarator(elem_t->getRef()->getGenericDeclarator());
+    else
+        elem->setTypeDeclarator(elem_t->getGenericDeclarator());
+
+    SubscriptExpression * sub = new SubscriptExpression;
+
+    Identifier * __i_it = new Identifier;
+    __i_it->setUnqualified(it->getName());
+
+    sub->setLeft(getExpression()->clone());
+    sub->setRight(__i_it);
+
+    elem->setInitialization(sub);
+
+    _for->addStatement(elem);
+    for (ASTNode * s : getStatements())
+        _for->addStatement(s);
+
+    _for->addSymbols(getScope());
+
+    (*replace)(parent, this, _for);
+
+    _for->analyze();
+}
+
+bool Foreach::isStatement() const { return true; }
+
+Foreach::~Foreach() { delete getExpression(); }
 //
 
 // ~~~~~ While ~~~~~
@@ -5895,8 +7174,7 @@ void While::analyze(bool force) {
 
     getConditional()->analyze(force);
 
-    if (!getConditional()->getType()->equivalent(
-            compilation->frontEnd.typeTable["bool"]))
+    if (!equal(getConditional()->getType(), BoolType::get()))
         errorl(
             getConditional()->getContext(),
             "Expression resulting in type 'bool' is required for conditionals.",
@@ -5941,6 +7219,12 @@ ASTNode * While::clone() {
     return c;
 }
 
+void While::desugar() {
+    getConditional()->desugar();
+    for (ASTNode * s : getStatements())
+        s->desugar();
+}
+
 bool While::isStatement() const { return true; }
 
 While::~While() {
@@ -5980,8 +7264,7 @@ void DoWhile::analyze(bool force) {
 
     getConditional()->analyze(force);
 
-    if (!getConditional()->getType()->equivalent(
-            compilation->frontEnd.typeTable["bool"]))
+    if (!equal(getConditional()->getType(), BoolType::get()))
         errorl(
             getConditional()->getContext(),
             "Expression resulting in type 'bool' is required for conditionals.",
@@ -6026,6 +7309,12 @@ ASTNode * DoWhile::clone() {
     return c;
 }
 
+void DoWhile::desugar() {
+    getConditional()->desugar();
+    for (ASTNode * s : getStatements())
+        s->desugar();
+}
+
 bool DoWhile::isStatement() const { return true; }
 
 DoWhile::~DoWhile() {
@@ -6065,7 +7354,7 @@ void Match::analyze(bool force) {
         With * with = (With *)_with;
         with->analyze(force);
         Expression * w_expr = (Expression *)with->getExpression();
-        if (!w_expr->getType()->equivalent(getExpression()->getType()))
+        if (!conv(w_expr->getType(), getExpression()->getType()))
             errorl(w_expr->getContext(),
                    "Expression of type '" +
                        w_expr->getType()->getDemangledName() +
@@ -6100,6 +7389,12 @@ ASTNode * Match::clone() {
         c->addWith(w->clone());
 
     return c;
+}
+
+void Match::desugar() {
+    getExpression()->desugar();
+    for (ASTNode * w : getWiths())
+        w->desugar();
 }
 
 bool Match::isStatement() const { return true; }
@@ -6176,6 +7471,12 @@ ASTNode * With::clone() {
     return c;
 }
 
+void With::desugar() {
+    getExpression()->desugar();
+    for (ASTNode * s : getStatements())
+        s->desugar();
+}
+
 bool With::isStatement() const { return true; }
 
 With::~With() {
@@ -6226,6 +7527,11 @@ ASTNode * TemplateDefineList::clone() {
         c->addElement(e->clone());
 
     return c;
+}
+
+void TemplateDefineList::desugar() {
+    for (ASTNode * e : getElements())
+        e->desugar();
 }
 
 TemplateDefineList::~TemplateDefineList() {
@@ -6285,6 +7591,11 @@ ASTNode * TemplateDefineTypeDescriptor::clone() {
         c->addBound(b->clone());
 
     return c;
+}
+
+void TemplateDefineTypeDescriptor::desugar() {
+    for (ASTNode * b : getBounds())
+        b->desugar();
 }
 
 TemplateDefineTypeDescriptor::~TemplateDefineTypeDescriptor() {
@@ -6351,6 +7662,8 @@ ASTNode * TemplateDefineExpression::clone() {
     return c;
 }
 
+void TemplateDefineExpression::desugar() { getVarDecl()->desugar(); }
+
 TemplateDefineExpression::~TemplateDefineExpression() {
     BJOU_DEBUG_ASSERT(varDecl);
     delete varDecl;
@@ -6401,6 +7714,11 @@ ASTNode * TemplateInstantiation::clone() {
         c->addElement(e->clone());
 
     return c;
+}
+
+void TemplateInstantiation::desugar() {
+    for (ASTNode * e : getElements())
+        e->desugar();
 }
 
 TemplateInstantiation::~TemplateInstantiation() {
@@ -6458,8 +7776,12 @@ void TemplateAlias::addSymbols(Scope * _scope) {
     // @refactor? should this really be here?
     std::string mangledName = symbol->mangledString(_scope);
 
+    BJOU_DEBUG_ASSERT(false);
+
+    /*
     compilation->frontEnd.typeTable[mangledName] =
         new TemplateAliasType(mangledName);
+    */
 }
 
 TemplateAlias::~TemplateAlias() {
@@ -6496,11 +7818,8 @@ void TemplateStruct::setTemplateDef(ASTNode * _templateDef) {
 const Type * TemplateStruct::getType() {
     std::string mangled = ((Struct *)_template)->getName(); // @incomplete
 
-#ifdef BJOU_DEBUG_BUILD
-    if (!compilation->frontEnd.typeTable.count(mangled))
-        internalError("'" + mangled + "' not found in type table.");
-#endif
-    return compilation->frontEnd.typeTable[mangled];
+    return PlaceholderType::get(); // @bad -- not intended use of
+                                   // PlaceholderType
 }
 
 void TemplateStruct::analyze(bool force) {
@@ -6530,8 +7849,10 @@ void TemplateStruct::addSymbols(Scope * _scope) {
     // @refactor? should this really be here?
     std::string mangledName = symbol->mangledString(_scope);
 
+    /*
     compilation->frontEnd.typeTable[mangledName] =
         new TemplateStructType(mangledName);
+    */
 }
 
 TemplateStruct::~TemplateStruct() {
@@ -6650,6 +7971,105 @@ ASTNode * ModuleDeclaration::clone() { return new ModuleDeclaration(*this); }
 void ModuleDeclaration::addSymbols(Scope * _scope) { setScope(_scope); }
 
 ModuleDeclaration::~ModuleDeclaration() {}
+//
+
+// ~~~~~ IgnoreNode ~~~~~
+
+IgnoreNode::IgnoreNode() { nodeKind = IGNORE; }
+
+// Node interface
+void IgnoreNode::analyze(bool force) {
+    HANDLE_FORCE();
+
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * IgnoreNode::clone() { return new IgnoreNode(*this); }
+
+void IgnoreNode::addSymbols(Scope * _scope) { setScope(_scope); }
+
+void * IgnoreNode::generate(BackEnd & backEnd, bool flag) { return nullptr; }
+
+IgnoreNode::~IgnoreNode() {}
+//
+
+//
+
+// ~~~~~ MacroUse ~~~~~
+
+MacroUse::MacroUse() : macroName({}) {
+    nodeKind = MACRO_USE;
+    // setFlag(ASTNode::CT, true);
+}
+
+std::string & MacroUse::getMacroName() { return macroName; }
+void MacroUse::setMacroName(std::string _macroName) { macroName = _macroName; }
+
+std::vector<ASTNode *> & MacroUse::getArgs() { return args; }
+void MacroUse::addArg(ASTNode * arg) {
+    arg->parent = this;
+    arg->replace = rpget<replacementPolicy_MacroUse_Arg>();
+    args.push_back(arg);
+}
+
+// Node interface
+const Type * MacroUse::getType() {
+    analyze();
+    return result_t;
+}
+
+void MacroUse::analyze(bool force) {
+    HANDLE_FORCE();
+
+    ASTNode * r = compilation->frontEnd.macroManager.invoke(this);
+
+    if (!r) {
+        r = new IgnoreNode();
+        r->setContext(getContext());
+    }
+
+    if (parent && !parent->nodeKind == MACRO_USE && !replace->canReplace(r)) {
+        std::string expected;
+        for (int & k : replace->allowed_nodeKinds) {
+            expected += compilation->frontEnd.kind2string[(ASTNode::NodeKind)k];
+            if (k != replace->allowed_nodeKinds.back())
+                expected += ", ";
+        }
+        errorl(getContext(),
+               "macro does not substitute to the correct AST node kind", true,
+               "expected: " + expected,
+               "got: " + compilation->frontEnd.kind2string[r->nodeKind]);
+    }
+
+    (*replace)(parent, this, r);
+
+    result_t = r->getType();
+    r->analyze();
+
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * MacroUse::clone() {
+    MacroUse * c = new MacroUse(*this);
+    c->args.clear();
+    for (ASTNode * arg : getArgs())
+        c->addArg(arg->clone());
+    return c;
+}
+
+void MacroUse::unwrap(std::vector<ASTNode *> & terminals) {
+    for (ASTNode * arg : getArgs())
+        arg->unwrap(terminals);
+}
+
+void MacroUse::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    for (ASTNode * arg : getArgs())
+        if (arg->nodeKind != STRUCT && arg->nodeKind != INTERFACE_DEF)
+            arg->addSymbols(_scope);
+}
+
+MacroUse::~MacroUse() {}
 //
 
 } // namespace bjou

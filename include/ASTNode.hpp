@@ -45,12 +45,12 @@ struct SelfDestruct {
 #define E_BIT_FLAGS()                                                          \
     {                                                                          \
         ANALYZED, IS_TEMPLATE, SYMBOL_OVERWRITE, HAS_TOP_LEVEL_RETURN,         \
-            IGNORE_GEN                                                         \
+            IGNORE_GEN, CT                                                     \
     }
 #define E_BIT_FLAGS_AND(...)                                                   \
     {                                                                          \
         ANALYZED, IS_TEMPLATE, SYMBOL_OVERWRITE, HAS_TOP_LEVEL_RETURN,         \
-            IGNORE_GEN, __VA_ARGS__                                            \
+            IGNORE_GEN, CT, __VA_ARGS__                                        \
     }
 
 /* ============================================================================
@@ -96,6 +96,7 @@ struct ASTNode {
         NOT_EXPRESSION,
         DEREF_EXPRESSION,
         ADDRESS_EXPRESSION,
+        REF_EXPRESSION,
         NEW_EXPRESSION,
         DELETE_EXPRESSION,
         SIZEOF_EXPRESSION,
@@ -103,6 +104,9 @@ struct ASTNode {
         AS_EXPRESSION,
         IDENTIFIER,
         INITIALZER_LIST,
+        SLICE_EXPRESSION,
+        DYNAMIC_ARRAY_EXPRESSION,
+        LEN_EXPRESSION,
         BOOLEAN_LITERAL,
         INTEGER_LITERAL,
         FLOAT_LITERAL,
@@ -116,11 +120,13 @@ struct ASTNode {
         _END_EXPRESSIONS,
         DECLARATOR,
         ARRAY_DECLARATOR,
+        SLICE_DECLARATOR,
         DYNAMIC_ARRAY_DECLARATOR,
         POINTER_DECLARATOR,
         MAYBE_DECLARATOR,
         TUPLE_DECLARATOR,
         PROCEDURE_DECLARATOR,
+        REF_DECLARATOR,
         PLACEHOLDER_DECLARATOR,
         _END_DECLARATORS,
         CONSTANT,
@@ -142,6 +148,7 @@ struct ASTNode {
         IF,
         ELSE,
         FOR,
+        FOREACH,
         WHILE,
         DO_WHILE,
         MATCH,
@@ -156,8 +163,144 @@ struct ASTNode {
         TEMPLATE_STRUCT,
         TEMPLATE_PROC,
         SL_COMMENT,
-        MODULE_DECL
+        MODULE_DECL,
+        IGNORE,
+        MULTINODE,
+        MACRO_USE
     };
+
+#define ANY_NODE                                                               \
+    ASTNode::NodeKind::PROC_SET, ASTNode::NodeKind::EXPRESSION,                \
+        ASTNode::NodeKind::BINARY_EXPRESSION,                                  \
+        ASTNode::NodeKind::ADD_EXPRESSION, ASTNode::NodeKind::SUB_EXPRESSION,  \
+        ASTNode::NodeKind::MULT_EXPRESSION, ASTNode::NodeKind::DIV_EXPRESSION, \
+        ASTNode::NodeKind::MOD_EXPRESSION,                                     \
+        ASTNode::NodeKind::ASSIGNMENT_EXPRESSION,                              \
+        ASTNode::NodeKind::ADD_ASSIGN_EXPRESSION,                              \
+        ASTNode::NodeKind::SUB_ASSIGN_EXPRESSION,                              \
+        ASTNode::NodeKind::MULT_ASSIGN_EXPRESSION,                             \
+        ASTNode::NodeKind::DIV_ASSIGN_EXPRESSION,                              \
+        ASTNode::NodeKind::MOD_ASSIGN_EXPRESSION,                              \
+        ASTNode::NodeKind::MAYBE_ASSIGN_EXPRESSION,                            \
+        ASTNode::NodeKind::LSS_EXPRESSION, ASTNode::NodeKind::LEQ_EXPRESSION,  \
+        ASTNode::NodeKind::GTR_EXPRESSION, ASTNode::NodeKind::GEQ_EXPRESSION,  \
+        ASTNode::NodeKind::EQU_EXPRESSION, ASTNode::NodeKind::NEQ_EXPRESSION,  \
+        ASTNode::NodeKind::LOG_AND_EXPRESSION,                                 \
+        ASTNode::NodeKind::LOG_OR_EXPRESSION,                                  \
+        ASTNode::NodeKind::SUBSCRIPT_EXPRESSION,                               \
+        ASTNode::NodeKind::CALL_EXPRESSION,                                    \
+        ASTNode::NodeKind::ACCESS_EXPRESSION,                                  \
+        ASTNode::NodeKind::INJECT_EXPRESSION,                                  \
+        ASTNode::NodeKind::UNARY_PRE_EXPRESSION,                               \
+        ASTNode::NodeKind::NOT_EXPRESSION,                                     \
+        ASTNode::NodeKind::DEREF_EXPRESSION,                                   \
+        ASTNode::NodeKind::ADDRESS_EXPRESSION,                                 \
+        ASTNode::NodeKind::REF_EXPRESSION, ASTNode::NodeKind::NEW_EXPRESSION,  \
+        ASTNode::NodeKind::DELETE_EXPRESSION,                                  \
+        ASTNode::NodeKind::SIZEOF_EXPRESSION,                                  \
+        ASTNode::NodeKind::UNARY_POST_EXPRESSION,                              \
+        ASTNode::NodeKind::AS_EXPRESSION, ASTNode::NodeKind::IDENTIFIER,       \
+        ASTNode::NodeKind::INITIALZER_LIST,                                    \
+        ASTNode::NodeKind::SLICE_EXPRESSION,                                   \
+        ASTNode::NodeKind::DYNAMIC_ARRAY_EXPRESSION,                           \
+        ASTNode::NodeKind::LEN_EXPRESSION, ASTNode::NodeKind::BOOLEAN_LITERAL, \
+        ASTNode::NodeKind::INTEGER_LITERAL, ASTNode::NodeKind::FLOAT_LITERAL,  \
+        ASTNode::NodeKind::STRING_LITERAL, ASTNode::NodeKind::CHAR_LITERAL,    \
+        ASTNode::NodeKind::PROC_LITERAL, ASTNode::NodeKind::EXTERN_LITERAL,    \
+        ASTNode::NodeKind::SOME_LITERAL, ASTNode::NodeKind::NOTHING_LITERAL,   \
+        ASTNode::NodeKind::TUPLE_LITERAL, ASTNode::NodeKind::_END_EXPRESSIONS, \
+        ASTNode::NodeKind::DECLARATOR, ASTNode::NodeKind::ARRAY_DECLARATOR,    \
+        ASTNode::NodeKind::SLICE_DECLARATOR,                                   \
+        ASTNode::NodeKind::DYNAMIC_ARRAY_DECLARATOR,                           \
+        ASTNode::NodeKind::POINTER_DECLARATOR,                                 \
+        ASTNode::NodeKind::MAYBE_DECLARATOR,                                   \
+        ASTNode::NodeKind::TUPLE_DECLARATOR,                                   \
+        ASTNode::NodeKind::PROCEDURE_DECLARATOR,                               \
+        ASTNode::NodeKind::REF_DECLARATOR,                                     \
+        ASTNode::NodeKind::PLACEHOLDER_DECLARATOR,                             \
+        ASTNode::NodeKind::_END_DECLARATORS, ASTNode::NodeKind::CONSTANT,      \
+        ASTNode::NodeKind::VARIABLE_DECLARATION, ASTNode::NodeKind::ALIAS,     \
+        ASTNode::NodeKind::STRUCT, ASTNode::NodeKind::INTERFACE_DEF,           \
+        ASTNode::NodeKind::INTERFACE_IMPLEMENTATION, ASTNode::NodeKind::ENUM,  \
+        ASTNode::NodeKind::ARG_LIST, ASTNode::NodeKind::THIS,                  \
+        ASTNode::NodeKind::PROCEDURE, ASTNode::NodeKind::NAMESPACE,            \
+        ASTNode::NodeKind::IMPORT, ASTNode::NodeKind::PRINT,                   \
+        ASTNode::NodeKind::RETURN, ASTNode::NodeKind::BREAK,                   \
+        ASTNode::NodeKind::CONTINUE, ASTNode::NodeKind::IF,                    \
+        ASTNode::NodeKind::ELSE, ASTNode::NodeKind::FOR,                       \
+        ASTNode::NodeKind::FOREACH, ASTNode::NodeKind::WHILE,                  \
+        ASTNode::NodeKind::DO_WHILE, ASTNode::NodeKind::MATCH,                 \
+        ASTNode::NodeKind::WITH, ASTNode::NodeKind::TEMPLATE_DEFINE_LIST,      \
+        ASTNode::NodeKind::TEMPLATE_DEFINE_ELEMENT,                            \
+        ASTNode::NodeKind::TEMPLATE_DEFINE_TYPE_DESCRIPTOR,                    \
+        ASTNode::NodeKind::TEMPLATE_DEFINE_VARIADIC_TYPE_ARGS,                 \
+        ASTNode::NodeKind::TEMPLATE_DEFINE_EXPRESSION,                         \
+        ASTNode::NodeKind::TEMPLATE_INSTANTIATION,                             \
+        ASTNode::NodeKind::TEMPLATE_ALIAS, ASTNode::NodeKind::TEMPLATE_STRUCT, \
+        ASTNode::NodeKind::TEMPLATE_PROC, ASTNode::NodeKind::SL_COMMENT,       \
+        ASTNode::NodeKind::MODULE_DECL, ASTNode::NodeKind::IGNORE,             \
+        ASTNode::NodeKind::MULTINODE, ASTNode::NodeKind::MACRO_USE
+
+#define ANY_EXPRESSION                                                         \
+    ASTNode::NodeKind::EXPRESSION, ASTNode::NodeKind::BINARY_EXPRESSION,       \
+        ASTNode::NodeKind::ADD_EXPRESSION, ASTNode::NodeKind::SUB_EXPRESSION,  \
+        ASTNode::NodeKind::MULT_EXPRESSION, ASTNode::NodeKind::DIV_EXPRESSION, \
+        ASTNode::NodeKind::MOD_EXPRESSION,                                     \
+        ASTNode::NodeKind::ASSIGNMENT_EXPRESSION,                              \
+        ASTNode::NodeKind::ADD_ASSIGN_EXPRESSION,                              \
+        ASTNode::NodeKind::SUB_ASSIGN_EXPRESSION,                              \
+        ASTNode::NodeKind::MULT_ASSIGN_EXPRESSION,                             \
+        ASTNode::NodeKind::DIV_ASSIGN_EXPRESSION,                              \
+        ASTNode::NodeKind::MOD_ASSIGN_EXPRESSION,                              \
+        ASTNode::NodeKind::MAYBE_ASSIGN_EXPRESSION,                            \
+        ASTNode::NodeKind::LSS_EXPRESSION, ASTNode::NodeKind::LEQ_EXPRESSION,  \
+        ASTNode::NodeKind::GTR_EXPRESSION, ASTNode::NodeKind::GEQ_EXPRESSION,  \
+        ASTNode::NodeKind::EQU_EXPRESSION, ASTNode::NodeKind::NEQ_EXPRESSION,  \
+        ASTNode::NodeKind::LOG_AND_EXPRESSION,                                 \
+        ASTNode::NodeKind::LOG_OR_EXPRESSION,                                  \
+        ASTNode::NodeKind::SUBSCRIPT_EXPRESSION,                               \
+        ASTNode::NodeKind::CALL_EXPRESSION,                                    \
+        ASTNode::NodeKind::ACCESS_EXPRESSION,                                  \
+        ASTNode::NodeKind::INJECT_EXPRESSION,                                  \
+        ASTNode::NodeKind::UNARY_PRE_EXPRESSION,                               \
+        ASTNode::NodeKind::NOT_EXPRESSION,                                     \
+        ASTNode::NodeKind::DEREF_EXPRESSION,                                   \
+        ASTNode::NodeKind::ADDRESS_EXPRESSION,                                 \
+        ASTNode::NodeKind::REF_EXPRESSION, ASTNode::NodeKind::NEW_EXPRESSION,  \
+        ASTNode::NodeKind::DELETE_EXPRESSION,                                  \
+        ASTNode::NodeKind::SIZEOF_EXPRESSION,                                  \
+        ASTNode::NodeKind::UNARY_POST_EXPRESSION,                              \
+        ASTNode::NodeKind::AS_EXPRESSION, ASTNode::NodeKind::IDENTIFIER,       \
+        ASTNode::NodeKind::INITIALZER_LIST,                                    \
+        ASTNode::NodeKind::SLICE_EXPRESSION,                                   \
+        ASTNode::NodeKind::DYNAMIC_ARRAY_EXPRESSION,                           \
+        ASTNode::NodeKind::LEN_EXPRESSION, ASTNode::NodeKind::BOOLEAN_LITERAL, \
+        ASTNode::NodeKind::INTEGER_LITERAL, ASTNode::NodeKind::FLOAT_LITERAL,  \
+        ASTNode::NodeKind::STRING_LITERAL, ASTNode::NodeKind::CHAR_LITERAL,    \
+        ASTNode::NodeKind::PROC_LITERAL, ASTNode::NodeKind::EXTERN_LITERAL,    \
+        ASTNode::NodeKind::SOME_LITERAL, ASTNode::NodeKind::NOTHING_LITERAL,   \
+        ASTNode::NodeKind::TUPLE_LITERAL
+
+#define ANY_DECLARATOR                                                         \
+    ASTNode::NodeKind::DECLARATOR, ASTNode::NodeKind::ARRAY_DECLARATOR,        \
+        ASTNode::NodeKind::SLICE_DECLARATOR,                                   \
+        ASTNode::NodeKind::DYNAMIC_ARRAY_DECLARATOR,                           \
+        ASTNode::NodeKind::POINTER_DECLARATOR,                                 \
+        ASTNode::NodeKind::MAYBE_DECLARATOR,                                   \
+        ASTNode::NodeKind::TUPLE_DECLARATOR,                                   \
+        ASTNode::NodeKind::PROCEDURE_DECLARATOR,                               \
+        ASTNode::NodeKind::REF_DECLARATOR,                                     \
+        ASTNode::NodeKind::PLACEHOLDER_DECLARATOR
+
+#define ANY_STATEMENT                                                          \
+    ASTNode::NodeKind::IGNORE, ANY_EXPRESSION, ASTNode::NodeKind::CONSTANT,    \
+        ASTNode::NodeKind::VARIABLE_DECLARATION, ASTNode::NodeKind::IMPORT,    \
+        ASTNode::NodeKind::PRINT, ASTNode::NodeKind::RETURN,                   \
+        ASTNode::NodeKind::BREAK, ASTNode::NodeKind::CONTINUE,                 \
+        ASTNode::NodeKind::IF, ASTNode::NodeKind::ELSE,                        \
+        ASTNode::NodeKind::FOR, ASTNode::NodeKind::FOREACH,                    \
+        ASTNode::NodeKind::WHILE, ASTNode::NodeKind::DO_WHILE,                 \
+        ASTNode::NodeKind::MATCH, ASTNode::NodeKind::MODULE_DECL
 
 #define IS_DECLARATOR(node)                                                    \
     ((node)->nodeKind >= ASTNode::DECLARATOR &&                                \
@@ -197,6 +340,7 @@ struct ASTNode {
     virtual void addSymbols(Scope * _scope) = 0;
     virtual void unwrap(std::vector<ASTNode *> & terminals);
     virtual ASTNode * clone() = 0;
+    virtual void desugar();
     virtual const Type * getType();
     virtual bool isStatement() const;
     // virtual void serializePass1(Serializer& ser) = 0;
@@ -206,6 +350,22 @@ struct ASTNode {
 
     virtual ~ASTNode() = 0;
     //
+};
+
+bool isCT(ASTNode * node);
+
+struct MultiNode : ASTNode {
+    std::vector<ASTNode *> nodes;
+
+    MultiNode(std::vector<ASTNode *> & _nodes);
+
+    void analyze(bool force = false);
+    void addSymbols(Scope * _scope);
+    void unwrap(std::vector<ASTNode *> & terminals);
+    void * generate(BackEnd & backEnd, bool flag = false);
+
+    ASTNode * clone();
+    ~MultiNode();
 };
 
 /* ============================================================================
@@ -234,12 +394,16 @@ struct Expression : ASTNode {
     ASTNode * getRight() const;
     void setRight(ASTNode * _right);
 
+    bool opOverload();
+    bool canBeLVal();
+
     virtual bool isConstant() = 0;
     virtual Val eval();
 
     // Node interface
     virtual void unwrap(std::vector<ASTNode *> & terminals);
     virtual ASTNode * clone() = 0;
+    virtual void desugar();
     virtual void analyze(bool force = false) = 0;
     virtual void addSymbols(Scope * _scope);
 
@@ -616,6 +780,7 @@ struct EquExpression : BinaryExpression {
     EquExpression();
 
     bool isConstant();
+    Val eval();
 
     // Node interface
     virtual void analyze(bool force = false);
@@ -636,6 +801,7 @@ struct NeqExpression : BinaryExpression {
     NeqExpression();
 
     bool isConstant();
+    Val eval();
 
     // Node interface
     virtual void analyze(bool force = false);
@@ -726,6 +892,7 @@ struct SubscriptExpression : BinaryExpression {
     // Node interface
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
+    void desugar();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     // virtual ~SubscriptExpression();
     //
@@ -871,6 +1038,8 @@ struct SizeofExpression : UnaryPreExpression {
 struct NotExpression : UnaryPreExpression {
     NotExpression();
 
+    Val eval();
+
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
@@ -916,6 +1085,26 @@ struct AddressExpression : UnaryPreExpression {
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     // virtual ~AddressExpression();
+    //
+};
+
+/* ============================================================================
+ *
+ *                               RefExpression
+ *  Expression trees made from the unary prefix operator ~.
+ *
+ * ===========================================================================*/
+
+struct RefExpression : UnaryPreExpression {
+    RefExpression();
+
+    bool isConstant();
+
+    // Node interface
+    virtual void analyze(bool force = false);
+    ASTNode * clone();
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
+    // virtual ~RefExpression();
     //
 };
 
@@ -976,6 +1165,8 @@ struct Identifier : Expression {
     enum eBitFlags E_BIT_FLAGS_AND(PAREN, TERMINAL, IDENT, PREVIOUSLY_QUALIFIED,
                                    DIRECT_PROC_REF);
 
+    ASTNode * resolved;
+
     std::string & getUnqualified();
     void setUnqualified(std::string _unqualified);
     std::vector<std::string> & getNamespaces();
@@ -1028,9 +1219,105 @@ struct InitializerList : Expression {
     void unwrap(std::vector<ASTNode *> & terminals);
     virtual void analyze(bool force = false);
     ASTNode * clone();
+    void desugar();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void addSymbols(Scope * _scope);
     virtual ~InitializerList();
+    //
+};
+
+/* ============================================================================
+ *
+ *                             SliceExpression
+ *  Expression to create a slice of a static array, dynamic array, or another
+ *  slice. syntax: '[ src, start_index:length ]'
+ *
+ * ===========================================================================*/
+
+struct SliceExpression : Expression {
+    SliceExpression();
+
+    ASTNode * src;
+    ASTNode * start;
+    ASTNode * length;
+
+    ASTNode * getSrc() const;
+    void setSrc(ASTNode * _src);
+    ASTNode * getStart() const;
+    void setStart(ASTNode * _start);
+    ASTNode * getLength() const;
+    void setLength(ASTNode * _length);
+
+    bool isConstant();
+
+    // Node interface
+    void unwrap(std::vector<ASTNode *> & terminals);
+    virtual void analyze(bool force = false);
+    ASTNode * clone();
+    void desugar();
+    // no generation, will be desugared
+    // virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void addSymbols(Scope * _scope);
+    virtual ~SliceExpression();
+    //
+};
+
+/* ============================================================================
+ *
+ *                             DynamicArrayExpression
+ *  Expression to create a dynamic array
+ *  syntax: '[...type]'
+ *
+ * ===========================================================================*/
+
+struct DynamicArrayExpression : Expression {
+    DynamicArrayExpression();
+
+    ASTNode * typeDeclarator;
+
+    ASTNode * getTypeDeclarator() const;
+    void setTypeDeclarator(ASTNode * _decl);
+
+    bool isConstant();
+
+    // Node interface
+    void unwrap(std::vector<ASTNode *> & terminals);
+    virtual void analyze(bool force = false);
+    ASTNode * clone();
+    void desugar();
+    // no generation, will be desugared
+    // virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void addSymbols(Scope * _scope);
+    virtual ~DynamicArrayExpression();
+    //
+};
+
+/* ============================================================================
+ *
+ *                            LenExpression
+ *  A cardinality expression for arrays and slices. |expr|
+ *
+ * ===========================================================================*/
+
+struct LenExpression : Expression {
+    LenExpression();
+
+    ASTNode * expr;
+
+    ASTNode * getExpr() const;
+    void setExpr(ASTNode * _expr);
+
+    bool isConstant();
+
+    // Node interface
+    void unwrap(std::vector<ASTNode *> & terminals);
+    virtual void analyze(bool force = false);
+    ASTNode * clone();
+    void desugar();
+    // no generation, will be desugared
+    // virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void addSymbols(Scope * _scope);
+    virtual ~LenExpression();
     //
 };
 
@@ -1190,7 +1477,7 @@ struct ExternLiteral : UnaryPreExpression {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    // virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     // virtual ~ExternLiteral();
     //
@@ -1262,6 +1549,7 @@ struct TupleLiteral : Expression {
     virtual void addSymbols(Scope * _scope);
     virtual void analyze(bool force = false);
     ASTNode * clone();
+    void desugar();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     // virtual ~NothingLiteral();
     //
@@ -1312,6 +1600,7 @@ struct Declarator : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual const Type * getType();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
@@ -1322,6 +1611,8 @@ struct Declarator : ASTNode {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
+    virtual void propagateScope(Scope * _scope);
     //
 };
 
@@ -1361,6 +1652,7 @@ struct ArrayDeclarator : Declarator {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     void addSymbols(Scope * _scope);
     virtual void analyze(bool force = false);
     virtual const Type * getType();
@@ -1371,6 +1663,43 @@ struct ArrayDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
+    void propagateScope(Scope * _scope);
+    //
+};
+
+/* ============================================================================
+ *
+ *                              SliceDeclarator
+ *  Describes a slice type.
+ *
+ * ===========================================================================*/
+
+struct SliceDeclarator : Declarator {
+    SliceDeclarator();
+    SliceDeclarator(ASTNode * _sliceOf);
+
+    ASTNode * sliceOf;
+
+    ASTNode * getSliceOf() const;
+    void setSliceOf(ASTNode * _sliceOf);
+
+    // Node interface
+    void unwrap(std::vector<ASTNode *> & terminals);
+    ASTNode * clone();
+    void desugar();
+    void addSymbols(Scope * _scope);
+    virtual void analyze(bool force = false);
+    virtual const Type * getType();
+    virtual ~SliceDeclarator();
+    //
+
+    // Declarator interface
+    virtual std::string mangleSymbol();
+    virtual std::string mangleAndPrefixSymbol();
+    virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
+    void propagateScope(Scope * _scope);
     //
 };
 
@@ -1393,6 +1722,7 @@ struct DynamicArrayDeclarator : Declarator {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     void addSymbols(Scope * _scope);
     virtual void analyze(bool force = false);
     virtual const Type * getType();
@@ -1403,6 +1733,9 @@ struct DynamicArrayDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
+    void propagateScope(Scope * _scope);
+
     //
 };
 
@@ -1426,6 +1759,7 @@ struct PointerDeclarator : Declarator {
     void addSymbols(Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual const Type * getType();
     virtual ~PointerDeclarator();
@@ -1435,6 +1769,45 @@ struct PointerDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
+    void propagateScope(Scope * _scope);
+
+    //
+};
+
+/* ============================================================================
+ *
+ *                              RefDeclarator
+ *  Describes a reference type.
+ *
+ * ===========================================================================*/
+
+struct RefDeclarator : Declarator {
+    RefDeclarator();
+    RefDeclarator(ASTNode * _pointerOf);
+
+    ASTNode * refOf;
+
+    ASTNode * getRefOf() const;
+    void setRefOf(ASTNode * _refOf);
+
+    // Node interface
+    void addSymbols(Scope * _scope);
+    void unwrap(std::vector<ASTNode *> & terminals);
+    ASTNode * clone();
+    void desugar();
+    virtual void analyze(bool force = false);
+    virtual const Type * getType();
+    virtual ~RefDeclarator();
+    //
+
+    // Declarator interface
+    virtual std::string mangleSymbol();
+    virtual std::string mangleAndPrefixSymbol();
+    virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
+    void propagateScope(Scope * _scope);
+
     //
 };
 
@@ -1458,6 +1831,7 @@ struct MaybeDeclarator : Declarator {
     void addSymbols(Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual const Type * getType();
     virtual ~MaybeDeclarator();
@@ -1467,6 +1841,9 @@ struct MaybeDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
+    void propagateScope(Scope * _scope);
+
     //
 };
 
@@ -1491,6 +1868,7 @@ struct TupleDeclarator : Declarator {
     void addSymbols(Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual const Type * getType();
     virtual ~TupleDeclarator();
@@ -1500,6 +1878,8 @@ struct TupleDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    void propagateScope(Scope * _scope);
+
     //
 };
 
@@ -1533,6 +1913,7 @@ struct ProcedureDeclarator : Declarator {
     void addSymbols(Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual const Type * getType();
     virtual ~ProcedureDeclarator();
@@ -1542,6 +1923,8 @@ struct ProcedureDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    void propagateScope(Scope * _scope);
+
     //
 };
 
@@ -1559,6 +1942,7 @@ struct PlaceholderDeclarator : Declarator {
     void addSymbols(Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual const Type * getType();
     virtual ~PlaceholderDeclarator();
@@ -1603,6 +1987,7 @@ struct Constant : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
@@ -1647,6 +2032,7 @@ struct VariableDeclaration : ASTNode {
     bool isStatement() const;
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
@@ -1681,6 +2067,7 @@ struct Alias : ASTNode {
     const Type * getType();
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual ~Alias();
@@ -1743,6 +2130,7 @@ struct Struct : ASTNode {
     const Type * getType();
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
@@ -1781,6 +2169,7 @@ struct InterfaceDef : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual ~InterfaceDef();
@@ -1814,6 +2203,7 @@ struct InterfaceImplementation : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual ~InterfaceImplementation();
@@ -1876,6 +2266,7 @@ struct ArgList : ASTNode {
     // Node interface
     virtual void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual ~ArgList();
@@ -1947,6 +2338,7 @@ struct Procedure : ASTNode {
     const Type * getType();
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
 
@@ -1986,6 +2378,7 @@ struct Namespace : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
 
@@ -2014,6 +2407,7 @@ struct Import : ASTNode {
     void setModule(std::string _module);
 
     // Node interface
+    void unwrap(std::vector<ASTNode *> & terminals);
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void addSymbols(Scope * _scope);
@@ -2043,6 +2437,7 @@ struct Print : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
 
@@ -2074,6 +2469,7 @@ struct Return : ASTNode {
     void unwrap(std::vector<ASTNode *> & terminals);
     bool isStatement() const;
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
 
@@ -2155,6 +2551,7 @@ struct If : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
@@ -2185,6 +2582,7 @@ struct Else : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
@@ -2227,10 +2625,51 @@ struct For : ASTNode {
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
     bool isStatement() const;
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual ~For();
+    //
+};
+
+/* ============================================================================
+ *
+ *                              Foreach
+ *  Loop over array, slice, or dynamic array elements
+ *
+ * ===========================================================================*/
+
+struct Foreach : ASTNode {
+    Foreach();
+
+    Context identContext;
+    std::string ident;
+    ASTNode * expression;
+    std::vector<ASTNode *> statements;
+
+    enum eBitFlags E_BIT_FLAGS_AND(TAKE_REF);
+
+    Context & getIdentContext();
+    void setIdentContext(Context & _context);
+    std::string & getIdent();
+    void setIdent(std::string & _ident);
+    ASTNode * getExpression();
+    void setExpression(ASTNode * _expr);
+    std::vector<ASTNode *> & getStatements();
+    void setStatements(std::vector<ASTNode *> _statements);
+    void addStatement(ASTNode * _statement);
+
+    // Node interface
+    void unwrap(std::vector<ASTNode *> & terminals);
+    ASTNode * clone();
+    bool isStatement() const;
+    void desugar();
+    virtual void analyze(bool force = false);
+    virtual void addSymbols(Scope * _scope);
+    // no generate(). will be desugared
+    // virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual ~Foreach();
     //
 };
 
@@ -2258,6 +2697,7 @@ struct While : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
@@ -2290,6 +2730,7 @@ struct DoWhile : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
@@ -2322,6 +2763,7 @@ struct Match : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
@@ -2354,6 +2796,7 @@ struct With : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
@@ -2382,6 +2825,7 @@ struct TemplateDefineList : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual ~TemplateDefineList();
@@ -2423,6 +2867,7 @@ struct TemplateDefineTypeDescriptor : TemplateDefineElement {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual ~TemplateDefineTypeDescriptor();
@@ -2471,6 +2916,7 @@ struct TemplateDefineExpression : TemplateDefineElement {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual ~TemplateDefineExpression();
@@ -2499,6 +2945,7 @@ struct TemplateInstantiation : ASTNode {
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
+    void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual ~TemplateInstantiation();
@@ -2633,6 +3080,49 @@ struct ModuleDeclaration : ASTNode {
     virtual ~ModuleDeclaration();
     //
 };
+
+struct IgnoreNode : ASTNode {
+    IgnoreNode();
+
+    enum eBitFlags E_BIT_FLAGS();
+
+    // Node interface
+    virtual void analyze(bool force = false);
+    ASTNode * clone();
+    virtual void addSymbols(Scope * _scope);
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual ~IgnoreNode();
+    //
+};
+
+// ~~~~~ MacroUse ~~~~~
+
+struct MacroUse : ASTNode {
+    MacroUse();
+
+    std::string macroName;
+    std::vector<ASTNode *> args;
+
+    const Type * result_t = nullptr;
+
+    enum eBitFlags E_BIT_FLAGS();
+
+    std::string & getMacroName();
+    void setMacroName(std::string _macroName);
+
+    std::vector<ASTNode *> & getArgs();
+    void addArg(ASTNode * arg);
+
+    // Node interface
+    const Type * getType();
+    virtual void analyze(bool force = false);
+    ASTNode * clone();
+    void unwrap(std::vector<ASTNode *> & terminals);
+    virtual void addSymbols(Scope * _scope);
+    virtual ~MacroUse();
+    //
+};
+
 } // namespace bjou
 
 #endif /* ASTNode_hpp */

@@ -1,0 +1,4 @@
+U == V
+U != V
+U == V
+panic: U was float!

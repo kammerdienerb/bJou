@@ -28,19 +28,22 @@
 #include <utility>
 
 namespace bjou {
-static void pushImportsFromAST(std::vector<ASTNode*>& AST,
+static void pushImportsFromAST(std::vector<ASTNode *> & AST,
                                std::deque<Import *> & imports) {
     for (ASTNode * node : AST) {
-        if (node->nodeKind == ASTNode::IMPORT) {
-            Import * import = (Import *)node;
-            BJOU_DEBUG_ASSERT(import->getFlag(Import::FROM_PATH));
-            imports.push_back(import);
+        std::vector<ASTNode *> terminals;
+        node->unwrap(terminals);
+        for (ASTNode * term : terminals) {
+            if (term->nodeKind == ASTNode::IMPORT) {
+                Import * import = (Import *)term;
+                BJOU_DEBUG_ASSERT(import->getFlag(Import::FROM_PATH));
+                imports.push_back(import);
+            }
         }
     }
 }
 
-static void importModules(std::deque<Import *> imports,
-                          FrontEnd& frontEnd) {
+static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
     std::set<std::string> & modulesImported =
         compilation->frontEnd.modulesImported;
     std::set<std::string> filesSeen;
@@ -76,7 +79,8 @@ static void importModules(std::deque<Import *> imports,
                 if (filesSeen.find(fname) == filesSeen.end()) {
                     filesSeen.insert(fname);
 
-                    ImportParser * parser = new ImportParser(in, fname, false);
+                    ImportParser * parser = new ImportParser(in, fname);
+                    parser->source = import;
                     in.close();
                     // go ahead and start
                     peektimes[fname] = (*parser)();
@@ -108,10 +112,20 @@ static void importModules(std::deque<Import *> imports,
             // collect nodes
             for (ImportParser * p : parserContainer) {
                 pushImportsFromAST(p->nodes, imports);
-                frontEnd.AST.reserve(frontEnd.AST.size() + p->nodes.size());
-                frontEnd.AST.insert(frontEnd.AST.end(), p->nodes.begin(), p->nodes.end());
-				frontEnd.structs.insert(frontEnd.structs.end(), p->structs.begin(), p->structs.end());
-				frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(), p->ifaceDefs.begin(), p->ifaceDefs.end());
+
+                if (p->source->parent) {
+                    (*p->source->replace)(p->source->parent, p->source,
+                                          new MultiNode(p->nodes));
+                } else {
+                    frontEnd.AST.reserve(frontEnd.AST.size() + p->nodes.size());
+                    frontEnd.AST.insert(frontEnd.AST.end(), p->nodes.begin(),
+                                        p->nodes.end());
+                }
+                frontEnd.structs.insert(frontEnd.structs.end(),
+                                        p->structs.begin(), p->structs.end());
+                frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(),
+                                          p->ifaceDefs.begin(),
+                                          p->ifaceDefs.end());
                 delete p;
             }
 
@@ -139,7 +153,8 @@ static void importModules(std::deque<Import *> imports,
 
                 filesSeen.insert(fname);
 
-                ImportParser parser(in, fname, false);
+                ImportParser parser(in, fname);
+                parser.source = import;
                 in.close();
                 // go ahead and start
                 peektimes[fname] = parser();
@@ -154,11 +169,23 @@ static void importModules(std::deque<Import *> imports,
                     modulesImported.insert(parser.mod_decl->getIdentifier());
                     times[fname] = peektimes[fname] + parser(); // continue
                     pushImportsFromAST(parser.nodes, imports);
-                    frontEnd.AST.reserve(frontEnd.AST.size() + parser.nodes.size());
-                    frontEnd.AST.insert(frontEnd.AST.end(), parser.nodes.begin(),
-                               parser.nodes.end());
-					frontEnd.structs.insert(frontEnd.structs.end(), parser.structs.begin(), parser.structs.end());
-					frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(), parser.ifaceDefs.begin(), parser.ifaceDefs.end());
+                    if (parser.source->parent) {
+                        (*parser.source->replace)(parser.source->parent,
+                                                  parser.source,
+                                                  new MultiNode(parser.nodes));
+                    } else {
+                        frontEnd.AST.reserve(frontEnd.AST.size() +
+                                             parser.nodes.size());
+                        frontEnd.AST.insert(frontEnd.AST.end(),
+                                            parser.nodes.begin(),
+                                            parser.nodes.end());
+                    }
+                    frontEnd.structs.insert(frontEnd.structs.end(),
+                                            parser.structs.begin(),
+                                            parser.structs.end());
+                    frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(),
+                                              parser.ifaceDefs.begin(),
+                                              parser.ifaceDefs.end());
                 } else
                     parser.Dispose();
             }
@@ -170,13 +197,13 @@ static void importModules(std::deque<Import *> imports,
             prettyPrintTimeMin(t.second, "    imported " + t.first);
 }
 
-void importModulesFromAST(FrontEnd& frontEnd) {
+void importModulesFromAST(FrontEnd & frontEnd) {
     std::deque<Import *> imports;
     pushImportsFromAST(frontEnd.AST, imports);
     importModules(imports, frontEnd);
 }
 
-void importModuleFromFile(FrontEnd& frontEnd, const char * _fname) {
+void importModuleFromFile(FrontEnd & frontEnd, const char * _fname) {
     Import * import = new Import;
     import->setModule(_fname);
     import->setFlag(Import::FROM_PATH, true);
@@ -184,8 +211,6 @@ void importModuleFromFile(FrontEnd& frontEnd, const char * _fname) {
     std::deque<Import *> imports{import};
 
     importModules(imports, frontEnd);
-
-    delete import;
 }
 
 /*

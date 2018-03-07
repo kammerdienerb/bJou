@@ -15,15 +15,15 @@
 
 namespace bjou {
 template <typename rT> rT _evalAdd(Val & a, Val & b) {
-    if (a.t->enumerableEquivalent()) {
-        if (b.t->enumerableEquivalent())
+    if (a.t->isInt() || a.t->isBool()) {
+        if (b.t->isInt() || b.t->isBool())
             return a.as_i64 + b.as_i64;
-        if (b.t->isFP())
+        if (b.t->isFloat())
             return a.as_i64 + b.as_f64;
-    } else if (a.t->isFP()) {
-        if (b.t->isFP())
+    } else if (a.t->isFloat()) {
+        if (b.t->isFloat())
             return a.as_f64 + b.as_f64;
-        if (b.t->enumerableEquivalent())
+        if (b.t->isInt() || b.t->isBool())
             return a.as_f64 + b.as_i64;
     }
     internalError("Bad types in evaluation of add expression.");
@@ -31,15 +31,15 @@ template <typename rT> rT _evalAdd(Val & a, Val & b) {
 }
 
 template <typename rT> rT _evalSub(Val & a, Val & b) {
-    if (a.t->enumerableEquivalent()) {
-        if (b.t->enumerableEquivalent())
+    if (a.t->isInt() || a.t->isBool()) {
+        if (b.t->isInt() || b.t->isBool())
             return a.as_i64 - b.as_i64;
-        if (b.t->isFP())
+        if (b.t->isFloat())
             return a.as_i64 - b.as_f64;
-    } else if (a.t->isFP()) {
-        if (b.t->isFP())
+    } else if (a.t->isFloat()) {
+        if (b.t->isFloat())
             return a.as_f64 - b.as_f64;
-        if (b.t->enumerableEquivalent())
+        if (b.t->isInt() || b.t->isBool())
             return a.as_f64 - b.as_i64;
     }
 
@@ -48,15 +48,15 @@ template <typename rT> rT _evalSub(Val & a, Val & b) {
 }
 
 template <typename rT> rT _evalMult(Val & a, Val & b) {
-    if (a.t->enumerableEquivalent()) {
-        if (b.t->enumerableEquivalent())
+    if (a.t->isInt() || a.t->isBool()) {
+        if (b.t->isInt() || b.t->isBool())
             return a.as_i64 * b.as_i64;
-        if (b.t->isFP())
+        if (b.t->isFloat())
             return a.as_i64 * b.as_f64;
-    } else if (a.t->isFP()) {
-        if (b.t->isFP())
+    } else if (a.t->isFloat()) {
+        if (b.t->isFloat())
             return a.as_f64 * b.as_f64;
-        if (b.t->enumerableEquivalent())
+        if (b.t->isInt() || b.t->isBool())
             return a.as_f64 * b.as_i64;
     }
 
@@ -65,15 +65,15 @@ template <typename rT> rT _evalMult(Val & a, Val & b) {
 }
 
 template <typename rT> rT _evalDiv(Val & a, Val & b) {
-    if (a.t->enumerableEquivalent()) {
-        if (b.t->enumerableEquivalent())
+    if (a.t->isInt() || a.t->isBool()) {
+        if (b.t->isInt() || b.t->isBool())
             return a.as_i64 / b.as_i64;
-        if (b.t->isFP())
+        if (b.t->isFloat())
             return a.as_i64 / b.as_f64;
-    } else if (a.t->isFP()) {
-        if (b.t->isFP())
+    } else if (a.t->isFloat()) {
+        if (b.t->isFloat())
             return a.as_f64 / b.as_f64;
-        if (b.t->enumerableEquivalent())
+        if (b.t->isInt() || b.t->isBool())
             return a.as_f64 / b.as_i64;
     }
 
@@ -82,12 +82,56 @@ template <typename rT> rT _evalDiv(Val & a, Val & b) {
 }
 
 template <typename rT> rT _evalMod(Val & a, Val & b) {
-    if (a.t->enumerableEquivalent()) {
-        if (b.t->enumerableEquivalent())
+    if (a.t->isInt() || a.t->isBool()) {
+        if (b.t->isInt() || b.t->isBool())
             return a.as_i64 % b.as_i64;
     }
 
     internalError("Bad types in evaluation of mod expression.");
+    return {};
+}
+
+template <typename rT> rT _evalNot(Val & a) {
+    if (a.t->isInt() || a.t->isBool()) {
+        return !a.as_i64;
+    } else if (a.t->isFloat()) {
+        return !a.as_f64;
+    }
+    internalError("Bad types in evaluation of add expression.");
+    return {};
+}
+
+template <typename rT> rT _evalEqu(Val & a, Val & b) {
+    if (a.t->isInt() || a.t->isBool()) {
+        if (b.t->isInt() || b.t->isBool())
+            return a.as_i64 == b.as_i64;
+        if (b.t->isFloat())
+            return a.as_i64 == b.as_f64;
+    } else if (a.t->isFloat()) {
+        if (b.t->isFloat())
+            return a.as_f64 == b.as_f64;
+        if (b.t->isInt() || b.t->isBool())
+            return a.as_f64 == b.as_i64;
+    }
+
+    internalError("Bad types in evaluation of equ expression.");
+    return {};
+}
+
+template <typename rT> rT _evalNeq(Val & a, Val & b) {
+    if (a.t->isInt() || a.t->isBool()) {
+        if (b.t->isInt() || b.t->isBool())
+            return a.as_i64 != b.as_i64;
+        if (b.t->isFloat())
+            return a.as_i64 != b.as_f64;
+    } else if (a.t->isFloat()) {
+        if (b.t->isFloat())
+            return a.as_f64 != b.as_f64;
+        if (b.t->isInt() || b.t->isBool())
+            return a.as_f64 != b.as_i64;
+    }
+
+    internalError("Bad types in evaluation of neq expression.");
     return {};
 }
 } // namespace bjou

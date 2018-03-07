@@ -63,6 +63,7 @@ struct TCLAPArgSet {
     TCLAP::SwitchArg & symbols_arg;
     TCLAP::SwitchArg & noparallel_arg;
     TCLAP::SwitchArg & opt_arg;
+    TCLAP::SwitchArg & noabc_arg;
     TCLAP::SwitchArg & module_arg;
     TCLAP::MultiArg<std::string> & module_search_path_arg;
     TCLAP::SwitchArg & nopreload_arg;

@@ -1,0 +1,43 @@
+# ref2.bjou
+
+abstract type A {
+    
+}
+
+type B extends A {
+    
+}
+
+type C extends B {
+
+}
+
+proc p(a : A ref) {
+    print "p(A ref)"
+}
+
+proc p(b : B ref) {
+    print "p(B ref)"
+}
+
+proc p(a : A*) {
+    print "p(A*)"    
+}
+
+proc p(b : B*) {
+    print "p(B*)"    
+}
+
+(proc main() {
+    b := { B: }
+    b.p()
+    (&b).p()
+
+    a := refcast$A(b)
+    a.p()
+    (&a).p()
+
+    c := { C: }
+    c.p()
+    (&c).p()
+})()

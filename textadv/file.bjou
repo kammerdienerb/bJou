@@ -1,0 +1,47 @@
+# file.bjou
+
+module file
+
+# @hack
+type FILE {}
+
+extern fopen(char*, char*)                : FILE*
+extern fclose(FILE*)                      : int
+
+#             ptr,  size, nitems, stream
+extern fread(void*, ulong, ulong, FILE*)  : ulong
+extern fwrite(void*, ulong, ulong, FILE*) : ulong
+
+extern getstdin()                         : FILE*
+extern getstdout()                        : FILE*
+
+type file {
+    # modes
+    const READ   := 0
+    const WRITE  := 1
+    const APPEND := 2
+
+    _C_FILE : FILE*
+
+    proc open(fname : char*, mode : int) : file {
+        mode_s := (null() as char*)
+
+        if      mode == file.READ   mode_s = "r"
+        else if mode == file.WRITE  mode_s = "w"
+        else if mode == file.APPEND mode_s = "a"
+        else panic("file.open(): invalid mode value")
+
+        c_f := fopen(fname, mode_s)
+        if c_f.isnull()
+            panic("file.open(): unable to open file")
+
+        return { file: ._C_FILE = c_f }
+    }
+    
+    proc close(this) {
+        if not this._C_FILE.isnull() {
+            this._C_FILE.fclose()
+            print "closed file"
+        }
+    }
+}

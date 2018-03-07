@@ -1,0 +1,12 @@
+# abi.bjou
+
+type agg {
+    a : i32
+    b : i32
+    c : void*[3]
+}
+
+extern A(agg) : agg
+
+(proc main() {
+})()

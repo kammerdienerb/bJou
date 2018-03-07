@@ -1,0 +1,11 @@
+t.var = 12345
+t.var = 0
+t.var = 1
+val
+12345
+ref
+12346
+ref
+12347
+ref
+ref

@@ -1,0 +1,35 @@
+# macro.bjou
+
+type T$(U, V) {
+    proc p(this) {
+        \static_if{\same_type{U V}
+            print "U == V"}
+        \static_if{not \same_type{U V}
+            print "U != V"}
+        \static_if{\same_type{U float}
+            panic(0, "panic: U was float!")}
+    }
+}
+
+proc f() {
+    print "f()"    
+}
+
+(proc main() {
+    # \hello{}
+
+    # \static_if{\rand{1 2} % 2 
+        # print "runtime hello"}
+
+    # \run{f()}
+
+    t1 := { T$(int, int):   }
+    t2 := { T$(int, char*): }
+    t3 := { T$(float, f32): }
+
+    t1.p()
+    t2.p()
+    t3.p()
+
+    print "end of program"
+})()

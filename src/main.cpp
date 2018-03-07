@@ -7,6 +7,8 @@
 //
 
 #include <bitset>
+#include <cstdlib>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -36,6 +38,8 @@ Compilation * compilation = nullptr;
 std::mutex cli_mtx;
 
 int main(int argc, const char ** argv) {
+    std::srand(std::time(NULL));
+
     // below are the command line options that this compiler takes.
     TCLAP::CmdLine cmd_line("bJou\nA friendly language and compiler written by "
                             "Brandon Kammerdiener",
@@ -58,6 +62,8 @@ int main(int argc, const char ** argv) {
         "", "noparallel", "Turn compilation parallelization off.", cmd_line);
     TCLAP::SwitchArg opt_arg("O", "optimize", "Run LLVM optimization passes.",
                              cmd_line);
+    TCLAP::SwitchArg noabc_arg("", "noabc", "Turn off array bounds checking.",
+                               cmd_line);
     TCLAP::SwitchArg module_arg(
         "m", "module", "Create a module file instead of an executable.",
         cmd_line);
@@ -83,10 +89,11 @@ int main(int argc, const char ** argv) {
                    // error message instead of tclap
 
     bjou::TCLAPArgSet args = {
-        verbose_arg,    justcheck_arg, time_arg,   symbols_arg,
-        noparallel_arg, opt_arg,       module_arg, module_search_path_arg,
-        nopreload_arg,  lld_arg,       output_arg, link_arg,
-        files};
+        verbose_arg,   justcheck_arg,  time_arg,
+        symbols_arg,   noparallel_arg, opt_arg,
+        noabc_arg,     module_arg,     module_search_path_arg,
+        nopreload_arg, lld_arg,        output_arg,
+        link_arg,      files};
 
     cmd_line.parse(argc, (char **)argv); // cast away constness
     // end command line options

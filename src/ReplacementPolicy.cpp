@@ -10,7 +10,164 @@
 #include "ASTNode.hpp"
 #include "FrontEnd.hpp"
 
+#include <algorithm>
+#include <vector>
+
 namespace bjou {
+
+void init_replacementPolicies() {
+    rpget<replacementPolicy_empty>()->allowed_nodeKinds = {ANY_NODE};
+    rpget<replacementPolicy_Global_Node>()->allowed_nodeKinds = {ANY_NODE};
+    rpget<replacementPolicy_MultiNode_Node>()->allowed_nodeKinds = {ANY_NODE};
+    rpget<replacementPolicy_ExpressionL>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_ExpressionR>()->allowed_nodeKinds = {
+        ANY_EXPRESSION, ANY_DECLARATOR};
+    rpget<replacementPolicy_InitializerList_ObjDeclarator>()
+        ->allowed_nodeKinds = {ANY_DECLARATOR};
+    rpget<replacementPolicy_InitializerList_Expression>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_SliceExpression_Start>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_SliceExpression_Src>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_SliceExpression_Length>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_DynamicArrayExpression_TypeDeclarator>()
+        ->allowed_nodeKinds = {ANY_DECLARATOR};
+    rpget<replacementPolicy_LenExpression_Expr>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_TupleLiteral_subExpression>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_Declarator_Identifier>()->allowed_nodeKinds = {
+        ASTNode::NodeKind::IDENTIFIER};
+    rpget<replacementPolicy_Declarator_TemplateInst>()->allowed_nodeKinds = {
+        ASTNode::NodeKind::TEMPLATE_INSTANTIATION};
+    rpget<replacementPolicy_ArrayDeclarator_ArrayOf>()->allowed_nodeKinds = {
+        ANY_DECLARATOR};
+    rpget<replacementPolicy_ArrayDeclarator_Expression>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_SliceDeclarator_SliceOf>()->allowed_nodeKinds = {
+        ANY_DECLARATOR};
+    rpget<replacementPolicy_DynamicArrayDeclarator_ArrayOf>()
+        ->allowed_nodeKinds = {ANY_DECLARATOR};
+    rpget<replacementPolicy_PointerDeclarator_PointerOf>()
+        ->allowed_nodeKinds = {ANY_DECLARATOR};
+    rpget<replacementPolicy_RefDeclarator_RefOf>()->allowed_nodeKinds = {
+        ANY_DECLARATOR};
+    rpget<replacementPolicy_MaybeDeclarator_MaybeOf>()->allowed_nodeKinds = {
+        ANY_DECLARATOR};
+    rpget<replacementPolicy_TupleDeclarator_subDeclarator>()
+        ->allowed_nodeKinds = {ANY_DECLARATOR};
+    rpget<replacementPolicy_ProcedureDeclarator_ParamDeclarators>()
+        ->allowed_nodeKinds = {ANY_DECLARATOR};
+    rpget<replacementPolicy_ProcedureDeclarator_RetDeclarator>()
+        ->allowed_nodeKinds = {ANY_DECLARATOR};
+    rpget<replacementPolicy_Constant_TypeDeclarator>()->allowed_nodeKinds = {
+        ANY_DECLARATOR};
+    rpget<replacementPolicy_Constant_Initialization>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_VariableDeclaration_TypeDeclarator>()
+        ->allowed_nodeKinds = {ANY_DECLARATOR};
+    rpget<replacementPolicy_VariableDeclaration_Initialization>()
+        ->allowed_nodeKinds = {ANY_EXPRESSION};
+    rpget<replacementPolicy_Alias_Declarator>()->allowed_nodeKinds = {
+        ANY_DECLARATOR};
+    rpget<replacementPolicy_Struct_Extends>()->allowed_nodeKinds = {
+        ANY_DECLARATOR};
+    rpget<replacementPolicy_Struct_MemberVarDecl>()->allowed_nodeKinds = {
+        ASTNode::NodeKind::VARIABLE_DECLARATION};
+    rpget<replacementPolicy_Struct_ConstantDecl>()->allowed_nodeKinds = {
+        ASTNode::NodeKind::CONSTANT};
+    rpget<replacementPolicy_Struct_MemberProc>()->allowed_nodeKinds = {
+        ASTNode::NodeKind::PROCEDURE};
+    rpget<replacementPolicy_Struct_MemberTemplateProc>()->allowed_nodeKinds = {
+        ASTNode::NodeKind::TEMPLATE_PROC};
+    rpget<replacementPolicy_Struct_InterfaceImpl>()->allowed_nodeKinds = {
+        ASTNode::NodeKind::INTERFACE_IMPLEMENTATION};
+    rpget<replacementPolicy_InterfaceDef_Proc>()->allowed_nodeKinds = {
+        ASTNode::NodeKind::PROCEDURE};
+    rpget<replacementPolicy_InterfaceImplementation_Identifier>()
+        ->allowed_nodeKinds = {ASTNode::NodeKind::IDENTIFIER};
+    rpget<replacementPolicy_InterfaceImplementation_Proc>()
+        ->allowed_nodeKinds = {ASTNode::NodeKind::PROCEDURE};
+    rpget<replacementPolicy_ArgList_Expressions>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_Procedure_ParamVarDeclaration>()
+        ->allowed_nodeKinds = {ASTNode::NodeKind::VARIABLE_DECLARATION};
+    rpget<replacementPolicy_Procedure_RetDeclarator>()->allowed_nodeKinds = {
+        ANY_DECLARATOR};
+    rpget<replacementPolicy_Procedure_ProcDeclarator>()->allowed_nodeKinds = {
+        ANY_DECLARATOR};
+    rpget<replacementPolicy_Procedure_Statement>()->allowed_nodeKinds = {
+        ANY_STATEMENT};
+    rpget<replacementPolicy_Namespace_Node>()->allowed_nodeKinds = {ANY_NODE};
+    rpget<replacementPolicy_Print_Args>()->allowed_nodeKinds = {ANY_EXPRESSION};
+    rpget<replacementPolicy_Return_Expression>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_If_Conditional>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_If_Statement>()->allowed_nodeKinds = {
+        ANY_STATEMENT};
+    rpget<replacementPolicy_If_Else>()->allowed_nodeKinds = {
+        ASTNode::NodeKind::ELSE};
+    rpget<replacementPolicy_Else_Statement>()->allowed_nodeKinds = {
+        ANY_STATEMENT};
+    rpget<replacementPolicy_For_Initialization>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_For_Conditional>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_For_Afterthought>()->allowed_nodeKinds = {
+        ANY_STATEMENT};
+    rpget<replacementPolicy_For_Statement>()->allowed_nodeKinds = {
+        ANY_STATEMENT};
+    rpget<replacementPolicy_Foreach_Expression>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_Foreach_Statement>()->allowed_nodeKinds = {
+        ANY_STATEMENT};
+    rpget<replacementPolicy_While_Conditional>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_While_Statement>()->allowed_nodeKinds = {
+        ANY_STATEMENT};
+    rpget<replacementPolicy_DoWhile_Conditional>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_DoWhile_Statement>()->allowed_nodeKinds = {
+        ANY_STATEMENT};
+    rpget<replacementPolicy_Match_Expression>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_Match_With>()->allowed_nodeKinds = {
+        ASTNode::NodeKind::WITH};
+    rpget<replacementPolicy_With_Expression>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_With_Statement>()->allowed_nodeKinds = {
+        ANY_STATEMENT};
+    // @imcomplete
+    rpget<replacementPolicy_TemplateDefineList_Element>()
+        ->allowed_nodeKinds = {};
+    rpget<replacementPolicy_TemplateDefineTypeDescriptor_Bound>()
+        ->allowed_nodeKinds = {};
+    rpget<replacementPolicy_TemplateDefineExpression_VarDecl>()
+        ->allowed_nodeKinds = {};
+    rpget<replacementPolicy_TemplateInstantiation_Element>()
+        ->allowed_nodeKinds = {};
+    rpget<replacementPolicy_TemplateAlias_Template>()->allowed_nodeKinds = {};
+    rpget<replacementPolicy_TemplateAlias_TemplateDef>()
+        ->allowed_nodeKinds = {};
+    rpget<replacementPolicy_TemplateStruct_Template>()->allowed_nodeKinds = {};
+    rpget<replacementPolicy_TemplateStruct_TemplateDef>()
+        ->allowed_nodeKinds = {};
+    rpget<replacementPolicy_TemplateProc_Template>()->allowed_nodeKinds = {};
+    rpget<replacementPolicy_TemplateProc_TemplateDef>()->allowed_nodeKinds = {};
+    rpget<replacementPolicy_MacroUse_Arg>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+}
+
+bool replacementPolicy::canReplace(ASTNode * node) const {
+    auto search = std::find(allowed_nodeKinds.begin(), allowed_nodeKinds.end(),
+                            (int)node->nodeKind);
+    return search != allowed_nodeKinds.end();
+}
+
 replacementPolicy::~replacementPolicy() {}
 
 #define RP_FUNCTOR_IMPL(name, ...)                                             \
@@ -35,6 +192,18 @@ RP_FUNCTOR_IMPL(
     new_node->replace = rpget<replacementPolicy_Global_Node>();
 
     return new_node;);
+RP_FUNCTOR_IMPL(MultiNode_Node, MultiNode * parent_multi = (MultiNode *)parent;
+                auto found_node = std::find(parent_multi->nodes.begin(),
+                                            parent_multi->nodes.end(),
+                                            old_node);
+                if (found_node == parent_multi->nodes.end())
+                    internalError("node to replace not found in "
+                                  "replacementPolicy_MultiNode_Node()");
+
+                *found_node = new_node; new_node->parent = parent;
+                new_node->replace = rpget<replacementPolicy_MultiNode_Node>();
+
+                return new_node;);
 RP_FUNCTOR_IMPL(ExpressionL,
                 BJOU_DEBUG_ASSERT(((Expression *)parent)->getLeft() ==
                                   old_node);
@@ -62,6 +231,30 @@ RP_FUNCTOR_IMPL(
     new_node->replace = rpget<replacementPolicy_InitializerList_Expression>();
 
     return new_node;);
+RP_FUNCTOR_IMPL(SliceExpression_Src,
+                BJOU_DEBUG_ASSERT(((SliceExpression *)parent)->getSrc() ==
+                                  old_node);
+                ((SliceExpression *)parent)->setSrc(new_node);
+                return new_node;);
+RP_FUNCTOR_IMPL(SliceExpression_Start,
+                BJOU_DEBUG_ASSERT(((SliceExpression *)parent)->getStart() ==
+                                  old_node);
+                ((SliceExpression *)parent)->setStart(new_node);
+                return new_node;);
+RP_FUNCTOR_IMPL(SliceExpression_Length,
+                BJOU_DEBUG_ASSERT(((SliceExpression *)parent)->getLength() ==
+                                  old_node);
+                ((SliceExpression *)parent)->setLength(new_node);
+                return new_node;);
+RP_FUNCTOR_IMPL(DynamicArrayExpression_TypeDeclarator,
+                BJOU_DEBUG_ASSERT(((DynamicArrayExpression *)parent)
+                                      ->getTypeDeclarator() == old_node);
+                ((DynamicArrayExpression *)parent)->setTypeDeclarator(new_node);
+                return new_node;);
+RP_FUNCTOR_IMPL(LenExpression_Expr,
+                BJOU_DEBUG_ASSERT(((LenExpression *)parent)->getExpr() ==
+                                  old_node);
+                ((LenExpression *)parent)->setExpr(new_node); return new_node;);
 RP_FUNCTOR_IMPL(
     TupleLiteral_subExpression,
     TupleLiteral * parent_tuple_lit = (TupleLiteral *)parent;
@@ -95,6 +288,11 @@ RP_FUNCTOR_IMPL(
     ArrayDeclarator_Expression,
     BJOU_DEBUG_ASSERT(((ArrayDeclarator *)parent)->getExpression() == old_node);
     ((ArrayDeclarator *)parent)->setExpression(new_node); return new_node;);
+RP_FUNCTOR_IMPL(SliceDeclarator_SliceOf,
+                BJOU_DEBUG_ASSERT(((SliceDeclarator *)parent)->getSliceOf() ==
+                                  old_node);
+                ((SliceDeclarator *)parent)->setSliceOf(new_node);
+                return new_node;);
 RP_FUNCTOR_IMPL(
     DynamicArrayDeclarator_ArrayOf,
     BJOU_DEBUG_ASSERT(((DynamicArrayDeclarator *)parent)->getArrayOf() ==
@@ -104,6 +302,11 @@ RP_FUNCTOR_IMPL(PointerDeclarator_PointerOf,
                 BJOU_DEBUG_ASSERT(
                     ((PointerDeclarator *)parent)->getPointerOf() == old_node);
                 ((PointerDeclarator *)parent)->setPointerOf(new_node);
+                return new_node;);
+RP_FUNCTOR_IMPL(RefDeclarator_RefOf,
+                BJOU_DEBUG_ASSERT(((RefDeclarator *)parent)->getRefOf() ==
+                                  old_node);
+                ((RefDeclarator *)parent)->setRefOf(new_node);
                 return new_node;);
 RP_FUNCTOR_IMPL(MaybeDeclarator_MaybeOf,
                 BJOU_DEBUG_ASSERT(((MaybeDeclarator *)parent)->getMaybeOf() ==
@@ -406,6 +609,21 @@ RP_FUNCTOR_IMPL(
     new_node->replace = rpget<replacementPolicy_For_Statement>();
 
     return new_node;);
+RP_FUNCTOR_IMPL(Foreach_Expression,
+                BJOU_DEBUG_ASSERT(((Foreach *)parent)->getExpression() ==
+                                  old_node);
+                ((Foreach *)parent)->setExpression(new_node); return new_node;);
+RP_FUNCTOR_IMPL(
+    Foreach_Statement, Foreach * parent_for = (Foreach *)parent;
+    auto found_node = std::find(parent_for->getStatements().begin(),
+                                parent_for->getStatements().end(), old_node);
+    if (found_node == parent_for->getStatements().end()) internalError(
+        "node to replace not found in replacementPolicy_Foreach_Statement()");
+
+    *found_node = new_node; new_node->parent = parent;
+    new_node->replace = rpget<replacementPolicy_Foreach_Statement>();
+
+    return new_node;);
 RP_FUNCTOR_IMPL(While_Conditional,
                 BJOU_DEBUG_ASSERT(((While *)parent)->getConditional() ==
                                   old_node);
@@ -543,5 +761,17 @@ RP_FUNCTOR_IMPL(TemplateProc_TemplateDef,
                 BJOU_DEBUG_ASSERT(((TemplateProc *)parent)->getTemplateDef() ==
                                   old_node);
                 ((TemplateProc *)parent)->setTemplateDef(new_node);
+                return new_node;);
+RP_FUNCTOR_IMPL(MacroUse_Arg, MacroUse * parent_macro = (MacroUse *)parent;
+                auto found_node = std::find(parent_macro->getArgs().begin(),
+                                            parent_macro->getArgs().end(),
+                                            old_node);
+                if (found_node == parent_macro->getArgs().end())
+                    internalError("node to replace not found in "
+                                  "replacementPolicy_MacroUse_Arg()");
+
+                *found_node = new_node; new_node->parent = parent;
+                new_node->replace = rpget<replacementPolicy_MacroUse_Arg>();
+
                 return new_node;);
 } // namespace bjou
