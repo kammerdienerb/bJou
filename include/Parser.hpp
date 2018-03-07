@@ -73,6 +73,8 @@ MaybeString parser_kwd_else(StringViewableBuffer & buff);
 MaybeString parser_kwd_while(StringViewableBuffer & buff);
 MaybeString parser_kwd_do(StringViewableBuffer & buff);
 MaybeString parser_kwd_for(StringViewableBuffer & buff);
+MaybeString parser_kwd_foreach(StringViewableBuffer & buff);
+MaybeString parser_kwd_in(StringViewableBuffer & buff);
 MaybeString parser_kwd_match(StringViewableBuffer & buff);
 MaybeString parser_kwd_with(StringViewableBuffer & buff);
 MaybeString parser_kwd_break(StringViewableBuffer & buff);
@@ -178,6 +180,8 @@ enum TokenKind {
     KWD_WHILE,
     KWD_DO,
     KWD_FOR,
+    KWD_FOREACH,
+    KWD_IN,
     KWD_MATCH,
     KWD_WITH,
     KWD_BREAK,
@@ -322,6 +326,7 @@ struct Parser {
     MaybeASTNode parseIf();
     MaybeASTNode parseElse();
     MaybeASTNode parseFor();
+    MaybeASTNode parseForeach();
     MaybeASTNode parseWhile();
     MaybeASTNode parseDoWhile();
     MaybeASTNode parseMatch();

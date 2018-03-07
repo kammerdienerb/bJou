@@ -90,6 +90,8 @@ RP_FUNCTOR_DECL(For_Initialization);
 RP_FUNCTOR_DECL(For_Conditional);
 RP_FUNCTOR_DECL(For_Afterthought);
 RP_FUNCTOR_DECL(For_Statement);
+RP_FUNCTOR_DECL(Foreach_Expression);
+RP_FUNCTOR_DECL(Foreach_Statement);
 RP_FUNCTOR_DECL(While_Conditional);
 RP_FUNCTOR_DECL(While_Statement);
 RP_FUNCTOR_DECL(DoWhile_Conditional);

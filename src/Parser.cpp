@@ -35,13 +35,14 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_kwd_namespace, parser_kwd_import, parser_kwd_module,
     parser_kwd_alias, parser_kwd_operator, parser_kwd_return, parser_kwd_if,
     parser_kwd_else, parser_kwd_while, parser_kwd_do, parser_kwd_for,
-    parser_kwd_match, parser_kwd_with, parser_kwd_break, parser_kwd_continue,
-    parser_l_curly_brace, parser_r_curly_brace, parser_l_sqr_bracket,
-    parser_r_sqr_bracket, parser_l_paren, parser_r_paren, parser_integer,
-    parser_floating_pt, parser_char_literal, parser_string_literal,
-    parser_kwd_true, parser_kwd_false, parser_kwd_nothing, parser_kwd_as,
-    parser_dot, parser_arrow, parser_exclam, parser_kwd_sizeof, parser_amp,
-    parser_tilde, parser_at, parser_kwd_not, parser_kwd_new, parser_kwd_proc,
+    parser_kwd_foreach, parser_kwd_in, parser_kwd_match, parser_kwd_with,
+    parser_kwd_break, parser_kwd_continue, parser_l_curly_brace,
+    parser_r_curly_brace, parser_l_sqr_bracket, parser_r_sqr_bracket,
+    parser_l_paren, parser_r_paren, parser_integer, parser_floating_pt,
+    parser_char_literal, parser_string_literal, parser_kwd_true,
+    parser_kwd_false, parser_kwd_nothing, parser_kwd_as, parser_dot,
+    parser_arrow, parser_exclam, parser_kwd_sizeof, parser_amp, parser_tilde,
+    parser_at, parser_kwd_not, parser_kwd_new, parser_kwd_proc,
     parser_kwd_extern, parser_kwd_some, parser_mult, parser_div, parser_mod,
     parser_plus, parser_minus, parser_lss, parser_leq, parser_gtr, parser_geq,
     parser_equ, parser_neq, parser_and, parser_kwd_and, parser_or,
@@ -74,17 +75,17 @@ constexpr const TokenParserFnType tokenParsers[] = {
 #define IS_SPACE(buff, p) ((p) < (buff).viewSize() && (isspace((buff)[(p)])))
 
 const char * kwds[] = {
-    "type",   "abstract", "interface", "implements", "extends", "from",
-    "enum",   "print",    "raw",       "immut",      "delete",  "namespace",
-    "import", "alias",    "operator",  "coerce",     "this",    "ref",
+    "type",    "abstract", "interface", "implements", "extends", "from",
+    "enum",    "print",    "raw",       "immut",      "delete",  "namespace",
+    "import",  "alias",    "operator",  "coerce",     "this",    "ref",
 
-    "return", "if",       "else",      "while",      "do",      "for",
-    "match",  "with",     "break",     "continue",
+    "return",  "if",       "else",      "while",      "do",      "for",
+    "foreach", "in",       "match",     "with",       "break",   "continue",
 
-    "true",   "false",    "nothing",
+    "true",    "false",    "nothing",
 
-    "as",     "sizeof",   "not",       "new",        "proc",    "extern",
-    "some",   "and",      "or"};
+    "as",      "sizeof",   "not",       "new",        "proc",    "extern",
+    "some",    "and",      "or"};
 
 MaybeString parse_kwd(StringViewableBuffer & buff, const char * kwd) {
     char * c = (char *)kwd;
@@ -305,6 +306,12 @@ MaybeString parser_kwd_do(StringViewableBuffer & buff) {
 }
 MaybeString parser_kwd_for(StringViewableBuffer & buff) {
     return parse_kwd(buff, "for");
+}
+MaybeString parser_kwd_foreach(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "foreach");
+}
+MaybeString parser_kwd_in(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "in");
 }
 MaybeString parser_kwd_match(StringViewableBuffer & buff) {
     return parse_kwd(buff, "match");
@@ -2564,9 +2571,9 @@ MaybeASTNode Parser::parseStatement() {
         (m_statement = parseExpression()) || (m_statement = parseBreak()) ||
         (m_statement = parseContinue()) || (m_statement = parseReturn()) ||
         (m_statement = parsePrint()) || (m_statement = parseIf()) ||
-        (m_statement = parseFor()) || (m_statement = parseWhile()) ||
-        (m_statement = parseDoWhile()) || (m_statement = parseConstant()) ||
-        (m_statement = parseMatch());
+        (m_statement = parseFor()) || (m_statement = parseForeach()) ||
+        (m_statement = parseWhile()) || (m_statement = parseDoWhile()) ||
+        (m_statement = parseConstant()) || (m_statement = parseMatch());
 
     return m_statement;
 }
@@ -2713,6 +2720,62 @@ MaybeASTNode Parser::parseFor() {
             m_statement = parseStatement();
             if (!m_statement.assignTo(statement))
                 errornext(*this, "Expected statement as body in 'for' loop.");
+            result->addStatement(statement);
+        }
+
+        result->getContext().finish(&currentContext, &justCleanedContext);
+
+        return MaybeASTNode(result);
+    }
+    return MaybeASTNode();
+}
+
+MaybeASTNode Parser::parseForeach() {
+    if (optional(KWD_FOREACH, true)) {
+        Foreach * result = new Foreach();
+        result->getContext().start(&currentContext);
+
+        eat("foreach");
+
+        if (optional(KWD_REF))
+            result->setFlag(Foreach::TAKE_REF, true);
+
+        Context identContext;
+        identContext.start(&currentContext);
+        std::string ident = expect(IDENTIFIER, "identifier");
+        identContext.finish(&currentContext, &justCleanedContext);
+
+        result->setIdent(ident);
+        result->setIdentContext(identContext);
+
+        expect(KWD_IN, "'in'");
+
+        MaybeASTNode m_expression;
+        ASTNode * expression = nullptr;
+        m_expression = parseExpression();
+        if (!m_expression.assignTo(expression))
+            if (!m_expression.assignTo(expression))
+                errornext(*this, "Invalid expression in 'foreach' loop.");
+        result->setExpression(expression);
+
+        MaybeASTNode m_statement;
+        ASTNode * statement;
+        if (optional(L_CURLY_BRACE)) {
+            while (true) {
+                statement = nullptr;
+                m_statement = parseStatement();
+                if (!m_statement.assignTo(statement))
+                    break;
+                result->addStatement(statement);
+            }
+            expect(R_CURLY_BRACE, "'}'");
+        } else {
+            statement = nullptr;
+            statement = nullptr;
+            m_statement = parseStatement();
+            if (!m_statement.assignTo(statement))
+                errornext(*this,
+                          "Expected statement as body in 'foreach' loop.");
             result->addStatement(statement);
         }
 

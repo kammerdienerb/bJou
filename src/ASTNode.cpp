@@ -7005,6 +7005,148 @@ For::~For() {
 }
 //
 
+// ~~~~~ Foreach ~~~~~
+
+Foreach::Foreach() : expression(nullptr), statements({}) { nodeKind = FOREACH; }
+
+Context & Foreach::getIdentContext() { return identContext; }
+void Foreach::setIdentContext(Context & _context) { identContext = _context; }
+
+std::string & Foreach::getIdent() { return ident; }
+void Foreach::setIdent(std::string & _ident) { ident = _ident; }
+
+ASTNode * Foreach::getExpression() { return expression; }
+void Foreach::setExpression(ASTNode * _expr) {
+    expression = _expr;
+    expression->parent = this;
+    expression->replace = rpget<replacementPolicy_Foreach_Expression>();
+}
+
+std::vector<ASTNode *> & Foreach::getStatements() { return statements; }
+void Foreach::setStatements(std::vector<ASTNode *> _statements) {
+    statements = _statements;
+}
+void Foreach::addStatement(ASTNode * _statement) {
+    _statement->parent = this;
+    _statement->replace = rpget<replacementPolicy_Foreach_Statement>();
+    statements.push_back(_statement);
+}
+
+// Node interface
+void Foreach::analyze(bool force) {
+    HANDLE_FORCE();
+
+    const Type * t = getExpression()->getType()->unRef();
+
+    if (!t->isArray() && !t->isSlice() && !t->isDynamicArray())
+        errorl(getExpression()->getContext(),
+               "Can't loop over '" + t->getDemangledName() + "'.", true,
+               "array, slice, or dynamic array is required");
+
+    if (t->isSlice() && getFlag(TAKE_REF))
+        errorl(getExpression()->getContext(),
+               "Can't take references from slice.");
+
+    desugar();
+
+    setFlag(ANALYZED, true);
+}
+
+void Foreach::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    getExpression()->addSymbols(_scope);
+}
+
+void Foreach::unwrap(std::vector<ASTNode *> & terminals) {
+    getExpression()->unwrap(terminals);
+}
+
+ASTNode * Foreach::clone() {
+    Foreach * c = new Foreach(*this);
+
+    c->setExpression(getExpression()->clone());
+
+    return c;
+}
+
+void Foreach::desugar() {
+    const Type * t = getExpression()->getType()->unRef();
+    const Type * elem_t = t->under();
+
+    For * _for = new For;
+    _for->setContext(getContext());
+
+    VariableDeclaration * it = new VariableDeclaration;
+    it->setName(compilation->frontEnd.makeUID("__bjou_foreach_it"));
+
+    IntegerLiteral * zero = new IntegerLiteral;
+    zero->setContents("0");
+
+    it->setInitialization(zero);
+
+    _for->addInitialization(it);
+
+    LssExpression * lss = new LssExpression;
+
+    Identifier * i_it = new Identifier;
+    i_it->setUnqualified(it->getName());
+
+    LenExpression * len = new LenExpression;
+    len->setExpr(getExpression());
+
+    lss->setLeft(i_it);
+    lss->setRight(len);
+
+    _for->setConditional(lss);
+
+    AddAssignExpression * inc = new AddAssignExpression;
+
+    Identifier * _i_it = new Identifier;
+    _i_it->setUnqualified(it->getName());
+
+    IntegerLiteral * one = new IntegerLiteral;
+    one->setContents("1");
+
+    inc->setLeft(_i_it);
+    inc->setRight(one);
+
+    _for->addAfterthought(inc);
+
+    VariableDeclaration * elem = new VariableDeclaration;
+    elem->setContext(getIdentContext());
+    elem->setNameContext(getIdentContext());
+    elem->setName(getIdent());
+    if (getFlag(TAKE_REF))
+        elem->setTypeDeclarator(elem_t->getRef()->getGenericDeclarator());
+    else
+        elem->setTypeDeclarator(elem_t->getGenericDeclarator());
+
+    SubscriptExpression * sub = new SubscriptExpression;
+
+    Identifier * __i_it = new Identifier;
+    __i_it->setUnqualified(it->getName());
+
+    sub->setLeft(getExpression()->clone());
+    sub->setRight(__i_it);
+
+    elem->setInitialization(sub);
+
+    _for->addStatement(elem);
+    for (ASTNode * s : getStatements())
+        _for->addStatement(s);
+
+    _for->addSymbols(getScope());
+
+    (*replace)(parent, this, _for);
+
+    _for->analyze();
+}
+
+bool Foreach::isStatement() const { return true; }
+
+Foreach::~Foreach() { delete getExpression(); }
+//
+
 // ~~~~~ While ~~~~~
 
 While::While() : conditional(nullptr), statements({}) { nodeKind = WHILE; }

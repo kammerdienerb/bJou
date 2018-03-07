@@ -342,5 +342,8 @@ void compilationAddPrimativeTypes();
 
 unsigned int simpleSizer(const Type * t);
 
+int countConversions(ProcedureType * compare_type,
+                     ProcedureType * candidate_type);
+
 } // namespace bjou
 #endif /* Type_hpp */

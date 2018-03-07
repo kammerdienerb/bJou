@@ -121,6 +121,10 @@ void init_replacementPolicies() {
         ANY_STATEMENT};
     rpget<replacementPolicy_For_Statement>()->allowed_nodeKinds = {
         ANY_STATEMENT};
+    rpget<replacementPolicy_Foreach_Expression>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_Foreach_Statement>()->allowed_nodeKinds = {
+        ANY_STATEMENT};
     rpget<replacementPolicy_While_Conditional>()->allowed_nodeKinds = {
         ANY_EXPRESSION};
     rpget<replacementPolicy_While_Statement>()->allowed_nodeKinds = {
@@ -603,6 +607,21 @@ RP_FUNCTOR_IMPL(
 
     *found_node = new_node; new_node->parent = parent;
     new_node->replace = rpget<replacementPolicy_For_Statement>();
+
+    return new_node;);
+RP_FUNCTOR_IMPL(Foreach_Expression,
+                BJOU_DEBUG_ASSERT(((Foreach *)parent)->getExpression() ==
+                                  old_node);
+                ((Foreach *)parent)->setExpression(new_node); return new_node;);
+RP_FUNCTOR_IMPL(
+    Foreach_Statement, Foreach * parent_for = (Foreach *)parent;
+    auto found_node = std::find(parent_for->getStatements().begin(),
+                                parent_for->getStatements().end(), old_node);
+    if (found_node == parent_for->getStatements().end()) internalError(
+        "node to replace not found in replacementPolicy_Foreach_Statement()");
+
+    *found_node = new_node; new_node->parent = parent;
+    new_node->replace = rpget<replacementPolicy_Foreach_Statement>();
 
     return new_node;);
 RP_FUNCTOR_IMPL(While_Conditional,

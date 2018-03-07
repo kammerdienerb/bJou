@@ -2443,6 +2443,8 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
         if (getInitialization()) {
             llvm::Value * init_v =
                 (llvm::Value *)llbe->getOrGenNode(getInitialization());
+            if (!getType()->isRef() && getInitialization()->getType()->isRef())
+                init_v = llbe->builder.CreateLoad(init_v, "ref");
             llbe->builder.CreateStore(init_v, val);
         }
     }

@@ -1,0 +1,37 @@
+# foreach.bjou
+
+# \run{ main() }
+main()
+
+extern floor(f64) : f64
+
+proc main() {
+    array := [...float]
+    array.push(-42.48)
+    array.push(-52.39)
+    array.push(70.07)
+    array.push(-57.46)
+    array.push(-86.27)
+    array.push(10)
+    array.push(78.52)
+    array.push(20.37)
+    array.push(95.46)
+    array.push(-80.21)
+    array.push(-86.18)
+    array.push(-42.29)
+    array.push(66.46)
+    array.push(-65)
+    array.push(-62.73)
+    array.push(85.86)
+    array.push(66.11)
+    array.push(-65.78)
+    array.push(-84.43)
+    array.push(85.09)
+
+    foreach ref f in array
+        print "%", f.floor()
+
+    static := { 1, 2, 3 }
+    foreach ref i in static i += 1
+    foreach i in static print "%", i
+}

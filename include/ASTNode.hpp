@@ -148,6 +148,7 @@ struct ASTNode {
         IF,
         ELSE,
         FOR,
+        FOREACH,
         WHILE,
         DO_WHILE,
         MATCH,
@@ -227,9 +228,9 @@ struct ASTNode {
         ASTNode::NodeKind::RETURN, ASTNode::NodeKind::BREAK,                   \
         ASTNode::NodeKind::CONTINUE, ASTNode::NodeKind::IF,                    \
         ASTNode::NodeKind::ELSE, ASTNode::NodeKind::FOR,                       \
-        ASTNode::NodeKind::WHILE, ASTNode::NodeKind::DO_WHILE,                 \
-        ASTNode::NodeKind::MATCH, ASTNode::NodeKind::WITH,                     \
-        ASTNode::NodeKind::TEMPLATE_DEFINE_LIST,                               \
+        ASTNode::NodeKind::FOREACH, ASTNode::NodeKind::WHILE,                  \
+        ASTNode::NodeKind::DO_WHILE, ASTNode::NodeKind::MATCH,                 \
+        ASTNode::NodeKind::WITH, ASTNode::NodeKind::TEMPLATE_DEFINE_LIST,      \
         ASTNode::NodeKind::TEMPLATE_DEFINE_ELEMENT,                            \
         ASTNode::NodeKind::TEMPLATE_DEFINE_TYPE_DESCRIPTOR,                    \
         ASTNode::NodeKind::TEMPLATE_DEFINE_VARIADIC_TYPE_ARGS,                 \
@@ -297,9 +298,9 @@ struct ASTNode {
         ASTNode::NodeKind::PRINT, ASTNode::NodeKind::RETURN,                   \
         ASTNode::NodeKind::BREAK, ASTNode::NodeKind::CONTINUE,                 \
         ASTNode::NodeKind::IF, ASTNode::NodeKind::ELSE,                        \
-        ASTNode::NodeKind::FOR, ASTNode::NodeKind::WHILE,                      \
-        ASTNode::NodeKind::DO_WHILE, ASTNode::NodeKind::MATCH,                 \
-        ASTNode::NodeKind::MODULE_DECL
+        ASTNode::NodeKind::FOR, ASTNode::NodeKind::FOREACH,                    \
+        ASTNode::NodeKind::WHILE, ASTNode::NodeKind::DO_WHILE,                 \
+        ASTNode::NodeKind::MATCH, ASTNode::NodeKind::MODULE_DECL
 
 #define IS_DECLARATOR(node)                                                    \
     ((node)->nodeKind >= ASTNode::DECLARATOR &&                                \
@@ -2629,6 +2630,46 @@ struct For : ASTNode {
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual ~For();
+    //
+};
+
+/* ============================================================================
+ *
+ *                              Foreach
+ *  Loop over array, slice, or dynamic array elements
+ *
+ * ===========================================================================*/
+
+struct Foreach : ASTNode {
+    Foreach();
+
+    Context identContext;
+    std::string ident;
+    ASTNode * expression;
+    std::vector<ASTNode *> statements;
+
+    enum eBitFlags E_BIT_FLAGS_AND(TAKE_REF);
+
+    Context & getIdentContext();
+    void setIdentContext(Context & _context);
+    std::string & getIdent();
+    void setIdent(std::string & _ident);
+    ASTNode * getExpression();
+    void setExpression(ASTNode * _expr);
+    std::vector<ASTNode *> & getStatements();
+    void setStatements(std::vector<ASTNode *> _statements);
+    void addStatement(ASTNode * _statement);
+
+    // Node interface
+    void unwrap(std::vector<ASTNode *> & terminals);
+    ASTNode * clone();
+    bool isStatement() const;
+    void desugar();
+    virtual void analyze(bool force = false);
+    virtual void addSymbols(Scope * _scope);
+    // no generate(). will be desugared
+    // virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual ~Foreach();
     //
 };
 

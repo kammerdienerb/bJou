@@ -468,6 +468,14 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
             delete _var;
         }
 
+        ProcedureType * candidate_type = (ProcedureType *)ProcedureType::get(
+            new_param_types, VoidType::get());
+        ProcedureType * compare_type =
+            (ProcedureType *)ProcedureType::get(arg_types, VoidType::get());
+
+        nconv = countConversions(compare_type, candidate_type);
+
+        /*
         for (int i = 0; i < (int)arg_types.size(); i += 1) {
             if (!conv(arg_types[i], new_param_types[i])) {
                 if (delete_new_inst)
@@ -477,6 +485,7 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
             if (!equal(arg_types[i], new_param_types[i]))
                 nconv += 1;
         }
+        */
     }
 
     if (delete_new_inst)

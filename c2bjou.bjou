@@ -16,8 +16,7 @@
     type VisitorData {
         cw              : ClangWrapper*
         indent          : int
-        created_nodes   : ASTNode**
-        n_created_nodes : int
+        created         : ASTNode*[...]
     }
 
     type ClangWrapper {
@@ -128,10 +127,8 @@
                         bjou_createArgList(
                             nullnodes, 0))
 
-            data.created_nodes[data.n_created_nodes] = p
-            data.n_created_nodes += 1
-            data.created_nodes[data.n_created_nodes] = call
-            data.n_created_nodes += 1
+            data.created.push(p)
+            data.created.push(call)
         }
 
         data.indent += 1
@@ -148,23 +145,21 @@
 
         cw.parseTU("fact.c")
 
-        node : ASTNode*[256]
         data := { VisitorData:
             .cw = &cw,
             .indent = 0,
-            .created_nodes = node,
-            .n_created_nodes = 0
+            .created = [...ASTNode*]
         }
         cw.traverseTU(my_visitor, &data)
 
         # run passes on translated nodes
         gs := bjou_getGlobalScope()
 
-        for i := 0; i < data.n_created_nodes; i += 1
-            bjou_addSymbols(data.created_nodes[i], gs)
-        for i := 0; i < data.n_created_nodes; i += 1 {
-            bjou_analyze(data.created_nodes[i])
-            bjou_appendNode(data.created_nodes[i])
+        foreach node in data.created
+            bjou_addSymbols(node, gs)
+        foreach node in data.created {
+            bjou_analyze(node)
+            bjou_appendNode(node)
         }
     }
 }
