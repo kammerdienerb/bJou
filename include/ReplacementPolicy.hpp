@@ -45,6 +45,7 @@ RP_FUNCTOR_DECL(InitializerList_Expression);
 RP_FUNCTOR_DECL(SliceExpression_Src);
 RP_FUNCTOR_DECL(SliceExpression_Start);
 RP_FUNCTOR_DECL(SliceExpression_Length);
+RP_FUNCTOR_DECL(DynamicArrayExpression_TypeDeclarator);
 RP_FUNCTOR_DECL(LenExpression_Expr);
 RP_FUNCTOR_DECL(TupleLiteral_subExpression);
 RP_FUNCTOR_DECL(Declarator_Identifier);

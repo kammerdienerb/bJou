@@ -1523,7 +1523,7 @@ MaybeASTNode Parser::parseTerminatingExpression() {
         node->setFlag(Expression::TERMINAL, true);
     } else if ((m_node = parseInitializerList()) ||
                (m_node = parseParentheticalExpressionOrTuple()) ||
-               (m_node = parseSliceExpression()) ||
+               (m_node = parseSliceOrDynamicArrayExpression()) ||
                (m_node = parseLenExpression())) {
         m_node.assignTo(node);
         BJOU_DEBUG_ASSERT(node);
@@ -1635,17 +1635,36 @@ MaybeASTNode Parser::parseInitializerList() {
     return MaybeASTNode();
 }
 
-MaybeASTNode Parser::parseSliceExpression() {
+MaybeASTNode Parser::parseSliceOrDynamicArrayExpression() {
     if (optional(L_SQR_BRACKET, true)) {
-        SliceExpression * result = new SliceExpression();
-        result->getContext().start(&currentContext);
+        Context context;
+        context.start(&currentContext);
 
         eat("[");
 
         if (optional(R_SQR_BRACKET)) {
+            context.finish(&currentContext, &justCleanedContext);
+            errorl(context, "Empty slice or dynamic array expression.");
+        } else if (optional(ELLIPSIS)) {
+            DynamicArrayExpression * result = new DynamicArrayExpression;
+            result->setContext(context);
+            ASTNode * decl = nullptr;
+            MaybeASTNode m_decl;
+
+            m_decl = parseDeclarator();
+            if (!m_decl.assignTo(decl))
+                errornext(*this, "Expected type declarator in dynamic array expression.", true,
+                                 "dynamic array expression syntax: '[...type]'");
+
+            result->setTypeDeclarator(decl);
+
+            expect(R_SQR_BRACKET, "']'");
+
             result->getContext().finish(&currentContext, &justCleanedContext);
-            errorl(result->getContext(), "Empty slice expression.");
+            return MaybeASTNode(result);
         } else {
+            SliceExpression * result = new SliceExpression();
+            result->setContext(context);
             ASTNode * expr = nullptr;
             MaybeASTNode m_expr;
 

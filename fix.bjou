@@ -1,5 +1,0 @@
-(proc main() {
-    array : int[16]
-    slice := [ array, 0:16 ]
-    print "%", slice[20]
-})()

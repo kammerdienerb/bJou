@@ -1,10 +1,41 @@
 # dynamicarray.bjou
 
-(proc main() {
-    array : char[...]
-    print "%", \__da_data{array}
-    # array->append('b')
-#     ptr := array->element_ptr(0)
-# 
-#     print "%", ptr as void*
- })()
+# \run{ main() }  # compile time
+main()          # run time
+
+proc printda$T(da : T[...] ref) {
+    _c := getref(\__da_capacity{da})
+    _u := getref(\__da_used{da})
+
+    print "using % of %", _u, _c
+}
+
+proc printitems(da : int[...] ref) {
+    comma := ", "
+    for i := 0; i < |da|; i += 1 {
+        if &da[i] == &da.back()
+            comma = ""
+        printf("%d%s", da[i], comma)
+    }
+    print ""
+}
+
+proc main() {
+    da := [...int]
+    da.printda()
+    for i := 0; i < 20; i += 1 {
+        if i % 2 == 0
+            da.push(i)
+        else da.push(getref(i))
+        da.printitems()
+    }
+    da[10] = 12345
+    da.printda()
+    da.printitems()
+    while |da| != 0 {
+        da.pop()
+        da.printitems()
+    }
+    da.printda()
+    # da[100] # abc
+}

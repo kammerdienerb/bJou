@@ -676,6 +676,11 @@ llvm::Value * LLVMBackEnd::addNamedVal(std::string name, llvm::Value * val,
     BJOU_DEBUG_ASSERT(!frames.empty());
     auto & f = curFrame();
 
+    if (type->isSlice())
+        type = ((SliceType*)type)->getRealType();
+    if (type->isDynamicArray())
+        type = ((DynamicArrayType*)type)->getRealType();
+
     f.vals.push_back({val, type});
     f.namedVals[name] = f.vals.size() - 1;
 
@@ -685,6 +690,11 @@ llvm::Value * LLVMBackEnd::addNamedVal(std::string name, llvm::Value * val,
 llvm::Value * LLVMBackEnd::addUnnamedVal(llvm::Value * val, const Type * type) {
     BJOU_DEBUG_ASSERT(!frames.empty());
     auto & f = curFrame();
+
+    if (type->isSlice())
+        type = ((SliceType*)type)->getRealType();
+    if (type->isDynamicArray())
+        type = ((DynamicArrayType*)type)->getRealType();
 
     f.vals.push_back({val, type});
 
@@ -1129,8 +1139,8 @@ void * AddExpression::generate(BackEnd & backEnd, bool flag) {
     const Type * myt = getType();
     const Type * lt = getLeft()->getType();
 
-    llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
-    llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
+    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
 
     if (myt->isPointer()) {
         std::vector<llvm::Value *> indices;
@@ -1157,8 +1167,8 @@ void * SubExpression::generate(BackEnd & backEnd, bool flag) {
     const Type * myt = getType();
     const Type * lt = getLeft()->getType();
 
-    llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
-    llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
+    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
 
     if (myt->isPointer()) {
         if (lt->isPointer()) {
@@ -1182,8 +1192,8 @@ void * MultExpression::generate(BackEnd & backEnd, bool flag) {
 
     const Type * myt = getType();
 
-    llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
-    llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
+    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
 
     if (myt->isInt()) {
         return llbe->builder.CreateMul(lv, rv);
@@ -1200,8 +1210,8 @@ void * DivExpression::generate(BackEnd & backEnd, bool flag) {
 
     const Type * myt = getType();
 
-    llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
-    llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
+    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
 
     if (myt->isInt()) {
         const IntType * myit = (const IntType *)myt;
@@ -1222,8 +1232,8 @@ void * ModExpression::generate(BackEnd & backEnd, bool flag) {
 
     const Type * myt = getType();
 
-    llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
-    llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
+    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
 
     if (myt->isInt()) {
         const IntType * myit = (const IntType *)myt;
@@ -1242,10 +1252,8 @@ void * ModExpression::generate(BackEnd & backEnd, bool flag) {
 void * AssignmentExpression::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft(), true);
-    llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
-
-    rv = (llvm::Value *)llbe->getOrGenNode(getRight());
+    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd, true);
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
 
     return llbe->builder.CreateStore(rv, lv);
 }
@@ -1402,7 +1410,7 @@ void * GeqExpression::generate(BackEnd & backEnd, bool flag) {
 void * EquExpression::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    const Type * lt = getLeft()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
     // const Type * rt = getRight()->getType();
 
     llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
@@ -1423,7 +1431,7 @@ void * EquExpression::generate(BackEnd & backEnd, bool flag) {
 void * NeqExpression::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    const Type * lt = getLeft()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
     // const Type * rt = getRight()->getType();
 
     llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
@@ -1626,6 +1634,7 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
 
     std::vector<int> byvals;
     std::vector<int> byrefs;
+    std::vector<int> ptralign;
     int i = payload->sret;
     for (ASTNode * arg : arglist->getExpressions()) {
         llvm::Value * val = nullptr;
@@ -1652,11 +1661,15 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
             } else if (payload->byval & (1 << i)) {
                 val = llbe->getOrGenNode(arg, true);
                 byvals.push_back(i);
-            } else
+            } else {
                 val = llbe->getOrGenNode(arg);
+                if (val->getType()->isPointerTy())
+                    ptralign.push_back(i);
+            }
         }
        
         BJOU_DEBUG_ASSERT(val);
+
 
         args.push_back(val);
         i += 1;
@@ -1686,19 +1699,21 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
 
     llvm::CallInst * callinst = llbe->builder.CreateCall(callee, args);
 
-    if (!payload->sret && payload->t->getRetType()->isRef()) {
-        const Type * ret_t = payload->t->getRetType()->unRef();
-        unsigned int size = simpleSizer(ret_t);
-        if (!size) size = 1;
-        callinst->addAttribute(0, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
+    if (!payload->sret) {
+        if (payload->t->getRetType()->isRef()) {
+            const Type * ret_t = payload->t->getRetType()->unRef();
+            unsigned int size = simpleSizer(ret_t);
+            if (!size) size = 1;
+            callinst->addAttribute(0, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
+        } else if (payload->t->getRetType()->isPointer() || payload->t->getRetType()->isArray()) {
+            callinst->addAttribute(0, llvm::Attribute::getWithAlignment(llbe->llContext, sizeof(void*)));
+        }
     }
 
     llvm::Value * ret = callinst;
 
     if (payload->sret)
         ret = llbe->builder.CreateLoad(sret);
-
-    delete payload;
 
     for (int ibyval : byvals)
         callinst->addParamAttr(ibyval, llvm::Attribute::ByVal);
@@ -1708,6 +1723,10 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
         if (!size) size = 1;
         callinst->addParamAttr(ibyref, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
     }
+    for (int al : ptralign)
+        callinst->addParamAttr(al, llvm::Attribute::getWithAlignment(llbe->llContext, sizeof(void*)));
+
+    delete payload;
 
     return ret;
 }
@@ -1728,7 +1747,7 @@ static llvm::Value * gep_by_index(BackEnd & backEnd, llvm::Type * t,
 void * SubscriptExpression::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    const Type * lt = getLeft()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
 
     llvm::Value * lv = nullptr;
     llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
@@ -1878,13 +1897,19 @@ void * NewExpression::generate(BackEnd & backEnd, bool flag) {
     if (r_t->isArray()) {
         const ArrayType * array_t = (const ArrayType *)r_t;
         const Type * sub_t = array_t->under();
+
         ArrayDeclarator * array_decl = (ArrayDeclarator *)getRight();
+
         size = llbe->layout->getTypeAllocSize(llbe->getOrGenType(sub_t));
+
         size_val = llvm::ConstantInt::get(
             llvm::Type::getInt32Ty(llbe->llContext), size);
-        size_val = llbe->builder.CreateMul(
-            size_val,
-            (llvm::Value *)llbe->getOrGenNode(array_decl->getExpression()));
+
+        llvm::Value * width_val = (llvm::Value *)llbe->getOrGenNode(array_decl->getExpression());
+        width_val = llbe->builder.CreateIntCast(width_val, llvm::IntegerType::getInt32Ty(llbe->llContext), true, "width");
+
+        size_val = llbe->builder.CreateMul(size_val, width_val);
+            
     } else {
         size = llbe->layout->getTypeAllocSize(llbe->getOrGenType(r_t));
         size_val = llvm::ConstantInt::get(
@@ -2013,7 +2038,7 @@ void * RefExpression::generate(BackEnd & backEnd, bool flag) {
 void * AsExpression::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    const Type * lt = getLeft()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
     const Type * rt = getRight()->getType();
 
     llvm::Value * val = (llvm::Value *)llbe->getOrGenNode(getLeft());
@@ -2160,9 +2185,11 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
 
     // if the named value is not a stack allocation or global variable (i.e.
     // constant, function, etc.) we don't want the load instruction ever
-    if (!llvm::isa<llvm::AllocaInst>(ptr) &&
+    // @update unless it is a reference
+    if (!llvm::isa<llvm::AllocaInst>(ptr)     &&
         !llvm::isa<llvm::GlobalVariable>(ptr) &&
-        !llvm::isa<llvm::Argument>(ptr))
+        !llvm::isa<llvm::Argument>(ptr)       &&
+        !getType()->isRef())
         getAddr = true;
     // we shouldn't load direct function references
     else if (llvm::isa<llvm::Function>(ptr))
@@ -2744,6 +2771,17 @@ void * While::generate(BackEnd & backEnd, bool flag) {
     return merge; // what does this accomplish?
 }
 
+static void findSliceAndDynamicArrayDecls(Declarator * base, std::vector<Declarator*>& out) {
+    Declarator * decl = (Declarator*)base->parent;
+    while (decl && IS_DECLARATOR(decl)) {
+        if (decl->nodeKind == ASTNode::SLICE_DECLARATOR || 
+            decl->nodeKind == ASTNode::DYNAMIC_ARRAY_DECLARATOR) {
+        
+            out.push_back(decl); 
+        }
+        decl = (Declarator*)decl->parent;
+    }
+}
 
 static void genDeps(ASTNode * node, LLVMBackEnd & llbe) {
     // @bad -- sort of an on-demand generation model
@@ -2753,8 +2791,12 @@ static void genDeps(ASTNode * node, LLVMBackEnd & llbe) {
     for (ASTNode * term : terms) {
         if (IS_DECLARATOR(term)) {
             const Type * t = term->getType();
-            if (t->isStruct())
-                llbe.getOrGenType(t);
+            llbe.getOrGenType(t);
+            std::vector<Declarator*> slices_and_das;
+            findSliceAndDynamicArrayDecls((Declarator*)term, slices_and_das);
+
+            for (Declarator * decl : slices_and_das)
+                llbe.getOrGenType(decl->getType());
         } else if (term->nodeKind == ASTNode::IDENTIFIER) {
             Identifier * ident = (Identifier *)term;
 
@@ -2840,15 +2882,20 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                 unsigned int size = simpleSizer(param_t);
                 if (!size) size = 1;
                 arg.addAttr(llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
-            }
+            } else if (arg.getType()->isPointerTy())
+                arg.addAttr(llvm::Attribute::getWithAlignment(llbe->llContext, sizeof(void*)));
             i += 1;
         }
 
-        if (!payload->sret && payload->t->getRetType()->isRef()) {
-            const Type * ret_t = payload->t->getRetType()->unRef();
-            unsigned int size = simpleSizer(ret_t);
-            if (!size) size = 1;
-            func->addAttribute(0, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
+        if (!payload->sret) {
+            if (payload->t->getRetType()->isRef()) {
+                const Type * ret_t = payload->t->getRetType()->unRef();
+                unsigned int size = simpleSizer(ret_t);
+                if (!size) size = 1;
+                func->addAttribute(0, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
+            } else if (payload->t->getRetType()->isPointer() || payload->t->getRetType()->isArray()) {
+                func->addAttribute(0, llvm::Attribute::getWithAlignment(llbe->llContext, sizeof(void*)));
+            }
         }
 
         llbe->addNamedVal(getMangledName(), func, my_real_t);

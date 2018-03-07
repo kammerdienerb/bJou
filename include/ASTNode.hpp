@@ -105,6 +105,7 @@ struct ASTNode {
         IDENTIFIER,
         INITIALZER_LIST,
         SLICE_EXPRESSION,
+        DYNAMIC_ARRAY_EXPRESSION,
         LEN_EXPRESSION,
         BOOLEAN_LITERAL,
         INTEGER_LITERAL,
@@ -198,7 +199,7 @@ struct ASTNode {
         ASTNode::NodeKind::SIZEOF_EXPRESSION,                                  \
         ASTNode::NodeKind::UNARY_POST_EXPRESSION,                              \
         ASTNode::NodeKind::AS_EXPRESSION, ASTNode::NodeKind::IDENTIFIER,       \
-        ASTNode::NodeKind::INITIALZER_LIST, ASTNode::NodeKind::SLICE_EXPRESSION, ASTNode::NodeKind::LEN_EXPRESSION,                                   \
+        ASTNode::NodeKind::INITIALZER_LIST, ASTNode::NodeKind::SLICE_EXPRESSION, ASTNode::NodeKind::DYNAMIC_ARRAY_EXPRESSION, ASTNode::NodeKind::LEN_EXPRESSION,                                   \
         ASTNode::NodeKind::BOOLEAN_LITERAL,                                    \
         ASTNode::NodeKind::INTEGER_LITERAL, ASTNode::NodeKind::FLOAT_LITERAL,  \
         ASTNode::NodeKind::STRING_LITERAL, ASTNode::NodeKind::CHAR_LITERAL,    \
@@ -266,7 +267,7 @@ struct ASTNode {
         ASTNode::NodeKind::SIZEOF_EXPRESSION,                                  \
         ASTNode::NodeKind::UNARY_POST_EXPRESSION,                              \
         ASTNode::NodeKind::AS_EXPRESSION, ASTNode::NodeKind::IDENTIFIER,       \
-        ASTNode::NodeKind::INITIALZER_LIST, ASTNode::NodeKind::SLICE_EXPRESSION, ASTNode::NodeKind::LEN_EXPRESSION,                                    \
+        ASTNode::NodeKind::INITIALZER_LIST, ASTNode::NodeKind::SLICE_EXPRESSION, ASTNode::NodeKind::DYNAMIC_ARRAY_EXPRESSION, ASTNode::NodeKind::LEN_EXPRESSION,                                    \
         ASTNode::NodeKind::BOOLEAN_LITERAL,                                    \
         ASTNode::NodeKind::INTEGER_LITERAL, ASTNode::NodeKind::FLOAT_LITERAL,  \
         ASTNode::NodeKind::STRING_LITERAL, ASTNode::NodeKind::CHAR_LITERAL,    \
@@ -1254,6 +1255,37 @@ struct SliceExpression : Expression {
     virtual ~SliceExpression();
     //
 };
+
+/* ============================================================================
+ *
+ *                             DynamicArrayExpression 
+ *  Expression to create a dynamic array
+ *  syntax: '[...type]'
+ * 
+ * ===========================================================================*/
+
+struct DynamicArrayExpression : Expression {
+    DynamicArrayExpression();
+
+    ASTNode * typeDeclarator;
+
+    ASTNode * getTypeDeclarator() const;
+    void setTypeDeclarator(ASTNode * _decl);
+
+    bool isConstant();
+
+    // Node interface
+    void unwrap(std::vector<ASTNode *> & terminals);
+    virtual void analyze(bool force = false);
+    ASTNode * clone();
+    void desugar();
+    // no generation, will be desugared
+    // virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void addSymbols(Scope * _scope);
+    virtual ~DynamicArrayExpression();
+    //
+};
+
 
 /* ============================================================================
  *

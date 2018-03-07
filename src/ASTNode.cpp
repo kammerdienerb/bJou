@@ -401,6 +401,10 @@ static void convertOperands(BinaryExpression * expr, const Type * dest_t) {
     const Type * lt = expr->getLeft()->getType()->unRef();
     const Type * rt = expr->getRight()->getType()->unRef();
 
+    // handled by convertAssignmentOperand()
+    if (isAssignmentOp(expr->getContents()))
+        return;
+
     if (!equal(lt, dest_t))
         emplaceConversion((Expression *)expr->getLeft(), dest_t);
     if (!equal(rt, dest_t))
@@ -1277,7 +1281,7 @@ void SubscriptExpression::analyze(bool force) {
     const Type * lt = getLeft()->getType()->unRef();
     const Type * rt = getRight()->getType()->unRef();
 
-    if (!lt->isPointer() && !lt->isArray() && !lt->isSlice()) // && !lt->isDynamicArray)
+    if (!lt->isPointer() && !lt->isArray() && !lt->isSlice() && !lt->isDynamicArray())
         errorl(getContext(), "Could not match '" +
                              lt->getDemangledName() +
                              "' with subscript operator.");
@@ -1286,7 +1290,7 @@ void SubscriptExpression::analyze(bool force) {
         errorl(getRight()->getContext(),
                "Operand right of subscript operator must be an integer type.");
 
-    if (lt->isPointer() || lt->isSlice())
+    if (lt->isPointer() || lt->isSlice() || lt->isDynamicArray())
         setType(lt->under());
     else if (lt->isArray()) {
         getRight()->analyze();
@@ -1321,7 +1325,7 @@ void SubscriptExpression::analyze(bool force) {
 ASTNode * SubscriptExpression::clone() { return ExpressionClone(this); }
 
 void SubscriptExpression::desugar() {
-    if (getLeft()->getType()->isSlice()) {
+    if (getLeft()->getType()->unRef()->isSlice()) {
         CallExpression * call = new CallExpression;
         call->setContext(getContext());
        
@@ -1356,7 +1360,42 @@ void SubscriptExpression::desugar() {
         (*replace)(parent, this, call);   
 
         call->analyze();
-    } else if (getLeft()->getType()->isArray() && compilation->frontEnd.abc) {
+    } else if (getLeft()->getType()->unRef()->isDynamicArray()) {
+        CallExpression * call = new CallExpression;
+        call->setContext(getContext());
+       
+        // __bjou_dynamic_array_subscript
+        Identifier * __bjou_dynamic_array_subscript = new Identifier;
+        __bjou_dynamic_array_subscript->setUnqualified("__bjou_dynamic_array_subscript");
+
+        ArgList * r = new ArgList;
+        // (dynamic_array, index)
+        r->addExpression(getLeft());
+        r->addExpression(getRight());
+
+        if (compilation->frontEnd.abc) {
+            // ... filename, line, col)
+            StringLiteral * f = new StringLiteral;
+            f->setContents(getRight()->getContext().filename);
+            IntegerLiteral * l = new IntegerLiteral;
+            l->setContents(std::to_string(getRight()->getContext().begin.line));
+            IntegerLiteral * c = new IntegerLiteral;
+            c->setContents(std::to_string(getRight()->getContext().begin.character));
+
+            r->addExpression(f);
+            r->addExpression(l);
+            r->addExpression(c);
+        }
+
+        call->setLeft(__bjou_dynamic_array_subscript);
+        call->setRight(r);
+
+        call->addSymbols(getScope());
+
+        (*replace)(parent, this, call);   
+
+        call->analyze();
+    } else if (getLeft()->getType()->unRef()->isArray() && compilation->frontEnd.abc) {
         CallExpression * call = new CallExpression;
         call->setContext(getContext());
        
@@ -2356,8 +2395,10 @@ void SizeofExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     getRight()->analyze();
+
     if (getRight()->getType() == VoidType::get())
         errorl(getContext(), "Taking sizeof void.");
+
     setType(IntType::get(Type::UNSIGNED, 64));
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
@@ -2886,18 +2927,17 @@ void InitializerList::analyze(bool force) {
         BJOU_DEBUG_ASSERT(names.size() == expressions.size());
         for (int i = 0; i < (int)names.size(); i += 1) {
             std::string & name = names[i];
-            ASTNode * expr = expressions[i];
             if (s_t->memberIndices.count(name) == 0)
-                errorl(expr->getContext(), "No member variable named '" + name +
+                errorl(expressions[i]->getContext(), "No member variable named '" + name +
                                                "' in '" +
                                                s_t->getDemangledName() + "'.");
             int index = s_t->memberIndices[name];
             const Type * mt = s_t->memberTypes[index];
             compilation->frontEnd.lValStack.push(mt);
-            const Type * expr_t = expr->getType();
+            const Type * expr_t = expressions[i]->getType();
             compilation->frontEnd.lValStack.pop();
             if (!conv(expr_t, mt))
-                errorl(expr->getContext(),
+                errorl(expressions[i]->getContext(),
                        "Element for '" + name + "' in '" +
                            s_t->getDemangledName() +
                            "' literal differs from expected type '" +
@@ -2905,7 +2945,7 @@ void InitializerList::analyze(bool force) {
                        true, "got '" + expr_t->getDemangledName() + "'");
             if (expr_t->isPrimative() && mt->isPrimative())
                 if (!equal(expr_t, mt))
-                    emplaceConversion((Expression *)expr, mt);
+                    emplaceConversion((Expression *)expressions[i], mt);
         }
         setType(getObjDeclarator()->getType());
     } else {
@@ -3129,6 +3169,99 @@ SliceExpression::~SliceExpression() {
 }
 //
 
+// ~~~~~ DynamicArrayExpression ~~~~~
+
+DynamicArrayExpression::DynamicArrayExpression()
+    : typeDeclarator(nullptr) {
+    nodeKind = DYNAMIC_ARRAY_EXPRESSION;
+}
+
+bool DynamicArrayExpression::isConstant() {
+    return false;
+}
+
+ASTNode * DynamicArrayExpression::getTypeDeclarator() const {
+    return typeDeclarator;
+}
+void DynamicArrayExpression::setTypeDeclarator(ASTNode * _decl) {
+    typeDeclarator = _decl;
+    typeDeclarator->parent = this;
+    typeDeclarator->replace =
+        rpget<replacementPolicy_DynamicArrayExpression_TypeDeclarator>();
+}
+
+// Node interface
+void DynamicArrayExpression::unwrap(std::vector<ASTNode *> & terminals) {
+    typeDeclarator->unwrap(terminals);
+}
+
+void DynamicArrayExpression::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    typeDeclarator->addSymbols(_scope);
+}
+
+void DynamicArrayExpression::analyze(bool force) {
+    HANDLE_FORCE();
+
+    getTypeDeclarator()->analyze(force);
+
+    const Type * t = getTypeDeclarator()->getType();
+
+    setType(DynamicArrayType::get(t));
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+   
+    setFlag(ANALYZED, true);
+    
+    desugar();
+}
+
+ASTNode * DynamicArrayExpression::clone() {
+    DynamicArrayExpression * c = ExpressionClone(this);
+   
+    c->setTypeDeclarator(getTypeDeclarator());
+
+    return c;
+}
+
+void DynamicArrayExpression::desugar() {
+    getTypeDeclarator()->desugar();
+
+    CallExpression * call = new CallExpression;
+    call->setContext(getContext());
+   
+    // __bjou_dynamic_array!(T).create
+    Declarator * da_decl = ((DynamicArrayType*)getType())->getRealType()->getGenericDeclarator();
+    Identifier * create = new Identifier;
+    create->setUnqualified("create");
+    AccessExpression * l = new AccessExpression;
+    l->setLeft(da_decl);
+    l->setRight(create);
+
+    // ()
+    ArgList * r = new ArgList;
+
+    call->setLeft(l);
+    call->setRight(r);
+
+    call->addSymbols(getScope());
+
+    da_decl->desugar();
+
+    call->analyze();
+
+    call->setType(getType());
+
+    (*replace)(parent, this, call);
+}
+
+DynamicArrayExpression::~DynamicArrayExpression() {
+    BJOU_DEBUG_ASSERT(typeDeclarator);
+    delete typeDeclarator;
+}
+//
+
+
 // ~~~~~ LenExpression ~~~~~
 
 LenExpression::LenExpression()
@@ -3171,8 +3304,8 @@ void LenExpression::analyze(bool force) {
 
     getExpr()->analyze(force);
 
-    if (!expr_t->isArray() && !expr_t->isSlice()) // dynamic array?
-        errorl(getExpr()->getContext(), "Object of cardinality expression must be an array or slice.", true,
+    if (!expr_t->isArray() && !expr_t->isSlice() && !expr_t->isDynamicArray())
+        errorl(getExpr()->getContext(), "Object of cardinality expression must be an array, slice, or dynamic array.", true,
                                        "got '" + expr_t->getDemangledName() + "'");
 
     setType(IntType::get(Type::Sign::UNSIGNED, 64));
@@ -3226,6 +3359,23 @@ void LenExpression::desugar() {
         Expression * l = (Expression*)getExpr();
         
         l->setType(((SliceType*)expr_t)->getRealType());
+        l->setFlag(ANALYZED, true);
+
+        access->setLeft(l->clone());
+        access->setRight(__len);
+
+        replacement = access;
+    } else if (expr_t->isDynamicArray()) {
+        AccessExpression * access = new AccessExpression;
+        access->setContext(getContext());
+
+        Identifier * __len = new Identifier;
+        __len->setContext(getContext());
+        __len->setUnqualified("__used"); 
+
+        Expression * l = (Expression*)getExpr();
+        
+        l->setType(((DynamicArrayType*)expr_t)->getRealType());
         l->setFlag(ANALYZED, true);
 
         access->setLeft(l->clone());
@@ -4023,6 +4173,7 @@ ASTNode * DynamicArrayDeclarator::clone() {
 }
 
 void DynamicArrayDeclarator::desugar() {
+    /*
     getArrayOf()->desugar();
 
     DynamicArrayType * dyn_t = (DynamicArrayType*)getType();
@@ -4033,6 +4184,7 @@ void DynamicArrayDeclarator::desugar() {
 
     new_decl->addSymbols(getScope());
     new_decl->analyze();
+    */
 }
 
 const Type * DynamicArrayDeclarator::getType() {
@@ -4808,31 +4960,6 @@ void VariableDeclaration::analyze(bool force) {
                    "constants.");
     } else {
         my_t = getTypeDeclarator()->getType();
-        
-        if (!getFlag(IS_TYPE_MEMBER) && !getFlag(IS_PROC_PARAM)) {
-            if (my_t->isDynamicArray()) {
-                // __bjou_dyn_array!(T).create
-                Declarator * dyn_decl = ((DynamicArrayType*)my_t)->getRealType()->getGenericDeclarator();
-                Identifier * create = new Identifier;
-                create->setUnqualified("create");
-                AccessExpression * access = new AccessExpression;
-                access->setLeft(dyn_decl);
-                access->setRight(create);
-
-                // ()
-                ArgList * args = new ArgList;
-
-                CallExpression * call = new CallExpression;
-                call->setLeft(access);
-                call->setRight(args);
-        
-                call->addSymbols(getScope());
-
-                setInitialization(call);
-
-                call->analyze();
-            }      
-        }
 
         if (!getFlag(IS_PROC_PARAM) && !getFlag(IS_TYPE_MEMBER) && 
             getTypeDeclarator()->getType()->isRef()) {
@@ -4846,8 +4973,7 @@ void VariableDeclaration::analyze(bool force) {
     BJOU_DEBUG_ASSERT(getTypeDeclarator() &&
                       "No typeDeclarator in VariableDeclaration");
 
-    if (getTypeDeclarator()->nodeKind == ARRAY_DECLARATOR ||
-        getTypeDeclarator()->nodeKind == DYNAMIC_ARRAY_DECLARATOR) {
+    if (getTypeDeclarator()->nodeKind == ARRAY_DECLARATOR) {
         if (sym) {
             // arrays don't require initialization before reference
             sym->initializedInScopes.insert(getScope());

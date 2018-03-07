@@ -9,6 +9,7 @@
 #ifndef FrontEnd_hpp
 #define FrontEnd_hpp
 
+#include "Context.hpp"
 #include "Compile.hpp"
 #include "Macro.hpp"
 #include "Scope.hpp"
@@ -52,6 +53,8 @@ struct FrontEnd {
 
     int n_nodes;
     size_t n_primatives;
+
+    milliseconds ctruntime;
 
     milliseconds go();
 

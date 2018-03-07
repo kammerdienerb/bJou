@@ -33,6 +33,8 @@ void init_replacementPolicies() {
         ANY_EXPRESSION};
     rpget<replacementPolicy_SliceExpression_Length>()->allowed_nodeKinds = {
         ANY_EXPRESSION};
+    rpget<replacementPolicy_DynamicArrayExpression_TypeDeclarator>()->allowed_nodeKinds = {
+        ANY_DECLARATOR};
     rpget<replacementPolicy_LenExpression_Expr>()->allowed_nodeKinds = {
         ANY_EXPRESSION};
     rpget<replacementPolicy_TupleLiteral_subExpression>()->allowed_nodeKinds = {
@@ -241,6 +243,11 @@ RP_FUNCTOR_IMPL(
     BJOU_DEBUG_ASSERT(((SliceExpression *)parent)->getLength() ==
                       old_node);
     ((SliceExpression *)parent)->setLength(new_node); return new_node;);
+RP_FUNCTOR_IMPL(
+    DynamicArrayExpression_TypeDeclarator,
+    BJOU_DEBUG_ASSERT(((DynamicArrayExpression *)parent)->getTypeDeclarator() ==
+                      old_node);
+    ((DynamicArrayExpression *)parent)->setTypeDeclarator(new_node); return new_node;);
 RP_FUNCTOR_IMPL(
     LenExpression_Expr,
     BJOU_DEBUG_ASSERT(((LenExpression *)parent)->getExpr() ==

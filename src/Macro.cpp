@@ -112,7 +112,16 @@ static ASTNode * run(MacroUse * use) {
                "Procedure call must have type <()>", true,
                "Call has type " + t->getDemangledName());
 
+    
+    auto start = Clock::now();
     compilation->backEnd.run(proc);
+    auto end = Clock::now();
+    milliseconds time = duration_cast<milliseconds>(end - start);
+
+    if (compilation->args.time_arg.getValue())
+        prettyPrintTimeMin(time, "\\run '" + proc->getName() + "' from " + use->getContext().filename + " :: " + std::to_string(use->getContext().begin.line) + " :: " + std::to_string(use->getContext().begin.character));
+
+    compilation->frontEnd.ctruntime += time;
 
     return nullptr;
 }
@@ -393,6 +402,15 @@ static ASTNode * abc(MacroUse * use) {
     return lit;
 }
 
+static ASTNode * error(MacroUse * use) {
+    StringLiteral * lit = (StringLiteral *)use->getArgs()[0];
+    std::string message = de_quote(lit->getContents());
+
+    errorl(use->getContext(), message);
+
+    return nullptr;
+}
+
 } // namespace Macros
 
 Macro::Macro() : name(""), dispatch(nullptr), arg_kinds({}), isVararg(false) {}
@@ -436,6 +454,8 @@ MacroManager::MacroManager() {
     macros["__slice_len"] = { "__slice_len", Macros::__slice_len, {{ANY_EXPRESSION}}};
 
     macros["abc"] = { "abc", Macros::abc, {}};
+
+    macros["error"] = { "error", Macros::error, {{ASTNode::NodeKind::STRING_LITERAL}}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {

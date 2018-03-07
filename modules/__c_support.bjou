@@ -12,7 +12,11 @@ extern free(i8*)
 
 extern memcpy(void*, void*, u64) : void*
 
-proc memcpy$T(dst : T*, src : T*, n : u64) : T* {
+proc memcpy$T(_dst : T*, _src : T*, n : u64) : T* {
+    \error{ "This helper is broken. Cast to void* yourself." }
+
     n *= sizeof T
-    return (dst as void*).memcpy(src as void*, n) as T*
+    dst := _dst as void*
+    src := _src as void*
+    return (memcpy(dst, src, n) as T*)
 }

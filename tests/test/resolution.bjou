@@ -41,7 +41,7 @@ type T {
     # n := 3 as u64
 	n := 3
     print "Helper"
-    dst.memcpy(src, n) # helper
+    # dst.memcpy(src, n) # helper is broken
     memcpy$int(1, 2, 3) # 3
     memcpy() # extern
     # p(1, 'a') ambiguous

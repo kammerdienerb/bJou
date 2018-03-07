@@ -1,58 +1,62 @@
 # templates2.bjou
 
-type grow$T {
-    _t : T*
-    _used : int
-    _cap : int
+# need a better templates example
 
-    const INIT_SIZE := 8
-
-    proc create() : grow$T {
-        return { grow$T:
-            ._t = new T[grow$T.INIT_SIZE],
-            ._used = 0,
-            ._cap = grow$T.INIT_SIZE
-        }
-    }
-
-    proc create(_s : T*, n : int) : grow$T {
-        g := { grow$T:
-            ._t = new T[n],
-            ._used = n,
-            ._cap = n
-        }
-
-        # (g._t).memcpy(_s, n as u64)
-		(g._t).memcpy(_s, n)
-        return g
-    }
-
-    proc free(this) {
-        delete this._t
-        this = { grow$T: }
-    }
-}
-
-type Point {
-    x : float
-    y : float
-}
-
-(proc main() {
-    gi := grow$int.create()
-    # gi._t.memcpy({ 1, 2, 3 }, 3 as u64)
-	gi._t.memcpy({ 1, 2, 3 }, 3)
-    gi._used = 3
-
-    gp := grow.create({ 
-        { Point: .x = 1.23, .y = 2.34 },
-        { Point: .x = 3.45, .y = 4.56 } 
-    }, 2)
-
-    # print "gi: %", gi
-    print "\t[ %, %, % ]", gi._t[0], gi._t[1], gi._t[2]
-    # print "gp: %", gp
-    print "\t[ %, % ]", gp._t[0], gp._t[1]
-    gi.free()
-    gp.free()
-})()
+# type grow$T {
+#     _t : T*
+#     _used : int
+#     _cap : int
+# 
+#     const INIT_SIZE := 8
+# 
+#     proc create() : grow$T {
+#         return { grow$T:
+#             ._t = new T[grow$T.INIT_SIZE],
+#             ._used = 0,
+#             ._cap = grow$T.INIT_SIZE
+#         }
+#     }
+# 
+#     proc create(_s : T*, n : int) : grow$T {
+#         g := { grow$T:
+#             ._t = new T[n],
+#             ._used = n,
+#             ._cap = n
+#         }
+# 
+#         # (g._t).memcpy(_s, n as u64)
+# 		# (g._t).memcpy(_s, n) # helper is broken
+#         memcpy((g._t as void*), (_s as void*), n)
+#         return g
+#     }
+# 
+#     proc free(this) {
+#         delete this._t
+#         this = { grow$T: }
+#     }
+# }
+# 
+# type Point {
+#     x : float
+#     y : float
+# }
+# 
+# (proc main() {
+#     gi := grow$int.create()
+#     array := { 1, 2, 3 }
+# 	# gi._t.memcpy({ 1, 2, 3 }, 3) # helper is broken
+#     memcpy((gi._t as void*), (array as void*), 3)
+#     gi._used = 3
+# 
+#     gp := grow.create({ 
+#         { Point: .x = 1.23, .y = 2.34 },
+#         { Point: .x = 3.45, .y = 4.56 } 
+#     }, 2)
+# 
+#     # print "gi: %", gi
+#     print "\t[ %, %, % ]", gi._t[0], gi._t[1], gi._t[2]
+#     # print "gp: %", gp
+#     print "\t[ %, % ]", gp._t[0], gp._t[1]
+#     gi.free()
+#     gp.free()
+# })()

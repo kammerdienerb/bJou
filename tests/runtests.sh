@@ -8,6 +8,7 @@ mkdir -p bin
 mkdir -p out
 
 function run_test {
+	COLOR=`tput setaf 2`
 	f=$1
 	TEST_SUCCESS="true"
 	NAME=$(basename "$f" .bjou)
@@ -25,13 +26,18 @@ function run_test {
     		TEST_SUCCESS="false"
   		fi
 
-		DIFF=$(diff "out/$NAME.txt" "check/$NAME.txt")
-		if [ "$DIFF" != "" ] 
-		then
-			TEST_SUCCESS="false"
-		fi
+        if [ -f "check/$NAME.txt" ]
+        then
+            DIFF=$(diff "out/$NAME.txt" "check/$NAME.txt")
+            if [ "$DIFF" != "" ] 
+            then
+                TEST_SUCCESS="false"
+            fi
+        else
+            COLOR=`tput setaf 3`
+            echo ${COLOR}$NAME missing check to diff${RESET}
+        fi
 	fi
-	COLOR=`tput setaf 2`
 	RESET=`tput sgr0`
 	if [ "$TEST_SUCCESS" == "false" ]
 	then

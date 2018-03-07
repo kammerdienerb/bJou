@@ -69,6 +69,9 @@ void FrontEnd::fix_typeinfo_v_table_size() {
 FrontEnd::FrontEnd()
     : typeinfo_struct(nullptr), printf_decl(nullptr), malloc_decl(nullptr),
       free_decl(nullptr), n_nodes(0), n_primatives(0) {
+
+    ctruntime = milliseconds::zero();
+
     kind2string[ASTNode::NodeKind::NONE] = "NONE";
     kind2string[ASTNode::NodeKind::PROC_SET] = "PROC_SET";
     kind2string[ASTNode::NodeKind::EXPRESSION] = "EXPRESSION";
@@ -229,7 +232,7 @@ milliseconds FrontEnd::go() {
 
     auto a_time = AnalysisStage();
     if (time_arg)
-        prettyPrintTimeMin(a_time, "Semantic analysis");
+        prettyPrintTimeMin(a_time - ctruntime, "Semantic analysis");
 
 //     auto d_time = DesugarStage();
 //     if (time_arg)

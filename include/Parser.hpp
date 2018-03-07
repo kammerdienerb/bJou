@@ -298,7 +298,7 @@ struct Parser {
     MaybeASTNode parseTerminatingExpression();
     MaybeASTNode parseParentheticalExpressionOrTuple();
     MaybeASTNode parseInitializerList();
-    MaybeASTNode parseSliceExpression();
+    MaybeASTNode parseSliceOrDynamicArrayExpression();
     MaybeASTNode parseLenExpression();
     MaybeASTNode parseOperand();
     MaybeASTNode parseArgList();
