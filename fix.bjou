@@ -1,11 +1,5 @@
-type B$T {
-    val : T    
-}
-
-type A$T {
-    b : B$T 
-}
-
 (proc main() {
-    a := { A$int: } 
+    array : int[16]
+    slice := [ array, 0:16 ]
+    print "%", slice[20]
 })()

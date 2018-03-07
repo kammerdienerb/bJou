@@ -21,14 +21,14 @@ type U extends A {
 }
 
 proc main() {
-    t := new T
-    u := new U
+    t := getref(@ new T)
+    u := getref(@ new U)
 
     t.i()
     u.i()
 
-    (t as A*).i()
-    (u as A*).i()
+    refcast$A(t).i()
+    refcast$A(u).i()
 }
 
 main()

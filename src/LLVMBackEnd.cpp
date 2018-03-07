@@ -312,6 +312,9 @@ void LLVMBackEnd::genStructProcs(Struct * s) {
 }
 
 llvm::Value * LLVMBackEnd::getOrGenNode(ASTNode * node, bool getAddr) {
+    if (node->getFlag(ASTNode::IGNORE_GEN))
+        return nullptr;
+
     // ignore compile time nodes
     // we should be safe returning null here since we catch
     // compile-time-only symbol references in analysis
@@ -650,8 +653,9 @@ static void generateFramePreExit(LLVMBackEnd * llbe, StackFrame f) {
     for (auto it = f.vals.rbegin(); it != f.vals.rend(); it++) {
         if (it->type->isStruct()) {
             StructType * s_t = (StructType *)it->type;
-            if (s_t->interfaces.find("idestroy") != s_t->interfaces.end())
+            if (s_t->interfaces.find("idestroy") != s_t->interfaces.end()) {
                 createidestroyCall(llbe, it->val, s_t);
+            }
         }
     }
 }
@@ -784,13 +788,12 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
             BJOU_DEBUG_ASSERT(false && "Dynamic arrays not implemented yet.");
         */
         case Type::POINTER: {
+        case Type::REF:
             if (t->under() == VoidType::get())
                 return getOrGenType(
                     IntType::get(Type::UNSIGNED, 8)->getPointer());
             return getOrGenType(t->under())->getPointerTo();
         }
-        case Type::REF:
-            return getOrGenType(t->under())->getPointerTo();
         /*
         case Type::MAYBE:
             // @incomplete
@@ -1622,14 +1625,39 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
         callee = llbe->getOrGenNode(resolved_proc);
 
     std::vector<int> byvals;
+    std::vector<int> byrefs;
     int i = payload->sret;
     for (ASTNode * arg : arglist->getExpressions()) {
         llvm::Value * val = nullptr;
-        if (payload->byval & (1 << i)) {
+        if (payload->ref & (1 << i))
+            byrefs.push_back(i);
+        // could be vararg
+        if ((i - payload->sret) < plt->getParamTypes().size() &&
+            plt->getParamTypes()[i - payload->sret]->isRef()) {
+        
+            const Type * t = plt->getParamTypes()[i - payload->sret];
+
             val = llbe->getOrGenNode(arg, true);
-            byvals.push_back(i);
-        } else
-            val = llbe->getOrGenNode(arg);
+
+            if (t->unRef()->isStruct() && !equal(t->unRef(), arg->getType()->unRef()))
+                val = llbe->builder.CreateBitCast(val, llbe->getOrGenType(t));
+        } else {
+            if (arg->getType()->isRef()) {
+                val = llbe->getOrGenNode(arg, true);
+                if (arg->getType()->unRef()->isArray()) {
+                    const Type * elem_t = arg->getType()->unRef()->under();
+                    val = llbe->builder.CreateBitCast(val, llbe->getOrGenType(elem_t)->getPointerTo()); 
+                } else
+                    val = llbe->builder.CreateLoad(val, "ref");
+            } else if (payload->byval & (1 << i)) {
+                val = llbe->getOrGenNode(arg, true);
+                byvals.push_back(i);
+            } else
+                val = llbe->getOrGenNode(arg);
+        }
+       
+        BJOU_DEBUG_ASSERT(val);
+
         args.push_back(val);
         i += 1;
     }
@@ -1640,7 +1668,7 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
         Struct * s = resolved_proc->getParentStruct();
         BJOU_DEBUG_ASSERT(s);
         BJOU_DEBUG_ASSERT(
-            conv(first_arg->getType(), s->getType()->getPointer()));
+            conv(s->getType()->getRef(), first_arg->getType()));
         BJOU_DEBUG_ASSERT(args.size() > (0 + payload->sret));
         callee = generateInterfaceFn(backEnd, this, args[0 + payload->sret]);
 
@@ -1657,6 +1685,14 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
     BJOU_DEBUG_ASSERT(callee);
 
     llvm::CallInst * callinst = llbe->builder.CreateCall(callee, args);
+
+    if (!payload->sret && payload->t->getRetType()->isRef()) {
+        const Type * ret_t = payload->t->getRetType()->unRef();
+        unsigned int size = simpleSizer(ret_t);
+        if (!size) size = 1;
+        callinst->addAttribute(0, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
+    }
+
     llvm::Value * ret = callinst;
 
     if (payload->sret)
@@ -1666,6 +1702,12 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
 
     for (int ibyval : byvals)
         callinst->addParamAttr(ibyval, llvm::Attribute::ByVal);
+    for (int ibyref : byrefs) {
+        const Type * param_t = payload->t->getParamTypes()[ibyref]->unRef();
+        unsigned int size = simpleSizer(param_t);
+        if (!size) size = 1;
+        callinst->addParamAttr(ibyref, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
+    }
 
     return ret;
 }
@@ -1737,7 +1779,7 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
     int elem = -1;
     std::string name;
 
-    const Type * t = getLeft()->getType();
+    const Type * t = getLeft()->getType()->unRef();
     StructType * s_t = nullptr;
     TupleType * t_t = nullptr;
     Identifier * r_id = (Identifier *)getRight();
@@ -1796,7 +1838,7 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
         t_t = (TupleType *)t;
         elem = (int)r_elem->eval().as_i64;
     } else
-        BJOU_DEBUG_ASSERT(false);
+    BJOU_DEBUG_ASSERT(false);
 
     indices.push_back(
         llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0));
@@ -2097,6 +2139,9 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
     llvm::Value * ptr = llbe->getNamedVal(qualified);
+    
+    if (!ptr && resolved)
+        ptr = llbe->getOrGenNode(resolved);
 
     // There is a chance that when running code at compile time
     // things like global vars, constants, and procs will not have been
@@ -2116,7 +2161,8 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     // if the named value is not a stack allocation or global variable (i.e.
     // constant, function, etc.) we don't want the load instruction ever
     if (!llvm::isa<llvm::AllocaInst>(ptr) &&
-        !llvm::isa<llvm::GlobalVariable>(ptr))
+        !llvm::isa<llvm::GlobalVariable>(ptr) &&
+        !llvm::isa<llvm::Argument>(ptr))
         getAddr = true;
     // we shouldn't load direct function references
     else if (llvm::isa<llvm::Function>(ptr))
@@ -2325,12 +2371,10 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
     if (getType()->isRef()) {
         BJOU_DEBUG_ASSERT(getInitialization());
 
-        const Type * unref_t = getType()->unRef();
-
         val = llbe->addNamedVal(
             getMangledName(),
             (llvm::Value *)llbe->getOrGenNode(getInitialization(), true),
-            unref_t);
+            getType());
     } else {
         val = llbe->allocNamedVal(getMangledName(), getType());
         BJOU_DEBUG_ASSERT(val);
@@ -2374,9 +2418,6 @@ static void gen_printf_fmt(BackEnd & backEnd, llvm::Value * val, const Type * t,
                            std::string & fmt,
                            std::vector<llvm::Value *> & vals) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
-
-    if (t->isRef())
-        t = t->unRef();
 
     if (t->isStruct()) {
         // val should be a ptr!!
@@ -2468,10 +2509,17 @@ void * Print::generate(BackEnd & backEnd, bool flag) {
         if (pre_fmt[c] == '%') {
             Expression * expr = (Expression *)args->expressions[arg];
             const Type * t = expr->getType();
-            llvm::Value * val =
-                t->isStruct() ? (llvm::Value *)llbe->getOrGenNode(expr, true)
-                              : (llvm::Value *)llbe->getOrGenNode(expr);
+            llvm::Value * val = nullptr;
+            if (t->isRef()) {
+                val = (llvm::Value *)llbe->getOrGenNode(expr, true);
+                if (!t->unRef()->isStruct()) {
+                    val = llbe->builder.CreateLoad(val, "loadRef");
+                }
+                t = t->unRef();
+            } else val = t->isStruct()  ? (llvm::Value *)llbe->getOrGenNode(expr, true)
+                                        : (llvm::Value *)llbe->getOrGenNode(expr);
 
+            
             gen_printf_fmt(backEnd, val, t, fmt, vals);
 
             arg++;
@@ -2787,7 +2835,20 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         for (auto & arg : func->args()) {
             if (payload->byval & (1 << i))
                 arg.addAttr(llvm::Attribute::ByVal);
+            if (payload->ref & (1 << i)) {
+                const Type * param_t = payload->t->getParamTypes()[i]->unRef();
+                unsigned int size = simpleSizer(param_t);
+                if (!size) size = 1;
+                arg.addAttr(llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
+            }
             i += 1;
+        }
+
+        if (!payload->sret && payload->t->getRetType()->isRef()) {
+            const Type * ret_t = payload->t->getRetType()->unRef();
+            unsigned int size = simpleSizer(ret_t);
+            if (!size) size = 1;
+            func->addAttribute(0, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size));
         }
 
         llbe->addNamedVal(getMangledName(), func, my_real_t);
@@ -2796,6 +2857,9 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         // procedures
         genDeps(this, *llbe);
     } else {
+        if (getFlag(Procedure::IS_EXTERN))
+            return func;
+
         // generate the definition
 
         llbe->proc_stack.push(this);
@@ -2827,26 +2891,32 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
 
         int j = 0;
         for (auto & Arg : func->args()) {
-            // Create an alloca for this variable.
-            llvm::Value * alloca = nullptr;
-            if (j == 0 && payload->sret) {
-                // @abi
-                alloca = llbe->allocNamedVal(Arg.getName(),
-                                             my_real_t->retType->getPointer());
+            const Type * t = nullptr;
+            if (j - payload->sret >= 0)
+                t = getParamVarDeclarations()[j - payload->sret]->getType();
+            if (t && t->isRef()) {
+                llbe->addNamedVal(Arg.getName(), &Arg, t);
             } else {
-                VariableDeclaration * v = (VariableDeclaration *)
-                    getParamVarDeclarations()[j - payload->sret];
-                alloca = llbe->allocNamedVal(Arg.getName(), v->getType());
+                // Create an alloca for this variable.
+                llvm::Value * alloca = nullptr;
+                if (j == 0 && payload->sret) {
+                    // @abi
+                    alloca = llbe->allocNamedVal(Arg.getName(),
+                                                 my_real_t->retType->getPointer());
+                } else {
+                    VariableDeclaration * v = (VariableDeclaration *)
+                        getParamVarDeclarations()[j - payload->sret];
+                    alloca = llbe->allocNamedVal(Arg.getName(), v->getType());
+                }
+
+                llvm::Value * val = &Arg;
+
+                // Store the initial value into the alloca.
+                if (payload->byval & (1 << j))
+                    val = llbe->builder.CreateLoad(val, "byval");
+
+                llbe->builder.CreateStore(val, alloca);
             }
-
-            llvm::Value * val = &Arg;
-
-            // Store the initial value into the alloca.
-            if (payload->byval & (1 << j))
-                val = llbe->builder.CreateLoad(val, "byval");
-
-            llbe->builder.CreateStore(val, alloca);
-
             j += 1;
         }
 
@@ -2895,6 +2965,8 @@ void * Return::generate(BackEnd & backEnd, bool flag) {
     ABILowerProcedureTypeData * payload =
         (ABILowerProcedureTypeData *)llbe->proc_abi_info[proc];
 
+    ProcedureType * pt = (ProcedureType*)proc->getType();
+
     if (payload->sret) {
         // @abi
         BJOU_DEBUG_ASSERT(getExpression());
@@ -2907,7 +2979,15 @@ void * Return::generate(BackEnd & backEnd, bool flag) {
         return llbe->builder.CreateRetVoid();
     }
     if (getExpression()) {
-        llvm::Value * v = (llvm::Value *)llbe->getOrGenNode(getExpression());
+        llvm::Value * v = nullptr;
+        if (pt->getRetType()->isRef()) {
+            v = (llvm::Value *)llbe->getOrGenNode(getExpression(), true);
+        } else {
+            v = (llvm::Value *)llbe->getOrGenNode(getExpression());
+        }
+
+        BJOU_DEBUG_ASSERT(v);
+
         generateFramePreExit(llbe);
         return llbe->builder.CreateRet(v);
     }

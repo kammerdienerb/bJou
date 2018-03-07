@@ -16,9 +16,9 @@ type T extends A {
 }
 
 proc main() {
-    t := new T
+    t := getref(@ new T)
     t.i()
-    (t as A*).i()
+    refcast$A(t).i()
 }
 
 main()

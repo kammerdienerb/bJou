@@ -18,7 +18,9 @@ namespace bjou {
 struct ABILowerProcedureTypeData {
     ProcedureType * t = nullptr;
     bool sret = false;
-    char byval = 0;
+    int byval = 0;
+    int ref = 0;
+    bool ref_ret = false;
     llvm::FunctionType * fn_t = nullptr;
 };
 

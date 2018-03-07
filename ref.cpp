@@ -1,10 +1,21 @@
 #include <cstdio>
 
+struct A {
+
+};
+
+struct B : A {
+
+};
+
+struct C : B {
+
+};
+
+void p(A& a) { printf("A\n"); }
+void p(B& a) { printf("B\n"); }
+
 int main() {
-    int i = 12345;
-    int j = 54321;
-    int& r = i;
-    r = 67890;
-    r = j;
-    printf("i: %d, r: %d\n", i, r);
+    C c;
+    p(c);
 }

@@ -339,5 +339,8 @@ std::vector<const Type *>
 typesSortedByDepencencies(std::vector<const Type *> nonPrimatives);
 
 void compilationAddPrimativeTypes();
+
+unsigned int simpleSizer(const Type * t);
+
 } // namespace bjou
 #endif /* Type_hpp */

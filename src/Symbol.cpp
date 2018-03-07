@@ -204,7 +204,7 @@ std::vector<Symbol *> ProcSet::getCandidates(ProcedureType * compare_type,
     if (compare_type) {
         for (auto & p : procs) {
             if (!p.second->isTemplateProc()) {
-                if (argMatch(compare_type, p.second->node()->getType())) {
+                if (argMatch(p.second->node()->getType(), compare_type)) {
                     if (!p.second->node()->getFlag(
                             Procedure::IS_TEMPLATE_DERIVED)) {
                         candidates.push_back(p.second);
@@ -227,11 +227,47 @@ static int countConversions(ProcedureType * compare_type,
                             ProcedureType * candidate_type) {
     int nconv = 0;
     for (int i = 0; i < (int)candidate_type->paramTypes.size(); i += 1) {
-        const Type * t1 = compare_type->paramTypes[i];
-        const Type * t2 = candidate_type->paramTypes[i];
+        const Type * t1 = candidate_type->paramTypes[i];
+        const Type * t2 = compare_type->paramTypes[i];
         BJOU_DEBUG_ASSERT(conv(t1, t2));
-        if (!equal(t1, t2))
+        if (!equal(t1, t2)) {
             nconv += 1;
+            // account for reference conversions too
+            if (t1->isRef()) {
+                if (!equal(t1->unRef(), t2->unRef())) 
+                    nconv += 1;
+            }
+
+            if (t1->isPointer() || t1->isRef()) {
+                const Type * u1 = t1->under();
+                const Type * u2 = nullptr;
+                if (t2->isPointer() || t2->isRef())
+                    u2 = t2->under();
+                else 
+                    u2 = t2;
+
+                if (u1->isStruct() && u2->isStruct()) {
+                    int n_extends = 0;
+                    const StructType * s1 = (const StructType *)u1;
+                    const StructType * s2 = (const StructType *)u2;
+                    const Type * extends = nullptr;
+                    
+                    if (!equal(s1, s2)) {
+                        while (s2->extends) {
+                            s2 = (const StructType *)s2->extends;
+                            if (equal(s1, s2)) {
+                                extends = s2;
+                                break;
+                            }
+                            n_extends += 1;
+                        }
+
+                        nconv += n_extends;
+                    }
+                }
+            }
+            
+        }
     }
     return nconv;
 }

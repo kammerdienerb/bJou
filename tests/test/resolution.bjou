@@ -45,7 +45,7 @@ type T {
     memcpy$int(1, 2, 3) # 3
     memcpy() # extern
     # p(1, 'a') ambiguous
-    t := new T
+    t := getref(@ new T)
     # t.p() ambiguous
     t.I1.p()
     t.I2.p()

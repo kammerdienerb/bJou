@@ -387,6 +387,7 @@ struct Expression : ASTNode {
     void setRight(ASTNode * _right);
 
     bool opOverload();
+    bool canBeLVal();
 
     virtual bool isConstant() = 0;
     virtual Val eval();
@@ -1573,6 +1574,7 @@ struct Declarator : ASTNode {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
     virtual void propagateScope(Scope * _scope);
     //
 };
@@ -1624,6 +1626,7 @@ struct ArrayDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
     //
 };
@@ -1658,6 +1661,7 @@ struct SliceDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
     //
 }; 
@@ -1693,6 +1697,7 @@ struct DynamicArrayDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
 
     //
@@ -1728,6 +1733,7 @@ struct PointerDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
 
     //
@@ -1763,6 +1769,7 @@ struct RefDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
 
     //
@@ -1798,6 +1805,7 @@ struct MaybeDeclarator : Declarator {
     virtual std::string mangleSymbol();
     virtual std::string mangleAndPrefixSymbol();
     virtual const ASTNode * getBase() const;
+    virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
 
     //
@@ -3019,6 +3027,8 @@ struct MacroUse : ASTNode {
     std::string macroName;
     std::vector<ASTNode *> args;
 
+    const Type * result_t = nullptr;
+
     enum eBitFlags E_BIT_FLAGS();
 
     std::string & getMacroName();
@@ -3028,6 +3038,7 @@ struct MacroUse : ASTNode {
     void addArg(ASTNode * arg);
 
     // Node interface
+    const Type * getType();
     virtual void analyze(bool force = false);
     ASTNode * clone();
     void unwrap(std::vector<ASTNode *> & terminals);

@@ -2,6 +2,6 @@
 
 (proc main() {
     data := malloc(12345)
-    print "%", data
+    # print "%", data
     free(data)
 })()

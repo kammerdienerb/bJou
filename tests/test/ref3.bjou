@@ -1,0 +1,29 @@
+# ref3.bjou
+
+proc p(arg : int ref)
+    print "%", arg
+
+(proc main() {
+    # r : float ref = 1.0
+    x := 0
+    getref(x) = 99999
+    print "%", x
+    x.p()
+    # 111.p()
+
+    stack_array : int[16]
+    stack_array[0] = 12345
+    print "%", stack_array[0]
+
+    heap_array := new int[16]
+    slice := [ stack_array, 0:16 ]
+    slice = [ heap_array, 0:16 ]
+    print "%", slice[5]
+    delete heap_array
+ 
+    sslice := [ "Hello, world!", 7:5 ]
+    for i := 0; i < |sslice|; i += 1
+        print "%", sslice[i]
+
+    # print "%", sslice[|sslice|]
+})()

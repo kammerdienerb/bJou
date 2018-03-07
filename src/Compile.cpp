@@ -36,6 +36,9 @@ Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
         abort();
     }
 
+    if (args.noabc_arg.getValue())
+        frontEnd.abc = false;
+
     if (args.output_arg.getValue().size()) {
         std::string o = de_quote(args.output_arg.getValue());
         outputpath = o.find('/') == std::string::npos

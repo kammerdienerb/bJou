@@ -13,8 +13,7 @@ type C$(V, W) {
     w : W
 }
 
-\run{ main() }
-
 (proc main() {
-    a : A$B$C$(int, float)
+    a := { A$B$C$(int, float): }
+    print "%", a
 })()

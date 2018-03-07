@@ -4,27 +4,27 @@ type Point {
 	x : float
 	y : float
 
-	proc set(this : Point*, x : float, y : float) {
+	proc set(this, x : float, y : float) {
 		this.x = x
 		this.y = y
 	}
 }
 
 proc main() {
-	i := new int
-	p := new Point
+	i := getref(@ new int)
+	p := getref(@ new Point)
 	# printf("%p, %p\n", i, p)
 
-	@i = 6543
+	i = 6543
 
-	print "%", @i
+	print "%", i
 
 	p.set(5.6, 7.8)
 
 	print "(%, %)", p.x, p.y + 1.0
 
-	delete i
-	delete p
+	delete &i
+	delete &p
 }
 
 main()

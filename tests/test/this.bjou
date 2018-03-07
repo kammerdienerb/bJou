@@ -7,12 +7,12 @@ type One$T {
         return { One$T: .t = t }
     
     proc Print(this) : One$T {
-        print "%", @this
-        return @this
+        print "%", this
+        return this
     }
 }
 
 (proc main() {
     o := One.create(12345)
-    o->Print()
+    o.Print()
 })()

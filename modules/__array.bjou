@@ -1,0 +1,26 @@
+# __array.bjou
+
+module __array
+
+extern sprintf(char*, char*, ...) : int
+
+\static_if { \abc{}
+    proc __bjou_array_subscript$T(
+            _a     : T*,    # the array
+            _l     : u64,   # the length of the array
+            _i     : u64,   # the index
+            _loc_f : char*, # call site file
+            _loc_l : int,   # call site line
+            _loc_c : int)   # call site character
+            : T ref {
+
+        if _i >= _l {
+            buff : char[1024]
+            buff.sprintf("panic: array index out of bounds (index = %d, length = %d)\n    at %s :: %d :: %d",
+                         _i, _l, _loc_f, _loc_l, _loc_c)
+            panic(buff)
+        }
+
+        return _a[_i]
+    }
+}

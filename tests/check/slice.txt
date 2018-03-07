@@ -1,0 +1,3 @@
+|array| = 8
+|slice| = 3
+slice view: [ 2, 3, 4 ]

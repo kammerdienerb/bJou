@@ -2,10 +2,12 @@
 
 module __preload
 
+import "__ref.bjou"
 import "__c_support.bjou"
 import "__panic.bjou"
 import "__typeinfo.bjou"
 import "__destroy.bjou"
+import "__array.bjou"
 import "__slice.bjou"
 import "__dynamic_array.bjou"
 import "__string.bjou"

@@ -7,8 +7,9 @@
 \ct {
     import "null.bjou"
 
-    import "clang.bjou"
+    # must be defined for clang.bjou to compile
     const libclang_path := "/usr/local/Cellar/llvm/5.0.1/lib/libclang.dylib"
+    import "clang.bjou"
 
     import "compiler.bjou"
 
@@ -23,15 +24,10 @@
         index : CXIndex*
         tu : CXTranslationUnit*
 
-        proc create() : ClangWrapper* {
-            cw := new ClangWrapper
-            cw.index = clang.createIndex(0, 0)
-
-            return cw
-        }
-
-        proc destroy(this) {
-            delete this
+        proc create() : ClangWrapper {
+            return { ClangWrapper:
+                .index = clang.createIndex(0, 0) 
+            }
         }
 
         proc parseTU(this, fname : char*) {
@@ -139,14 +135,14 @@
         }
 
         data.indent += 1
-        data.cw.traverse(cursor, my_visitor, data)
+        (@data.cw).traverse(cursor, my_visitor, data)
         data.indent -= 1
 
         return 1
     }
 
     proc main() {
-        init_clang(libclang_path)
+        init_clang()
 
         cw := ClangWrapper.create()
 
@@ -154,7 +150,7 @@
 
         node : ASTNode*[256]
         data := { VisitorData:
-            .cw = cw,
+            .cw = &cw,
             .indent = 0,
             .created_nodes = node,
             .n_created_nodes = 0
@@ -170,7 +166,5 @@
             bjou_analyze(data.created_nodes[i])
             bjou_appendNode(data.created_nodes[i])
         }
-
-        cw.destroy()
     }
 }

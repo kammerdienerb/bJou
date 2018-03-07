@@ -228,6 +228,46 @@ bool Expression::opOverload() {
     return false;
 }
 
+bool Expression::canBeLVal() {
+    if (getType()->isRef())
+        return true;
+
+    if (getFlag(Expression::IDENT)) {
+        Maybe<Symbol *> m_sym =
+            getScope()->getSymbol(getScope(), (Identifier *)this,
+                                        &getContext(), true, true, false, false);
+        Symbol * sym = nullptr;
+        m_sym.assignTo(sym);
+        BJOU_DEBUG_ASSERT(sym);
+
+        if (!sym->isVar())
+            return false;
+    } else {
+        if (getFlag(Expression::TERMINAL))
+            return false;
+    
+        // const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
+
+        if (nodeKind == SUBSCRIPT_EXPRESSION) {
+            if (getLeft()->getType()->isSlice())
+                return false;
+        } else if (nodeKind == ACCESS_EXPRESSION) {
+            if (getLeft()->nodeKind == IDENTIFIER) {
+                getLeft()->analyze();
+                Identifier * ident = (Identifier*)getLeft();
+                if (ident->resolved) {
+                    if (ident->resolved->nodeKind != VARIABLE_DECLARATION)
+                        return false;
+                }
+            }
+        } else if (nodeKind == ASSIGNMENT_EXPRESSION) {
+        } else if (nodeKind == DEREF_EXPRESSION) {
+        }
+    }   
+
+    return true;
+}
+
 // Node interface
 void Expression::unwrap(std::vector<ASTNode *> & terminals) {
     if (getFlag(TERMINAL))
@@ -336,6 +376,10 @@ void BinaryExpression::analyze(bool force) {
 //
 
 static void emplaceConversion(Expression * expr, const Type * dest_t) {
+    if ((dest_t->isRef() && conv(dest_t, expr->getType())) ||
+        (expr->getType()->isRef() && conv(dest_t, expr->getType()->unRef())))
+        return;
+
     ASTNode * p = expr->parent;
 
     AsExpression * conversion = new AsExpression;
@@ -354,8 +398,8 @@ static void emplaceConversion(Expression * expr, const Type * dest_t) {
 }
 
 static void convertOperands(BinaryExpression * expr, const Type * dest_t) {
-    const Type * lt = expr->getLeft()->getType();
-    const Type * rt = expr->getRight()->getType();
+    const Type * lt = expr->getLeft()->getType()->unRef();
+    const Type * rt = expr->getRight()->getType()->unRef();
 
     if (!equal(lt, dest_t))
         emplaceConversion((Expression *)expr->getLeft(), dest_t);
@@ -396,8 +440,8 @@ void AddExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
     if (lt->isInt()) {
         if (rt->isInt() || rt->isFloat()) {
@@ -466,8 +510,8 @@ void SubExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
     if (lt->isInt()) {
         if (rt->isInt() || rt->isFloat()) {
@@ -534,8 +578,8 @@ void MultExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
     if (lt->isInt()) {
         if (rt->isInt() || rt->isFloat()) {
@@ -597,8 +641,8 @@ void DivExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
     if (lt->isInt()) {
         if (rt->isInt() || rt->isFloat()) {
@@ -661,8 +705,8 @@ void ModExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
     if (lt->isInt()) {
         if (rt->isInt()) {
@@ -688,8 +732,8 @@ ASTNode * ModExpression::clone() { return ExpressionClone(this); }
 //
 
 static void convertAssignmentOperand(BinaryExpression * assign) {
-    const Type * lt = assign->getLeft()->getType();
-    const Type * rt = assign->getRight()->getType();
+    const Type * lt = assign->getLeft()->getType()->unRef();
+    const Type * rt = assign->getRight()->getType()->unRef();
 
     if (!equal(lt, rt) && conv(lt, rt))
         emplaceConversion((Expression *)assign->getRight(), lt);
@@ -706,11 +750,12 @@ static void AssignmentCommon(BinaryExpression * expr,
                              const Type * result_t = nullptr) {
     std::string & contents = expr->getContents();
 
-    Expression * left = (Expression *)expr->getLeft();
-    Expression * right = (Expression *)expr->getRight();
-
     BJOU_DEBUG_ASSERT(binary(contents.c_str()) && "operator is not binary");
-    BJOU_DEBUG_ASSERT(left && right && "missing operands to binary expression");
+    BJOU_DEBUG_ASSERT(expr->getLeft() && expr->getRight() && "missing operands to binary expression");
+
+    
+
+    expr->getRight()->analyze();
 
     // It is important that this part comes before we analyze left.
     // We want to cut in and set the symbol's initialized field before that
@@ -718,42 +763,24 @@ static void AssignmentCommon(BinaryExpression * expr,
 
     // We are going to run analysis on right twice -- once to check the symbol,
     // then again once we have the lval type in place
-
-    right->analyze();
-
-    if (left->getFlag(Expression::IDENT)) {
+    if (expr->getLeft()->getFlag(Expression::IDENT)) {
         Maybe<Symbol *> m_sym =
-            expr->getScope()->getSymbol(expr->getScope(), (Identifier *)left,
-                                        &left->getContext(), true, true, false);
+            expr->getLeft()->getScope()->getSymbol(expr->getLeft()->getScope(), (Identifier *)expr->getLeft(),
+                                        &expr->getLeft()->getContext(), true, true, false);
         Symbol * sym = nullptr;
         m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym);
-        if (!sym->isVar())
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
+        BJOU_DEBUG_ASSERT(sym && sym->isVar());
+
         sym->initializedInScopes.insert(expr->getScope());
-    } else {
-        if (left->getFlag(Expression::TERMINAL) ||
-            !isAssignableOp(left->getContents()))
-            errorl(left->getContext(), "Operand left of '" + contents +
-                                           "' operator must be assignable.");
     }
 
-    left->analyze();
+    if (!((Expression*)expr->getLeft())->canBeLVal())
+        errorl(expr->getLeft()->getContext(), "Operand left of '" + contents +
+                                              "' operator must be assignable.");
 
-    // refresh left
-    left = (Expression *)expr->getLeft();
-
-    const Type * lt = left->getType();
-
+    const Type * lt = expr->getLeft()->getType()->unRef();
     compilation->frontEnd.lValStack.push(lt);
-
-    // refresh right
-    right = (Expression *)expr->getRight();
-
-    right->analyze(true);
-
-    const Type * rt = right->getType();
+    const Type * rt = expr->getRight()->getType()->unRef();
 
     if (!result_t)
         result_t = rt;
@@ -761,7 +788,7 @@ static void AssignmentCommon(BinaryExpression * expr,
     if (!conv(lt, result_t))
         errorl(expr->getContext(), "Can not assign to type '" +
                                        lt->getDemangledName() + "' with '" +
-                                       result_t->getDemangledName() + ".");
+                                       result_t->getDemangledName() + "'.");
 
     convertAssignmentOperand(expr);
 
@@ -969,8 +996,8 @@ void LssExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
     comparisonSignWarn(getContext(), lt, rt);
 
@@ -1177,8 +1204,8 @@ void LogAndExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
     const Type * _bool = BoolType::get();
 
     ASTNode * badop = nullptr;
@@ -1247,8 +1274,8 @@ void SubscriptExpression::analyze(bool force) {
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
     if (!lt->isPointer() && !lt->isArray() && !lt->isSlice()) // && !lt->isDynamicArray)
         errorl(getContext(), "Could not match '" +
@@ -1298,33 +1325,68 @@ void SubscriptExpression::desugar() {
         CallExpression * call = new CallExpression;
         call->setContext(getContext());
        
-        // __bjou_slice!(T).at
-        Declarator * slice_decl = getLeft()->getType()->getGenericDeclarator();
-        Identifier * at = new Identifier;
-        at->setUnqualified("at");
-        AccessExpression * access = new AccessExpression;
-        access->setLeft(slice_decl);
-        access->setRight(at);
+        // __bjou_slice_subscript
+        Identifier * __bjou_slice_subscript = new Identifier;
+        __bjou_slice_subscript->setUnqualified("__bjou_slice_subscript");
 
-        // (&slice, index)
         ArgList * r = new ArgList;
-
-        AddressExpression * addr = new AddressExpression;
-        addr->setContext(getContext());
-        addr->setRight(getLeft());
-        // @bad hack
-        addr->setType(((SliceType*)getLeft()->getType())->getRealType()->getPointer());
-        addr->setFlag(ANALYZED, true);
-
-        r->addExpression(addr);
+        // (slice, index)
+        r->addExpression(getLeft());
         r->addExpression(getRight());
 
-        call->setLeft(access);
+        if (compilation->frontEnd.abc) {
+            // ... filename, line, col)
+            StringLiteral * f = new StringLiteral;
+            f->setContents(getRight()->getContext().filename);
+            IntegerLiteral * l = new IntegerLiteral;
+            l->setContents(std::to_string(getRight()->getContext().begin.line));
+            IntegerLiteral * c = new IntegerLiteral;
+            c->setContents(std::to_string(getRight()->getContext().begin.character));
+
+            r->addExpression(f);
+            r->addExpression(l);
+            r->addExpression(c);
+        }
+
+        call->setLeft(__bjou_slice_subscript);
         call->setRight(r);
 
         call->addSymbols(getScope());
 
-        slice_decl->desugar();
+        (*replace)(parent, this, call);   
+
+        call->analyze();
+    } else if (getLeft()->getType()->isArray() && compilation->frontEnd.abc) {
+        CallExpression * call = new CallExpression;
+        call->setContext(getContext());
+       
+        // __bjou_array_subscript
+        Identifier * __bjou_array_subscript = new Identifier;
+        __bjou_array_subscript->setUnqualified("__bjou_array_subscript");
+
+        ArgList * r = new ArgList;
+        // (array, len, index, filename, line, col)
+        r->addExpression(getLeft());
+        IntegerLiteral * len = new IntegerLiteral;
+        len->setContents(std::to_string(((ArrayType*)getLeft()->getType())->width));
+        r->addExpression(len);
+        r->addExpression(getRight());
+
+        StringLiteral * f = new StringLiteral;
+        f->setContents(getRight()->getContext().filename);
+        IntegerLiteral * l = new IntegerLiteral;
+        l->setContents(std::to_string(getRight()->getContext().begin.line));
+        IntegerLiteral * c = new IntegerLiteral;
+        c->setContents(std::to_string(getRight()->getContext().begin.character));
+
+        r->addExpression(f);
+        r->addExpression(l);
+        r->addExpression(c);
+
+        call->setLeft(__bjou_array_subscript);
+        call->setRight(r);
+
+        call->addSymbols(getScope());
 
         (*replace)(parent, this, call);   
 
@@ -1379,11 +1441,11 @@ void CallExpression::analyze(bool force) {
                 l->right = nullptr; // l->setRight(nullptr);
             lt = proc->getType();
         } else {
-            lt = getLeft()->getType();
+            lt = getLeft()->getType()->unRef();
         }
         l->setType(lt);
     } else {
-        lt = getLeft()->getType();
+        lt = getLeft()->getType()->unRef();
     }
 
     if (proc) {
@@ -1411,6 +1473,7 @@ void CallExpression::analyze(bool force) {
     int nexpected = (int)plt->paramTypes.size();
 
     bool arg_err = false;
+    bool l_val_err = false;
     Context errContext;
 
     if (nargs > nexpected && !plt->isVararg) {
@@ -1425,6 +1488,13 @@ void CallExpression::analyze(bool force) {
         for (int i = 0; i < nexpected; i += 1) {
             const Type * expected_t = plt->paramTypes[i];
             const Type * arg_t = args->getExpressions()[i]->getType();
+
+            if (expected_t->isRef() && !((Expression*)args->getExpressions()[i])->canBeLVal()) {
+                arg_err = true;
+                l_val_err = true;
+                errContext = args->getExpressions()[i]->getContext();
+                break;
+            }
 
             if (!conv(expected_t, arg_t)) {
                 arg_err = true;
@@ -1446,18 +1516,23 @@ void CallExpression::analyze(bool force) {
                 passedTypes += ", ";
         }
 
+        std::vector<std::string> help = {
+            "Note: procedure type: " + plt->getDemangledName(),
+            "arguments passed were (" + passedTypes + ")"
+        };
+
+        if (l_val_err)
+            help.insert(help.begin(), "expression can't be used as a reference");
+
         if (proc)
             errorl(errContext,
                    "No matching call for '" +
                        demangledString(
                            mangledIdentifier((Identifier *)getLeft())) +
                        "' found.",
-                   true, "Note: procedure type: " + plt->getDemangledName(),
-                   "arguments passed were (" + passedTypes + ")");
+                   true, help);
         else
-            errorl(errContext, "No matching call to indirect procedure.", true,
-                   "Note: procedure type: " + plt->getDemangledName(),
-                   "arguments passed were (" + passedTypes + ")");
+            errorl(errContext, "No matching call to indirect procedure.", true, help);
     }
 
     setType(plt->retType);
@@ -1490,7 +1565,7 @@ static Identifier * createIdentifierFromAccess(AccessExpression * access,
 
     if (t->isStruct()) {
         struct_t = (StructType *)t;
-    } else if (t->isPointer()) {
+    } else if (t->isPointer() || t->isRef()) {
         if (t->under()->isStruct())
             struct_t = (StructType *)t->under();
     }
@@ -1517,12 +1592,12 @@ static Identifier * createIdentifierFromAccess(AccessExpression * access,
                                                Declarator * decl,
                                                Identifier * iface_ident,
                                                Identifier * ident) {
-    const Type * t = decl->getType();
+    const Type * t = decl->getType()->unRef();
     StructType * struct_t = nullptr;
 
     if (t->isStruct()) {
         struct_t = (StructType *)t;
-    } else if (t->isPointer()) {
+    } else if (t->isPointer() || t->isRef()) {
         if (t->under()->isStruct())
             struct_t = (StructType *)t->under();
     }
@@ -1550,7 +1625,7 @@ static Identifier * createIdentifierFromAccess(AccessExpression * access,
                                                Identifier * obj_ident,
                                                Identifier * iface_ident,
                                                Identifier * ident) {
-    const Type * t = obj_ident->getType();
+    const Type * t = obj_ident->getType()->unRef();
     StructType * struct_t = nullptr;
 
     if (t->isStruct()) {
@@ -1597,7 +1672,7 @@ int AccessExpression::handleInterfaceSpecificCall() {
         // only base declarators
         if (l->getRight()->nodeKind == IDENTIFIER) {
             Identifier * interface_ident = (Identifier *)l->getRight();
-            const Type * t = l->getLeft()->getType();
+            const Type * t = l->getLeft()->getType()->unRef();
             StructType * struct_t = nullptr;
 
             if (t->isStruct()) {
@@ -1867,7 +1942,7 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
 }
 
 int AccessExpression::handleContainerAccess() {
-    const Type * lt = getLeft()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
     Identifier * r_id = (Identifier *)getRight();
     Expression * next_call = nextCall();
 
@@ -1991,7 +2066,7 @@ bool AccessExpression::handleInjection() {
                            "Cannot take the address of a template definition.");
             } else {
                 if (getLeft()->getFlag(TERMINAL) ||
-                    !isAssignableOp(((Expression *)getLeft())->getContents()))
+                    !((Expression *)getLeft())->canBeLVal())
                     errorl(
                         getLeft()->getContext(),
                         "Operand left of '->' operator must be addressable.");
@@ -2130,8 +2205,6 @@ void NewExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     BJOU_DEBUG_ASSERT(IS_DECLARATOR(getRight()));
-    getRight()->analyze();
-
     // we have given the resposibility of everything below to the backend
 
     /*
@@ -2246,7 +2319,7 @@ void DeleteExpression::analyze(bool force) {
     HANDLE_FORCE();
 
     getRight()->analyze();
-    const Type * t = getRight()->getType();
+    const Type * t = getRight()->getType()->unRef();
 
     if (!t->isPointer())
         errorl(getRight()->getContext(), "Operand of delete must be a pointer.",
@@ -2254,7 +2327,7 @@ void DeleteExpression::analyze(bool force) {
 
     std::string & r_c = ((Expression *)getRight())->getContents();
     if (getRight()->nodeKind == IDENTIFIER ||
-        (r_c == "." || r_c == "[]" || r_c == "()"))
+        (r_c == "&" || r_c == "." || r_c == "[]" || r_c == "()"))
         setType(compilation->frontEnd
                     .typeTable[compilation->frontEnd.getBuiltinVoidTypeName()]);
     else
@@ -2319,7 +2392,7 @@ void NotExpression::analyze(bool force) {
 
     getRight()->analyze(force);
 
-    const Type * rt = getRight()->getType();
+    const Type * rt = getRight()->getType()->unRef();
     const Type * _bool = BoolType::get();
 
     if (!equal(rt, _bool))
@@ -2353,7 +2426,7 @@ void DerefExpression::analyze(bool force) {
 
     getRight()->analyze(force);
 
-    const Type * rt = getRight()->getType();
+    const Type * rt = getRight()->getType()->unRef();
 
     if (!rt->isPointer())
         errorl(getRight()->getContext(),
@@ -2389,28 +2462,34 @@ void AddressExpression::analyze(bool force) {
 
     const Type * rt = right->getType();
 
-    if (right->getFlag(IDENT)) {
-        Maybe<Symbol *> m_sym = getScope()->getSymbol(
-            getScope(), (Identifier *)right, &right->getContext());
-        Symbol * sym = nullptr;
-        m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym);
-        if (sym->isType())
-            errorl(right->getContext(), "Cannot take the address of a type.");
-        else if (sym->isProcSet())
-            errorl(right->getContext(), "Use of '" + sym->demangledString() +
-                                            "' is ambiguous."); // @bad
-        else if (sym->isInterface())
-            errorl(right->getContext(),
-                   "Cannot take the address of an interface.");
-        else if (sym->node()->getFlag(ASTNode::IS_TEMPLATE))
-            errorl(right->getContext(),
-                   "Cannot take the address of a template definition.");
+    if (rt->isRef()) {
+        rt = rt->unRef(); 
     } else {
-        if (right->getFlag(TERMINAL) ||
-            !isAssignableOp(((Expression *)right)->getContents()))
-            errorl(right->getContext(), "Operand right of '" + contents +
-                                            "' operator must be addressable.");
+        rt = rt->unRef(); 
+
+        if (right->getFlag(IDENT)) {
+            Maybe<Symbol *> m_sym = getScope()->getSymbol(
+                getScope(), (Identifier *)right, &right->getContext());
+            Symbol * sym = nullptr;
+            m_sym.assignTo(sym);
+            BJOU_DEBUG_ASSERT(sym);
+            if (sym->isType())
+                errorl(right->getContext(), "Cannot take the address of a type.");
+            else if (sym->isProcSet())
+                errorl(right->getContext(), "Use of '" + sym->demangledString() +
+                                                "' is ambiguous."); // @bad
+            else if (sym->isInterface())
+                errorl(right->getContext(),
+                       "Cannot take the address of an interface.");
+            else if (sym->node()->getFlag(ASTNode::IS_TEMPLATE))
+                errorl(right->getContext(),
+                       "Cannot take the address of a template definition.");
+        } else {
+            if (right->getFlag(TERMINAL) ||
+                !((Expression *)right)->canBeLVal())
+                errorl(right->getContext(), "Operand right of '" + contents +
+                                                "' operator must be addressable.");
+        }
     }
 
     setType(rt->getPointer());
@@ -2440,7 +2519,7 @@ void RefExpression::analyze(bool force) {
 
     right->analyze(force);
 
-    const Type * rt = right->getType();
+    const Type * rt = right->getType()->unRef();
 
     if (right->getFlag(IDENT)) {
         Maybe<Symbol *> m_sym = getScope()->getSymbol(
@@ -2461,7 +2540,7 @@ void RefExpression::analyze(bool force) {
                    "Cannot take a reference of a template definition.");
     } else {
         if (right->getFlag(TERMINAL) ||
-            !isAssignableOp(((Expression *)right)->getContents()))
+            !((Expression *)right)->canBeLVal())
             errorl(right->getContext(), "Operand right of '" + contents +
                                             "' operator must be addressable.");
     }
@@ -2510,8 +2589,8 @@ void AsExpression::analyze(bool force) {
     getLeft()->analyze();
     getRight()->analyze();
 
-    const Type * lt = getLeft()->getType();
-    const Type * rt = getRight()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
 
     if (equal(lt, rt)) {
         if (!rt->isPointer())
@@ -2687,6 +2766,12 @@ void Identifier::analyze(bool force) {
             setType(sym->node()->getType());
         else internalError("Identifier error."); // @bad!
          */
+
+        if (parent && IS_EXPRESSION(parent) || parent->nodeKind == ARG_LIST) {
+            if (parent->nodeKind != ASTNode::ACCESS_EXPRESSION)
+                errorl(getContext(), "Can't use type name '" + unqualified + "' as expression.");
+        }
+
         Declarator * decl = new Declarator;
         decl->setContext(getContext());
         decl->setScope(getScope());
@@ -2703,7 +2788,7 @@ void Identifier::analyze(bool force) {
     if (resolved) {
         if (!isCT(this) && isCT(resolved))
             errorl(getContext(),
-                   "Referenced symbol is only available at compile time.");
+                   "Referenced symbol '" + unqualified + "' is only available at compile time.");
     }
 
     // Identifier get's its type lazily because it might be a reference
@@ -2965,12 +3050,12 @@ void SliceExpression::analyze(bool force) {
     getStart()->analyze(force);
     getLength()->analyze(force);
 
-    const Type * src_t    = getSrc()->getType();
-    const Type * start_t  = getStart()->getType();
-    const Type * length_t = getLength()->getType();
+    const Type * src_t    = getSrc()->getType()->unRef();
+    const Type * start_t  = getStart()->getType()->unRef();
+    const Type * length_t = getLength()->getType()->unRef();
 
-    if (!src_t->isArray() && !src_t->isSlice()) // dynamic array?
-        errorl(getSrc()->getContext(), "Slice source must be either an array or another slice.", true,
+    if (!src_t->isPointer() && !src_t->isArray() && !src_t->isSlice()) // dynamic array?
+        errorl(getSrc()->getContext(), "Slice source must be either a pointer, an array, or another slice.", true,
                                        "got '" + src_t->getDemangledName() + "'");
 
     if (!conv(IntType::get(Type::Sign::UNSIGNED, 64), start_t))
@@ -3007,7 +3092,7 @@ void SliceExpression::desugar() {
     call->setContext(getContext());
    
     // __bjou_slice!(T).create
-    Declarator * slice_decl = getType()->getGenericDeclarator();
+    Declarator * slice_decl = ((SliceType*)getType())->getRealType()->getGenericDeclarator();
     Identifier * create = new Identifier;
     create->setUnqualified("create");
     AccessExpression * l = new AccessExpression;
@@ -3082,7 +3167,7 @@ void LenExpression::addSymbols(Scope * _scope) {
 void LenExpression::analyze(bool force) {
     HANDLE_FORCE();
 
-    const Type * expr_t = getExpr()->getType();
+    const Type * expr_t = getExpr()->getType()->unRef();
 
     getExpr()->analyze(force);
 
@@ -3108,7 +3193,7 @@ ASTNode * LenExpression::clone() {
 }
 
 void LenExpression::desugar() {
-    const Type * expr_t = getExpr()->getType();
+    const Type * expr_t = getExpr()->getType()->unRef();
 
     ASTNode * replacement = nullptr;
 
@@ -3649,6 +3734,7 @@ std::string Declarator::mangleAndPrefixSymbol() {
 }
 
 const ASTNode * Declarator::getBase() const { return this; }
+ASTNode * Declarator::under() const { return (ASTNode*)this; }
 
 void Declarator::propagateScope(Scope * _scope) { scope = _scope; }
 //
@@ -3774,6 +3860,8 @@ const ASTNode * ArrayDeclarator::getBase() const {
     return ((Declarator *)getArrayOf())->getBase();
 }
 
+ASTNode * ArrayDeclarator::under() const { return (Declarator*)getArrayOf(); }
+
 void ArrayDeclarator::propagateScope(Scope * _scope) {
     scope = _scope;
     ((Declarator *)getArrayOf())->propagateScope(_scope);
@@ -3835,6 +3923,7 @@ ASTNode * SliceDeclarator::clone() {
 }
 
 void SliceDeclarator::desugar() {
+    /*
     getSliceOf()->desugar();
 
     SliceType * slice_t = (SliceType*)getType();
@@ -3845,6 +3934,7 @@ void SliceDeclarator::desugar() {
 
     new_decl->addSymbols(getScope());
     new_decl->analyze();
+    */
 }
 
 const Type * SliceDeclarator::getType() {
@@ -3868,6 +3958,8 @@ std::string SliceDeclarator::mangleAndPrefixSymbol() {
 const ASTNode * SliceDeclarator::getBase() const {
     return ((Declarator *)getSliceOf())->getBase();
 }
+
+ASTNode * SliceDeclarator::under() const { return (Declarator*)getSliceOf(); }
 
 void SliceDeclarator::propagateScope(Scope * _scope) {
     scope = _scope;
@@ -3965,6 +4057,8 @@ const ASTNode * DynamicArrayDeclarator::getBase() const {
     return ((Declarator *)getArrayOf())->getBase();
 }
 
+ASTNode * DynamicArrayDeclarator::under() const { return (Declarator*)getArrayOf(); }
+
 void DynamicArrayDeclarator::propagateScope(Scope * _scope) {
     scope = _scope;
     ((Declarator *)getArrayOf())->propagateScope(_scope);
@@ -4050,6 +4144,8 @@ const ASTNode * PointerDeclarator::getBase() const {
     return ((Declarator *)getPointerOf())->getBase();
 }
 
+ASTNode * PointerDeclarator::under() const { return (Declarator*)getPointerOf(); }
+
 void PointerDeclarator::propagateScope(Scope * _scope) {
     scope = _scope;
     ((Declarator *)getPointerOf())->propagateScope(_scope);
@@ -4133,6 +4229,8 @@ const ASTNode * RefDeclarator::getBase() const {
     return ((Declarator *)getRefOf())->getBase();
 }
 
+ASTNode * RefDeclarator::under() const { return (Declarator*)getRefOf(); }
+
 void RefDeclarator::propagateScope(Scope * _scope) {
     scope = _scope;
     ((Declarator *)getRefOf())->propagateScope(_scope);
@@ -4214,6 +4312,8 @@ std::string MaybeDeclarator::mangleAndPrefixSymbol() {
 const ASTNode * MaybeDeclarator::getBase() const {
     return ((Declarator *)getMaybeOf())->getBase();
 }
+
+ASTNode * MaybeDeclarator::under() const { return (Declarator*)getMaybeOf(); }
 
 void MaybeDeclarator::propagateScope(Scope * _scope) {
     scope = _scope;
@@ -4673,12 +4773,17 @@ void VariableDeclaration::analyze(bool force) {
 
             my_t = decl_t;
 
+            decl_t = decl_t->unRef();
+
             std::stack<const Type *> & lValStack =
                 compilation->frontEnd.lValStack;
 
             lValStack.push(decl_t);
 
             init_t = getInitialization()->getType();
+
+            if (my_t->isRef() && !((Expression*)getInitialization())->canBeLVal())
+                errorl(getInitialization()->getContext(), "Reference initializer can't be used as a reference.");
 
             if (!conv(decl_t, init_t))
                 errorl(getInitialization()->getContext(),
@@ -4729,10 +4834,13 @@ void VariableDeclaration::analyze(bool force) {
             }      
         }
 
-        if (!getFlag(IS_PROC_PARAM) && getTypeDeclarator()->getType()->isRef())
+        if (!getFlag(IS_PROC_PARAM) && !getFlag(IS_TYPE_MEMBER) && 
+            getTypeDeclarator()->getType()->isRef()) {
+        
             errorl(getContext(),
                    "'" + getName() +
                        "' is a reference and must be initialized.");
+        }
     }
 
     BJOU_DEBUG_ASSERT(getTypeDeclarator() &&
@@ -4819,7 +4927,7 @@ VariableDeclaration::~VariableDeclaration() {
 const Type * VariableDeclaration::getType() {
     if (!getTypeDeclarator())
         analyze();
-    return ((Declarator *)getTypeDeclarator())->getType();
+    return getTypeDeclarator()->getType();
 }
 
 bool VariableDeclaration::isStatement() const { return true; }
@@ -5512,14 +5620,14 @@ void InterfaceImplementation::analyze(bool force) {
                 for (ASTNode * _def : defs) {
                     Procedure * def = (Procedure *)_def;
 
-                    const Type * parent_t = parent->getType(); // @leak?
+                    const Type * parent_t = parent->getType();
 
                     const Type * placeholder_def_t =
                         (const Type *)def->getType();
                     const Type * def_t =
                         placeholder_def_t->replacePlaceholders(parent_t);
 
-                    reqs.push_back(def_t->getDemangledName()); // @leak
+                    reqs.push_back(def_t->getDemangledName());
                     errorl(id->getContext(),
                            "'" +
                                demangledString(
@@ -5832,7 +5940,7 @@ static void handleTerminators(ASTNode * statement,
 This::This() { nodeKind = THIS; }
 
 // Node interface
-const Type * This::getType() { return PlaceholderType::get()->getPointer(); }
+const Type * This::getType() { return PlaceholderType::get()->getRef(); }
 
 void This::analyze(bool force) {
     HANDLE_FORCE();
@@ -5953,7 +6061,7 @@ void Procedure::desugarThis() {
 
             Declarator * base = s->getType()->getGenericDeclarator();
 
-            param->setTypeDeclarator(new PointerDeclarator(base));
+            param->setTypeDeclarator(new RefDeclarator(base));
             param->getTypeDeclarator()->addSymbols(
                 node->getScope()); // @bad. does this make sense?
 
@@ -7657,7 +7765,7 @@ IgnoreNode::~IgnoreNode() {}
 
 MacroUse::MacroUse() : macroName({}) {
     nodeKind = MACRO_USE;
-    setFlag(ASTNode::CT, true);
+    // setFlag(ASTNode::CT, true);
 }
 
 std::string & MacroUse::getMacroName() { return macroName; }
@@ -7671,6 +7779,11 @@ void MacroUse::addArg(ASTNode * arg) {
 }
 
 // Node interface
+const Type * MacroUse::getType() {
+    analyze();
+    return result_t;
+}
+
 void MacroUse::analyze(bool force) {
     HANDLE_FORCE();
 
@@ -7696,6 +7809,7 @@ void MacroUse::analyze(bool force) {
 
     (*replace)(parent, this, r);
 
+    result_t = r->getType();
     r->analyze();
 
     setFlag(ANALYZED, true);

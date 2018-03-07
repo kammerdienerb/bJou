@@ -34,12 +34,12 @@ type T2 extends T1 {
 #    I2.i2()
 
 proc main() {
-    t1 := new T1 as T*
-    t2 := new T2 as T*
+    t1 := refcast$T(@ new T1)
+    t2 := refcast$T(@ new T2)
 
     t1.i1()             # T1.i1()
     t2.i1()             # T2.i1()
-    (t2 as T2*).i2()    # T2.i2()
+    refcast$T2(t2).i2() # T2.i2()
 }
 
 main()

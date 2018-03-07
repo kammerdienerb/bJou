@@ -60,7 +60,7 @@ static void checkUninitialized(Scope * startingScope, Symbol * sym,
 
 Maybe<Symbol *> Scope::getSymbol(Scope * startingScope, ASTNode * _identifier,
                                  Context * context, bool traverse, bool fail,
-                                 bool checkUninit) {
+                                 bool checkUninit, bool countAsReference) {
     Identifier * identifier = (Identifier *)_identifier;
 
     // if (!identifier->qualified.empty())
@@ -72,12 +72,13 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope, ASTNode * _identifier,
         if (symbols.count(u) > 0) {
             if (checkUninit)
                 checkUninitialized(startingScope, symbols[u], *context);
-            symbols[u]->referenced = true;
+            if (countAsReference)
+                symbols[u]->referenced = true;
             return Maybe<Symbol *>(symbols[u]);
         }
         if (traverse && parent)
             return parent->getSymbol(startingScope, _identifier, context,
-                                     traverse, fail, checkUninit);
+                                     traverse, fail, checkUninit, countAsReference);
     }
     Scope * scope = compilation->frontEnd.globalScope;
     for (std::string & nspaceName : identifier->getNamespaces()) {
@@ -89,7 +90,8 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope, ASTNode * _identifier,
     if (scope->symbols.count(u)) {
         if (checkUninit)
             checkUninitialized(startingScope, scope->symbols[u], *context);
-        scope->symbols[u]->referenced = true;
+        if (countAsReference)
+            scope->symbols[u]->referenced = true;
         return Maybe<Symbol *>(scope->symbols[u]);
     }
 end:
@@ -109,17 +111,18 @@ end:
 Maybe<Symbol *> Scope::getSymbol(Scope * startingScope,
                                  std::string & qualifiedIdentifier,
                                  Context * context, bool traverse, bool fail,
-                                 bool checkUninit) {
+                                 bool checkUninit, bool countAsReference) {
     if (symbols.count(qualifiedIdentifier) > 0) {
         if (checkUninit)
             checkUninitialized(startingScope, symbols[qualifiedIdentifier],
                                *context);
-        symbols[qualifiedIdentifier]->referenced = true;
+        if (countAsReference)
+            symbols[qualifiedIdentifier]->referenced = true;
         return Maybe<Symbol *>(symbols[qualifiedIdentifier]);
     }
     if (traverse && parent)
         return parent->getSymbol(startingScope, qualifiedIdentifier, context,
-                                 traverse, fail, checkUninit);
+                                 traverse, fail, checkUninit, countAsReference);
     if (fail) {
         if (context)
             errorl(*context, "Use of undeclared identifier '" +
@@ -220,9 +223,26 @@ void Scope::addSymbol(_Symbol<Procedure> * symbol, Context * context) {
             mangled_existing->node()->setFlag(ASTNode::IGNORE_GEN, true);
         } else if (mangled_existing->node()->nodeKind == ASTNode::PROC_SET &&
                    mangled->node()->getFlag(Procedure::IS_EXTERN)) {
-            // @incomplete
-            // Create a mechanism to catch conflicting redefinitions of extern
-            // procs
+            ProcSet * set = (ProcSet*)mangled_existing->node();
+            for (auto& sym : set->procs) {
+                if (sym.second->isTemplateProc()) continue;
+
+                Procedure * existing_proc = (Procedure*)sym.second->node();
+
+                if (existing_proc->getFlag(Procedure::IS_EXTERN)) {
+                    const Type * t = proc->getType();
+                    const Type * existing_t = existing_proc->getType();
+
+                    if (!equal(existing_t, t)) {
+                        errorl(proc->getNameContext(), "Conflicting declarations of extern procedure '" + proc->getName() + "'.", false,
+                                                    "declared with type '" + t->getDemangledName() + "'");
+                        errorl(existing_proc->getNameContext(), "'" + existing_proc->getName() + "' previously declared here.", true,
+                                                    "declared with type '" + existing_t->getDemangledName() + "'");
+                    }
+
+                    // proc->setFlag(ASTNode::IGNORE_GEN, true);
+                }
+            }
         } else {
             errorl(*context,
                    "Redefinition of '" + mangled->demangledString() + "'.",

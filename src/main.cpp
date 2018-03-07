@@ -62,6 +62,8 @@ int main(int argc, const char ** argv) {
         "", "noparallel", "Turn compilation parallelization off.", cmd_line);
     TCLAP::SwitchArg opt_arg("O", "optimize", "Run LLVM optimization passes.",
                              cmd_line);
+    TCLAP::SwitchArg noabc_arg("", "noabc", "Turn off array bounds checking.",
+                             cmd_line);
     TCLAP::SwitchArg module_arg(
         "m", "module", "Create a module file instead of an executable.",
         cmd_line);
@@ -88,7 +90,7 @@ int main(int argc, const char ** argv) {
 
     bjou::TCLAPArgSet args = {
         verbose_arg,    justcheck_arg, time_arg,   symbols_arg,
-        noparallel_arg, opt_arg,       module_arg, module_search_path_arg,
+        noparallel_arg, opt_arg, noabc_arg,       module_arg, module_search_path_arg,
         nopreload_arg,  lld_arg,       output_arg, link_arg,
         files};
 

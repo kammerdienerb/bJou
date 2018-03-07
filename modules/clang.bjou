@@ -10,8 +10,10 @@ import "null.bjou"
 # global libclang object
 clang := { libclang: }
 
-proc init_clang(path : char*)
-    clang = libclang.create(path)
+# proc init_clang(path : char*)
+#     clang = libclang.create(path)
+proc init_clang()
+    clang = libclang.create(libclang_path)
 
 type CXString {
     data          : void*
@@ -402,44 +404,44 @@ type libclang {
 
     proc create(path : char*) : libclang {
         lib := { libclang: }
-        lib->_load(path)
+        lib._load(path)
         
         # load symbols
-         lib.getCString = (lib->_handleGetSymbol("clang_getCString"))
+         lib.getCString = (lib._handleGetSymbol("clang_getCString"))
             as <(CXString) : char*>
 
-        lib.disposeString = (lib->_handleGetSymbol("clang_disposeString"))
+        lib.disposeString = (lib._handleGetSymbol("clang_disposeString"))
             as <(CXString)>
 
-        lib.createIndex = (lib->_handleGetSymbol("clang_createIndex"))
+        lib.createIndex = (lib._handleGetSymbol("clang_createIndex"))
                 as <(i32, i32) : CXIndex*>
 
-        lib.createTranslationUnitFromSourceFile = (lib->_handleGetSymbol("clang_createTranslationUnitFromSourceFile"))
+        lib.createTranslationUnitFromSourceFile = (lib._handleGetSymbol("clang_createTranslationUnitFromSourceFile"))
             as <(CXIndex*, char*, i32, char**, u32, CXUnsavedFile**) : CXTranslationUnit*>
 
-        lib.parseTranslationUnit = (lib->_handleGetSymbol("clang_parseTranslationUnit"))
+        lib.parseTranslationUnit = (lib._handleGetSymbol("clang_parseTranslationUnit"))
             as <(CXIndex*, char*, char**, i32, CXUnsavedFile*, u32, u32) : CXTranslationUnit*>
         
-        lib.parseTranslationUnit2 = (lib->_handleGetSymbol("clang_parseTranslationUnit2"))
+        lib.parseTranslationUnit2 = (lib._handleGetSymbol("clang_parseTranslationUnit2"))
             as <(CXIndex*, char*, char**, i32, CXUnsavedFile*, u32, u32, CXTranslationUnit**) : u32> 
         
-        lib.getNumDiagnostics = (lib->_handleGetSymbol("clang_getNumDiagnostics"))
+        lib.getNumDiagnostics = (lib._handleGetSymbol("clang_getNumDiagnostics"))
             as <(CXTranslationUnit*) : u32>
 
-        lib.getDiagnostic = (lib->_handleGetSymbol("clang_getDiagnostic"))
+        lib.getDiagnostic = (lib._handleGetSymbol("clang_getDiagnostic"))
             as <(CXTranslationUnit*, u32) : CXDiagnostic*>
 
 
-        lib.formatDiagnostic = (lib->_handleGetSymbol("clang_formatDiagnostic"))
+        lib.formatDiagnostic = (lib._handleGetSymbol("clang_formatDiagnostic"))
             as <(CXDiagnostic*, u32) : CXString>
 
-        lib.defaultDiagnosticDisplayOptions = (lib->_handleGetSymbol("clang_defaultDiagnosticDisplayOptions"))
+        lib.defaultDiagnosticDisplayOptions = (lib._handleGetSymbol("clang_defaultDiagnosticDisplayOptions"))
             as <() : u32>
 
-        lib.getTranslationUnitCursor = (lib->_handleGetSymbol("clang_getTranslationUnitCursor"))
+        lib.getTranslationUnitCursor = (lib._handleGetSymbol("clang_getTranslationUnitCursor"))
             as <(CXTranslationUnit*) : CXCursor>
 
-        lib.visitChildren = (lib->_handleGetSymbol("clang_visitChildren"))
+        lib.visitChildren = (lib._handleGetSymbol("clang_visitChildren"))
             as <(   CXCursor,
                     <(  CXCursor,
                         CXCursor,
@@ -448,13 +450,13 @@ type libclang {
                     CXClientData*)
                     : u32>
 
-        lib.getCursorSpelling = (lib->_handleGetSymbol("clang_getCursorSpelling"))
+        lib.getCursorSpelling = (lib._handleGetSymbol("clang_getCursorSpelling"))
             as <(CXCursor) : CXString>
 
-        lib.Cursor_isNull = (lib->_handleGetSymbol("clang_Cursor_isNull"))
+        lib.Cursor_isNull = (lib._handleGetSymbol("clang_Cursor_isNull"))
             as <(CXCursor) : i32>
 
-        lib.getCursorKindSpelling = (lib->_handleGetSymbol("clang_getCursorKindSpelling"))
+        lib.getCursorKindSpelling = (lib._handleGetSymbol("clang_getCursorKindSpelling"))
             as <(u32) : CXString>
 
         return lib

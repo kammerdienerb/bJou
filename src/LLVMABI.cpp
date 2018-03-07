@@ -8,41 +8,9 @@
 
 #include "LLVMABI.hpp"
 #include "LLVMBackEnd.hpp"
+#include "Type.hpp"
 
 namespace bjou {
-static unsigned int simpleSizer(const Type * t) {
-    unsigned int size = 0;
-
-    if (t->isVoid()) {
-        size = 0;
-    } else if (t->isBool()) {
-        size = 1;
-    } else if (t->isInt()) {
-        size = ((IntType *)t)->width / 8;
-    } else if (t->isFloat()) {
-        size = ((FloatType *)t)->width / 8;
-    } else if (t->isChar()) {
-        size = 1;
-    } else if (t->isPointer() || t->isRef() || t->isProcedure()) {
-        size = sizeof(void *);
-    } else if (t->isArray()) {
-        ArrayType * a_t = (ArrayType *)t;
-        size = a_t->width * simpleSizer(a_t->elem_t);
-    } else if (t->isStruct()) {
-        StructType * s_t = (StructType *)t;
-        for (const Type * m_t : s_t->memberTypes)
-            size += simpleSizer(m_t);
-        if (s_t->implementsInterfaces())
-            size += sizeof(void *);
-    } else if (t->isTuple()) {
-        TupleType * t_t = (TupleType *)t;
-        for (const Type * s_t : t_t->getTypes())
-            size += simpleSizer(s_t);
-    }
-
-    return size;
-}
-
 namespace x86 {
 enum ParamClass {
     POINTER, // This class consists of pointer types.
@@ -133,6 +101,8 @@ template <> void x86Lowerer<LLVMBackEnd>::ABILowerProcedureType(void * data) {
 
     // handle struct return
     const Type * ret_t = t->getRetType();
+    if (ret_t->isRef())
+        payload->ref_ret = true;
     ParamClass r_c = ABIClassForType(backEnd, ret_t);
     if (r_c == MEMORY) {
         new_params.push_back(backEnd.getOrGenType(ret_t->getPointer()));
@@ -144,6 +114,9 @@ template <> void x86Lowerer<LLVMBackEnd>::ABILowerProcedureType(void * data) {
     // params
     int i = payload->sret;
     for (const Type * a_t : t->getParamTypes()) {
+        if (a_t->isRef())
+            payload->ref |= (1 << i);
+
         if (a_t->isStruct() || a_t->isTuple()) {
             if (ABIClassForType(backEnd, a_t) == MEMORY) {
                 new_params.push_back(backEnd.getOrGenType(a_t->getPointer()));

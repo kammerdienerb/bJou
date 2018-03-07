@@ -1231,8 +1231,8 @@ MaybeASTNode Parser::parseExpression_r(ASTNode * left, int minPrecedence) {
                 m_right = parseExpression_r(right, 0);
                 m_right.assignTo(right);
                 BJOU_DEBUG_ASSERT(right);
-                expect(R_SQR_BRACKET, "']'");
                 right->getContext().finish(&currentContext, &justCleanedContext);
+                expect(R_SQR_BRACKET, "']'");
             }
         } else if (op == "()") {
             expect(L_PAREN, "'('");

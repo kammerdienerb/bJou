@@ -642,8 +642,15 @@ bool equal(const Type * t1, const Type * t2) {
     case Type::CHAR:
         return t1 == t2;
     case Type::POINTER:
-    case Type::REF:
-        return equal(t1->under(), t2->under());
+        if (t2->isPointer())
+            return equal(t1->under(), t2->under());
+        break;
+    case Type::REF: {
+        if (t2->isRef())
+            return equal(t1->unRef(), t2->unRef());
+        return false;
+        break;
+    }
     case Type::ARRAY: {
         if (t2->isArray()) {
             ArrayType * a1 = (ArrayType*)t1; 
@@ -709,6 +716,13 @@ bool equal(const Type * t1, const Type * t2) {
 const Type * conv(const Type * t1, const Type * t2) {
     if (equal(t1, t2))
         return t1;
+
+    if (t2->isRef()) {
+        const Type * r = conv(t1, t2->unRef());
+        if (r)
+            return r;
+    }
+
     // handle int and float conversions
     // one of l and r is float, choose float type
     if (t1->isFloat() && !t2->isFloat())
@@ -747,9 +761,31 @@ const Type * conv(const Type * t1, const Type * t2) {
     switch (t1->kind) {
     case Type::VOID:
         return nullptr;
-    case Type::REF:
-        BJOU_DEBUG_ASSERT(false && "not done");
-        return nullptr;
+    case Type::REF: {
+        const Type * un = conv(t1->unRef(), t2->unRef());
+        if (un)
+            return un;
+        
+        const Type * r1 = t1->unRef();
+        const Type * r2 = t2->unRef();
+
+        if (r1->isStruct() &&
+           ((t2->isRef() && r2->isStruct()) || t2->isStruct())) {
+
+            const StructType * s1 = (const StructType *)r1;
+            const StructType * s2 = (const StructType *)r2;
+            const Type * extends = nullptr;
+            while (s2->extends) {
+                s2 = (const StructType *)s2->extends;
+                if (equal(s1, s2)) {
+                    extends = s2;
+                    break;
+                }
+            }
+            return extends;
+        }
+        break;
+    }
     case Type::POINTER: {
         const Type * p1 = t1->under();
         const Type * p2 = t2->under();
@@ -757,8 +793,7 @@ const Type * conv(const Type * t1, const Type * t2) {
         if (t2->isArray() && equal(p1, p2))
             return t1;
 
-        if (p1->isStruct() && (t2->isPointer() || t2->isRef()) &&
-            p2->isStruct()) {
+        if (p1->isStruct() && t2->isPointer() && p2->isStruct()) {
             const StructType * s1 = (const StructType *)p1;
             const StructType * s2 = (const StructType *)p2;
             const Type * extends = nullptr;
@@ -1008,6 +1043,45 @@ void compilationAddPrimativeTypes() {
     compilation->frontEnd.primativeTypeTable["int"] =
         IntType::get(Type::SIGNED, 32);
     compilation->frontEnd.primativeTypeTable["float"] = FloatType::get(32);
+}
+
+unsigned int simpleSizer(const Type * t) {
+    unsigned int size = 0;
+
+    if (t->isVoid()) {
+        size = 0;
+    } else if (t->isBool()) {
+        size = 1;
+    } else if (t->isInt()) {
+        size = ((IntType *)t)->width / 8;
+    } else if (t->isFloat()) {
+        size = ((FloatType *)t)->width / 8;
+    } else if (t->isChar()) {
+        size = 1;
+    } else if (t->isPointer() || t->isRef() || t->isProcedure()) {
+        size = sizeof(void *);
+    } else if (t->isArray()) {
+        ArrayType * a_t = (ArrayType *)t;
+        size = a_t->width * simpleSizer(a_t->elem_t);
+    } else if (t->isSlice()) {
+        SliceType * s_t = (SliceType*)t;
+        size = simpleSizer(s_t->getRealType());
+    } else if (t->isDynamicArray()) {
+        DynamicArrayType * d_t = (DynamicArrayType*)t;
+        size = simpleSizer(d_t->getRealType());
+    } else if (t->isStruct()) {
+        StructType * s_t = (StructType *)t;
+        for (const Type * m_t : s_t->memberTypes)
+            size += simpleSizer(m_t);
+        if (s_t->implementsInterfaces())
+            size += sizeof(void *);
+    } else if (t->isTuple()) {
+        TupleType * t_t = (TupleType *)t;
+        for (const Type * s_t : t_t->getTypes())
+            size += simpleSizer(s_t);
+    }
+
+    return size;
 }
 
 } // namespace bjou

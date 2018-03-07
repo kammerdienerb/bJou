@@ -1,0 +1,49 @@
+# ref.bjou
+
+proc inc(i : int) {
+    print "val"    
+}
+
+proc inc(i : int ref) {
+    print "ref"
+    i += 1
+}
+
+proc p(i : int ref) {
+    print "ref"    
+}
+
+type T {
+    var : int
+
+    proc create(var : int) : T
+        return { T: .var = var }
+
+    proc setVar(this : T ref, val : int) : int ref {
+        this.var = val
+        return this.var
+    }
+}
+
+(proc main() {
+    i := 12345
+    r := i.getref() 
+
+    t := T.create(r)
+    t_var := t.setVar(r)
+    print "t.var = %", t_var
+    t_var = 0
+    print "t.var = %", t_var
+    t.var = 1
+    print "t.var = %", t_var
+
+    i.inc()         # val
+    print "%", i    # 12345
+    inc(i.getref())  # ref
+    print "%", i    # 12346
+    r.inc()         # ref
+    print "%", i    # 12347
+    
+    i.p()           # ref
+    r.p()           # ref
+})()

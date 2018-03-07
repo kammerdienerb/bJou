@@ -55,10 +55,9 @@ static ASTNode * static_if(MacroUse * use) {
     use->getArgs()[0]->analyze();
     Expression * cond = (Expression *)use->getArgs()[0];
 
-    if (cond->eval().as_i64) {
-        // use->getArgs()[1]->analyze();
+    if (cond->eval().as_i64)
         return use->getArgs()[1];
-    }
+
     return nullptr;
 }
 
@@ -82,6 +81,8 @@ static ASTNode * same_type(MacroUse * use) {
 }
 
 static ASTNode * run(MacroUse * use) {
+    use->setFlag(ASTNode::CT, true);
+
     CallExpression * call = (CallExpression *)use->getArgs()[0];
     call->analyze();
     Procedure * proc = (Procedure *)call->resolved_proc;
@@ -117,6 +118,8 @@ static ASTNode * run(MacroUse * use) {
 }
 
 static ASTNode * static_do(MacroUse * use) {
+    use->setFlag(ASTNode::CT, true);
+
     use->getArgs()[0]->analyze();
     Procedure * proc = (Procedure *)use->getArgs()[0];
     const ProcedureType * t = (const ProcedureType *)proc->getType();
@@ -226,7 +229,7 @@ static ASTNode * op(MacroUse * use) {
 
 static ASTNode * __da_data(MacroUse * use) {
     Expression * expr = (Expression*)use->getArgs()[0];
-    const Type * t = expr->getType();
+    const Type * t = expr->getType()->unRef();
 
     if (!t->isDynamicArray()) {
         errorl(expr->getContext(),
@@ -253,6 +256,141 @@ static ASTNode * __da_data(MacroUse * use) {
     access->setFlag(AccessExpression::ANALYZED, true);
 
     return access;
+}
+
+static ASTNode * __da_capacity(MacroUse * use) {
+    Expression * expr = (Expression*)use->getArgs()[0];
+    const Type * t = expr->getType()->unRef();
+
+    if (!t->isDynamicArray()) {
+        errorl(expr->getContext(),
+               "__da_capacity: Expression is not a dynamic array.", true,
+               "got '" + t->getDemangledName() + "'");
+    }
+
+    StructType * struct_t = (StructType*)((DynamicArrayType*)t)->getRealType();
+
+    const Type * result_t = struct_t->memberTypes[struct_t->memberIndices["__capacity"]];
+
+    AccessExpression * access = new AccessExpression;
+    access->setContext(use->getContext());
+
+    Identifier * data = new Identifier;
+    data->setContext(use->getContext());
+    data->setUnqualified("__capacity");
+
+    access->setLeft(expr);
+    access->setRight(data);
+
+    access->addSymbols(use->getScope());
+    access->setType(result_t);
+    access->setFlag(AccessExpression::ANALYZED, true);
+
+    return access;
+}
+
+static ASTNode * __da_used(MacroUse * use) {
+    Expression * expr = (Expression*)use->getArgs()[0];
+    const Type * t = expr->getType()->unRef();
+
+    if (!t->isDynamicArray()) {
+        errorl(expr->getContext(),
+               "__da_used: Expression is not a dynamic array.", true,
+               "got '" + t->getDemangledName() + "'");
+    }
+
+    StructType * struct_t = (StructType*)((DynamicArrayType*)t)->getRealType();
+
+    const Type * result_t = struct_t->memberTypes[struct_t->memberIndices["__used"]];
+
+    AccessExpression * access = new AccessExpression;
+    access->setContext(use->getContext());
+
+    Identifier * data = new Identifier;
+    data->setContext(use->getContext());
+    data->setUnqualified("__used");
+
+    access->setLeft(expr);
+    access->setRight(data);
+
+    access->addSymbols(use->getScope());
+    access->setType(result_t);
+    access->setFlag(AccessExpression::ANALYZED, true);
+
+    return access;
+}
+
+static ASTNode * __slice_data(MacroUse * use) {
+    Expression * expr = (Expression*)use->getArgs()[0];
+    const Type * t = expr->getType()->unRef();
+
+    if (!t->isSlice()) {
+        errorl(expr->getContext(),
+               "__slice_data: Expression is not a slice.", true,
+               "got '" + t->getDemangledName() + "'");
+    }
+
+    StructType * struct_t = (StructType*)((SliceType*)t)->getRealType();
+
+    const Type * result_t = struct_t->memberTypes[struct_t->memberIndices["__data"]];
+
+    AccessExpression * access = new AccessExpression;
+    access->setContext(use->getContext());
+
+    Identifier * data = new Identifier;
+    data->setContext(use->getContext());
+    data->setUnqualified("__data");
+
+    access->setLeft(expr);
+    access->setRight(data);
+
+    access->addSymbols(use->getScope());
+    access->setType(result_t);
+    access->setFlag(AccessExpression::ANALYZED, true);
+
+    return access;
+}
+
+static ASTNode * __slice_len(MacroUse * use) {
+    Expression * expr = (Expression*)use->getArgs()[0];
+    const Type * t = expr->getType()->unRef();
+
+    if (!t->isSlice()) {
+        errorl(expr->getContext(),
+               "__slice_len: Expression is not a slice.", true,
+               "got '" + t->getDemangledName() + "'");
+    }
+
+    StructType * struct_t = (StructType*)((SliceType*)t)->getRealType();
+
+    const Type * result_t = struct_t->memberTypes[struct_t->memberIndices["__len"]];
+
+    AccessExpression * access = new AccessExpression;
+    access->setContext(use->getContext());
+
+    Identifier * data = new Identifier;
+    data->setContext(use->getContext());
+    data->setUnqualified("__len");
+
+    access->setLeft(expr);
+    access->setRight(data);
+
+    access->addSymbols(use->getScope());
+    access->setType(result_t);
+    access->setFlag(AccessExpression::ANALYZED, true);
+
+    return access;
+}
+
+static ASTNode * abc(MacroUse * use) {
+    bool abc = compilation->frontEnd.abc;
+
+    BooleanLiteral * lit = new BooleanLiteral();
+    lit->setContext(use->getContext());
+    lit->setScope(use->getScope());
+    lit->setContents(abc ? "true" : "false");
+
+    return lit;
 }
 
 } // namespace Macros
@@ -289,7 +427,15 @@ MacroManager::MacroManager() {
     macros["ct"] = {"ct", Macros::ct, {}, true};
     macros["op"] = {
         "op", Macros::op, {{ASTNode::NodeKind::STRING_LITERAL}, {ASTNode::NodeKind::PROCEDURE, ASTNode::NodeKind::TEMPLATE_PROC}}};
+
     macros["__da_data"] = { "__da_data", Macros::__da_data, {{ANY_EXPRESSION}}};
+    macros["__da_capacity"] = { "__da_capacity", Macros::__da_capacity, {{ANY_EXPRESSION}}};
+    macros["__da_used"] = { "__da_used", Macros::__da_used, {{ANY_EXPRESSION}}};
+
+    macros["__slice_data"] = { "__slice_data", Macros::__slice_data, {{ANY_EXPRESSION}}};
+    macros["__slice_len"] = { "__slice_len", Macros::__slice_len, {{ANY_EXPRESSION}}};
+
+    macros["abc"] = { "abc", Macros::abc, {}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {

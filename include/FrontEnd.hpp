@@ -38,6 +38,8 @@ struct FrontEnd {
     Procedure * malloc_decl;
     Procedure * free_decl;
 
+    bool abc = true;
+
     std::stack<ASTNode *> procStack;
     std::stack<const Type *> lValStack;
     std::set<std::string> modulesImported;

@@ -29,7 +29,7 @@ type grow$T {
 
     proc free(this) {
         delete this._t
-        @this = { grow$T: }
+        this = { grow$T: }
     }
 }
 
@@ -53,6 +53,6 @@ type Point {
     print "\t[ %, %, % ]", gi._t[0], gi._t[1], gi._t[2]
     # print "gp: %", gp
     print "\t[ %, % ]", gp._t[0], gp._t[1]
-    gi->free()
-    gp->free()
+    gi.free()
+    gp.free()
 })()

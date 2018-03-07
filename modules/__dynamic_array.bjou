@@ -5,10 +5,9 @@ module __dynamic_array
 type __bjou_dyn_array$T {
     const INIT_SIZE := 8
 
+	__data		: T*
     __capacity 	: int
 	__used		: int
-	__data		: T*
-
 
     proc create() : __bjou_dyn_array$T {
         return  { __bjou_dyn_array$T: 
@@ -79,6 +78,6 @@ type __bjou_dyn_array$T {
 
     proc free(this) {
         delete this.__data
-        @this = { __bjou_dyn_array$T: }
+        this = { __bjou_dyn_array$T: }
     }
 }

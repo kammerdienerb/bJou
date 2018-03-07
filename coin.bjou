@@ -1,8 +1,0 @@
-proc p() {
-    \static_if {\rand{1 2} % 2
-        print "coin"}
-}
-
-(proc main() {
-    p()
-})()
