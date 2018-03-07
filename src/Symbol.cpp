@@ -551,6 +551,7 @@ bool Symbol::isConstant() const { return false; }
 bool Symbol::isVar() const { return false; }
 bool Symbol::isType() const { return false; }
 bool Symbol::isTemplateType() const { return false; }
+bool Symbol::isAlias() const { return false; }
 bool Symbol::isInterface() const { return false; }
 ASTNode * Symbol::node() const { return _node; }
 

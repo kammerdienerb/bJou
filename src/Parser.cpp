@@ -2024,35 +2024,38 @@ MaybeASTNode Parser::parseType() {
         m_templateDef.assignTo(
             templateDef); // we don't really care what this returns
 
-        MaybeASTNode m_aliasDeclarator = parseDeclarator();
-        ASTNode * aliasDeclarator = nullptr;
-        if (m_aliasDeclarator.assignTo(aliasDeclarator)) {
-            if (abstract)
-                errorl(nameContext, "Only struct types can be abstract.", true,
-                       "'" + name + "' is an alias type.");
-            Alias * result = new Alias();
-            TemplateAlias * templateResult = new TemplateAlias();
-            result->setContext(context);
-            templateResult->setContext(context);
-            result->setName(name);
-            result->setNameContext(nameContext);
-            templateResult->setNameContext(nameContext);
-            result->setDeclarator(aliasDeclarator);
+        if (optional(ASSIGN)) {
+            MaybeASTNode m_aliasDeclarator = parseDeclarator();
+            ASTNode * aliasDeclarator = nullptr;
+            if (m_aliasDeclarator.assignTo(aliasDeclarator)) {
+                if (abstract)
+                    errorl(nameContext, "Only struct types can be abstract.", true,
+                           "'" + name + "' is a type alias.");
+                Alias * result = new Alias();
+                TemplateAlias * templateResult = new TemplateAlias();
+                result->setContext(context);
+                templateResult->setContext(context);
+                result->setName(name);
+                result->setNameContext(nameContext);
+                templateResult->setNameContext(nameContext);
+                result->setDeclarator(aliasDeclarator);
 
-            result->getContext().finish(&currentContext, &justCleanedContext);
-            templateResult->getContext().finish(&currentContext,
-                                                &justCleanedContext);
+                result->getContext().finish(&currentContext, &justCleanedContext);
+                
+                if (templateDef) {
+                    templateResult->getContext().finish(&currentContext, &justCleanedContext);
+                    templateResult->setTemplateDef(templateDef);
+                }
 
-            templateResult->setTemplateDef(templateDef);
+                if (templateResult->getTemplateDef()) {
+                    templateResult->setTemplate(result);
+                    return MaybeASTNode(templateResult);
+                }
 
-            if (templateResult->getTemplateDef()) {
-                templateResult->setTemplate(result);
-                return MaybeASTNode(templateResult);
+                delete templateResult;
+
+                return MaybeASTNode(result);
             }
-
-            delete templateResult;
-
-            return MaybeASTNode(result);
         } else {
             Struct * result = new Struct();
             TemplateStruct * templateResult = new TemplateStruct();

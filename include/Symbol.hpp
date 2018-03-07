@@ -74,6 +74,7 @@ struct Symbol {
     virtual bool isVar() const = 0;
     virtual bool isType() const = 0;
     virtual bool isTemplateType() const = 0;
+    virtual bool isAlias() const = 0;
     virtual bool isInterface() const = 0;
 
     ASTNode * node() const;
@@ -104,6 +105,7 @@ template <typename T> struct _Symbol : Symbol {
     bool isVar() const { return false; }
     bool isType() const { return false; }
     bool isTemplateType() const { return false; }
+    bool isAlias() const { return false; }
     bool isInterface() const { return false; }
 
     Symbol * mangled(Scope * scope) {
@@ -137,6 +139,7 @@ template <> inline bool _Symbol<TemplateStruct>::isTemplateType() const {
 template <> inline bool _Symbol<TemplateAlias>::isTemplateType() const {
     return true;
 }
+template <> inline bool _Symbol<Alias>::isAlias() const { return true; }
 template <> inline bool _Symbol<InterfaceDef>::isInterface() const {
     return true;
 }
@@ -162,6 +165,31 @@ template <> inline std::string _Symbol<Struct>::mangledString(Scope * scope) {
 }
 template <> inline Symbol * _Symbol<Struct>::mangled(Scope * scope) {
     _Symbol<Struct> * mangledSymbol = new _Symbol<Struct>(name, _node, inst);
+    mangledSymbol->name = mangledString(scope);
+    return mangledSymbol;
+}
+
+template <> inline std::string _Symbol<Alias>::mangledString(Scope * scope) {
+    std::string _name = name;
+
+    if (inst && name.size() > 1 && name[0] == '_' && name[1] == 'Z')
+        return name;
+
+    std::string z, suffix, prefix = scope->mangledPrefix();
+    if (inst)
+        suffix += mangledInst(inst);
+
+    if (prefix.size())
+        z = "_Z";
+    else if (inst)
+        z = "_Z" + std::to_string(name.size());
+
+    _name = z + prefix + _name + suffix;
+
+    return _name;
+}
+template <> inline Symbol * _Symbol<Alias>::mangled(Scope * scope) {
+    _Symbol<Alias> * mangledSymbol = new _Symbol<Alias>(name, _node, inst);
     mangledSymbol->name = mangledString(scope);
     return mangledSymbol;
 }

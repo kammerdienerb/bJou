@@ -3746,32 +3746,34 @@ void Declarator::analyze(bool force) {
     Symbol * sym = nullptr;
 
     if (m_sym.assignTo(sym)) {
-        const Type * t = sym->node()->getType();
-        BJOU_DEBUG_ASSERT(t);
+        if (!sym->isAlias()) {
+            const Type * t = sym->node()->getType();
+            BJOU_DEBUG_ASSERT(t);
 
-        if (t->isStruct()) {
-            if (getTemplateInst())
-                errorl(getTemplateInst()->getContext(),
-                       "'" + sym->demangledString() +
-                           "' is not a template type.");
-        } else if (sym->isTemplateType()) {
-            if (!getTemplateInst())
+            if (t->isStruct()) {
+                if (getTemplateInst())
+                    errorl(getTemplateInst()->getContext(),
+                           "'" + sym->demangledString() +
+                               "' is not a template type.");
+            } else if (sym->isTemplateType()) {
+                if (!getTemplateInst())
+                    errorl(getContext(),
+                           "Missing template instantiation arguments.");
+                TemplateStruct * ttype = (TemplateStruct *)sym->node();
+                Declarator * new_decl = makeTemplateStruct(ttype, getTemplateInst())
+                                            ->getType()
+                                            ->getGenericDeclarator();
+                new_decl->setScope(getScope());
+                new_decl->setContext(getContext());
+                (*replace)(parent, this, new_decl);
+                new_decl->templateInst = nullptr;
+                new_decl->analyze(true);
+                return;
+            } else if (!t->isPrimative()) {
                 errorl(getContext(),
-                       "Missing template instantiation arguments.");
-            TemplateStruct * ttype = (TemplateStruct *)sym->node();
-            Declarator * new_decl = makeTemplateStruct(ttype, getTemplateInst())
-                                        ->getType()
-                                        ->getGenericDeclarator();
-            new_decl->setScope(getScope());
-            new_decl->setContext(getContext());
-            (*replace)(parent, this, new_decl);
-            new_decl->templateInst = nullptr;
-            new_decl->analyze(true);
-            return;
-        } else if (!t->isPrimative()) {
-            errorl(getContext(),
-                   "'" + sym->demangledString() + "' is not a type.");
-        }
+                       "'" + sym->demangledString() + "' is not a type.");
+            }
+        } 
     } else if (compilation->frontEnd.typeTable.count(mangled) == 0 ||
                !compilation->frontEnd.typeTable[mangled]->isPrimative())
         getScope()->getSymbol(getScope(), getIdentifier(),
@@ -5063,24 +5065,28 @@ void Alias::analyze(bool force) {
 
 void Alias::addSymbols(Scope * _scope) {
     setScope(_scope);
+    
+    getDeclarator()->addSymbols(_scope);
+
+    setScope(_scope);
     _Symbol<Alias> * symbol = new _Symbol<Alias>(getName(), this);
     setMangledName(symbol->mangledString(_scope));
-    _scope->addSymbol(symbol, &getNameContext());
 
-    BJOU_DEBUG_ASSERT(false);
-    /*
-    compilation->frontEnd.typeTable[getMangledName()] =
-        new AliasType(getMangledName(), this);
-    */
-    getDeclarator()->addSymbols(_scope);
+    // do this before adding symbol so that it can't self reference
+    getDeclarator()->analyze();
+    Type::alias(getMangledName(), getDeclarator()->getType());
+    
+    _scope->addSymbol(symbol, &getNameContext());
 }
 
 const Type * Alias::getType() {
     analyze();
-    std::string mangled = getMangledName();
 
-    BJOU_DEBUG_ASSERT(false);
-    return nullptr;
+    const Type * t = getTypeFromTable(getMangledName());
+
+    BJOU_DEBUG_ASSERT(t);
+
+    return t;
 }
 
 void Alias::unwrap(std::vector<ASTNode *> & terminals) {

@@ -25,6 +25,10 @@ const char * signLtr = "ui";
 
 Type::Type(Kind _kind, const std::string _key) : kind(_kind), key(_key) {}
 
+const Type * Type::alias(std::string name, const Type * t) {
+    addTypeToTable(t, name);
+}
+
 bool Type::isPlaceholder() const { return kind == PLACEHOLDER; }
 bool Type::isVoid() const { return kind == VOID; }
 bool Type::isBool() const { return kind == BOOL; }
@@ -109,10 +113,10 @@ static inline std::string dkey(const Type * t) { return t->key + "[...]"; }
 
 static inline std::string tkey(const std::vector<const Type *> & types) {
     std::string key = "(";
-    for (const Type * t : types) {
+    for (const Type * const & t : types) {
         key += t->key;
-        if (t != types.back())
-            key += t->key + ", ";
+        if (&t != &types.back())
+            key += ", ";
     }
 
     return key + ")";
@@ -121,7 +125,7 @@ static inline std::string tkey(const std::vector<const Type *> & types) {
 static inline std::string prkey(const std::vector<const Type *> & paramTypes,
                                 const Type * retType, bool isVararg) {
     std::string key = "<(";
-    for (const Type * t : paramTypes) {
+    for (const Type * const & t : paramTypes) {
         key += t->key;
         if (&t != &paramTypes.back() || isVararg)
             key += ", ";
@@ -450,6 +454,12 @@ static void insertProcSet(StructType * This, Procedure * proc) {
 }
 
 void StructType::complete() {
+    // With aliases, there may be multiple entries in the table that point to
+    // the same struct type. This makes sure that we don't screw up an already
+    // completed type.
+    if (isComplete)
+        return;
+
     int i = 0;
     if (_struct->getExtends()) {
         extends = (Type *)_struct->getExtends()->getType(); // @leak?
