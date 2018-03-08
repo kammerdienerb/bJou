@@ -423,8 +423,44 @@ milliseconds FrontEnd::AnalysisStage() {
     for (ASTNode * node : AST) {
         node->parent = nullptr;
         node->replace = rpget<replacementPolicy_Global_Node>();
-        node->analyze();
     }
+
+    // filter so that, for example, \static_if{ \static_if {...}...}
+    // only runs on the outermost macro use
+    auto filter_parent_child = [](std::vector<ASTNode*>& nodes) {
+        bool changed = true;
+        while (changed) {
+            changed = false;
+            for (auto node = nodes.begin(); node != nodes.end(); node++) {
+                ASTNode * n = *node;
+                ASTNode * parent = n->parent;
+                while (parent) {
+                    auto search = std::find(nodes.begin(), nodes.end(), parent);
+                    if (search != nodes.end()) {
+                        nodes.erase(node);
+                        changed = true;
+                        break;
+                    }
+                    parent = parent->parent;
+                }
+                if (changed)
+                    break;
+            }
+        }
+    };
+
+    stop_tracking_macros = true;
+
+    filter_parent_child(macros_need_fast_tracked_analysis);
+    for (ASTNode * node : macros_need_fast_tracked_analysis)
+        node->analyze();
+    
+    filter_parent_child(non_run_non_fast_tracked_macros);
+    for (ASTNode * node : non_run_non_fast_tracked_macros)
+        node->analyze();
+
+    for (ASTNode * node : AST)
+        node->analyze();
 
     for (ASTNode * node : deferredAST) {
         node->parent = nullptr;

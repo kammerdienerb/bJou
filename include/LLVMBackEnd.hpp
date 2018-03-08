@@ -140,7 +140,9 @@ struct LLVMBackEnd : BackEnd {
     llvm::Type * createOrLookupDefinedType(const bjou::Type * t);
     llvm::StructType * createTupleStructType(const bjou::Type * t);
 
-    void createMainEntryPoint();
+    llvm::Function * createMainEntryPoint();
+    void completeMainEntryPoint(llvm::Function * func);
+
     void createPrintfProto();
     llvm::Value * getPointerToArrayElements(llvm::Value * array);
     llvm::Value * createPointerToArrayElementsOnStack(llvm::Value * array);

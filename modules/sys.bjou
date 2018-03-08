@@ -1,0 +1,11 @@
+# sys.bjou
+
+# system calls
+
+module sys
+
+\ct { import "os.bjou" }
+
+abstract type sys {
+
+}

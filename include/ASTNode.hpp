@@ -822,6 +822,7 @@ struct LogAndExpression : BinaryExpression {
     LogAndExpression();
 
     bool isConstant();
+    Val eval();
 
     // Node interface
     virtual void analyze(bool force = false);
@@ -842,6 +843,7 @@ struct LogOrExpression : BinaryExpression {
     LogOrExpression();
 
     bool isConstant();
+    Val eval();
 
     // Node interface
     virtual void analyze(bool force = false);

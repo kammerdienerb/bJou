@@ -44,6 +44,8 @@ Val evalMod(Val & a, Val & b, const Type * t);
 Val evalNot(Val & a, const Type * t);
 Val evalEqu(Val & a, Val & b, const Type * t);
 Val evalNeq(Val & a, Val & b, const Type * t);
+Val evalLogAnd(Val & a, Val & b, const Type * t);
+Val evalLogOr(Val & a, Val & b, const Type * t);
 
 } // namespace bjou
 

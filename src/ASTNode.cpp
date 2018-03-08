@@ -1185,6 +1185,18 @@ LogAndExpression::LogAndExpression() {
     nodeKind = LOG_AND_EXPRESSION;
 }
 
+Val LogAndExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a, b;
+    a = ((Expression *)getLeft())->eval();
+    b = ((Expression *)getRight())->eval();
+    return evalLogAnd(a, b, getType());
+}
+
 bool LogAndExpression::isConstant() { return BinaryExpression::isConstant(); }
 
 // Node interface
@@ -1226,6 +1238,18 @@ LogOrExpression::LogOrExpression() {
     contents = "or";
 
     nodeKind = LOG_OR_EXPRESSION;
+}
+
+Val LogOrExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a, b;
+    a = ((Expression *)getLeft())->eval();
+    b = ((Expression *)getRight())->eval();
+    return evalLogOr(a, b, getType());
 }
 
 bool LogOrExpression::isConstant() { return BinaryExpression::isConstant(); }
@@ -2650,6 +2674,7 @@ ASTNode * AsExpression::clone() { return ExpressionClone(this); }
 Identifier::Identifier() : unqualified({}), namespaces({}), resolved(nullptr) {
     nodeKind = IDENTIFIER;
     setFlag(IDENT, true);
+    setFlag(TERMINAL, true);
 }
 
 bool Identifier::isConstant() {
@@ -2803,6 +2828,7 @@ void Identifier::analyze(bool force) {
             decl->setTemplateInst(getRight());
         (*replace)(parent, this, decl);
         decl->setIdentifier(this);
+        setFlag(TERMINAL, false);
     }
 
     if (!resolved && sym && !sym->isProcSet())
@@ -3711,6 +3737,7 @@ Declarator::Declarator()
 ASTNode * Declarator::getIdentifier() const { return identifier; }
 void Declarator::setIdentifier(ASTNode * _identifier) {
     identifier = _identifier;
+    identifier->setFlag(Expression::TERMINAL, false);
     identifier->parent = this;
     identifier->replace = rpget<replacementPolicy_Declarator_Identifier>();
 }
@@ -6543,10 +6570,14 @@ void Return::setExpression(ASTNode * _expression) {
 void Return::analyze(bool force) {
     HANDLE_FORCE();
 
-    Procedure * proc =
-        (Procedure *)(compilation->frontEnd.procStack.empty()
-                          ? nullptr
-                          : compilation->frontEnd.procStack.top());
+    ASTNode * p = parent;
+    while (p) {
+        if (p->nodeKind == PROCEDURE)
+            break;
+        p = p->parent;
+    }
+
+    Procedure * proc = (Procedure*)p;
 
     if (proc) {
         const Type * retLVal = proc->getRetDeclarator()->getType(); // @leak
@@ -8027,6 +8058,9 @@ const Type * MacroUse::getType() {
 void MacroUse::analyze(bool force) {
     HANDLE_FORCE();
 
+    if (getMacroName() == "ct")
+        BJOU_DEBUG_ASSERT(true);
+
     ASTNode * r = compilation->frontEnd.macroManager.invoke(this);
 
     if (!r) {
@@ -8070,9 +8104,25 @@ void MacroUse::unwrap(std::vector<ASTNode *> & terminals) {
 
 void MacroUse::addSymbols(Scope * _scope) {
     setScope(_scope);
-    for (ASTNode * arg : getArgs())
-        if (arg->nodeKind != STRUCT && arg->nodeKind != INTERFACE_DEF)
-            arg->addSymbols(_scope);
+
+    bool fast_track = false;
+
+    int i = 0;
+    for (ASTNode * arg : getArgs()) {
+        if (arg->nodeKind != STRUCT && arg->nodeKind != INTERFACE_DEF) {
+            if (compilation->frontEnd.macroManager.shouldAddSymbols(this, i))
+                arg->addSymbols(_scope);
+            else fast_track = true;
+        }
+        i += 1;
+    }
+
+    if (!compilation->frontEnd.stop_tracking_macros) {
+        if (fast_track)
+            compilation->frontEnd.macros_need_fast_tracked_analysis.push_back(this);
+        else if (getMacroName() != "run")
+            compilation->frontEnd.non_run_non_fast_tracked_macros.push_back(this);
+    }
 }
 
 MacroUse::~MacroUse() {}

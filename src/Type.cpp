@@ -328,7 +328,7 @@ const Type * SliceType::getRealType() const {
     ident->setUnqualified("__bjou_slice");
 
     new_decl->setIdentifier(ident);
-
+    
     TemplateInstantiation * new_inst = new TemplateInstantiation;
     new_inst->setScope(compilation->frontEnd.globalScope);
     new_inst->addElement(elem_decl);

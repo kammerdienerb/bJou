@@ -153,4 +153,32 @@ Val evalNeq(Val & a, Val & b, const Type * t) {
 
     return result;
 }
+
+Val evalLogAnd(Val & a, Val & b, const Type * t) {
+    Val result;
+    result.t = t;
+
+    if (t->isInt() || t->isBool()) {
+        result.as_i64 = _evalLogAnd<int64_t>(a, b);
+    } else if (t->isFloat()) {
+        result.as_f64 = _evalLogAnd<double>(a, b);
+    } else
+        internalError("Could not evaluate log and expression.");
+
+    return result;
+}
+
+Val evalLogOr(Val & a, Val & b, const Type * t) {
+    Val result;
+    result.t = t;
+
+    if (t->isInt() || t->isBool()) {
+        result.as_i64 = _evalLogOr<int64_t>(a, b);
+    } else if (t->isFloat()) {
+        result.as_f64 = _evalLogOr<double>(a, b);
+    } else
+        internalError("Could not evaluate log or expression.");
+
+    return result;
+}
 } // namespace bjou

@@ -52,11 +52,14 @@ static ASTNode * rand(MacroUse * use) {
 }
 
 static ASTNode * static_if(MacroUse * use) {
+    use->setFlag(ASTNode::CT, true);
     use->getArgs()[0]->analyze();
-    Expression * cond = (Expression *)use->getArgs()[0];
 
-    if (cond->eval().as_i64)
+    if (((Expression*)use->getArgs()[0])->eval().as_i64) {
+        use->getArgs()[1]->addSymbols(use->getScope());
+        use->getArgs()[1]->analyze();
         return use->getArgs()[1];
+    }
 
     return nullptr;
 }
@@ -422,15 +425,33 @@ static ASTNode * error(MacroUse * use) {
     return nullptr;
 }
 
+static ASTNode * os(MacroUse * use) {
+    IntegerLiteral * lit = new IntegerLiteral;
+#if defined(__linux__)
+    lit->setContents("1");
+#elif defined(__APPLE__)
+    lit->setContents("2");
+#elif defined(_WIN32)
+    lit->setContents("3");
+#else
+    lit->setContents("0");
+#endif
+
+    lit->addSymbols(use->getScope());
+    lit->analyze();
+
+    return lit;
+}
+
 } // namespace Macros
 
 Macro::Macro() : name(""), dispatch(nullptr), arg_kinds({}), isVararg(false) {}
 
 Macro::Macro(std::string _name, MacroDispatch_fn _dispatch,
              std::vector<std::vector<ASTNode::NodeKind>> _arg_kinds,
-             bool _isVararg)
+             bool _isVararg, std::vector<int> _args_no_add_symbols)
     : name(_name), dispatch(_dispatch), arg_kinds(_arg_kinds),
-      isVararg(_isVararg) {}
+      isVararg(_isVararg), args_no_add_symbols(_args_no_add_symbols) {}
 
 MacroManager::MacroManager() {
     macros["hello"] = {"hello", Macros::hello, {}};
@@ -439,7 +460,7 @@ MacroManager::MacroManager() {
                       {{ASTNode::NodeKind::INTEGER_LITERAL},
                        {ASTNode::NodeKind::INTEGER_LITERAL}}};
     macros["static_if"] = {
-        "static_if", Macros::static_if, {{ANY_EXPRESSION}, {ANY_NODE}}};
+        "static_if", Macros::static_if, {{ANY_EXPRESSION}, {ANY_NODE}}, false, {1}};
     macros["same_type"] = {"same_type",
                            Macros::same_type,
                            {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER},
@@ -474,6 +495,8 @@ MacroManager::MacroManager() {
 
     macros["error"] = {
         "error", Macros::error, {{ASTNode::NodeKind::STRING_LITERAL}}};
+
+    macros["os"] = {"os", Macros::os, {}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {
@@ -528,4 +551,19 @@ ASTNode * MacroManager::invoke(MacroUse * use) {
 
     return macro.dispatch(use);
 }
+
+bool MacroManager::shouldAddSymbols(MacroUse * use, int arg_index) {
+    std::string & name = use->getMacroName();
+    auto search = macros.find(name);
+    if (search == macros.end())
+        errorl(use->getContext(), "No macro named '" + name + "' found.");
+    Macro & macro = search->second;
+
+    for (int i : macro.args_no_add_symbols)
+        if (i == arg_index)
+            return false;
+
+    return true;
+}
+
 } // namespace bjou

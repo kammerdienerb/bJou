@@ -13,6 +13,11 @@
 
     import "compiler.bjou"
 
+    type visitor_t = <(CXCursor,      # cursor
+                       CXCursor,      # parent
+                       CXClientData*) # client_data
+                       : u32>
+
     type VisitorData {
         cw              : ClangWrapper*
         indent          : int
@@ -54,21 +59,13 @@
 
         proc traverse(this,
                       root : CXCursor,
-                      visitor : <(
-                        CXCursor,      # cursor
-                        CXCursor,      # parent
-                        CXClientData*) # client_data
-                        : u32>,        # CXChildVisitResult)
+                      visitor : visitor_t,
                       data : VisitorData*) {
             clang.visitChildren(root, visitor, data as CXClientData*)
         }
 
         proc traverseTU(this,
-                        visitor : <(
-                            CXCursor,      # cursor
-                            CXCursor,      # parent
-                            CXClientData*) # client_data
-                            : u32>,        # CXChildVisitResult
+                        visitor : visitor_t,
                         data : VisitorData*) {      
 
             cursor := clang.getTranslationUnitCursor(this.tu)

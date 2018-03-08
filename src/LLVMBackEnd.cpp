@@ -296,6 +296,65 @@ void LLVMBackEnd::addProcedurePass(Procedure * proc, std::string pass_name) {
     proc_passes[proc]->add(pass);
 }
 
+static void findSliceAndDynamicArrayDecls(Declarator * base,
+                                          std::vector<Declarator *> & out) {
+    Declarator * decl = (Declarator *)base->parent;
+    while (decl && IS_DECLARATOR(decl)) {
+        if (decl->nodeKind == ASTNode::SLICE_DECLARATOR ||
+            decl->nodeKind == ASTNode::DYNAMIC_ARRAY_DECLARATOR) {
+
+            out.push_back(decl);
+        }
+        decl = (Declarator *)decl->parent;
+    }
+}
+
+static void genDeps(ASTNode * node, LLVMBackEnd & llbe) {
+    // @bad -- sort of an on-demand generation model
+    // we'll see how stable this is
+    
+    if (llbe.mode == LLVMBackEnd::GEN_MODE::RT && isCT(node))
+        return;
+
+    std::vector<ASTNode *> terms;
+    node->unwrap(terms);
+    for (ASTNode * term : terms) {
+        if (IS_DECLARATOR(term)) {
+            const Type * t = term->getType();
+            llbe.getOrGenType(t);
+            std::vector<Declarator *> slices_and_das;
+            findSliceAndDynamicArrayDecls((Declarator *)term, slices_and_das);
+
+            for (Declarator * decl : slices_and_das)
+                llbe.getOrGenType(decl->getType());
+        } else if (term->nodeKind == ASTNode::IDENTIFIER) {
+            Identifier * ident = (Identifier *)term;
+
+            if (ident->unqualified == "_nullptr")
+                BJOU_DEBUG_ASSERT(true);
+
+            if (ident->resolved) {
+                ASTNode * r = ident->resolved;
+
+                llbe.getOrGenType(r->getType());
+
+                if (r->nodeKind == ASTNode::PROCEDURE ||
+                    r->nodeKind == ASTNode::CONSTANT ||
+                    (r->nodeKind == ASTNode::VARIABLE_DECLARATION &&
+                     (!r->getScope()->parent ||
+                      r->getScope()->parent->nspace))) {
+
+                        llbe.getOrGenNode(r);
+                }
+            }
+        } else if (term->nodeKind == ASTNode::PROC_LITERAL ||
+                   term->nodeKind == ASTNode::EXTERN_LITERAL) {
+            llbe.getOrGenNode(term);
+        }
+    }
+}
+
+
 void LLVMBackEnd::genStructProcs(Struct * s) {
     const StructType * s_t = (const StructType *)s->getType();
     for (auto & set : s_t->memberProcs) {
@@ -318,7 +377,7 @@ llvm::Value * LLVMBackEnd::getOrGenNode(ASTNode * node, bool getAddr) {
     // ignore compile time nodes
     // we should be safe returning null here since we catch
     // compile-time-only symbol references in analysis
-    if (mode == GEN_MODE::RT && node->getFlag(ASTNode::CT))
+    if (mode == GEN_MODE::RT && isCT(node))
         return nullptr;
 
     auto search = generated_nodes.find(node);
@@ -377,63 +436,74 @@ void LLVMBackEnd::completeProcs() {
     }
 }
 
-static void * GenerateGlobalVariable(VariableDeclaration * var,
+static void * GenerateGlobalVariable(VariableDeclaration * var, llvm::GlobalVariable * gvar,
                                      BackEnd & backEnd, bool flag = false) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
     const Type * t = var->getType();
     llvm::Type * ll_t = llbe->getOrGenType(t);
 
-    size_t align = llbe->layout->getTypeAllocSize(ll_t);
-    // nearest power of 2
-    align = pow(2, ceil(log(align) / log(2)));
-
-    llvm::GlobalVariable * gvar = nullptr;
-
-    if (t->isArray()) {
-        PointerType * ptr_t = (PointerType *)t->under()->getPointer();
-        llvm::Type * ll_ptr_t = llbe->getOrGenType(ptr_t);
-        gvar = new llvm::GlobalVariable(*llbe->llModule, ll_ptr_t, false,
-                                        llvm::GlobalVariable::ExternalLinkage,
-                                        0, var->getMangledName());
-        gvar->setAlignment(
-            (unsigned int)llbe->layout->getTypeAllocSize(ll_ptr_t));
-
-        llvm::GlobalVariable * under = new llvm::GlobalVariable(
-            *llbe->llModule, ll_t, false, llvm::GlobalVariable::ExternalLinkage,
-            0, "__bjou_array_under_" + var->getMangledName());
-        under->setAlignment(llbe->layout->getPreferredAlignment(under));
-
-        if (var->getInitialization()) {
-            if (var->getInitialization()->nodeKind == ASTNode::INITIALZER_LIST)
-                under->setInitializer(llbe->createConstantInitializer(
-                    (InitializerList *)var->getInitialization()));
+    if (!gvar) {
+        if (t->isArray()) {
+            PointerType * ptr_t = (PointerType *)t->under()->getPointer();
+            llvm::Type * ll_ptr_t = llbe->getOrGenType(ptr_t);
+            gvar = new llvm::GlobalVariable(*llbe->llModule, ll_ptr_t, false,
+                                            llvm::GlobalVariable::ExternalLinkage,
+                                            0, var->getMangledName());
         } else {
-            under->setInitializer(llvm::Constant::getNullValue(ll_t));
+            gvar = new llvm::GlobalVariable(
+                /*Module=*/*llbe->llModule,
+                /*Type=*/ll_t,
+                /*isConstant=*/false,
+                /*Linkage=*/llvm::GlobalValue::ExternalLinkage,
+                /*Initializer=*/0, // has initializer, specified below
+                /*Name=*/var->getMangledName());
         }
+        BJOU_DEBUG_ASSERT(gvar);
 
-        gvar->setInitializer((llvm::Constant *)llbe->builder.CreateInBoundsGEP(
-            under, {llvm::Constant::getNullValue(
-                        llvm::IntegerType::getInt32Ty(llbe->llContext)),
-                    llvm::Constant::getNullValue(
-                        llvm::IntegerType::getInt32Ty(llbe->llContext))}));
+        llbe->addNamedVal(var->getMangledName(), gvar, t);
+
+        return gvar;
     } else {
-        gvar = new llvm::GlobalVariable(
-            /*Module=*/*llbe->llModule,
-            /*Type=*/ll_t,
-            /*isConstant=*/false,
-            /*Linkage=*/llvm::GlobalValue::ExternalLinkage,
-            /*Initializer=*/0, // has initializer, specified below
-            /*Name=*/var->getMangledName());
-        gvar->setAlignment((unsigned int)align);
-        if (var->getInitialization())
-            gvar->setInitializer(
-                (llvm::Constant *)llbe->getOrGenNode(var->getInitialization()));
-        else
-            gvar->setInitializer(llvm::Constant::getNullValue(ll_t));
+        size_t align = llbe->layout->getTypeAllocSize(ll_t);
+        // nearest power of 2
+        align = pow(2, ceil(log(align) / log(2)));
+
+        if (t->isArray()) {
+            PointerType * ptr_t = (PointerType *)t->under()->getPointer();
+            llvm::Type * ll_ptr_t = llbe->getOrGenType(ptr_t);
+
+            gvar->setAlignment(
+                (unsigned int)llbe->layout->getTypeAllocSize(ll_ptr_t));
+
+            llvm::GlobalVariable * under = new llvm::GlobalVariable(
+                *llbe->llModule, ll_t, false, llvm::GlobalVariable::ExternalLinkage,
+                0, "__bjou_array_under_" + var->getMangledName());
+            under->setAlignment(llbe->layout->getPreferredAlignment(under));
+
+            if (var->getInitialization()) {
+                if (var->getInitialization()->nodeKind == ASTNode::INITIALZER_LIST)
+                    under->setInitializer(llbe->createConstantInitializer(
+                        (InitializerList *)var->getInitialization()));
+            } else {
+                under->setInitializer(llvm::Constant::getNullValue(ll_t));
+            }
+
+            gvar->setInitializer((llvm::Constant *)llbe->builder.CreateInBoundsGEP(
+                under, {llvm::Constant::getNullValue(
+                            llvm::IntegerType::getInt32Ty(llbe->llContext)),
+                        llvm::Constant::getNullValue(
+                            llvm::IntegerType::getInt32Ty(llbe->llContext))}));
+        } else {
+            gvar->setAlignment((unsigned int)align);
+            if (var->getInitialization())
+                gvar->setInitializer(
+                    (llvm::Constant *)llbe->getOrGenNode(var->getInitialization()));
+            else
+                gvar->setInitializer(llvm::Constant::getNullValue(ll_t));
+        }
     }
 
-    llbe->addNamedVal(var->getMangledName(), gvar, t);
     return gvar;
 }
 
@@ -453,11 +523,17 @@ milliseconds LLVMBackEnd::CodeGenStage() {
     frames.clear(); // clear jit frames if any
 
     pushFrame();
+    
+    // just in case
+    getOrGenNode(compilation->frontEnd.printf_decl);
+    getOrGenNode(compilation->frontEnd.malloc_decl);
+    getOrGenNode(compilation->frontEnd.free_decl);
 
     // global variables and constants may reference procs
     // or types that have not been declared yet
     std::vector<ASTNode *> global_vars_and_consts;
 
+    /*
     for (ASTNode * node : compilation->frontEnd.AST) {
         if (node->isStatement()) {
             if (node->nodeKind == ASTNode::CONSTANT ||
@@ -468,17 +544,18 @@ milliseconds LLVMBackEnd::CodeGenStage() {
         } else
             getOrGenNode(node);
     }
+    */
+
+    // for (ASTNode * node : global_vars_and_consts)
+        // getOrGenNode(node);
+
+    llvm::Function * main = createMainEntryPoint();
 
     completeTypes();
-
-    for (ASTNode * node : global_vars_and_consts)
-        getOrGenNode(node);
-
     completeGlobs();
-
-    createMainEntryPoint();
-
     completeProcs();
+
+    completeMainEntryPoint(main);
 
     popFrame();
 
@@ -852,7 +929,7 @@ llvm::StructType * LLVMBackEnd::createTupleStructType(const bjou::Type * t) {
     return ll_t;
 }
 
-void LLVMBackEnd::createMainEntryPoint() {
+llvm::Function * LLVMBackEnd::createMainEntryPoint() {
     std::vector<llvm::Type *> main_arg_types = {
         llvm::Type::getInt32Ty(llContext),
         llvm::PointerType::get(llvm::Type::getInt8PtrTy(llContext), 0)};
@@ -873,9 +950,19 @@ void LLVMBackEnd::createMainEntryPoint() {
                 CharType::get()->getPointer()->getPointer());
 
     for (ASTNode * node : compilation->frontEnd.AST)
-        if ((node->isStatement() || node->nodeKind == ASTNode::MULTINODE) &&
-            node->nodeKind != ASTNode::VARIABLE_DECLARATION &&
-            node->nodeKind != ASTNode::CONSTANT)
+        if (node->isStatement() || node->nodeKind == ASTNode::MULTINODE)
+            genDeps(node, *this);
+
+    return func;
+}
+
+void LLVMBackEnd::completeMainEntryPoint(llvm::Function * func) {
+    BJOU_DEBUG_ASSERT(func);
+
+    builder.SetInsertPoint(&func->back());
+
+    for (ASTNode * node : compilation->frontEnd.AST)
+        if (node->isStatement() || node->nodeKind == ASTNode::MULTINODE)
             getOrGenNode(node);
 
     builder.CreateRet(
@@ -2177,8 +2264,9 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
 
     llvm::Value * ptr = llbe->getNamedVal(qualified);
 
-    if (!ptr && resolved)
+    if (!ptr && resolved) {
         ptr = llbe->getOrGenNode(resolved);
+    }
 
     // There is a chance that when running code at compile time
     // things like global vars, constants, and procs will not have been
@@ -2395,11 +2483,10 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
     if (!getScope()->parent || getScope()->nspace) {
         if (llbe->generated_nodes.find(this) == llbe->generated_nodes.end()) {
             llbe->globs_need_completion.insert(this);
-            return nullptr;
+            return GenerateGlobalVariable(this, nullptr, backEnd);
         } else {
-            void * gval = GenerateGlobalVariable(this, backEnd);
-            BJOU_DEBUG_ASSERT(gval);
-            return gval;
+            llvm::Value * me = llbe->getOrGenNode(this);
+            return GenerateGlobalVariable(this, (llvm::GlobalVariable*)me, backEnd);
         }
     }
 
@@ -2786,59 +2873,13 @@ void * While::generate(BackEnd & backEnd, bool flag) {
     return merge; // what does this accomplish?
 }
 
-static void findSliceAndDynamicArrayDecls(Declarator * base,
-                                          std::vector<Declarator *> & out) {
-    Declarator * decl = (Declarator *)base->parent;
-    while (decl && IS_DECLARATOR(decl)) {
-        if (decl->nodeKind == ASTNode::SLICE_DECLARATOR ||
-            decl->nodeKind == ASTNode::DYNAMIC_ARRAY_DECLARATOR) {
-
-            out.push_back(decl);
-        }
-        decl = (Declarator *)decl->parent;
-    }
-}
-
-static void genDeps(ASTNode * node, LLVMBackEnd & llbe) {
-    // @bad -- sort of an on-demand generation model
-    // we'll see how stable this is
-    std::vector<ASTNode *> terms;
-    node->unwrap(terms);
-    for (ASTNode * term : terms) {
-        if (IS_DECLARATOR(term)) {
-            const Type * t = term->getType();
-            llbe.getOrGenType(t);
-            std::vector<Declarator *> slices_and_das;
-            findSliceAndDynamicArrayDecls((Declarator *)term, slices_and_das);
-
-            for (Declarator * decl : slices_and_das)
-                llbe.getOrGenType(decl->getType());
-        } else if (term->nodeKind == ASTNode::IDENTIFIER) {
-            Identifier * ident = (Identifier *)term;
-
-            if (ident->resolved) {
-                ASTNode * r = ident->resolved;
-
-                llbe.getOrGenType(r->getType());
-
-                if (r->nodeKind == ASTNode::PROCEDURE ||
-                    r->nodeKind == ASTNode::CONSTANT ||
-                    (r->nodeKind == ASTNode::VARIABLE_DECLARATION &&
-                     (!r->getScope()->parent ||
-                      r->getScope()->parent->nspace))) {
-
-                    llbe.getOrGenNode(r);
-                }
-            }
-        } else if (term->nodeKind == ASTNode::PROC_LITERAL ||
-                   term->nodeKind == ASTNode::EXTERN_LITERAL) {
-            llbe.getOrGenNode(term);
-        }
-    }
-}
-
 void * Procedure::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+    // due to the nature of the on-demand codegen model,
+    // some interface decls may slip in here.. just ignore
+    if (getFlag(IS_INTERFACE_DECL))
+        return nullptr;
 
     analyze();
 

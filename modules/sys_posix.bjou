@@ -1,0 +1,7 @@
+# sys_posix.bjou
+
+# posix system calls
+
+module sys_posix
+
+extern open(char*, int, ...) : int

@@ -134,6 +134,41 @@ template <typename rT> rT _evalNeq(Val & a, Val & b) {
     internalError("Bad types in evaluation of neq expression.");
     return {};
 }
+
+template <typename rT> rT _evalLogAnd(Val & a, Val & b) {
+    if (a.t->isInt() || a.t->isBool()) {
+        if (b.t->isInt() || b.t->isBool())
+            return a.as_i64 && b.as_i64;
+        if (b.t->isFloat())
+            return a.as_i64 && b.as_f64;
+    } else if (a.t->isFloat()) {
+        if (b.t->isFloat())
+            return a.as_f64 && b.as_f64;
+        if (b.t->isInt() || b.t->isBool())
+            return a.as_f64 && b.as_i64;
+    }
+
+    internalError("Bad types in evaluation of log and expression.");
+    return {};
+}
+
+template <typename rT> rT _evalLogOr(Val & a, Val & b) {
+    if (a.t->isInt() || a.t->isBool()) {
+        if (b.t->isInt() || b.t->isBool())
+            return a.as_i64 || b.as_i64;
+        if (b.t->isFloat())
+            return a.as_i64 || b.as_f64;
+    } else if (a.t->isFloat()) {
+        if (b.t->isFloat())
+            return a.as_f64 || b.as_f64;
+        if (b.t->isInt() || b.t->isBool())
+            return a.as_f64 || b.as_i64;
+    }
+
+    internalError("Bad types in evaluation of log or expression.");
+    return {};
+}
+
 } // namespace bjou
 
 #endif /* EvaluateImpl_h */

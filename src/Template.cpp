@@ -135,14 +135,13 @@ Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst) {
         // found it
         BJOU_DEBUG_ASSERT(sym->isType());
         BJOU_DEBUG_ASSERT(sym->node()->nodeKind == ASTNode::STRUCT);
+
         return (Struct *)sym->node();
     }
 
     Struct * clone = (Struct *)s->clone();
     clone->setName(mangledName);
     clone->inst = inst;
-
-    clone->setFlag(ASTNode::CT, isCT(clone));
 
     clone->preDeclare(scope);
     clone->addSymbols(scope);
@@ -559,8 +558,6 @@ Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args,
 
     if (tproc->getFlag(TemplateProc::FROM_THROUGH_TEMPLATE))
         clone->setFlag(ASTNode::SYMBOL_OVERWRITE, true);
-
-    clone->setFlag(ASTNode::CT, isCT(clone));
 
     clone->addSymbols(scope);
 

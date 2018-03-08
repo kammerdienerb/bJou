@@ -29,6 +29,9 @@ struct FrontEnd {
 
     std::vector<ASTNode *> AST;
     std::vector<ASTNode *> deferredAST;
+    std::vector<ASTNode *> macros_need_fast_tracked_analysis;
+    std::vector<ASTNode *> non_run_non_fast_tracked_macros;
+    bool stop_tracking_macros = false;
     std::vector<ASTNode *> structs, ifaceDefs, namespaces;
     std::unordered_map<std::string, const Type *> typeTable;
     std::unordered_map<std::string, const Type *> primativeTypeTable;
