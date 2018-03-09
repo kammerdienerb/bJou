@@ -1,5 +1,5 @@
 TARGET		= bjou
-CC 			= g++
+CC 			= clang++
 INCLUDE		= include
 TCLAP_INCLUDE = . 
 # LLVM_CFG	= ~/Desktop/llvm/build/bin/llvm-config

@@ -1,0 +1,54 @@
+# ClangWrapper.bjou
+
+module c2bjou_ClangWrapper
+
+import "clang.bjou"
+
+type ClangWrapper {
+    index : CXIndex*
+    tu : CXTranslationUnit*
+
+    proc create() : ClangWrapper {
+        return { ClangWrapper:
+            .index = clang.createIndex(0, 0) 
+        }
+    }
+
+    proc parseTU(this, fname : char*) {
+        this.tu = clang.parseTranslationUnit(
+            this.index,
+            fname,
+            _nullptr() as char**, 0,
+            _nullptr() as CXUnsavedFile*, 0,
+            0)
+
+        if this.tu.isnull()
+            panic("c2bjou: bad translation unit")
+        
+        ndiags := clang.getNumDiagnostics(this.tu) as int
+        for i := 0; i < ndiags; i += 1 {
+            diag := clang.getDiagnostic(this.tu, i)
+            cxstr := clang.formatDiagnostic(diag, clang.defaultDiagnosticDisplayOptions())
+            str := clang.getCString(cxstr)
+            print "%", str
+            clang.disposeString(cxstr)
+        }
+        if ndiags > 0
+            panic("c2bjou: there were libclang errors")
+    }
+
+    proc traverse(this,
+                  root : CXCursor,
+                  visitor : visitor_t,
+                  data : CXClientData*) {
+        clang.visitChildren(root, visitor, data)
+    }
+
+    proc traverseTU(this,
+                    visitor : visitor_t,
+                    data : CXClientData*) {      
+
+        cursor := clang.getTranslationUnitCursor(this.tu)
+        this.traverse(cursor, visitor, data)
+    }
+}

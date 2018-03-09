@@ -293,6 +293,8 @@ milliseconds FrontEnd::ParseStage() {
                                p.structs.end());
                 ifaceDefs.insert(ifaceDefs.end(), p.ifaceDefs.begin(),
                                  p.ifaceDefs.end());
+
+                n_lines += p.n_lines;
             }
 
             futureTimes.clear();
@@ -325,6 +327,8 @@ milliseconds FrontEnd::ParseStage() {
             structs.insert(structs.end(), p.structs.begin(), p.structs.end());
             ifaceDefs.insert(ifaceDefs.end(), p.ifaceDefs.begin(),
                              p.ifaceDefs.end());
+            
+            n_lines += p.n_lines;
         }
 
     } else {
@@ -427,7 +431,7 @@ milliseconds FrontEnd::AnalysisStage() {
 
     // filter so that, for example, \static_if{ \static_if {...}...}
     // only runs on the outermost macro use
-    auto filter_parent_child = [](std::vector<ASTNode*>& nodes) {
+    auto filter_parent_child = [](std::set<ASTNode*>& nodes) {
         bool changed = true;
         while (changed) {
             changed = false;

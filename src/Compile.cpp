@@ -73,7 +73,6 @@ Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
     module_search_paths.push_back("modules/");
 
 #ifndef _WIN32
-    module_search_paths.push_back("modules/");
     module_search_paths.push_back("/usr/local/lib/bjou/modules/");
 #endif
 }
@@ -97,6 +96,14 @@ void Compilation::go() {
     auto compile_time = duration_cast<milliseconds>(end - start);
     if (args.time_arg.getValue())
         prettyPrintTimeMaj(compile_time, "Grand total");
+    if (args.time_arg.getValue()) {
+        bjouSetColor(LIGHTCYAN);
+        float s = RunTimeToSeconds(compile_time);
+        float per_s = ((float)frontEnd.n_lines) / s;
+        printf("*** %u lines @ %g lines/s\n", frontEnd.n_lines, per_s);
+        bjouResetColor();
+        fflush(stdout);
+    }
 }
 
 Compilation::~Compilation() {}

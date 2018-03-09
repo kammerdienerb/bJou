@@ -56,7 +56,7 @@ struct Type {
     Type(Kind _kind, const std::string _key);
 
 
-    static const Type * alias(std::string name, const Type * t);
+    static void alias(std::string name, const Type * t);
 
 
     bool isPlaceholder() const;

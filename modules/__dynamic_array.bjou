@@ -5,9 +5,9 @@ module __dynamic_array
 type __bjou_dyn_array$T {
     const INIT_SIZE := 8
 
-	__data		: T*
+    __data		: T*
     __capacity 	: u64
-	__used		: u64
+    __used		: u64
 
     proc create() : __bjou_dyn_array$T {
         return  { __bjou_dyn_array$T: 
@@ -49,6 +49,19 @@ type __bjou_dyn_array$T {
     proc __bjou_dynamic_array_subscript$T(_s : T[...] ref, _i : u64) : T ref {
         return \__da_data{_s}[_i]
     }
+}
+
+proc resize$T(da : T[...] ref, size : u64, val : T) {
+	_d := getref(\__da_data{da})
+	_c := getref(\__da_capacity{da})
+	_u := getref(\__da_used{da})
+
+	if size < _u {
+		_u = size
+	} else {
+		for i := 0; i < (size - _u); i += 1
+			da.push(val)
+	}
 }
 
 proc __bjou_dynamic_array_grow$T(da : T[...] ref) {

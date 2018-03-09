@@ -646,6 +646,7 @@ void Parser::parseCommon() {
         // we are single-threaded..
         compilation->frontEnd.AST.push_back(node);
     }
+    compilation->frontEnd.n_lines += n_lines;
 }
 
 void Parser::prepare() {
@@ -666,6 +667,7 @@ void Parser::clean() {
     bool altered = false;
     while (IS_SPACE(buff, 0)) {
         if (IS_C(buff, 0, '\n')) {
+            n_lines += 1;
             currentContext.end.line += 1;
             currentContext.end.character = 1;
         } else
@@ -908,11 +910,11 @@ MaybeASTNode Parser::parseDeclarator(bool base_only) {
 
 ASTNode * Parser::newVoidDeclarator() {
     Declarator * result = new Declarator();
-    result->getContext().start(&currentContext);
+    // result->getContext().start(&currentContext);
     Identifier * identifier = new Identifier();
     identifier->setUnqualified(compilation->frontEnd.getBuiltinVoidTypeName());
     result->setIdentifier(identifier);
-    result->getContext().finish(&currentContext, &justCleanedContext);
+    // result->getContext().finish(&currentContext, &justCleanedContext);
     return result;
 }
 

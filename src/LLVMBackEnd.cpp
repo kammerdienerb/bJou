@@ -1797,8 +1797,8 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
                                                                 size));
         } else if (payload->t->getRetType()->isPointer() ||
                    payload->t->getRetType()->isArray()) {
-            callinst->addAttribute(0, llvm::Attribute::getWithAlignment(
-                                          llbe->llContext, sizeof(void *)));
+            // callinst->addAttribute(0, llvm::Attribute::getWithAlignment(
+            //                               llbe->llContext, sizeof(void *)));
         }
     }
 
@@ -1818,9 +1818,10 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
                                llvm::Attribute::getWithDereferenceableBytes(
                                    llbe->llContext, size));
     }
-    for (int al : ptralign)
-        callinst->addParamAttr(al, llvm::Attribute::getWithAlignment(
-                                       llbe->llContext, sizeof(void *)));
+    for (int al : ptralign) {
+        // callinst->addParamAttr(al, llvm::Attribute::getWithAlignment(
+        //                               llbe->llContext, sizeof(void *)));
+    }
 
     delete payload;
 
@@ -1967,6 +1968,8 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
     if (access->getType()->getPointerElementType()->isArrayTy())
         access = llbe->createPointerToArrayElementsOnStack(access);
 
+    if (getType()->isRef())
+        access = llbe->builder.CreateLoad(access, "ref");
     if (getAddr)
         return access;
     return llbe->builder.CreateLoad(access, name);
@@ -1999,12 +2002,12 @@ void * NewExpression::generate(BackEnd & backEnd, bool flag) {
         size = llbe->layout->getTypeAllocSize(llbe->getOrGenType(sub_t));
 
         size_val = llvm::ConstantInt::get(
-            llvm::Type::getInt32Ty(llbe->llContext), size);
+            llvm::Type::getInt64Ty(llbe->llContext), size);
 
         llvm::Value * width_val =
             (llvm::Value *)llbe->getOrGenNode(array_decl->getExpression());
         width_val = llbe->builder.CreateIntCast(
-            width_val, llvm::IntegerType::getInt32Ty(llbe->llContext), true,
+            width_val, llvm::IntegerType::getInt64Ty(llbe->llContext), true,
             "width");
 
         size_val = llbe->builder.CreateMul(size_val, width_val);
@@ -2012,7 +2015,7 @@ void * NewExpression::generate(BackEnd & backEnd, bool flag) {
     } else {
         size = llbe->layout->getTypeAllocSize(llbe->getOrGenType(r_t));
         size_val = llvm::ConstantInt::get(
-            llvm::Type::getInt32Ty(llbe->llContext), size);
+            llvm::Type::getInt64Ty(llbe->llContext), size);
     }
 
     args.push_back(size_val);
@@ -2411,8 +2414,8 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
 
         BJOU_DEBUG_ASSERT(names.size() == expressions.size());
 
-        std::vector<llvm::Value *> vals(
-            s_t->memberTypes.size() + typeinfo_offset, nullptr);
+        std::vector<llvm::Value *> vals;
+        vals.resize(s_t->memberTypes.size() + typeinfo_offset, nullptr);
 
         for (int i = 0; i < (int)names.size(); i += 1) {
             int index = s_t->memberIndices[names[i]] + typeinfo_offset;
@@ -2423,15 +2426,23 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
             vals[0] = llbe->getGlobaltypeinfo(s_t->_struct);
 
         for (size_t i = 0; i < vals.size(); i += 1) {
-            if (!vals[i])
-                continue;
-
             llvm::Value * elem = llbe->builder.CreateInBoundsGEP(
                 ptr, {llvm::Constant::getNullValue(
                           llvm::IntegerType::getInt32Ty(llbe->llContext)),
                       llvm::ConstantInt::get(
                           llvm::Type::getInt32Ty(llbe->llContext), i)});
-            llbe->builder.CreateStore(vals[i], elem);
+
+            if (!vals[i]) {
+                const Type * elem_t = s_t->memberTypes[i - typeinfo_offset];
+                llvm::Value * null_val = llvm::Constant::getNullValue(llbe->getOrGenType(elem_t));
+                llbe->builder.CreateStore(null_val, elem);
+            } else {
+                if (i != 0 || !typeinfo_offset)
+                    if (s_t->memberTypes[i - typeinfo_offset]->isRef())
+                        elem = llbe->builder.CreateLoad(elem, "ref");
+
+                llbe->builder.CreateStore(vals[i], elem);
+            }
         }
 
         if (getAddr)
@@ -2941,9 +2952,10 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                     size = 1;
                 arg.addAttr(llvm::Attribute::getWithDereferenceableBytes(
                     llbe->llContext, size));
-            } else if (arg.getType()->isPointerTy())
-                arg.addAttr(llvm::Attribute::getWithAlignment(llbe->llContext,
-                                                              sizeof(void *)));
+            } else if (arg.getType()->isPointerTy()) {
+                // arg.addAttr(llvm::Attribute::getWithAlignment(llbe->llContext,
+                //                                               sizeof(void *)));
+            }
             i += 1;
         }
 
@@ -2958,8 +2970,8 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                                        llbe->llContext, size));
             } else if (payload->t->getRetType()->isPointer() ||
                        payload->t->getRetType()->isArray()) {
-                func->addAttribute(0, llvm::Attribute::getWithAlignment(
-                                          llbe->llContext, sizeof(void *)));
+                // func->addAttribute(0, llvm::Attribute::getWithAlignment(
+                //                           llbe->llContext, sizeof(void *)));
             }
         }
 

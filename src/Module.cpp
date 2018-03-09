@@ -126,6 +126,8 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                 frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(),
                                           p->ifaceDefs.begin(),
                                           p->ifaceDefs.end());
+                
+                frontEnd.n_lines += p->n_lines;
                 delete p;
             }
 
@@ -186,6 +188,8 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                     frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(),
                                               parser.ifaceDefs.begin(),
                                               parser.ifaceDefs.end());
+                
+                    frontEnd.n_lines += parser.n_lines;
                 } else
                     parser.Dispose();
             }

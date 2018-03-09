@@ -94,10 +94,11 @@ template <> void x86Lowerer<LLVMBackEnd>::ABILowerProcedureType(void * data) {
     using namespace x86;
 
     ABILowerProcedureTypeData * payload = (ABILowerProcedureTypeData *)data;
+    LLVMBackEnd& llbe = ((LLVMBackEnd&)backEnd);
     ProcedureType * t = payload->t;
 
-    llvm::Type * new_ret_t = nullptr;
-    std::vector<llvm::Type *> new_params;
+    const Type * new_ret_t = nullptr;
+    std::vector<const Type *> new_params;
 
     // handle struct return
     const Type * ret_t = t->getRetType();
@@ -105,11 +106,11 @@ template <> void x86Lowerer<LLVMBackEnd>::ABILowerProcedureType(void * data) {
         payload->ref_ret = true;
     ParamClass r_c = ABIClassForType(backEnd, ret_t);
     if (r_c == MEMORY) {
-        new_params.push_back(backEnd.getOrGenType(ret_t->getPointer()));
-        new_ret_t = backEnd.getOrGenType(VoidType::get());
+        new_params.push_back(ret_t->getPointer());
+        new_ret_t = VoidType::get();
         payload->sret = true;
     } else
-        new_ret_t = backEnd.getOrGenType(ret_t);
+        new_ret_t = ret_t;
 
     // params
     int i = payload->sret;
@@ -119,7 +120,7 @@ template <> void x86Lowerer<LLVMBackEnd>::ABILowerProcedureType(void * data) {
 
         if (a_t->isStruct() || a_t->isTuple()) {
             if (ABIClassForType(backEnd, a_t) == MEMORY) {
-                new_params.push_back(backEnd.getOrGenType(a_t->getPointer()));
+                new_params.push_back(a_t->getPointer());
                 payload->byval |= (1 << i);
             } else {
                 // @incomplete
@@ -131,15 +132,21 @@ template <> void x86Lowerer<LLVMBackEnd>::ABILowerProcedureType(void * data) {
                     : ((TupleType*)t)->getTypes();
                 */
 
-                new_params.push_back(backEnd.getOrGenType(a_t));
+                new_params.push_back(a_t);
             }
         } else
-            new_params.push_back(backEnd.getOrGenType(a_t));
+            new_params.push_back(a_t);
 
         i += 1;
     }
 
-    payload->fn_t = llvm::FunctionType::get(new_ret_t, new_params, t->isVararg);
+    payload->t = (ProcedureType*)ProcedureType::get(new_params, new_ret_t, t->isVararg);
+
+    std::vector<llvm::Type*> ll_param_types;
+    for (const Type * t : new_params)
+        ll_param_types.push_back(llbe.getOrGenType(t));
+
+    payload->fn_t = llvm::FunctionType::get(llbe.getOrGenType(new_ret_t), ll_param_types, t->isVararg);
 }
 
 template <> void x86Lowerer<LLVMBackEnd>::ABILowerCall(void * data) {}

@@ -25,7 +25,7 @@ const char * signLtr = "ui";
 
 Type::Type(Kind _kind, const std::string _key) : kind(_kind), key(_key) {}
 
-const Type * Type::alias(std::string name, const Type * t) {
+void Type::alias(std::string name, const Type * t) {
     addTypeToTable(t, name);
 }
 

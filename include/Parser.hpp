@@ -248,6 +248,8 @@ struct Parser {
     Context currentContext;
     Context justCleanedContext;
 
+    unsigned int n_lines = 0;
+
     Parser(const char * c_str, bool start = true);
     Parser(std::string & str, bool start = true);
     Parser(std::ifstream & file, const std::string & fname, bool start = true);

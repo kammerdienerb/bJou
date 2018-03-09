@@ -244,8 +244,8 @@ bool Expression::canBeLVal() {
         m_sym.assignTo(sym);
         BJOU_DEBUG_ASSERT(sym);
 
-        if (!sym->isVar())
-            return false;
+        if (sym->isVar())
+            return true;
     } else {
         if (getFlag(Expression::TERMINAL))
             return false;
@@ -253,23 +253,29 @@ bool Expression::canBeLVal() {
         // const char * assignableOps[] = {"[]", ".", "=", "??", "@"};
 
         if (nodeKind == SUBSCRIPT_EXPRESSION) {
-            if (getLeft()->getType()->isSlice())
-                return false;
+            if (!getLeft()->getType()->isSlice())
+                return true;
         } else if (nodeKind == ACCESS_EXPRESSION) {
             if (getLeft()->nodeKind == IDENTIFIER) {
                 getLeft()->analyze();
                 Identifier * ident = (Identifier *)getLeft();
                 if (ident->resolved) {
-                    if (ident->resolved->nodeKind != VARIABLE_DECLARATION)
-                        return false;
+                    if (ident->resolved->nodeKind == VARIABLE_DECLARATION)
+                        return true;
                 }
             }
+
+            // @bad @incomplete
+            // what about T.create = 12345?
+            return true;
         } else if (nodeKind == ASSIGNMENT_EXPRESSION) {
+            return true;
         } else if (nodeKind == DEREF_EXPRESSION) {
+            return true;
         }
     }
 
-    return true;
+    return false;
 }
 
 // Node interface
@@ -5063,7 +5069,6 @@ bool VariableDeclaration::isStatement() const { return true; }
 
 Alias::Alias() : name({}), mangledName({}), declarator(nullptr) {
     nodeKind = ALIAS;
-    setFlag(SYMBOL_OVERWRITE, true);
 }
 
 std::string & Alias::getName() { return name; }
@@ -8119,9 +8124,9 @@ void MacroUse::addSymbols(Scope * _scope) {
 
     if (!compilation->frontEnd.stop_tracking_macros) {
         if (fast_track)
-            compilation->frontEnd.macros_need_fast_tracked_analysis.push_back(this);
+            compilation->frontEnd.macros_need_fast_tracked_analysis.insert(this);
         else if (getMacroName() != "run")
-            compilation->frontEnd.non_run_non_fast_tracked_macros.push_back(this);
+            compilation->frontEnd.non_run_non_fast_tracked_macros.insert(this);
     }
 }
 
