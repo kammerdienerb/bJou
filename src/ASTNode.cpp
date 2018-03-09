@@ -3364,7 +3364,8 @@ void LenExpression::desugar() {
 
         Expression * l = (Expression *)getExpr();
 
-        l->setType(((SliceType *)expr_t)->getRealType());
+        // l->setType(((SliceType *)expr_t)->getRealType());
+        l->setType(expr_t);
         l->setFlag(ANALYZED, true);
 
         access->setLeft(l->clone());
@@ -3381,7 +3382,8 @@ void LenExpression::desugar() {
 
         Expression * l = (Expression *)getExpr();
 
-        l->setType(((DynamicArrayType *)expr_t)->getRealType());
+        // l->setType(((DynamicArrayType *)expr_t)->getRealType());
+        l->setType(expr_t);
         l->setFlag(ANALYZED, true);
 
         access->setLeft(l->clone());

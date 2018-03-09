@@ -1,0 +1,6 @@
+proc main() {
+    i := 12345
+    j : int = getref(i)
+}
+
+main()

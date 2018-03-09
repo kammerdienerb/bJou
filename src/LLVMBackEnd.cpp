@@ -1694,7 +1694,7 @@ llvm::Value * fromVec(std::vector<llvm::Value *> & vec, int idx) {
     return vec[idx];
 }
 
-void * CallExpression::generate(BackEnd & backEnd, bool flag) {
+void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
     ArgList * arglist = (ArgList *)getRight();
     std::vector<llvm::Value *> args;
@@ -1823,6 +1823,10 @@ void * CallExpression::generate(BackEnd & backEnd, bool flag) {
         //                               llbe->llContext, sizeof(void *)));
     }
 
+
+    if (!getAddr && payload->t->getRetType()->isRef())
+        ret = llbe->builder.CreateLoad(ret, "ref");
+
     delete payload;
 
     return ret;
@@ -1896,6 +1900,13 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
     std::string name;
 
     const Type * t = getLeft()->getType()->unRef();
+
+    // to accommodate the way LenExpression desugars
+    if (t->isSlice())
+        t = ((SliceType*)t)->getRealType();
+    else if (t->isDynamicArray())
+        t = ((DynamicArrayType*)t)->getRealType();
+
     StructType * s_t = nullptr;
     TupleType * t_t = nullptr;
     Identifier * r_id = (Identifier *)getRight();
@@ -2177,6 +2188,8 @@ void * AsExpression::generate(BackEnd & backEnd, bool flag) {
         return llbe->builder.CreateBitCast(val, ll_rt);
     else if (lt->isPointer() && lt->under() == VoidType::get() &&
              rt->isProcedure()) {
+        return llbe->builder.CreateBitCast(val, ll_rt);
+    } else if (lt->isProcedure() && rt->isPointer() && rt->under() == VoidType::get()) {
         return llbe->builder.CreateBitCast(val, ll_rt);
     } else if (lt->isArray() && rt->isPointer()) {
         ArrayType * a_t = (ArrayType *)lt;
@@ -2541,8 +2554,6 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
         if (getInitialization()) {
             llvm::Value * init_v =
                 (llvm::Value *)llbe->getOrGenNode(getInitialization());
-            if (!getType()->isRef() && getInitialization()->getType()->isRef())
-                init_v = llbe->builder.CreateLoad(init_v, "ref");
             llbe->builder.CreateStore(init_v, val);
         }
     }

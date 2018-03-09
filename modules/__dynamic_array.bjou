@@ -59,7 +59,8 @@ proc resize$T(da : T[...] ref, size : u64, val : T) {
 	if size < _u {
 		_u = size
 	} else {
-		for i := 0; i < (size - _u); i += 1
+        __u := unref(_u)
+		for i := 0; i < (size - __u); i += 1
 			da.push(val)
 	}
 }

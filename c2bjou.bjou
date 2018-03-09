@@ -24,7 +24,7 @@ proc main() {
 
     translator.cw.parseTU("fact.c")
 
-    translator.cw.traverseTU(my_visitor, (&translator) as CXClientData*)
+    translator.cw.traverseTU(dispatch, (&translator) as CXClientData*)
 
     # run passes on translated nodes
     gs := bjou_getGlobalScope()
@@ -51,7 +51,7 @@ type c2bJou {
             .created = [...ASTNode*]
         }
 
-        c.visitor_table.resize(CXCursor_END_, _nullptr() as visitor_t)
+        init_visitor_table(c.visitor_table)
 
         return c
     }

@@ -2,6 +2,8 @@
 
 module c2bjou_visitors
 
+extern sprintf(char*, char*, ...) : int
+
 import "clang.bjou"
 
 type visitor_t = <(CXCursor,      # cursor
@@ -9,64 +11,105 @@ type visitor_t = <(CXCursor,      # cursor
                    CXClientData*) # client_data
                    : u32>
 
-proc my_visitor(cursor      : CXCursor,
-                parent      : CXCursor,
-                client_data : CXClientData*) : u32 {
+proc init_visitor_table(table : visitor_t[...] ref) {
+    table.resize(CXCursor_END_, v_unimplemented)
 
-    data := client_data as c2bJou*
+    table[CXCursor_FunctionDecl] = v_FunctionDecl
+}
+
+proc clangASTNodePrint(cursor : CXCursor, translator : c2bJou*) {
+    name_cxstr := clang.getCursorSpelling(cursor)
+    name_str := clang.getCString(name_cxstr)
+    kind_cxstr := clang.getCursorKindSpelling(cursor.kind)
+    kind_str := clang.getCString(kind_cxstr)
+
+    for i := 0; i < translator.indent; i += 1
+        printf("  ")
+    print "%: '%'", kind_str, name_str
+}
+
+proc v_unimplemented(cursor      : CXCursor,
+                     parent      : CXCursor,
+                     client_data : CXClientData*) : u32 {
+
+    buff : char[1024]
+    kind_cxstr := clang.getCursorKindSpelling(cursor.kind)
+    kind_str := clang.getCString(kind_cxstr)
+
+    buff.sprintf("c2bjou: missing visitor for %s", kind_str)
+
+    panic(buff)
+
+    return 0
+}
+
+proc v_FunctionDecl(cursor      : CXCursor,
+                    parent      : CXCursor,
+                    client_data : CXClientData*) : u32 {
+
+    translator := client_data as c2bJou*
+
+    cursor.clangASTNodePrint(translator)
 
     name_cxstr := clang.getCursorSpelling(cursor)
     name_str := clang.getCString(name_cxstr)
     kind_cxstr := clang.getCursorKindSpelling(cursor.kind)
     kind_str := clang.getCString(kind_cxstr)
 
-    for i := 0; i < data.indent; i += 1
-        printf("  ")
-    print "%: '%'", kind_str, name_str
-   
+    nullnode := _nullptr() as ASTNode*
+    nullnodes := _nullptr() as ASTNode**
+    nullstrings := _nullptr() as char**
 
-    if cursor.kind == CXCursor_FunctionDecl {
-        nullnode := _nullptr() as ASTNode*
-        nullnodes := _nullptr() as ASTNode**
-        nullstrings := _nullptr() as char**
+    void_decl := bjou_createDeclarator(
+                    bjou_createIdentifier("void"),
+                    nullnode,
+                    nullstrings, 0)
 
-        void_decl := bjou_createDeclarator(
-                        bjou_createIdentifier("void"),
-                        nullnode,
-                        nullstrings, 0)
+    arg_exprs : ASTNode*[1]
+    statements : ASTNode*[1]
 
-        arg_exprs : ASTNode*[1]
-        statements : ASTNode*[1]
+    my_str : char[256]
+    my_str.sprintf("%s()\n", name_str)
 
-        extern sprintf(char*, char*, ...) : int
-        my_str : char[256]
-        my_str.sprintf("%s()\n", name_str)
+    arg_exprs[0] = bjou_createStringLiteral(my_str)
+    statements[0] = bjou_createCallExpression(
+                        bjou_createIdentifier("printf"),
+                        bjou_createArgList(
+                            arg_exprs, 1))
 
-        arg_exprs[0] = bjou_createStringLiteral(my_str)
-        statements[0] = bjou_createCallExpression(
-                            bjou_createIdentifier("printf"),
-                            bjou_createArgList(
-                                arg_exprs, 1))
+    p := bjou_createProcedure(
+             name_str,
+             nullnodes, 0,
+             false,
+             void_decl,
+             statements, 1)
 
-        p := bjou_createProcedure(
-                 name_str,
-                 nullnodes, 0,
-                 false,
-                 void_decl,
-                 statements, 1)
+    call := bjou_createCallExpression(
+                bjou_createIdentifier(name_str),
+                bjou_createArgList(
+                    nullnodes, 0))
 
-        call := bjou_createCallExpression(
-                    bjou_createIdentifier(name_str),
-                    bjou_createArgList(
-                        nullnodes, 0))
+    translator.created.push(p)
+    translator.created.push(call)
 
-        data.created.push(p)
-        data.created.push(call)
-    }
+    
+    # visit children
+    translator.indent += 1
+    translator.cw.traverse(cursor, dispatch, client_data)
+    translator.indent -= 1
 
-    data.indent += 1
-    data.cw.traverse(cursor, my_visitor, client_data)
-    data.indent -= 1
+    return 1
+}
+
+proc dispatch(cursor      : CXCursor,
+              parent      : CXCursor,
+              client_data : CXClientData*) : u32 {
+
+    translator := client_data as c2bJou*
+
+    visitor := translator.visitor_table[cursor.kind]
+
+    visitor(cursor, parent, client_data)
 
     return 1
 }
