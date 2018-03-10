@@ -309,7 +309,16 @@ const Type * ArrayType::replacePlaceholders(const Type * t) const {
 }
 
 SliceType::SliceType(const Type * _elem_t)
-    : Type(SLICE, skey(_elem_t)), elem_t(_elem_t) {}
+    : Type(SLICE, skey(_elem_t)), elem_t(_elem_t) {
+
+    // This will force template instantiation of the real type
+    // in the front end. If we don't do this we will still instantiate,
+    // but it will be lazy and might be in the back end. If that happens,
+    // some things could be off like max_interface_procs   
+
+    getRealType();
+    
+}
 
 const Type * SliceType::get(const Type * elem_t) {
     return getOrAddType<SliceType>(skey(elem_t), elem_t);
@@ -326,13 +335,12 @@ const Type * SliceType::getRealType() const {
     Identifier * ident = new Identifier;
     ident->setScope(compilation->frontEnd.globalScope);
     ident->setUnqualified("__bjou_slice");
-
-    new_decl->setIdentifier(ident);
     
     TemplateInstantiation * new_inst = new TemplateInstantiation;
     new_inst->setScope(compilation->frontEnd.globalScope);
     new_inst->addElement(elem_decl);
 
+    new_decl->setIdentifier(ident);
     new_decl->setTemplateInst(new_inst);
 
     new_decl->addSymbols(compilation->frontEnd.globalScope);
@@ -367,7 +375,15 @@ const Type * SliceType::replacePlaceholders(const Type * t) const {
 }
 
 DynamicArrayType::DynamicArrayType(const Type * _elem_t)
-    : Type(DYNAMIC_ARRAY, dkey(_elem_t)), elem_t(_elem_t) {}
+    : Type(DYNAMIC_ARRAY, dkey(_elem_t)), elem_t(_elem_t) {
+ 
+    // This will force template instantiation of the real type
+    // in the front end. If we don't do this we will still instantiate,
+    // but it will be lazy and might be in the back end. If that happens,
+    // some things could be off like max_interface_procs   
+    
+    getRealType();
+}
 
 const Type * DynamicArrayType::get(const Type * elem_t) {
     return getOrAddType<DynamicArrayType>(dkey(elem_t), elem_t);

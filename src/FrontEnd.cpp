@@ -234,10 +234,6 @@ milliseconds FrontEnd::go() {
     if (time_arg)
         prettyPrintTimeMin(a_time - ctruntime, "Semantic analysis");
 
-    //     auto d_time = DesugarStage();
-    //     if (time_arg)
-    //         prettyPrintTimeMin(d_time, "Desugaring");
-
     if (!compilation->args.nopreload_arg.isSet())
         fix_typeinfo_v_table_size();
 

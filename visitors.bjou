@@ -5,11 +5,16 @@ module c2bjou_visitors
 extern sprintf(char*, char*, ...) : int
 
 import "clang.bjou"
+import "compiler.bjou"
 
 type visitor_t = <(CXCursor,      # cursor
                    CXCursor,      # parent
                    CXClientData*) # client_data
                    : u32>
+
+abstract type NodeData {
+    data_for : ASTNode*
+}
 
 proc init_visitor_table(table : visitor_t[...] ref) {
     table.resize(CXCursor_END_, v_unimplemented)

@@ -1342,7 +1342,12 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool flag) {
     llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd, true);
     llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
 
-    return llbe->builder.CreateStore(rv, lv);
+    llvm::StoreInst * store = llbe->builder.CreateStore(rv, lv);
+
+    if (getLeft()->getType()->isPointer())
+        store->setAlignment(sizeof(void*));
+    
+    return store;
 }
 
 void * AddAssignExpression::generate(BackEnd & backEnd, bool flag) {
@@ -1671,10 +1676,11 @@ static llvm::Value * generateInterfaceFn(BackEnd & backEnd,
 
     llvm::Value * typeinfo_cast = llbe->builder.CreateBitCast(
         obj_ptr, ll_typeinfo_t->getPointerTo()->getPointerTo());
-    llvm::Value * typeinfo_addr =
+    llvm::LoadInst * typeinfo_addr_load = 
         llbe->builder.CreateLoad(typeinfo_cast, "typeinfo_load");
+    typeinfo_addr_load->setAlignment(sizeof(void*));
     llvm::Value * v_table_cast = llbe->builder.CreateBitCast(
-        typeinfo_addr, ll_byte_ptr_t->getPointerTo());
+        typeinfo_addr_load, ll_byte_ptr_t->getPointerTo());
 
     std::vector<llvm::Value *> gep_indices{idx_val};
     llvm::Value * gep =
@@ -2312,7 +2318,12 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
 
     if (getAddr)
         return ptr;
-    return llbe->builder.CreateLoad(ptr, unqualified);
+
+    llvm::LoadInst * load = llbe->builder.CreateLoad(ptr, unqualified);
+    if (getType()->isPointer() || getType()->isRef())
+        load->setAlignment(sizeof(void*));
+
+    return load;
 }
 
 llvm::Value * LLVMBackEnd::getPointerToArrayElements(llvm::Value * array) {
@@ -2432,7 +2443,11 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
 
         for (int i = 0; i < (int)names.size(); i += 1) {
             int index = s_t->memberIndices[names[i]] + typeinfo_offset;
-            vals[index] = (llvm::Value *)llbe->getOrGenNode(expressions[i]);
+            const Type * dest_t = s_t->memberTypes[s_t->memberIndices[names[i]]];
+            if (dest_t->isRef())
+                vals[index] = (llvm::Value *)llbe->getOrGenNode(expressions[i], true);
+            else 
+                vals[index] = (llvm::Value *)llbe->getOrGenNode(expressions[i]);
         }
 
         if (typeinfo_offset)
@@ -2445,16 +2460,23 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
                       llvm::ConstantInt::get(
                           llvm::Type::getInt32Ty(llbe->llContext), i)});
 
+            const Type * elem_t = nullptr;
+            if (i != 0 || !typeinfo_offset)
+                elem_t = s_t->memberTypes[i - typeinfo_offset];
+
             if (!vals[i]) {
-                const Type * elem_t = s_t->memberTypes[i - typeinfo_offset];
                 llvm::Value * null_val = llvm::Constant::getNullValue(llbe->getOrGenType(elem_t));
                 llbe->builder.CreateStore(null_val, elem);
             } else {
-                if (i != 0 || !typeinfo_offset)
-                    if (s_t->memberTypes[i - typeinfo_offset]->isRef())
-                        elem = llbe->builder.CreateLoad(elem, "ref");
-
-                llbe->builder.CreateStore(vals[i], elem);
+                if (i != 0 || !typeinfo_offset) {
+                    llvm::StoreInst * store = llbe->builder.CreateStore(vals[i], elem);
+                
+                    if (elem_t->isPointer() || elem_t->isRef())
+                        store->setAlignment(sizeof(void*));
+                } else { // typeinfo * 
+                    llvm::StoreInst * store = llbe->builder.CreateStore(vals[i], elem);
+                    store->setAlignment(sizeof(void*));
+                }
             }
         }
 
@@ -2532,8 +2554,17 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
             // @incomplete
             // initialize struct typeinfos for arrays
         } else {
-            if (getType()->isStruct()) {
+            if (getType()->isStruct()          ||
+                getType()->isSlice()           ||
+                getType()->isDynamicArray()) {
+
                 StructType * s_t = (StructType *)getType();
+
+                if (getType()->isSlice())
+                    s_t = (StructType*)((SliceType*)getType())->getRealType();
+                if (getType()->isDynamicArray())
+                    s_t = (StructType*)((DynamicArrayType*)getType())->getRealType();
+
                 Struct * s = s_t->_struct;
                 // store typeinfo
                 if (s_t->implementsInterfaces()) {

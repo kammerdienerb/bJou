@@ -38,10 +38,11 @@ proc main() {
 }
 
 type c2bJou {
-    cw : ClangWrapper ref
-    visitor_table : visitor_t[...] 
-    indent          : int
-    created         : ASTNode*[...]
+    cw            : ClangWrapper ref
+    visitor_table : visitor_t[...]
+    indent        : int
+    created       : ASTNode*[...]
+    node_datas    : NodeData ref[...]
 
     proc create(cw : ClangWrapper ref) : c2bJou {
         c := { c2bJou:
