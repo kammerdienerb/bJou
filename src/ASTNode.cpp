@@ -2961,6 +2961,17 @@ void InitializerList::analyze(bool force) {
                 if (!equal(expr_t, mt))
                     emplaceConversion((Expression *)expressions[i], mt);
         }
+
+        for (ASTNode * _mem : s_t->_struct->getMemberVarDecls()) {
+            VariableDeclaration * mem = (VariableDeclaration*)_mem;
+            if (mem->getType()->isRef()) {
+                std::string& name = mem->getName();
+                auto search = std::find(names.begin(), names.end(), name);
+                if (search == names.end())
+                    errorl(getContext(), "Member '" + name + "' of '" + s_t->getDemangledName() + "' must be explicitly initialized because it is a reference.");
+            }
+        }
+
         setType(getObjDeclarator()->getType());
     } else {
         // @refactor @bad
