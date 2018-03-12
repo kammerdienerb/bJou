@@ -41,6 +41,8 @@ struct FrontEnd {
     Procedure * printf_decl;
     Procedure * malloc_decl;
     Procedure * free_decl;
+    Procedure * memset_decl;
+    Procedure * memcpy_decl;
 
     bool abc = true;
 

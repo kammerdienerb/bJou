@@ -9,7 +9,7 @@ module __c_support
 extern printf(char*, ...) : i32
 extern malloc(u64) : i8*
 extern free(i8*)
-
+extern memset(void*, i32, u64)
 extern memcpy(void*, void*, u64) : void*
 
 proc memcpy$T(_dst : T*, _src : T*, n : u64) : T* {

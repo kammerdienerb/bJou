@@ -340,6 +340,22 @@ extern "C" ASTNode * bjou_createVariableDeclaration(const char * name,
     return node;
 }
 
+extern "C" ASTNode * bjou_createParamDeclaration(const char * name,
+                                                    ASTNode * typeDeclarator,
+                                                    ASTNode * initialization) {
+    VariableDeclaration * node = new VariableDeclaration;
+    node->setName(name);
+    if (typeDeclarator)
+        node->setTypeDeclarator(typeDeclarator);
+    if (initialization)
+        node->setInitialization(initialization);
+
+    node->setFlag(VariableDeclaration::IS_PROC_PARAM, true);
+
+    return node;
+}
+
+
 extern "C" ASTNode *
 bjou_createStruct(const char * name, ASTNode * extends,
                   ASTNode ** memberVarDecls, int n_memberVarDecls,

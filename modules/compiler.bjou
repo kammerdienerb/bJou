@@ -103,6 +103,7 @@ extern bjou_createPointerDeclarator(ASTNode*) : ASTNode*
 # Constant
 
 extern bjou_createVariableDeclaration(char*, ASTNode*, ASTNode*) : ASTNode*
+extern bjou_createParamDeclaration(char*, ASTNode*, ASTNode*) : ASTNode*
 
 # Alias
 

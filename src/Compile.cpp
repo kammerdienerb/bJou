@@ -109,7 +109,10 @@ void Compilation::go() {
 Compilation::~Compilation() {}
 
 void Compilation::abort(int exitCode) {
-    this->~Compilation();
+    // @bad form.. we should not be using exit since
+    // we probably have multiple threads running..
+
+    // this->~Compilation();
     exit(exitCode);
 }
 

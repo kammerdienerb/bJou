@@ -3949,6 +3949,10 @@ void ArrayDeclarator::setExpression(ASTNode * _expression) {
 void ArrayDeclarator::analyze(bool force) {
     HANDLE_FORCE();
     getArrayOf()->analyze();
+
+    if (getArrayOf()->getType()->isRef())
+        errorl(getContext(), "Can't have an array of references because references are not assignable.");
+
     if (getExpression()) {
         Expression * expr = (Expression *)getExpression();
         expr->analyze();
@@ -4067,6 +4071,9 @@ void SliceDeclarator::analyze(bool force) {
 
     getSliceOf()->analyze();
 
+    if (getSliceOf()->getType()->isRef())
+        errorl(getContext(), "Can't have a slice of references because references are not assignable.");
+
     setFlag(ANALYZED, true);
 
     desugar();
@@ -4165,6 +4172,9 @@ void DynamicArrayDeclarator::analyze(bool force) {
     HANDLE_FORCE();
 
     getArrayOf()->analyze();
+
+    if (getArrayOf()->getType()->isRef())
+        errorl(getContext(), "Can't have a dynamic array of references because references are not assignable.");
 
     setFlag(ANALYZED, true);
 
@@ -4267,7 +4277,12 @@ void PointerDeclarator::setPointerOf(ASTNode * _pointerOf) {
 // Node interface
 void PointerDeclarator::analyze(bool force) {
     HANDLE_FORCE();
+
     getPointerOf()->analyze();
+
+    if (getPointerOf()->getType()->isRef())
+        errorl(getContext(), "Can't have a pointer to a reference because references are not assignable.");
+
     setFlag(ANALYZED, true);
 }
 
@@ -4351,7 +4366,12 @@ void RefDeclarator::setRefOf(ASTNode * _refOf) {
 // Node interface
 void RefDeclarator::analyze(bool force) {
     HANDLE_FORCE();
+
     getRefOf()->analyze();
+
+    if (getRefOf()->getType()->isRef())
+        errorl(getContext(), "Can't have a reference to a reference because references are not assignable.");
+
     setFlag(ANALYZED, true);
 }
 
@@ -6304,6 +6324,10 @@ void Procedure::addSymbols(Scope * _scope) {
         compilation->frontEnd.malloc_decl = this;
     if (getMangledName() == "free" && getFlag(IS_EXTERN))
         compilation->frontEnd.free_decl = this;
+    if (getMangledName() == "memset" && getFlag(IS_EXTERN))
+        compilation->frontEnd.memset_decl = this;
+    if (getMangledName() == "memcpy" && getFlag(IS_EXTERN))
+        compilation->frontEnd.memcpy_decl = this;
 }
 
 void Procedure::unwrap(std::vector<ASTNode *> & terminals) {
@@ -7132,7 +7156,7 @@ void Foreach::desugar() {
     _for->setContext(getContext());
 
     VariableDeclaration * it = new VariableDeclaration;
-    it->setName(compilation->frontEnd.makeUID("__bjou_foreach_it"));
+    it->setName(compilation->frontEnd.makeUID("foreach_it"));
 
     IntegerLiteral * zero = new IntegerLiteral;
     zero->setContents("0");

@@ -41,15 +41,17 @@ type c2bJou {
     cw            : ClangWrapper ref
     visitor_table : visitor_t[...]
     indent        : int
+    types         : ASTNode*[161]
     created       : ASTNode*[...]
-    node_datas    : NodeData ref[...]
+    node_datas    : NodeData *[...]
 
     proc create(cw : ClangWrapper ref) : c2bJou {
         c := { c2bJou:
             .cw = cw,
             .visitor_table = [...visitor_t],
             .indent = 0,
-            .created = [...ASTNode*]
+            .created = [...ASTNode*],
+            .node_datas = [...NodeData*]
         }
 
         init_visitor_table(c.visitor_table)

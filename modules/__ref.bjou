@@ -1,6 +1,6 @@
 # __ref.bjou
 
-# convenience procedure for getting an explicit reference
+# convenience procedures for working with references
 
 module __ref
 
@@ -12,3 +12,9 @@ proc unref$T(val : T ref) : T
 
 proc refcast$(T, U)(val : U ref) : T ref
     return @((&val) as T*)
+
+proc alloc$T() : T ref
+    return @(new T)
+
+proc dlloc$T(val : T ref)
+    delete &val

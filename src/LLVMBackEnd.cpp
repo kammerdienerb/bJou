@@ -235,6 +235,8 @@ void LLVMBackEnd::run(Procedure * proc) {
     getOrGenNode(compilation->frontEnd.printf_decl);
     getOrGenNode(compilation->frontEnd.malloc_decl);
     getOrGenNode(compilation->frontEnd.free_decl);
+    getOrGenNode(compilation->frontEnd.memset_decl);
+    getOrGenNode(compilation->frontEnd.memcpy_decl);
 
     llvm::Function * fn = (llvm::Function *)getOrGenNode(proc);
     std::string name = fn->getName().str();
@@ -528,6 +530,8 @@ milliseconds LLVMBackEnd::CodeGenStage() {
     getOrGenNode(compilation->frontEnd.printf_decl);
     getOrGenNode(compilation->frontEnd.malloc_decl);
     getOrGenNode(compilation->frontEnd.free_decl);
+    getOrGenNode(compilation->frontEnd.memset_decl);
+    getOrGenNode(compilation->frontEnd.memcpy_decl);
 
     // global variables and constants may reference procs
     // or types that have not been declared yet
@@ -1336,18 +1340,54 @@ void * ModExpression::generate(BackEnd & backEnd, bool flag) {
     return nullptr;
 }
 
-void * AssignmentExpression::generate(BackEnd & backEnd, bool flag) {
+void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd, true);
-    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
+    llvm::Value * lv  = (llvm::Value *)getLeft()->generate(backEnd, true),
+                * rv  = nullptr;
 
-    llvm::StoreInst * store = llbe->builder.CreateStore(rv, lv);
+    if (getLeft()->getType()->isStruct()) { // do memcpy
+        rv = (llvm::Value *)getRight()->generate(backEnd, true);
+       
+        static bool checked_memcpy = false;
+        if (!checked_memcpy) {
+            if (compilation->frontEnd.memcpy_decl) {
+                llbe->getOrGenNode(compilation->frontEnd.memcpy_decl);
+                checked_memcpy = true;
+            } else
+                errorl(getContext(), "bJou is missing a memcpy declaration.", true,
+                       "if using --nopreload, an extern declaration must be made "
+                       "available");
+        }
 
-    if (getLeft()->getType()->isPointer())
-        store->setAlignment(sizeof(void*));
-    
-    return store;
+        llvm::Function * func = llbe->llModule->getFunction("memcpy");
+        BJOU_DEBUG_ASSERT(func);
+
+        llvm::PointerType * ll_byte_ptr_t =
+            llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
+
+        llvm::Value * dest = llbe->builder.CreateBitCast(lv, ll_byte_ptr_t);
+        llvm::Value * src  = llbe->builder.CreateBitCast(rv, ll_byte_ptr_t);
+        llvm::Value * size = llvm::ConstantInt::get(
+            llvm::Type::getInt64Ty(llbe->llContext),
+            llbe->layout->getTypeAllocSize(llbe->getOrGenType(getLeft()->getType())));
+
+        std::vector<llvm::Value*> args = { dest, src, size };
+
+        llbe->builder.CreateCall(func, args);
+    } else {
+        rv = (llvm::Value *)getRight()->generate(backEnd);
+
+        llvm::StoreInst * store = llbe->builder.CreateStore(rv, lv);
+
+        if (getLeft()->getType()->isPointer())
+            store->setAlignment(sizeof(void*));
+    }
+
+    if (getAddr)
+        return lv;
+
+    return llbe->builder.CreateLoad(lv, "assign_load");
 }
 
 void * AddAssignExpression::generate(BackEnd & backEnd, bool flag) {
@@ -1810,8 +1850,19 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
 
     llvm::Value * ret = callinst;
 
-    if (payload->sret)
-        ret = llbe->builder.CreateLoad(sret);
+    if (payload->sret) {
+        if (!getAddr)
+            ret = llbe->builder.CreateLoad(sret);
+        else ret = sret;
+    } else {
+        if (payload->t->getRetType()->isStruct() && getAddr) {
+            llvm::Value * tmp_ret = llbe->builder.CreateAlloca(
+                                        llbe->getOrGenType(payload->t->getRetType()));
+            llbe->builder.CreateStore(ret, tmp_ret);
+
+            ret = tmp_ret;
+        } 
+    }
 
     for (int ibyval : byvals)
         callinst->addParamAttr(ibyval, llvm::Attribute::ByVal);
@@ -2404,13 +2455,29 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
     llvm::Value * ptr = nullptr;
     llvm::Value * ldptr = nullptr;
 
-    if (isConstant()) {
+    bool do_memset = false;
+
+    if (myt->isStruct()) {
+        StructType * s_t = (StructType *)myt;
+        for (const Type * t : s_t->memberTypes) {
+            if (t->isArray()) {
+                ArrayType * a_t = (ArrayType*)t;
+                // @bad, sort of arbitrary choice of threshold here
+                // really we would like to know when the cost of 
+                // generating lots of moves becomes greater than generating
+                // a memset
+                if (a_t->width > 4)
+                    do_memset = true;
+            } 
+        }
+    }
+
+    if (!do_memset && isConstant()) {
         llvm::Constant * constant_init = llbe->createConstantInitializer(this);
         if (myt->isStruct()) {
             if (getAddr)
                 return llbe->copyConstantInitializerToStack(constant_init);
-            else
-                return constant_init;
+            return constant_init;
         } else if (myt->isArray()) {
             llvm::Value * onStack =
                 llbe->copyConstantInitializerToStack(constant_init);
@@ -2453,7 +2520,21 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
         if (typeinfo_offset)
             vals[0] = llbe->getGlobaltypeinfo(s_t->_struct);
 
+        // record uninitialized array members so that we can do a 
+        // memset to zero later
+        std::map<size_t, ArrayType*> uninit_array_elems;
+        for (size_t i = 0; i < s_t->memberTypes.size(); i += 1) {
+            if (s_t->memberTypes[i]->isArray()) {
+                size_t index = i + typeinfo_offset;
+                if (!vals[index])
+                    uninit_array_elems[index] = (ArrayType*)s_t->memberTypes[i];
+            } 
+        }
+
         for (size_t i = 0; i < vals.size(); i += 1) {
+            if (uninit_array_elems.find(i) != uninit_array_elems.end())
+                continue;
+
             llvm::Value * elem = llbe->builder.CreateInBoundsGEP(
                 ptr, {llvm::Constant::getNullValue(
                           llvm::IntegerType::getInt32Ty(llbe->llContext)),
@@ -2478,6 +2559,46 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
                     store->setAlignment(sizeof(void*));
                 }
             }
+        }
+
+        // memset uninitialized array members to zero
+        for (auto uninit : uninit_array_elems) {
+            const Type * elem_t = uninit.second->under();
+
+            llvm::PointerType * ll_byte_ptr_t =
+             
+                llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
+            if (compilation->frontEnd.malloc_decl)
+                llbe->getOrGenNode(compilation->frontEnd.malloc_decl);
+            else
+                errorl(getContext(), "bJou is missing a memset declaration.", true,
+                       "if using --nopreload, an extern declaration must be made "
+                       "available");
+
+            llvm::Function * func = llbe->llModule->getFunction("memset");
+            BJOU_DEBUG_ASSERT(func);
+
+            llvm::Value * Ptr   = nullptr,
+                        * Val   = nullptr,
+                        * Size  = nullptr;
+
+
+            Ptr = llbe->builder.CreateInBoundsGEP(
+                ptr, {llvm::Constant::getNullValue(
+                          llvm::IntegerType::getInt32Ty(llbe->llContext)),
+                      llvm::ConstantInt::get(
+                          llvm::Type::getInt32Ty(llbe->llContext), uninit.first)});
+            Ptr = llbe->builder.CreateBitCast(Ptr, ll_byte_ptr_t);
+            
+            Val = llvm::Constant::getNullValue(llvm::IntegerType::getInt32Ty(llbe->llContext));
+
+            Size = llvm::ConstantInt::get(llvm::Type::getInt64Ty(llbe->llContext),
+                    uninit.second->width *
+                    llbe->layout->getTypeAllocSize(llbe->getOrGenType(elem_t)));
+            
+            std::vector<llvm::Value*> args = { Ptr, Val, Size };
+
+            llbe->builder.CreateCall(func, args);
         }
 
         if (getAddr)
@@ -2583,9 +2704,32 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
         }
 
         if (getInitialization()) {
-            llvm::Value * init_v =
-                (llvm::Value *)llbe->getOrGenNode(getInitialization());
-            llbe->builder.CreateStore(init_v, val);
+            if (getType()->isStruct()) {
+                static bool checked_memcpy = false;
+                if (!checked_memcpy) {
+                    if (compilation->frontEnd.memcpy_decl) {
+                        llbe->getOrGenNode(compilation->frontEnd.memcpy_decl);
+                        checked_memcpy = true;
+                    } else
+                        errorl(getContext(), "bJou is missing a memcpy declaration.", true,
+                               "if using --nopreload, an extern declaration must be made "
+                               "available");
+                }
+
+                llvm::Function * func = llbe->llModule->getFunction("memcpy");
+                BJOU_DEBUG_ASSERT(func);
+
+                llvm::Type * ll_t = llbe->getOrGenType(getType());
+
+                llvm::Value * init_v = (llvm::Value *)llbe->getOrGenNode(getInitialization(), true);
+
+                llbe->builder.CreateMemCpy(val, init_v, llbe->layout->getTypeAllocSize(ll_t), llbe->layout->getABITypeAlignment(ll_t));         
+            } else {
+                llvm::Value * init_v =
+                    (llvm::Value *)llbe->getOrGenNode(getInitialization());
+                llbe->builder.CreateStore(init_v, val);
+            }
+            
         }
     }
 
@@ -3139,8 +3283,22 @@ void * Return::generate(BackEnd & backEnd, bool flag) {
         llvm::Value * _sret = llbe->getNamedVal("__bjou_sret");
         BJOU_DEBUG_ASSERT(_sret);
         llvm::Value * sret = llbe->builder.CreateLoad(_sret, "sret");
-        llvm::Value * val = (llvm::Value *)llbe->getOrGenNode(getExpression());
-        llbe->builder.CreateStore(val, sret);
+        llvm::Value * val = (llvm::Value *)llbe->getOrGenNode(getExpression(), true);
+
+        const Type * t = getExpression()->getType();
+        llvm::Type * ll_t = llbe->getOrGenType(t);
+
+        llvm::PointerType * ll_byte_ptr_t =
+            llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
+
+        sret = llbe->builder.CreateBitCast(sret, ll_byte_ptr_t);
+        val  = llbe->builder.CreateBitCast(val, ll_byte_ptr_t);
+
+        llvm::Value * size = llvm::ConstantInt::get(llvm::Type::getInt64Ty(llbe->llContext),
+                                llbe->layout->getTypeAllocSize(ll_t));
+
+        llbe->builder.CreateMemCpy(sret, val, size, llbe->layout->getABITypeAlignment(ll_t));
+
         generateFramePreExit(llbe);
         return llbe->builder.CreateRetVoid();
     }

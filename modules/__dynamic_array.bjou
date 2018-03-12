@@ -150,3 +150,7 @@ proc clear$T(da : T[...] ref) {
     \__da_used{da} = 0    
 }
 
+proc data$T(da : T[...] ref) : T* {
+    return \__da_data{da}    
+}
+

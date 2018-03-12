@@ -618,6 +618,10 @@ type libclang {
         u32)
         : CXString>
 
+    Cursor_isVariadic : <(
+        CXCursor)
+        : u32>
+
     # ------------- end symbols --------------
    
     proc _load(this, path : char*) {
@@ -690,6 +694,9 @@ type libclang {
 
         lib.getCursorKindSpelling = (lib._handleGetSymbol("clang_getCursorKindSpelling"))
             as <(u32) : CXString>
+
+        lib.Cursor_isVariadic = (lib._handleGetSymbol("clang_Cursor_isVariadic"))
+            as <(CXCursor) : u32>
 
         return lib
     }
