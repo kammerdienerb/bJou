@@ -1,0 +1,8 @@
+import "dict.bjou"
+
+main()
+
+proc main() {
+    map := dict$(char*, int).create()
+    map[1]
+}

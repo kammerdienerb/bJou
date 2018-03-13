@@ -1,0 +1,16 @@
+# dict.bjou
+# dictionary type implemented with an AVL tree
+
+module dict
+
+type dict$(keyT, valT) {
+    proc create() : dict$(keyT, valT)
+        return { dict$(keyT, valT): }
+}
+
+\op { "[]" proc _dict_subscript$(keyT, valT)(
+                d   : dict$(keyT, valT) ref,
+                key : keyT) {
+
+    print "[%]", key
+}}

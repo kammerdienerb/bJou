@@ -1289,6 +1289,9 @@ bool SubscriptExpression::isConstant() { return false; }
 void SubscriptExpression::analyze(bool force) {
     HANDLE_FORCE();
 
+    if (opOverload())
+        return;
+
     getLeft()->analyze(force);
     getRight()->analyze(force);
 

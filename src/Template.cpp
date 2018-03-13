@@ -343,70 +343,10 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
                         param_decl, passed_decl, check.first->name);
                     if (match)
                         check.second = match;
-                    delete passed_decl;
-
-#if 0
-                    if (check.first->name == param_decl->mangleSymbol()) {
-                        check.second = passed_decl;
-                    } else if (check.first->name ==
-                               param_base_decl->mangleSymbol()) {
-                        check.second = passed_base_decl;
-                    } else if (passed_base_t->isStruct()) { // sorry about
-                                                            // casting away the
-                                                            // constness..
-                        const StructType * passed_struct_t =
-                            (const StructType *)passed_base_t;
-                        if (param_base_decl->getTemplateInst()) {
-                            TemplateInstantiation * param_base_inst =
-                                (TemplateInstantiation *)
-                                    param_base_decl->getTemplateInst();
-                            for (int j = 0;
-                                 j < (int)param_base_inst->getElements().size();
-                                 j += 1) {
-                                ASTNode * elem =
-                                    param_base_inst->getElements()[j];
-                                if (IS_DECLARATOR(elem)) {
-                                    Declarator * e_decl = (Declarator *)elem;
-                                    Declarator * e_base_decl =
-                                        (Declarator *)e_decl->getBase();
-                                    if (check.first->name ==
-                                        e_base_decl->mangleSymbol()) {
-                                        if (!passed_struct_t->inst) {
-                                            if (fail) {
-                                                errorl(passed_args
-                                                           ->getExpressions()[i]
-                                                           ->getContext(),
-                                                       "Template procedure "
-                                                       "expecting a through "
-                                                       "template argument type "
-                                                       "being passed a "
-                                                       "non-template argument.",
-                                                       false);
-                                                errorl(params[i]->getContext(),
-                                                       "Through-template "
-                                                       "argument defined "
-                                                       "here.");
-                                            } else
-                                                return -1;
-                                        }
-                                        check.second =
-                                            (Declarator *)passed_struct_t->inst
-                                                ->getElements()[j];
-                                        break;
-                                    }
-                                } /* else if (elem->nodeKind ==
-                                   ASTNode::IDENTIFIER) { Identifier * e_ident =
-                                   (Identifier*)elem; if (check.first->name ==
-                                   e_ident->getUnqualified()) {
-                                   // ...
-                                   }
-                                   }*/
-                            }
-                        }
-                    }
-#endif
                 }
             }
+            
+            delete passed_decl;
         }
     }
 
