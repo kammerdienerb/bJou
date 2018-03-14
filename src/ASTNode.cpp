@@ -216,12 +216,13 @@ bool Expression::opOverload() {
                     mangledStringtoIdentifier(proc->getMangledName()));
                 call->setRight(args);
 
+                (*replace)(parent, this, call);
+
                 call->addSymbols(getScope());
                 call->analyze();
 
                 setType(call->getType());
 
-                (*replace)(parent, this, call);
                 return true;
             }
         }
@@ -995,6 +996,9 @@ static void comparisonSignWarn(Context & context, const Type * lt,
 void LssExpression::analyze(bool force) {
     HANDLE_FORCE();
 
+    if (getContents() == "<" && opOverload())
+        return;
+
     getLeft()->analyze(force);
     getRight()->analyze(force);
 
@@ -1022,9 +1026,7 @@ void LssExpression::analyze(bool force) {
         } else
             goto err;
     } else if (lt->isPointer()) {
-        if (rt->isPointer()) {
-            // setType(lt);
-        } else
+        if (!rt->isPointer())
             goto err;
     } else
         goto err;
@@ -1080,6 +1082,9 @@ bool GtrExpression::isConstant() { return BinaryExpression::isConstant(); }
 // Node interface
 void GtrExpression::analyze(bool force) {
     HANDLE_FORCE();
+
+    if (opOverload())
+        return;
 
     ((LssExpression *)this)->LssExpression::analyze(force);
 
@@ -3800,6 +3805,8 @@ void Declarator::analyze(bool force) {
             const Type * t = sym->node()->getType();
             BJOU_DEBUG_ASSERT(t);
 
+            type = t;
+
             if (t->isStruct()) {
                 if (getTemplateInst())
                     errorl(getTemplateInst()->getContext(),
@@ -3818,6 +3825,7 @@ void Declarator::analyze(bool force) {
                 (*replace)(parent, this, new_decl);
                 new_decl->templateInst = nullptr;
                 new_decl->analyze(true);
+                type = new_decl->getType();
                 return;
             } else if (!t->isPrimative()) {
                 errorl(getContext(),
@@ -3850,6 +3858,9 @@ void Declarator::desugar() {
 
 const Type * Declarator::getType() {
     analyze();
+
+    if (type)
+        return type;
 
     if (compilation->frontEnd.primativeTypeTable.count(mangleSymbol()) > 0)
         return compilation->frontEnd.primativeTypeTable[mangleSymbol()];
@@ -3925,13 +3936,15 @@ ArrayDeclarator::ArrayDeclarator()
 }
 
 ArrayDeclarator::ArrayDeclarator(ASTNode * _arrayOf)
-    : arrayOf(_arrayOf), expression(nullptr), size(-2) {
+    : expression(nullptr), size(-2) {
     nodeKind = ARRAY_DECLARATOR;
     setArrayOf(_arrayOf);
 }
 
 ArrayDeclarator::ArrayDeclarator(ASTNode * _arrayOf, ASTNode * _expression)
-    : arrayOf(_arrayOf), expression(_expression), size(-2) {
+    : size(-2) {
+    setArrayOf(_arrayOf);
+    setExpression(_expression);
     nodeKind = ARRAY_DECLARATOR;
 }
 
@@ -4057,7 +4070,7 @@ SliceDeclarator::SliceDeclarator() : sliceOf(nullptr) {
     nodeKind = SLICE_DECLARATOR;
 }
 
-SliceDeclarator::SliceDeclarator(ASTNode * _sliceOf) : sliceOf(_sliceOf) {
+SliceDeclarator::SliceDeclarator(ASTNode * _sliceOf) {
     nodeKind = SLICE_DECLARATOR;
     setSliceOf(_sliceOf);
 }
@@ -4157,8 +4170,7 @@ DynamicArrayDeclarator::DynamicArrayDeclarator() : arrayOf(nullptr) {
     nodeKind = DYNAMIC_ARRAY_DECLARATOR;
 }
 
-DynamicArrayDeclarator::DynamicArrayDeclarator(ASTNode * _arrayOf)
-    : arrayOf(_arrayOf) {
+DynamicArrayDeclarator::DynamicArrayDeclarator(ASTNode * _arrayOf) {
     nodeKind = DYNAMIC_ARRAY_DECLARATOR;
     setArrayOf(_arrayOf);
 }
@@ -4261,8 +4273,7 @@ PointerDeclarator::PointerDeclarator() : pointerOf(nullptr) {
     nodeKind = POINTER_DECLARATOR;
 }
 
-PointerDeclarator::PointerDeclarator(ASTNode * _pointerOf)
-    : pointerOf(_pointerOf) {
+PointerDeclarator::PointerDeclarator(ASTNode * _pointerOf) {
     nodeKind = POINTER_DECLARATOR;
     // a pointer anywhere in the chain of different declarator types implies
     // that the base type does not need to be complete in order for the total
@@ -6280,6 +6291,12 @@ void Procedure::analyze(bool force) {
 
     compilation->frontEnd.procStack.pop();
 
+    if (getProcDeclarator()) {
+        delete getProcDeclarator();
+        procDeclarator = nullptr;
+    }
+    getType();
+
     setFlag(ANALYZED, true);
 }
 
@@ -6630,16 +6647,15 @@ void Return::analyze(bool force) {
         compilation->frontEnd.lValStack.push(retLVal);
 
         if (getExpression()) {
-            Expression * expr = (Expression *)getExpression();
-            expr->analyze(force);
+            getExpression()->analyze();
             // @leaks abound
             if (retLVal == VoidType::get()) {
-                errorl(expr->getContext(),
+                errorl(getExpression()->getContext(),
                        "'" + proc->getName() + "' does not return a value.");
             } else {
-                const Type * expr_t = expr->getType();
+                const Type * expr_t = getExpression()->getType();
                 if (!conv(expr_t, retLVal))
-                    errorl(expr->getContext(),
+                    errorl(getExpression()->getContext(),
                            "return statement does not match the return type "
                            "for procedure '" +
                                proc->getName() + "'.",

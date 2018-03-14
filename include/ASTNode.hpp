@@ -1589,6 +1589,8 @@ struct Declarator : ASTNode {
     // because they should already have owners.
     bool createdFromType;
 
+    const Type * type = nullptr;
+
     enum eBitFlags E_BIT_FLAGS_AND(IMPLIES_COMPLETE);
 
     ASTNode * getIdentifier() const;
@@ -2100,7 +2102,7 @@ struct Struct : ASTNode {
 
     unsigned int n_interface_procs;
 
-    enum eBitFlags E_BIT_FLAGS_AND(IS_ABSTRACT, IS_C_UNION);
+    enum eBitFlags E_BIT_FLAGS_AND(IS_ABSTRACT, IS_C_UNION, IS_TEMPLATE_DERIVED);
 
     std::string & getName();
     void setName(std::string _name);

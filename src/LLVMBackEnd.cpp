@@ -1448,7 +1448,7 @@ void * MaybeAssignExpression::generate(BackEnd & backEnd, bool flag) {
 void * LssExpression::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    const Type * myt = conv(getLeft()->getType(), getRight()->getType());
+    const Type * myt = conv(getLeft()->getType(), getRight()->getType())->unRef();
 
     llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
     llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
@@ -1460,9 +1460,14 @@ void * LssExpression::generate(BackEnd & backEnd, bool flag) {
         else
             return llbe->builder.CreateICmpULT(lv, rv);
     } else if (myt->isChar()) {
-        return llbe->builder.CreateICmpUGT(lv, rv);
+        return llbe->builder.CreateICmpULT(lv, rv);
     } else if (myt->isFloat()) {
         return llbe->builder.CreateFCmpULT(lv, rv);
+    } else if (myt->isPointer()) {
+        lv = llbe->builder.CreatePtrToInt(lv, llvm::Type::getInt64Ty(llbe->llContext));
+        rv = llbe->builder.CreatePtrToInt(rv, llvm::Type::getInt64Ty(llbe->llContext));
+
+        return llbe->builder.CreateICmpULT(lv, rv);
     }
 
     BJOU_DEBUG_ASSERT(false);
@@ -1472,7 +1477,7 @@ void * LssExpression::generate(BackEnd & backEnd, bool flag) {
 void * LeqExpression::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    const Type * myt = conv(getLeft()->getType(), getRight()->getType());
+    const Type * myt = conv(getLeft()->getType(), getRight()->getType())->unRef();
 
     llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
     llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
@@ -1484,9 +1489,14 @@ void * LeqExpression::generate(BackEnd & backEnd, bool flag) {
         else
             return llbe->builder.CreateICmpULE(lv, rv);
     } else if (myt->isChar()) {
-        return llbe->builder.CreateICmpUGT(lv, rv);
+        return llbe->builder.CreateICmpULE(lv, rv);
     } else if (myt->isFloat()) {
         return llbe->builder.CreateFCmpULE(lv, rv);
+    } else if (myt->isPointer()) {
+        lv = llbe->builder.CreatePtrToInt(lv, llvm::Type::getInt64Ty(llbe->llContext));
+        rv = llbe->builder.CreatePtrToInt(rv, llvm::Type::getInt64Ty(llbe->llContext));
+
+        return llbe->builder.CreateICmpULE(lv, rv);
     }
 
     BJOU_DEBUG_ASSERT(false);
@@ -1496,7 +1506,7 @@ void * LeqExpression::generate(BackEnd & backEnd, bool flag) {
 void * GtrExpression::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    const Type * myt = conv(getLeft()->getType(), getRight()->getType());
+    const Type * myt = conv(getLeft()->getType(), getRight()->getType())->unRef();
 
     llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
     llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
@@ -1511,6 +1521,11 @@ void * GtrExpression::generate(BackEnd & backEnd, bool flag) {
         return llbe->builder.CreateICmpUGT(lv, rv);
     } else if (myt->isFloat()) {
         return llbe->builder.CreateFCmpUGT(lv, rv);
+    } else if (myt->isPointer()) {
+        lv = llbe->builder.CreatePtrToInt(lv, llvm::Type::getInt64Ty(llbe->llContext));
+        rv = llbe->builder.CreatePtrToInt(rv, llvm::Type::getInt64Ty(llbe->llContext));
+
+        return llbe->builder.CreateICmpUGT(lv, rv);
     }
 
     BJOU_DEBUG_ASSERT(false);
@@ -1520,7 +1535,7 @@ void * GtrExpression::generate(BackEnd & backEnd, bool flag) {
 void * GeqExpression::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    const Type * myt = conv(getLeft()->getType(), getRight()->getType());
+    const Type * myt = conv(getLeft()->getType(), getRight()->getType())->unRef();
 
     llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
     llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
@@ -1533,6 +1548,11 @@ void * GeqExpression::generate(BackEnd & backEnd, bool flag) {
             return llbe->builder.CreateICmpUGE(lv, rv);
     } else if (myt->isFloat()) {
         return llbe->builder.CreateFCmpUGE(lv, rv);
+    } else if (myt->isPointer()) {
+        lv = llbe->builder.CreatePtrToInt(lv, llvm::Type::getInt64Ty(llbe->llContext));
+        rv = llbe->builder.CreatePtrToInt(rv, llvm::Type::getInt64Ty(llbe->llContext));
+
+        return llbe->builder.CreateICmpUGE(lv, rv);
     }
 
     BJOU_DEBUG_ASSERT(false);

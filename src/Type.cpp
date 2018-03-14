@@ -898,12 +898,11 @@ std::vector<const Type *>
 typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
     size_t size = nonPrimatives.size();
     std::vector<const Type *> sorted, keep;
-    std::vector<std::string> availableByKey;
+    std::set<std::string> availableByKey;
     std::vector<int> indices;
     int idx, nadded;
     sorted.reserve(size);
     keep.reserve(size);
-    availableByKey.reserve(size);
     indices.reserve(size);
 
     while (sorted.size() < size) {
@@ -930,14 +929,24 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
                 }
                 for (ASTNode * _mem : td->getMemberVarDecls()) {
                     VariableDeclaration * mem = (VariableDeclaration *)_mem;
+                    mem->getTypeDeclarator()->analyze();
                     Declarator * decl = (Declarator *)mem->getTypeDeclarator();
+
+                    if (((Declarator*)decl->getBase())->getType()->isStruct()) {
+                        const StructType * s_t = (StructType*)((Declarator*)decl->getBase())->getType();
+                        if (s_t->_struct->getFlag(Struct::IS_TEMPLATE_DERIVED))
+                            availableByKey.insert(s_t->key);
+                    }
+
                     // declarators with a pointer ANYWHERE in them imply that we
                     // don't need to know the size of the base type
                     // PointerDeclarator handles this on construction and sets a
                     // flag in their respective base Declarator
                     if (decl &&
-                        decl->getBase()->getFlag(Declarator::IMPLIES_COMPLETE))
+                        decl->getBase()->getFlag(Declarator::IMPLIES_COMPLETE)) {
+
                         terms.push_back(decl);
+                    }
 
                     // look out for expressions also
                     // ex. of a something we have to account for:
@@ -967,7 +976,7 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
             }
             */
             for (ASTNode * term : terms) {
-                const Type * t = term->getType(); // @leak?
+                const Type * t = term->getType();
                 BJOU_DEBUG_ASSERT(t);
                 if (t->getBase()->isStruct()) { // || t->getBase()->isAlias()) {
                     // has the type that this term needs already been placed in
@@ -995,7 +1004,7 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
         for (unsigned int i = 0; i < nNonPrimatives; i += 1) {
             if (std::find(indices.begin(), indices.end(), i) != indices.end()) {
                 sorted.push_back(nonPrimatives[i]);
-                availableByKey.push_back(nonPrimatives[i]->key);
+                availableByKey.insert(nonPrimatives[i]->key);
             } else
                 keep.push_back(nonPrimatives[i]);
         }
@@ -1034,8 +1043,8 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
             else
                 errorl(ref_context, "'" + demangledB + "' referenced here.",
                        true,
-                       "Did you mean to reference '" + demangledB +
-                           "' by pointer?");
+                       "Did you mean to declare a reference or pointer to '" + demangledB +
+                           "'?");
         }
     }
 

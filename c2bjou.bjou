@@ -7,6 +7,8 @@
 \ct {
 import "null.bjou"
 
+import "dict.bjou"
+
 # must be defined for clang.bjou to compile
 const libclang_path := "/usr/local/Cellar/llvm/5.0.1/lib/libclang.dylib"
 import "clang.bjou"
@@ -39,18 +41,18 @@ proc main() {
 
 type c2bJou {
     cw            : ClangWrapper ref
-    visitor_table : visitor_t[...]
+    visitor_table : visitor_t[CXCursor_END_]
     indent        : int
-    types         : ASTNode*[161]
+    types         : dict$(CXType*, ASTNode*)
     created       : ASTNode*[...]
     node_datas    : NodeData *[...]
 
     proc create(cw : ClangWrapper ref) : c2bJou {
         c := { c2bJou:
-            .cw = cw,
-            .visitor_table = [...visitor_t],
-            .indent = 0,
-            .created = [...ASTNode*],
+            .cw         = cw,
+            .indent     = 0,
+            .types      = dict$(CXType*, ASTNode*).create(),
+            .created    = [...ASTNode*],
             .node_datas = [...NodeData*]
         }
 

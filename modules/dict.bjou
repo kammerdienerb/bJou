@@ -22,8 +22,8 @@ type _dictNode$(keyT, valT) {
             .key   = key,
             .val   = val,
             .h     = 1,
-            .left  = (_nullptr as _dictNode$(keyT, valT)*),
-            .right = (_nullptr as _dictNode$(keyT, valT)*)
+            .left  = (_nullptr() as _dictNode$(keyT, valT)*),
+            .right = (_nullptr() as _dictNode$(keyT, valT)*)
         }
 
         return node
@@ -38,7 +38,7 @@ type _dictNode$(keyT, valT) {
         if not this.right.isnull()
             hl = this.right.h
 
-        node.height = 1 + max(hl, hr)
+        this.h = 1 + max(hl, hr)
     }
 
     proc rotateL(this) : _dictNode$(keyT, valT)* {
@@ -86,19 +86,19 @@ type _dictNode$(keyT, valT) {
                 hlr = this.left.right.h
 
             if hlr > hll
-                this.left = this.left.rotateL()
+                this.left = (@this.left).rotateL()
             return this.rotateR()
         } else if hr - hl == 2 {
             hrl := 0
             hrr := 0
 
             if not this.right.left.isnull()
-                hll = this.right.left.h
+                hrl = this.right.left.h
             if not this.right.right.isnull()
-                hlr = this.right.right.h
+                hrr = this.right.right.h
 
             if hrl > hrr
-                this.right = this.right.rotateR()
+                this.right = (@this.right).rotateR()
             return this.rotateL()
         }
 
@@ -140,7 +140,7 @@ type _dictNode$(keyT, valT) {
         return &this
     }
 
-    proc removeMin(this) : _dictNode$(ketT, valT)* {
+    proc removeMin(this) : _dictNode$(keyT, valT)* {
         if this.left.isnull()
             return this.right
 
@@ -186,29 +186,43 @@ type _dictNode$(keyT, valT) {
 }
 
 type dict$(keyT, valT) {
-    root : _dictNode$(keyT, valT)*
-    len  : u64
+    _root : _dictNode$(keyT, valT)*
+    _len  : u64
 
     proc create() : dict$(keyT, valT)
         return { dict$(keyT, valT): }
 
     proc find(this, key : keyT) : _dictNode$(keyT, valT)* {
-        if this.root.isnull()
-            return this.root
-        return (@this.root).find(key)
+        if this._root.isnull()
+            return this._root
+        return (@this._root).find(key)
     }
 
     proc insert(this, key : keyT, val : valT) : _dictNode$(keyT, valT)* {
-        if this.root.isnull()
-            return _dictNode$(keyT, valT).create(key, val)
+        if this._root.isnull()
+            this._root = _dictNode$(keyT, valT).create(key, val)
+        else
+            this._root = (@this._root).insert(key, val)
 
-        return (@this.root).insert(key, val)
+        this._len += 1
+
+        return this._root
     }
+
+    proc remove(this, key : keyT) {
+        if not this._root.isnull() {
+            this._root = (@this._root).remove(key)
+            this._len -= 1
+        }
+    }
+
+    proc len(this) : u64
+        return this._len
 
     implements idestroy {
         proc destroy(this) {
-            if not this.root.isnull()
-                (@this.root).free()
+            if not this._root.isnull()
+                (@this._root).free()
         }     
     }
 }
@@ -219,8 +233,11 @@ type dict$(keyT, valT) {
                 : valT ref {
 
     node := d.find(key)
-    if node.isnull()
-        node = d.insert(key, zinit$valT())
+
+    if node.isnull() {
+        d.insert(key, zinit$valT())
+        node = d.find(key)
+    }
 
     return node.val
 }}

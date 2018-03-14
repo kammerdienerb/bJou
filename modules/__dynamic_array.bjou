@@ -51,6 +51,10 @@ type __bjou_dyn_array$T {
     }
 }
 
+proc resize$T(da : T[...] ref, size : u64) {
+    da.resize(size, zinit$T())
+}
+
 proc resize$T(da : T[...] ref, size : u64, val : T) {
 	_d := getref(\__da_data{da})
 	_c := getref(\__da_capacity{da})
@@ -60,8 +64,14 @@ proc resize$T(da : T[...] ref, size : u64, val : T) {
 		_u = size
 	} else {
         __u := unref(_u)
+
+        while _c < size
+            da.__bjou_dynamic_array_grow()
+
+        _u = size
+
 		for i := 0; i < (size - __u); i += 1
-			da.push(val)
+            _d[i] = val
 	}
 }
 

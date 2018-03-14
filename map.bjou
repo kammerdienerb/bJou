@@ -1,8 +1,61 @@
-import "dict.bjou"
+# map.bjou
 
+import "dict.bjou"
+import "input.bjou"
+
+# \run{ main() }
 main()
+
+extern strcmp(char*, char*) : int
+
+\op{ "<" proc strlss(a : char*, b : char*) : bool {
+    return strcmp(a, b) < 0
+}}
+
+\op{ ">" proc strgtr(a : char*, b : char*) : bool {
+    return strcmp(a, b) > 0
+}}
+
+extern scanf(char*, ...) : int
 
 proc main() {
     map := dict$(char*, int).create()
-    map["key"]["another"]
+
+    str := ""
+
+    while true {
+        printf(">>> ")
+        str = getstring()
+
+        if strcmp(str, "quit") == 0
+            break
+
+        if strcmp(str, "add") == 0 {
+            printf("    key: ")
+            key := getstring()
+            printf("    val: ")
+            val := getlong()
+            map[key] = val
+        } else if strcmp(str, "find") == 0 {
+            printf("    key: ") 
+            key := getstring()
+            search := map.find(key)
+            if search.isnull()
+                print "    '%' not found", key
+            else print "    %", search.val
+        } else if strcmp(str, "remove") == 0 {
+            printf("    key: ")
+            key := getstring()
+            search := map.find(key)
+            if search.isnull()
+                print "    '%' not found", key
+            else map.remove(key)
+        } else if strcmp(str, "len") == 0 {
+            print "    %", map.len()
+        }
+
+        print ""
+
+        delete str
+    }
 }

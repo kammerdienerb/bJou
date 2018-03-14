@@ -143,6 +143,8 @@ Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst) {
     clone->setName(mangledName);
     clone->inst = inst;
 
+    clone->setFlag(Struct::IS_TEMPLATE_DERIVED, true);
+
     clone->preDeclare(scope);
     clone->addSymbols(scope);
 

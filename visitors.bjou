@@ -33,11 +33,11 @@ abstract type NodeData {
     }
 }
 
-proc init_visitor_table(table : visitor_t[...] ref) {
-    table.resize(CXCursor_END_, v_unimplemented)
+proc init_visitor_table(table : visitor_t[CXCursor_END_]) {
+    table.fill(|table|, v_unimplemented)
 
     table[CXCursor_FunctionDecl] = v_FunctionDecl
-    table[CXCursor_ParmDecl] = v_ParmDecl
+    table[CXCursor_ParmDecl]     = v_ParmDecl
 }
 
 proc getCursorName(cursor : CXCursor) : char* {
@@ -173,4 +173,10 @@ proc dispatch(cursor      : CXCursor,
     visitor(cursor, parent, client_data)
 
     return 1
+}
+
+proc tyToDecl(translator : c2bJou ref, t : CXType*) : ASTNode* {
+    if translator.types.find(t).isnull()
+        panic("halp")
+    return translator.types[t]
 }

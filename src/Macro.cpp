@@ -209,7 +209,7 @@ static ASTNode * ct(MacroUse * use) {
 }
 
 static ASTNode * op(MacroUse * use) {
-    const char * overloadable[]{"+", "[]"};
+    const char * overloadable[]{"+", "<", ">", "[]"};
 
     ASTNode * op_arg = use->getArgs()[0];
     ASTNode * proc_arg = use->getArgs()[1];

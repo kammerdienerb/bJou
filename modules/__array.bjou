@@ -24,3 +24,8 @@ extern sprintf(char*, char*, ...) : int
         return _a[_i]
     }
 }
+
+proc fill$T(array : T*, len : u64, val : T) {
+    for i := 0; i < len; i += 1
+        array[i] = val
+}

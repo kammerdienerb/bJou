@@ -1,0 +1,44 @@
+# input.bjou
+# basic user input
+
+module input
+
+import "null.bjou"
+
+type FILE { }
+extern fdopen(int, char*) : FILE*
+extern fgets(char*, int, FILE*) : char*
+extern strchr(char*, char) : char*
+extern strtol(char*, char**, int) : i64
+
+proc stdin() : FILE*
+    return fdopen(0, "r")    
+proc stdout() : FILE*
+    return fdopen(1, "w")    
+
+proc getstring() : char* { # allocates -- caller must manage mem
+    buff := new char[128]
+    if fgets(buff, 128, stdin()).isnull()
+        panic("getstring(): input error")
+    pos := buff.strchr('\n')
+    if not pos.isnull()
+        @pos = '\0'
+    return buff
+}
+
+proc promptstring(p : char*) : char* { # allocates -- caller must manage mem
+    printf("%s ", p)
+    return getstring()
+}
+
+proc getlong() : i64 {
+    s := getstring()
+    l := strtol(s, (_nullptr() as char**), 10)
+    delete s
+    return l
+}
+
+proc promptlong(p : char*) : i64 {
+    printf("%s ", p)
+    return getlong()
+}
