@@ -2,6 +2,7 @@
 
 module __preload
 
+import "__zinit.bjou"
 import "__ref.bjou"
 import "__c_support.bjou"
 import "__panic.bjou"

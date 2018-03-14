@@ -1,0 +1,24 @@
+# __zinit.bjou
+# zero initializer for some types
+
+module __zinit
+
+import "null.bjou"
+
+proc zinit$T() : T {
+    \static_if { \typeisstruct{T}
+        return { T: }}
+
+    \static_if { \typeispointer{T}
+        return (_nullptr() as T)}
+
+    \static_if { \typeisproc{T}
+        return (_nullptr() as T)}
+    
+    \static_if { \typeisint{T}
+        return 0}
+    \static_if { \typeischar{T}
+        return (0 as char)}
+    \static_if { \typeisfloat{T}
+        return 0.0}
+}

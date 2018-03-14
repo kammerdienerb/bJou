@@ -3,14 +3,224 @@
 
 module dict
 
+import "null.bjou"
+import "algor.bjou"
+
+type _dictNode$(keyT, valT) {
+    key   : keyT
+    val   : valT
+
+    h     : i32
+
+    left  : _dictNode$(keyT, valT)*
+    right : _dictNode$(keyT, valT)*
+
+    proc create(key : keyT, val : valT) : _dictNode$(keyT, valT)* {
+        node := new _dictNode$(keyT, valT)
+
+        @node = { _dictNode$(keyT, valT):
+            .key   = key,
+            .val   = val,
+            .h     = 1,
+            .left  = (_nullptr as _dictNode$(keyT, valT)*),
+            .right = (_nullptr as _dictNode$(keyT, valT)*)
+        }
+
+        return node
+    }
+
+    proc recalc(this) {
+        hl := 0
+        hr := 0
+
+        if not this.left.isnull()
+            hl = this.left.h
+        if not this.right.isnull()
+            hl = this.right.h
+
+        node.height = 1 + max(hl, hr)
+    }
+
+    proc rotateL(this) : _dictNode$(keyT, valT)* {
+        r := this.right
+
+        this.right = r.left
+        r.left = &this
+
+        this.recalc()
+        (@r).recalc()
+
+        return r
+    }
+
+    proc rotateR(this) : _dictNode$(keyT, valT)* {
+        l := this.left
+
+        this.left = l.right
+        l.right = &this
+
+        this.recalc()
+        (@l).recalc()
+
+        return l
+    }
+
+    proc balance(this) : _dictNode$(keyT, valT)* {
+        this.recalc()
+
+        hl := 0
+        hr := 0
+
+        if not this.left.isnull()
+            hl = this.left.h
+        if not this.right.isnull()
+            hl = this.right.h
+
+        if hl - hr == 2 {
+            hll := 0
+            hlr := 0
+
+            if not this.left.left.isnull()
+                hll = this.left.left.h
+            if not this.left.right.isnull()
+                hlr = this.left.right.h
+
+            if hlr > hll
+                this.left = this.left.rotateL()
+            return this.rotateR()
+        } else if hr - hl == 2 {
+            hrl := 0
+            hrr := 0
+
+            if not this.right.left.isnull()
+                hll = this.right.left.h
+            if not this.right.right.isnull()
+                hlr = this.right.right.h
+
+            if hrl > hrr
+                this.right = this.right.rotateR()
+            return this.rotateL()
+        }
+
+        return &this
+    }
+
+    proc find(this, key : keyT ref) : _dictNode$(keyT, valT)* {
+        if key < this.key {
+            if not this.left.isnull()
+                return (@this.left).find(key)
+            return (_nullptr() as _dictNode$(keyT, valT)*)
+        } else if key > this.key {
+            if not this.right.isnull()
+                return (@this.right).find(key)
+            return (_nullptr() as _dictNode$(keyT, valT)*)
+        }
+
+        return &this
+    }
+
+    proc insert(this, key : keyT ref, val : valT ref) : _dictNode$(keyT, valT)* {
+        if key < this.key {
+            if not this.left.isnull()
+                this.left = (@this.left).insert(key, val)
+            this.left = _dictNode$(keyT, valT).create(key, val)
+        } else if key > this.key {
+            if not this.right.isnull()
+                this.right = (@this.right).insert(key, val)
+            this.right = _dictNode$(keyT, valT).create(key, val)
+        } else
+            this.val = val
+
+        return this.balance()  
+    }
+
+    proc findMin(this) : _dictNode$(keyT, valT)* {
+        if not this.left.isnull()
+            return (@this.left).findMin()
+        return &this
+    }
+
+    proc removeMin(this) : _dictNode$(ketT, valT)* {
+        if this.left.isnull()
+            return this.right
+
+        this.left = (@this.left).removeMin()
+
+        return this.balance()
+    }
+
+    proc remove(this, key : keyT ref) : _dictNode$(keyT, valT)* {
+        if key < this.key {
+            if not this.left.isnull()
+                this.left = (@this.left).remove(key)
+        } else if key > this.key {
+            if not this.right.isnull()
+                this.right = (@this.right).remove(key)
+        } else {
+            l := this.left
+            r := this.right
+
+            delete &this
+
+            if r.isnull()
+                return l
+
+            m := (@r).findMin()
+            m.right = (@r).removeMin()
+            m.left = l
+
+            return (@m).balance()
+        }
+
+        return this.balance()
+    }
+
+    proc free(this) {
+        if not this.left.isnull()
+            (@this.left).free()
+        if not this.right.isnull()
+            (@this.right).free()
+
+        delete &this
+    }
+}
+
 type dict$(keyT, valT) {
+    root : _dictNode$(keyT, valT)*
+    len  : u64
+
     proc create() : dict$(keyT, valT)
         return { dict$(keyT, valT): }
+
+    proc find(this, key : keyT) : _dictNode$(keyT, valT)* {
+        if this.root.isnull()
+            return this.root
+        return (@this.root).find(key)
+    }
+
+    proc insert(this, key : keyT, val : valT) : _dictNode$(keyT, valT)* {
+        if this.root.isnull()
+            return _dictNode$(keyT, valT).create(key, val)
+
+        return (@this.root).insert(key, val)
+    }
+
+    implements idestroy {
+        proc destroy(this) {
+            if not this.root.isnull()
+                (@this.root).free()
+        }     
+    }
 }
 
 \op { "[]" proc _dict_subscript$(keyT, valT)(
                 d   : dict$(keyT, valT) ref,
-                key : keyT) {
+                key : keyT)
+                : valT ref {
 
-    print "[%]", key
+    node := d.find(key)
+    if node.isnull()
+        node = d.insert(key, zinit$valT())
+
+    return node.val
 }}

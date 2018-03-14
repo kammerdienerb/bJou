@@ -1,0 +1,11 @@
+# algor.bjou
+
+# general purpose algorithms
+
+module algor
+
+proc max$T(a : T ref, b : T ref) : T ref {
+    if a >= b
+        return a
+    return b
+}

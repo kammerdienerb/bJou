@@ -443,6 +443,90 @@ static ASTNode * os(MacroUse * use) {
     return lit;
 }
 
+static ASTNode * typeisstruct(MacroUse * use) {
+    use->getArgs()[0]->analyze();
+    const Type * t = use->getArgs()[0]->getType();
+
+    bool isStruct = t->isStruct();
+
+    BooleanLiteral * lit = new BooleanLiteral();
+    lit->setContext(use->getContext());
+    lit->setScope(use->getScope());
+    lit->setContents(isStruct ? "true" : "false");
+
+    return lit;
+}
+
+static ASTNode * typeispointer(MacroUse * use) {
+    use->getArgs()[0]->analyze();
+    const Type * t = use->getArgs()[0]->getType();
+
+    bool isPointer = t->isPointer();
+
+    BooleanLiteral * lit = new BooleanLiteral();
+    lit->setContext(use->getContext());
+    lit->setScope(use->getScope());
+    lit->setContents(isPointer ? "true" : "false");
+
+    return lit;
+}
+
+static ASTNode * typeisproc(MacroUse * use) {
+    use->getArgs()[0]->analyze();
+    const Type * t = use->getArgs()[0]->getType();
+
+    bool isProc = t->isProcedure();
+
+    BooleanLiteral * lit = new BooleanLiteral();
+    lit->setContext(use->getContext());
+    lit->setScope(use->getScope());
+    lit->setContents(isProc ? "true" : "false");
+
+    return lit;
+}
+
+static ASTNode * typeisint(MacroUse * use) {
+    use->getArgs()[0]->analyze();
+    const Type * t = use->getArgs()[0]->getType();
+
+    bool isInt = t->isInt();
+
+    BooleanLiteral * lit = new BooleanLiteral();
+    lit->setContext(use->getContext());
+    lit->setScope(use->getScope());
+    lit->setContents(isInt ? "true" : "false");
+
+    return lit;
+}
+
+static ASTNode * typeischar(MacroUse * use) {
+    use->getArgs()[0]->analyze();
+    const Type * t = use->getArgs()[0]->getType();
+
+    bool isChar = t->isChar();
+
+    BooleanLiteral * lit = new BooleanLiteral();
+    lit->setContext(use->getContext());
+    lit->setScope(use->getScope());
+    lit->setContents(isChar ? "true" : "false");
+
+    return lit;
+}
+
+static ASTNode * typeisfloat(MacroUse * use) {
+    use->getArgs()[0]->analyze();
+    const Type * t = use->getArgs()[0]->getType();
+
+    bool isFloat = t->isFloat();
+
+    BooleanLiteral * lit = new BooleanLiteral();
+    lit->setContext(use->getContext());
+    lit->setScope(use->getScope());
+    lit->setContents(isFloat ? "true" : "false");
+
+    return lit;
+}
+
 } // namespace Macros
 
 Macro::Macro() : name(""), dispatch(nullptr), arg_kinds({}), isVararg(false) {}
@@ -497,6 +581,24 @@ MacroManager::MacroManager() {
         "error", Macros::error, {{ASTNode::NodeKind::STRING_LITERAL}}};
 
     macros["os"] = {"os", Macros::os, {}};
+    macros["typeisstruct"] = {"typeisstruct",
+                           Macros::typeisstruct,
+                           {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+    macros["typeispointer"] = {"typeispointer",
+                           Macros::typeispointer,
+                           {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+    macros["typeisproc"] = {"typeisproc",
+                           Macros::typeisproc,
+                           {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+    macros["typeisint"] = {"typeisint",
+                           Macros::typeisint,
+                           {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+    macros["typeischar"] = {"typeischar",
+                           Macros::typeischar,
+                           {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+    macros["typeisfloat"] = {"typeisfloat",
+                           Macros::typeisfloat,
+                           {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {

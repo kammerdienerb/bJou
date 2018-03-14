@@ -4,5 +4,5 @@ main()
 
 proc main() {
     map := dict$(char*, int).create()
-    map[1]
+    map["key"]["another"]
 }

@@ -1,0 +1,39 @@
+# zinit.bjou
+
+main()
+
+type T {
+    a : int
+    b : char
+    c : float
+}
+
+type U {
+    r : int ref    
+}
+
+proc main() {
+    t := zinit$T()
+    print "%", t
+
+    # won't work because U has reference members
+    # u := zinit$U()
+    # print "%", u
+
+    ptr := zinit$(void*)()
+    print "%", ptr
+
+    p := zinit$(<()>)()
+    print "%", p
+
+    i := zinit$int()
+    print "%", i
+
+    c := zinit$char()
+    print "'%'", c
+    
+    f := zinit$float()
+    print "%", f
+}
+
+
