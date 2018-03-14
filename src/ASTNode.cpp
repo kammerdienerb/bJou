@@ -2349,6 +2349,7 @@ void NewExpression::analyze(bool force) {
 
      */
 
+    getRight()->analyze();
     const Type * r_t = getRight()->getType();
 
     if (r_t->isArray())
