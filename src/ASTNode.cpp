@@ -783,6 +783,8 @@ static void AssignmentCommon(BinaryExpression * expr,
         sym->initializedInScopes.insert(expr->getScope());
     }
 
+    expr->getLeft()->analyze();
+
     if (!((Expression *)expr->getLeft())->canBeLVal())
         errorl(expr->getLeft()->getContext(),
                "Operand left of '" + contents +
@@ -3119,9 +3121,9 @@ void SliceExpression::analyze(bool force) {
     const Type * length_t = getLength()->getType()->unRef();
 
     if (!src_t->isPointer() && !src_t->isArray() &&
-        !src_t->isSlice()) // dynamic array?
+        !src_t->isSlice()   && !src_t->isDynamicArray())
         errorl(getSrc()->getContext(),
-               "Slice source must be either a pointer, an array, or another "
+               "Slice source must be either a pointer, an array, a dynamic array, or another "
                "slice.",
                true, "got '" + src_t->getDemangledName() + "'");
 
@@ -3173,7 +3175,39 @@ void SliceExpression::desugar() {
 
     // (src, start, len)
     ArgList * r = new ArgList;
-    r->addExpression(getSrc());
+    if (getSrc()->getType()->isDynamicArray()) {
+        AccessExpression * access = new AccessExpression;
+        access->setContext(getSrc()->getContext());
+
+        Identifier * __data = new Identifier;
+        __data->setContext(getSrc()->getContext());
+        __data->setUnqualified("__data");
+
+        access->setLeft(getSrc());
+        access->setRight(__data);
+
+        access->setType(getSrc()->getType()->under()->getPointer());
+        access->setFlag(ANALYZED, true);
+
+        r->addExpression(access);
+    } else if (getSrc()->getType()->isSlice()) {
+        AccessExpression * access = new AccessExpression;
+        access->setContext(getSrc()->getContext());
+
+        Identifier * __data = new Identifier;
+        __data->setContext(getSrc()->getContext());
+        __data->setUnqualified("__data");
+
+        access->setLeft(getSrc());
+        access->setRight(__data);
+        
+        access->setType(getSrc()->getType()->under()->getPointer());
+        access->setFlag(ANALYZED, true);
+        
+        r->addExpression(access);
+    } else
+        r->addExpression(getSrc());
+    
     r->addExpression(getStart());
     r->addExpression(getLength());
 
@@ -5792,6 +5826,8 @@ void InterfaceImplementation::analyze(bool force) {
     std::string demangledIdentifier = demangledString(mangledIdentifier(id));
 
     if (!getFlag(PUNT_TO_EXTENSION)) {
+        std::set<ASTNode *> used;
+
         for (auto & _defs : ifaceDef->getProcs()) {
             const std::string & procName = _defs.first;
             std::vector<ASTNode *> & defs = _defs.second;
@@ -5820,8 +5856,6 @@ void InterfaceImplementation::analyze(bool force) {
                            true, reqs);
                 }
             }
-
-            std::set<ASTNode *> used;
 
             for (ASTNode * _def : defs) {
                 Procedure * def = (Procedure *)_def;
@@ -5859,17 +5893,17 @@ void InterfaceImplementation::analyze(bool force) {
                            "Missing implementation: " + procName + " " +
                                def_t->getDemangledName()); // @leak
             }
+        }
 
-            for (auto & procs : getProcs()) {
-                for (ASTNode * _proc : procs.second) {
-                    if (!used.count(_proc)) {
-                        Procedure * proc = (Procedure *)_proc;
-                        errorl(proc->getNameContext(),
-                               "Interface '" + demangledIdentifier +
-                                   "' does not require a procedure named '" +
-                                   proc->getName() + "' of type " +
-                                   proc->getType()->getDemangledName() + ".");
-                    }
+        for (auto & procs : getProcs()) {
+            for (ASTNode * _proc : procs.second) {
+                if (!used.count(_proc)) {
+                    Procedure * proc = (Procedure *)_proc;
+                    errorl(proc->getNameContext(),
+                           "Interface '" + demangledIdentifier +
+                               "' does not require a procedure named '" +
+                               proc->getName() + "' of type " +
+                               proc->getType()->getDemangledName() + ".");
                 }
             }
         }

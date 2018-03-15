@@ -7,10 +7,12 @@ import "clang.bjou"
 type ClangWrapper {
     index : CXIndex*
     tu : CXTranslationUnit*
+    tokens : CXToken[...]
 
     proc create() : ClangWrapper {
         return { ClangWrapper:
-            .index = clang.createIndex(0, 0) 
+            .index = clang.createIndex(0, 0),
+            .tokens = [...CXToken]
         }
     }
 
@@ -50,5 +52,15 @@ type ClangWrapper {
 
         cursor := clang.getTranslationUnitCursor(this.tu)
         this.traverse(cursor, visitor, data)
+    }
+
+    proc getCursorName(cursor : CXCursor) : char* {
+        name_cxstr := clang.getCursorSpelling(cursor)
+        return clang.getCString(name_cxstr)
+    }
+
+    proc getCursorTokens(this, cursor : CXCursor) : CXToken[] {
+        this.tokens.clear()
+        return [this.tokens, 0:|this.tokens|] 
     }
 }

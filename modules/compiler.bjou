@@ -11,6 +11,7 @@ extern bjou_appendNode(ASTNode*)
 
 extern bjou_getGlobalScope() : Scope*
 
+extern bjou_clone(ASTNode*) : ASTNode*
 extern bjou_addSymbols(ASTNode*, Scope*)
 extern bjou_analyze(ASTNode*)
 extern bjou_forceAnalyze(ASTNode*)

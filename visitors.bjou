@@ -14,39 +14,44 @@ type visitor_t = <(CXCursor,      # cursor
                    CXClientData*) # client_data
                    : u32>
 
-interface INodeDataBlock {
+interface INodeData {
     proc addStatement(this, node : ASTNode*)
+    proc addExpression(this, node : ASTNode*)
 }
 
 abstract type NodeData {
     cursorKind : u32
 
-    implements INodeDataBlock {
-        proc addStatement(this, node : ASTNode*) {
-            buff : char[1024]
-            kind_cxstr := clang.getCursorKindSpelling(this.cursorKind)
-            kind_str := clang.getCString(kind_cxstr)
-            buff.sprintf("c2bjou: addStatement() called for %s NodeData", kind_str)
+    proc NodeDataErr(this, fnName : char*) {
+        buff : char[1024]
+        kind_cxstr := clang.getCursorKindSpelling(this.cursorKind)
+        kind_str := clang.getCString(kind_cxstr)
+        buff.sprintf("c2bjou: %() called for %s NodeData", fnName, kind_str)
 
-            panic(buff)
-        }
+        panic(buff)
+    } 
+
+    implements INodeData {
+        proc addStatement(this, node : ASTNode*)
+            this.NodeDataErr("addStatement")
+         
+        proc addExpression(this, node : ASTNode*)
+            this.NodeDataErr("addExpression")
     }
 }
 
 proc init_visitor_table(table : visitor_t[CXCursor_END_]) {
     table.fill(|table|, v_unimplemented)
 
-    table[CXCursor_FunctionDecl] = v_FunctionDecl
-    table[CXCursor_ParmDecl]     = v_ParmDecl
-}
-
-proc getCursorName(cursor : CXCursor) : char* {
-    name_cxstr := clang.getCursorSpelling(cursor)
-    return clang.getCString(name_cxstr)
+    table[CXCursor_FunctionDecl]   = v_FunctionDecl
+    table[CXCursor_ParmDecl]       = v_ParmDecl
+    table[CXCursor_CompoundStmt]   = v_CompoundStmt
+    table[CXCursor_IfStmt]         = v_IfStmt
+    table[CXCursor_BinaryOperator] = v_BinaryOperator
 }
 
 proc clangASTNodePrint(cursor : CXCursor, translator : c2bJou*) {
-    name_str := cursor.getCursorName()
+    name_str := ClangWrapper.getCursorName(cursor)
     kind_cxstr := clang.getCursorKindSpelling(cursor.kind)
     kind_str := clang.getCString(kind_cxstr)
 
@@ -70,6 +75,21 @@ proc v_unimplemented(cursor      : CXCursor,
     return 0
 }
 
+proc v_CompoundStmt(cursor      : CXCursor,
+                    parent      : CXCursor,
+                    client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+    
+    # visit children
+    translator.indent += 1
+    translator.cw.traverse(cursor, dispatch, client_data)
+    translator.indent -= 1
+    
+    return 1
+}
+
+
 type ProcNodeData extends NodeData {
     name : char*
     params : ASTNode*[...]
@@ -77,8 +97,11 @@ type ProcNodeData extends NodeData {
     retDecl : ASTNode*
     statements : ASTNode*[...]
 
-    implements INodeDataBlock {
+    implements INodeData {
         proc addStatement(this, node : ASTNode*)
+            this.statements.push(node)
+
+        proc addExpression(this, node : ASTNode*)
             this.statements.push(node)
     }
 }
@@ -92,7 +115,7 @@ proc v_FunctionDecl(cursor      : CXCursor,
     my_data := alloc$ProcNodeData()
     my_data.cursorKind = cursor.kind
 
-    my_data.name = cursor.getCursorName()
+    my_data.name = ClangWrapper.getCursorName(cursor)
     my_data.isVararg = clang.Cursor_isVariadic(cursor) == 1
 
     translator.node_datas.push(&my_data)
@@ -123,6 +146,14 @@ type VarDeclNodeData extends NodeData {
     name : char*
     typeDeclarator : ASTNode*
     initialization : ASTNode*
+
+    implements INodeData {
+        proc addStatement(this, node : ASTNode*)
+            NodeData.NodeDataErr(this, "addStatement")
+
+        proc addExpression(this, node : ASTNode*)
+            this.initialization = node
+    }
 }
 
 proc v_ParmDecl(cursor      : CXCursor,
@@ -134,7 +165,7 @@ proc v_ParmDecl(cursor      : CXCursor,
     my_data := alloc$VarDeclNodeData()
     my_data.cursorKind = cursor.kind
 
-    my_data.name = cursor.getCursorName()
+    my_data.name = ClangWrapper.getCursorName(cursor)
     my_data.typeDeclarator = (_nullptr() as ASTNode*)
     my_data.initialization = (_nullptr() as ASTNode*)
 
@@ -144,6 +175,9 @@ proc v_ParmDecl(cursor      : CXCursor,
     translator.indent += 1
     translator.cw.traverse(cursor, dispatch, client_data)
     translator.indent -= 1
+
+    cx_t := clang.getCursorType(cursor)
+    my_data.typeDeclarator = tyToDecl(@translator, &cx_t)
 
     translator.node_datas.pop()
 
@@ -156,6 +190,108 @@ proc v_ParmDecl(cursor      : CXCursor,
 
     if |translator.node_datas| == 0
         translator.created.push(p)
+
+    return 1  
+}
+
+type IfStmtNodeData extends NodeData {
+    conditional : ASTNode*
+    statements  : ASTNode*[...]
+    _else       : ASTNode*
+
+    implements INodeData {
+        proc addStatement(this, node : ASTNode*)
+            this.statements.push(node)
+
+        proc addExpression(this, node : ASTNode*) {
+            if this.conditional.isnull()
+                this.conditional = node
+            else this.statements.push(node)
+        }
+    }
+}
+
+proc v_IfStmt(cursor      : CXCursor,
+              parent      : CXCursor,
+              client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    my_data := alloc$IfStmtNodeData()
+    my_data.cursorKind = cursor.kind
+
+    my_data.conditional = (_nullptr() as ASTNode*)
+    my_data.statements = [...ASTNode*]
+    my_data._else = (_nullptr() as ASTNode*)
+
+    translator.node_datas.push(&my_data)
+
+    # visit children
+    translator.indent += 1
+    translator.cw.traverse(cursor, dispatch, client_data)
+    translator.indent -= 1
+
+    translator.node_datas.pop()
+
+    i := bjou_createIf(
+        my_data.conditional,
+        my_data.statements.data(), |my_data.statements|,
+        my_data._else)
+
+    my_data.dlloc()
+
+    if |translator.node_datas| == 0
+        translator.created.push(i)
+
+    return 1  
+}
+
+type BinaryOperatorNodeData extends NodeData {
+    op    : char*
+    left  : ASTNode*
+    right : ASTNode*
+
+    implements INodeData {
+        proc addStatement(this, node : ASTNode*)
+            NodeData.NodeDataErr(this, "addStatement")
+
+        proc addExpression(this, node : ASTNode*) {
+            if this.left.isnull()
+                this.left = node
+            else this.right = node
+        }
+    }
+}
+
+proc v_BinaryOperator(cursor      : CXCursor,
+                      parent      : CXCursor,
+                      client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    my_data := alloc$BinaryOperatorNodeData()
+    my_data.cursorKind = cursor.kind
+
+    my_data.op    = "+"
+    my_data.left  = (_nullptr() as ASTNode*)
+    my_data.right = (_nullptr() as ASTNode*)
+
+    translator.node_datas.push(&my_data)
+
+    # visit children
+    translator.indent += 1
+    translator.cw.traverse(cursor, dispatch, client_data)
+    translator.indent -= 1
+
+    translator.node_datas.pop()
+
+    # create binary expression
+    b := (_nullptr() as ASTNode*)
+
+    my_data.dlloc()
+
+    if |translator.node_datas| == 0
+        translator.created.push(b)
 
     return 1  
 }
@@ -177,6 +313,48 @@ proc dispatch(cursor      : CXCursor,
 
 proc tyToDecl(translator : c2bJou ref, t : CXType*) : ASTNode* {
     if translator.types.find(t).isnull()
-        panic("halp")
-    return translator.types[t]
+        translator.types.insert(t, makeDeclFromTy(translator, t))
+    return bjou_clone(translator.types[t])
 }
+
+proc makeDeclFromTy(translator : c2bJou ref, t : CXType*) : ASTNode* {
+    name := ""
+
+    if        t.kind == CXType_Void {
+        name = "void" 
+    } else if t.kind == CXType_Bool {
+        name = "bool"
+    } else if t.kind == CXType_Char_U {
+        name = "u8"
+    } else if t.kind == CXType_UShort {
+        name = "u16"
+    } else if t.kind == CXType_UInt {
+        name = "u32"
+    } else if t.kind == CXType_ULong or t.kind == CXType_ULongLong {
+        name = "u64"
+    } else if t.kind == CXType_Char_S {
+        name = "i8"
+    } else if t.kind == CXType_Short {
+        name = "i16"
+    } else if t.kind == CXType_Int {
+        name = "i32"
+    } else if t.kind == CXType_Long or t.kind == CXType_LongLong {
+        name = "i64"
+    } else if t.kind == CXType_Float {
+        name = "f32"
+    } else if t.kind == CXType_Double {
+        name = "f64"
+    } else panic("c2bjou: unable to translate type")
+
+    id := bjou_createIdentifier(name)
+    d  := bjou_createDeclarator(
+            id,
+            (_nullptr() as ASTNode*),
+            (_nullptr() as char**), 0)
+
+    return d
+}
+
+
+
+

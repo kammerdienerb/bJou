@@ -37,6 +37,10 @@ extern "C" Scope * bjou_getGlobalScope() {
     return compilation->frontEnd.globalScope;
 }
 
+extern "C" ASTNode * bjou_clone(ASTNode * node) {
+    return node->clone();
+}
+
 extern "C" void bjou_addSymbols(ASTNode * node, Scope * scope) {
     node->addSymbols(scope);
 }

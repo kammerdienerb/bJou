@@ -19,6 +19,7 @@ extern "C" void bjou_appendNode(ASTNode * node);
 
 extern "C" Scope * bjou_getGlobalScope();
 
+extern "C" ASTNode* bjou_clone(ASTNode * node);
 extern "C" void bjou_addSymbols(ASTNode * node, Scope * scope);
 extern "C" void bjou_analyze(ASTNode * node);
 extern "C" void bjou_forceAnalyze(ASTNode * node);

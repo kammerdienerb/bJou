@@ -5,8 +5,8 @@ module __slice
 extern sprintf(char*, char*, ...) : int
 
 type __bjou_slice$T {
-    __len  : u64
     __data : T*
+    __len  : u64
 
     proc create(src : T*, start : u64, len : u64) : __bjou_slice$T {
         return { __bjou_slice$T:
