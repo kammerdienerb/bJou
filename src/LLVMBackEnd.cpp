@@ -1805,6 +1805,29 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
                 !equal(t->unRef(), arg->getType()->unRef()))
                 val = llbe->builder.CreateBitCast(val, llbe->getOrGenType(t));
         } else {
+            bool getArgAddr = false;
+            if (arg->getType()->isRef() && arg->getType()->unRef()->isArray())
+                getArgAddr = true;
+            if (payload->byval & (1 << i)) {
+                getArgAddr = true;
+                byvals.push_back(i);
+            }
+
+            val = llbe->getOrGenNode(arg, getArgAddr);
+
+            if (arg->getType()->isRef() && arg->getType()->unRef()->isArray()) {
+                const Type * elem_t = arg->getType()->unRef()->under();
+                val = llbe->builder.CreateBitCast(
+                    val, llbe->getOrGenType(elem_t)->getPointerTo());
+            }
+
+            if (!getArgAddr) {
+                if (val->getType()->isPointerTy())
+                    ptralign.push_back(i);
+            }
+           
+           /* 
+            
             if (arg->getType()->isRef()) {
                 val = llbe->getOrGenNode(arg, true);
                 if (arg->getType()->unRef()->isArray()) {
@@ -1821,6 +1844,8 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
                 if (val->getType()->isPointerTy())
                     ptralign.push_back(i);
             }
+
+            */
         }
 
         BJOU_DEBUG_ASSERT(val);
@@ -2060,7 +2085,13 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
         access = llbe->builder.CreateLoad(access, "ref");
     if (getAddr)
         return access;
-    return llbe->builder.CreateLoad(access, name);
+
+    llvm::LoadInst * load = llbe->builder.CreateLoad(access, name);
+    
+    if (getType()->isPointer())
+        load->setAlignment(sizeof(void*));
+
+    return load;
 }
 
 void * NewExpression::generate(BackEnd & backEnd, bool flag) {

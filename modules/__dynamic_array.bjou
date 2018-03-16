@@ -164,3 +164,22 @@ proc data$T(da : T[...] ref) : T* {
     return \__da_data{da}    
 }
 
+proc set$T(da : T[...] ref, data : T[]) {
+    # clear all old
+    delete \__da_data{da}
+    da = [...T]
+
+    _d := getref(\__da_data{da})
+    _c := getref(\__da_capacity{da})
+    _u := getref(\__da_used{da})
+
+    # make space
+    while _c < |data|
+        da.__bjou_dynamic_array_grow()
+
+    _u = |data|
+
+    # copy
+    memcpy((_d as void*), (\__slice_data{data} as void*), (_u) * sizeof T)
+}
+

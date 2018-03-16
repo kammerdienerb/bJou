@@ -1,8 +1,14 @@
+#include <string.h>
+#include <stdio.h>
+
 typedef struct {
-    int array[2048];
+    char * s;
 } S;
 
-int main(int argc, char ** argv) {
-    S s = {};
+int main() {
+    char array[256] = {0};
+    S s = { "hello, world!" };
+    memcpy(array, s.s, 12);
+    printf("%s\n", array);
     return 0;
 }

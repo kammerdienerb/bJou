@@ -41,3 +41,10 @@ type __bjou_slice$T {
     }
 }
 
+proc contains$T(slice : T[] ref, val : T) : bool {
+    foreach t in slice
+        if t == val
+            return true
+    return false
+}
+

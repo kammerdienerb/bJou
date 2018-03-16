@@ -62,6 +62,12 @@ type CXSourceRangeList {
 abstract type CXDiagnostic    { }
 abstract type CXDiagnosticSet { }
 
+const CXDiagnostic_Ignored := 0
+const CXDiagnostic_Note    := 1
+const CXDiagnostic_Warning := 2
+const CXDiagnostic_Error   := 3
+const CXDiagnostic_Fatal   := 4
+
 type CXTUResourceUsageEntry {
     kind   : u32 # CXTUResourceUsageKind
     amount : u64
@@ -682,6 +688,10 @@ type libclang {
         u32)
         : CXDiagnostic*>
 
+    getDiagnosticSeverity : <(
+        CXDiagnostic*)
+        : u32>
+
     formatDiagnostic : <(
         CXDiagnostic*,
         u32)
@@ -722,6 +732,40 @@ type libclang {
     getCursorType : <(
         CXCursor)
         : CXType>
+
+    getCursorLocation : <(
+        CXCursor)
+        : CXSourceLocation>
+
+    getCursorExtent : <(
+        CXCursor)
+        : CXSourceRange>
+
+    tokenize : <(
+        CXTranslationUnit*,
+        CXSourceRange,
+        CXToken**,
+        u32*)>
+
+    disposeTokens : <(
+        CXTranslationUnit*,
+        CXToken*,
+        u32)>
+
+    getTokenSpelling : <(
+        CXTranslationUnit*,
+        CXToken)
+        : CXString>
+
+    getTokenLocation : <(
+        CXTranslationUnit*,
+        CXToken)
+        : CXSourceLocation>
+
+    equalLocations : <(
+        CXSourceLocation,
+        CXSourceLocation)
+        : u32>
 
     # ------------- end symbols --------------
    
@@ -768,6 +812,9 @@ type libclang {
         lib.getDiagnostic = (lib._handleGetSymbol("clang_getDiagnostic"))
             as <(CXTranslationUnit*, u32) : CXDiagnostic*>
 
+        lib.getDiagnosticSeverity = (lib._handleGetSymbol("clang_getDiagnosticSeverity"))
+            as <(CXDiagnostic*) : u32>
+
 
         lib.formatDiagnostic = (lib._handleGetSymbol("clang_formatDiagnostic"))
             as <(CXDiagnostic*, u32) : CXString>
@@ -801,6 +848,32 @@ type libclang {
 
         lib.getCursorType = (lib._handleGetSymbol("clang_getCursorType"))
             as <(CXCursor) : CXType>
+
+        lib.getCursorLocation = (lib._handleGetSymbol("clang_getCursorLocation"))
+            as <(CXCursor) : CXSourceLocation>
+
+        lib.getCursorExtent = (lib._handleGetSymbol("clang_getCursorExtent"))
+            as <(CXCursor) : CXSourceRange>
+
+        lib.tokenize = (lib._handleGetSymbol("clang_tokenize"))
+            as <(CXTranslationUnit*,
+                 CXSourceRange,
+                 CXToken**,
+                 u32*)>
+
+        lib.disposeTokens = (lib._handleGetSymbol("clang_disposeTokens"))
+            as <(CXTranslationUnit*,
+                 CXToken*, 
+                 u32)>
+
+        lib.getTokenSpelling = (lib._handleGetSymbol("clang_getTokenSpelling"))
+            as <(CXTranslationUnit*, CXToken) : CXString>
+
+        lib.getTokenLocation = (lib._handleGetSymbol("clang_getTokenLocation"))
+            as <(CXTranslationUnit*, CXToken) : CXSourceLocation>
+
+        lib.equalLocations = (lib._handleGetSymbol("clang_equalLocations"))
+            as <(CXSourceLocation, CXSourceLocation) : u32>
 
         return lib
     }

@@ -45,15 +45,13 @@ type c2bJou {
     indent        : int
     types         : dict$(CXType*, ASTNode*)
     created       : ASTNode*[...]
-    node_datas    : NodeData *[...]
 
     proc create(cw : ClangWrapper ref) : c2bJou {
         c := { c2bJou:
-            .cw         = cw,
-            .indent     = 0,
-            .types      = dict$(CXType*, ASTNode*).create(),
-            .created    = [...ASTNode*],
-            .node_datas = [...NodeData*]
+            .cw            = cw,
+            .indent        = 0,
+            .types         = dict$(CXType*, ASTNode*).create(),
+            .created       = [...ASTNode*]
         }
 
         init_visitor_table(c.visitor_table)

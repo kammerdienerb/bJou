@@ -5,14 +5,14 @@ module c2bjou_ClangWrapper
 import "clang.bjou"
 
 type ClangWrapper {
-    index : CXIndex*
-    tu : CXTranslationUnit*
-    tokens : CXToken[...]
+    index    : CXIndex*
+    tu       : CXTranslationUnit*
+    tokens   : CXToken*
+    n_tokens : u32
 
     proc create() : ClangWrapper {
         return { ClangWrapper:
-            .index = clang.createIndex(0, 0),
-            .tokens = [...CXToken]
+            .index = clang.createIndex(0, 0)
         }
     }
 
@@ -28,15 +28,17 @@ type ClangWrapper {
             panic("c2bjou: bad translation unit")
         
         ndiags := clang.getNumDiagnostics(this.tu) as int
+        errors := false
         for i := 0; i < ndiags; i += 1 {
             diag := clang.getDiagnostic(this.tu, i)
+            if clang.getDiagnosticSeverity(diag) >= CXDiagnostic_Error
+                errors = true
             cxstr := clang.formatDiagnostic(diag, clang.defaultDiagnosticDisplayOptions())
             str := clang.getCString(cxstr)
             print "%", str
             clang.disposeString(cxstr)
         }
-        if ndiags > 0
-            panic("c2bjou: there were libclang errors")
+        if errors panic("c2bjou: there were libclang errors")
     }
 
     proc traverse(this,
@@ -60,7 +62,13 @@ type ClangWrapper {
     }
 
     proc getCursorTokens(this, cursor : CXCursor) : CXToken[] {
-        this.tokens.clear()
-        return [this.tokens, 0:|this.tokens|] 
+        if not this.tokens.isnull()
+            clang.disposeTokens(this.tu, this.tokens, this.n_tokens)
+   
+        sr := clang.getCursorExtent(cursor)
+
+        clang.tokenize(this.tu, sr, &this.tokens, &this.n_tokens)
+
+        return [this.tokens, 0:this.n_tokens] 
     }
 }

@@ -2,4 +2,14 @@
 
 module __string
 
-type string {  }
+extern strlen(char*) : u64
+
+type __bjou_string {
+    __data : char[...]
+
+    proc create() : __bjou_string {
+        return { __bjou_string:
+            .__data = [...char] 
+        }     
+    }
+}

@@ -1146,6 +1146,9 @@ Val EquExpression::eval() {
 void EquExpression::analyze(bool force) {
     HANDLE_FORCE();
 
+    if (opOverload())
+        return;
+
     ((LssExpression *)this)->LssExpression::analyze(force);
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
@@ -1180,6 +1183,9 @@ Val NeqExpression::eval() {
 // Node interface
 void NeqExpression::analyze(bool force) {
     HANDLE_FORCE();
+
+    if (opOverload())
+        return;
 
     ((LssExpression *)this)->LssExpression::analyze(force);
 

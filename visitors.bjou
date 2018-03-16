@@ -14,30 +14,30 @@ type visitor_t = <(CXCursor,      # cursor
                    CXClientData*) # client_data
                    : u32>
 
-interface INodeData {
-    proc addStatement(this, node : ASTNode*)
-    proc addExpression(this, node : ASTNode*)
+proc child_collector(cursor      : CXCursor,
+                     parent      : CXCursor,
+                     client_data : CXClientData*) : u32 {
+
+    children := getref(@(client_data as CXCursor[...]*))
+
+    children.push(cursor)  
+
+    return 1
 }
 
-abstract type NodeData {
-    cursorKind : u32
+proc dispatch(cursor      : CXCursor,
+              parent      : CXCursor,
+              client_data : CXClientData*) : u32 {
 
-    proc NodeDataErr(this, fnName : char*) {
-        buff : char[1024]
-        kind_cxstr := clang.getCursorKindSpelling(this.cursorKind)
-        kind_str := clang.getCString(kind_cxstr)
-        buff.sprintf("c2bjou: %() called for %s NodeData", fnName, kind_str)
+    translator := client_data as c2bJou*
 
-        panic(buff)
-    } 
+    cursor.clangASTNodePrint(translator)
 
-    implements INodeData {
-        proc addStatement(this, node : ASTNode*)
-            this.NodeDataErr("addStatement")
-         
-        proc addExpression(this, node : ASTNode*)
-            this.NodeDataErr("addExpression")
-    }
+    visitor := translator.visitor_table[cursor.kind]
+
+    visitor(cursor, parent, client_data)
+
+    return 1
 }
 
 proc init_visitor_table(table : visitor_t[CXCursor_END_]) {
@@ -45,9 +45,9 @@ proc init_visitor_table(table : visitor_t[CXCursor_END_]) {
 
     table[CXCursor_FunctionDecl]   = v_FunctionDecl
     table[CXCursor_ParmDecl]       = v_ParmDecl
-    table[CXCursor_CompoundStmt]   = v_CompoundStmt
-    table[CXCursor_IfStmt]         = v_IfStmt
-    table[CXCursor_BinaryOperator] = v_BinaryOperator
+#     table[CXCursor_CompoundStmt]   = v_CompoundStmt
+#     table[CXCursor_IfStmt]         = v_IfStmt
+#     table[CXCursor_BinaryOperator] = v_BinaryOperator
 }
 
 proc clangASTNodePrint(cursor : CXCursor, translator : c2bJou*) {
@@ -89,71 +89,53 @@ proc v_CompoundStmt(cursor      : CXCursor,
     return 1
 }
 
-
-type ProcNodeData extends NodeData {
-    name : char*
-    params : ASTNode*[...]
-    isVararg : bool
-    retDecl : ASTNode*
-    statements : ASTNode*[...]
-
-    implements INodeData {
-        proc addStatement(this, node : ASTNode*)
-            this.statements.push(node)
-
-        proc addExpression(this, node : ASTNode*)
-            this.statements.push(node)
-    }
-}
-
 proc v_FunctionDecl(cursor      : CXCursor,
                     parent      : CXCursor,
                     client_data : CXClientData*) : u32 {
 
     translator := client_data as c2bJou*
 
-    my_data := alloc$ProcNodeData()
-    my_data.cursorKind = cursor.kind
-
-    my_data.name = ClangWrapper.getCursorName(cursor)
-    my_data.isVararg = clang.Cursor_isVariadic(cursor) == 1
-
-    translator.node_datas.push(&my_data)
+    name       := ClangWrapper.getCursorName(cursor)
+    params     := [...ASTNode*]
+    isVararg   := clang.Cursor_isVariadic(cursor) == 1
+    retDecl    := (_nullptr() as ASTNode*)
+    statements := [...ASTNode*]
 
     # visit children
     translator.indent += 1
-    translator.cw.traverse(cursor, dispatch, client_data)
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    c := 0
+    while children[c].kind == CXCursor_ParmDecl {
+        dispatch(children[c], cursor, client_data)
+        params.push(translator.created.back())
+        translator.created.pop()
+        c += 1           
+    }
+
+    for c = c; c < |children|; c += 1 {
+        dispatch(children[c], cursor, client_data)
+        statements.push(translator.created.back())
+        translator.created.pop()    
+    }
+
     translator.indent -= 1
 
-    translator.node_datas.pop()
+    # create result
+    p := (_nullptr() as ASTNode*)
     
-    p := bjou_createProcedure(
-             my_data.name,
-             my_data.params.data(), |my_data.params|,
-             my_data.isVararg,
-             my_data.retDecl,
-             my_data.statements.data(), |my_data.statements|)
+#     p := bjou_createProcedure(
+#              my_data.name,
+#              my_data.params.data(), |my_data.params|,
+#              my_data.isVararg,
+#              my_data.retDecl,
+#              my_data.statements.data(), |my_data.statements|)
 
-    my_data.dlloc()
-
-    if |translator.node_datas| == 0
-        translator.created.push(p)
+    translator.created.push(p)
 
     return 1
-}
-
-type VarDeclNodeData extends NodeData {
-    name : char*
-    typeDeclarator : ASTNode*
-    initialization : ASTNode*
-
-    implements INodeData {
-        proc addStatement(this, node : ASTNode*)
-            NodeData.NodeDataErr(this, "addStatement")
-
-        proc addExpression(this, node : ASTNode*)
-            this.initialization = node
-    }
 }
 
 proc v_ParmDecl(cursor      : CXCursor,
@@ -162,153 +144,31 @@ proc v_ParmDecl(cursor      : CXCursor,
     
     translator := client_data as c2bJou*
 
-    my_data := alloc$VarDeclNodeData()
-    my_data.cursorKind = cursor.kind
-
-    my_data.name = ClangWrapper.getCursorName(cursor)
-    my_data.typeDeclarator = (_nullptr() as ASTNode*)
-    my_data.initialization = (_nullptr() as ASTNode*)
-
-    translator.node_datas.push(&my_data)
+    name           := ClangWrapper.getCursorName(cursor)
+    typeDeclarator := (_nullptr() as ASTNode*)
+    initialization := (_nullptr() as ASTNode*)
 
     # visit children
     translator.indent += 1
-    translator.cw.traverse(cursor, dispatch, client_data)
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    if |children| != 0 panic("why does a param decl have children?")
+
     translator.indent -= 1
-
+   
     cx_t := clang.getCursorType(cursor)
-    my_data.typeDeclarator = tyToDecl(@translator, &cx_t)
-
-    translator.node_datas.pop()
+    typeDeclarator = tyToDecl(@translator, &cx_t)
 
     p := bjou_createParamDeclaration(
-        my_data.name,
-        my_data.typeDeclarator,
-        my_data.initialization)
+            name,
+            typeDeclarator,
+            initialization)
 
-    my_data.dlloc()
-
-    if |translator.node_datas| == 0
-        translator.created.push(p)
+    translator.created.push(p)
 
     return 1  
-}
-
-type IfStmtNodeData extends NodeData {
-    conditional : ASTNode*
-    statements  : ASTNode*[...]
-    _else       : ASTNode*
-
-    implements INodeData {
-        proc addStatement(this, node : ASTNode*)
-            this.statements.push(node)
-
-        proc addExpression(this, node : ASTNode*) {
-            if this.conditional.isnull()
-                this.conditional = node
-            else this.statements.push(node)
-        }
-    }
-}
-
-proc v_IfStmt(cursor      : CXCursor,
-              parent      : CXCursor,
-              client_data : CXClientData*) : u32 {
-    
-    translator := client_data as c2bJou*
-
-    my_data := alloc$IfStmtNodeData()
-    my_data.cursorKind = cursor.kind
-
-    my_data.conditional = (_nullptr() as ASTNode*)
-    my_data.statements = [...ASTNode*]
-    my_data._else = (_nullptr() as ASTNode*)
-
-    translator.node_datas.push(&my_data)
-
-    # visit children
-    translator.indent += 1
-    translator.cw.traverse(cursor, dispatch, client_data)
-    translator.indent -= 1
-
-    translator.node_datas.pop()
-
-    i := bjou_createIf(
-        my_data.conditional,
-        my_data.statements.data(), |my_data.statements|,
-        my_data._else)
-
-    my_data.dlloc()
-
-    if |translator.node_datas| == 0
-        translator.created.push(i)
-
-    return 1  
-}
-
-type BinaryOperatorNodeData extends NodeData {
-    op    : char*
-    left  : ASTNode*
-    right : ASTNode*
-
-    implements INodeData {
-        proc addStatement(this, node : ASTNode*)
-            NodeData.NodeDataErr(this, "addStatement")
-
-        proc addExpression(this, node : ASTNode*) {
-            if this.left.isnull()
-                this.left = node
-            else this.right = node
-        }
-    }
-}
-
-proc v_BinaryOperator(cursor      : CXCursor,
-                      parent      : CXCursor,
-                      client_data : CXClientData*) : u32 {
-    
-    translator := client_data as c2bJou*
-
-    my_data := alloc$BinaryOperatorNodeData()
-    my_data.cursorKind = cursor.kind
-
-    my_data.op    = "+"
-    my_data.left  = (_nullptr() as ASTNode*)
-    my_data.right = (_nullptr() as ASTNode*)
-
-    translator.node_datas.push(&my_data)
-
-    # visit children
-    translator.indent += 1
-    translator.cw.traverse(cursor, dispatch, client_data)
-    translator.indent -= 1
-
-    translator.node_datas.pop()
-
-    # create binary expression
-    b := (_nullptr() as ASTNode*)
-
-    my_data.dlloc()
-
-    if |translator.node_datas| == 0
-        translator.created.push(b)
-
-    return 1  
-}
-
-proc dispatch(cursor      : CXCursor,
-              parent      : CXCursor,
-              client_data : CXClientData*) : u32 {
-
-    translator := client_data as c2bJou*
-
-    cursor.clangASTNodePrint(translator)
-
-    visitor := translator.visitor_table[cursor.kind]
-
-    visitor(cursor, parent, client_data)
-
-    return 1
 }
 
 proc tyToDecl(translator : c2bJou ref, t : CXType*) : ASTNode* {
@@ -355,6 +215,35 @@ proc makeDeclFromTy(translator : c2bJou ref, t : CXType*) : ASTNode* {
     return d
 }
 
+extern strcmp(char*, char*) : int
 
+\op{ "=="
+    proc (a : char*, b : char*) : bool
+        return strcmp(a, b) == 0
+}
+
+\op{ "!="
+    proc (a : char*, b : char*) : bool
+        return not (a == b)
+}
+
+proc getBinOp(translator : c2bJou ref, cursor : CXCursor) : char* {
+    tokens := translator.cw.getCursorTokens(cursor)
+
+    cloc := clang.getCursorLocation(cursor)
+
+    foreach t in tokens {
+        tloc := clang.getTokenLocation(translator.cw.tu, t)
+        cxs := clang.getTokenSpelling(translator.cw.tu, t)
+        spl := clang.getCString(cxs)
+
+        if clang.equalLocations(cloc, tloc) != 0
+            print "%", spl
+    }
+
+    panic("c2bjou: did not find operator")
+
+    return ""
+}
 
 
