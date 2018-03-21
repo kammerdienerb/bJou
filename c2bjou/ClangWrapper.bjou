@@ -22,7 +22,7 @@ type ClangWrapper {
             fname,
             _nullptr() as char**, 0,
             _nullptr() as CXUnsavedFile*, 0,
-            0)
+            CXTranslationUnit_DetailedPreprocessingRecord)
 
         if this.tu.isnull()
             panic("c2bjou: bad translation unit")

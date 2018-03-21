@@ -1,7 +1,10 @@
 // fact.c
 
+// #include "bjou_ct.h"
+
 long long factorial(long long n) {
-    n + 1 * 2;
+    // BJOU_CT(add_llvm_pass, "tailcallelim");
+
     if (n <= 1)
         return 1;
     return n * factorial(n - 1);

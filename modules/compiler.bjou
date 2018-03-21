@@ -2,16 +2,30 @@
 
 module compiler \ct { # this module is only available at compile time
 
+type Loc {
+    line      : int
+    character : int
+}
+type Context { } # opaque -- bjou::Context
 type ASTNode { } # opaque -- bjou::ASTNode
 type Scope   { } # opaque -- bjou::Scope
 
+extern bjou_createContext(Loc*, Loc*, char*) : Context*
+extern bjou_freeContext(Context*)
+
+extern bjou_error(Context*, char*)
+
 extern bjou_getVersionString() : char*
+
 extern bjou_parseAndAppend(char*)
 extern bjou_appendNode(ASTNode*)
+
+extern bjou_setGlobalNodeRP(ASTNode*)
 
 extern bjou_getGlobalScope() : Scope*
 
 extern bjou_clone(ASTNode*) : ASTNode*
+extern bjou_setContext(ASTNode*, Context*)
 extern bjou_addSymbols(ASTNode*, Scope*)
 extern bjou_analyze(ASTNode*)
 extern bjou_forceAnalyze(ASTNode*)
@@ -24,7 +38,7 @@ extern bjou_createMultExpression(ASTNode*, ASTNode*) : ASTNode*
 extern bjou_createDivExpression(ASTNode*, ASTNode*)  : ASTNode*
 extern bjou_createModExpression(ASTNode*, ASTNode*)  : ASTNode*
 
-extern bjou_createAssignExpression(ASTNode*, ASTNode*)     : ASTNode*
+extern bjou_createAssignmentExpression(ASTNode*, ASTNode*) : ASTNode*
 extern bjou_createAddAssignExpression(ASTNode*, ASTNode*)  : ASTNode*
 extern bjou_createSubAssignExpression(ASTNode*, ASTNode*)  : ASTNode*
 extern bjou_createMultAssignExpression(ASTNode*, ASTNode*) : ASTNode*
@@ -106,7 +120,7 @@ extern bjou_createPointerDeclarator(ASTNode*) : ASTNode*
 extern bjou_createVariableDeclaration(char*, ASTNode*, ASTNode*) : ASTNode*
 extern bjou_createParamDeclaration(char*, ASTNode*, ASTNode*) : ASTNode*
 
-# Alias
+extern bjou_createAlias(char*, ASTNode*) : ASTNode*
 
 extern bjou_createStruct(
     char*,
@@ -145,5 +159,7 @@ extern bjou_createDoWhile(ASTNode*, ASTNode**, int) : ASTNode*
 # With
 
 # Template Stuff
+
+extern bjou_createMacroUse(char*, ASTNode**, int) : ASTNode*
 
 }

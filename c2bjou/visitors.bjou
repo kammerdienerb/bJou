@@ -1,0 +1,893 @@
+# visitors.bjou
+
+module c2bjou_visitors
+
+extern sprintf(char*, char*, ...) : int
+
+import "clang.bjou"
+import "compiler.bjou"
+
+import "dltr.bjou"
+
+type visitor_t = <(CXCursor,      # cursor
+                   CXCursor,      # parent
+                   CXClientData*) # client_data
+                   : u32>
+
+proc child_collector(cursor      : CXCursor,
+                     parent      : CXCursor,
+                     client_data : CXClientData*) : u32 {
+
+    children := getref(@(client_data as CXCursor[...]*))
+    translator := client_data as c2bJou*
+
+    if cursor.kind == CXCursor_CompoundStmt
+        translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)   
+    else
+        children.push(cursor)   
+
+    return CXVisit_Continue
+}
+
+proc getCursorContext(cursor : CXCursor) : Context * {
+    rng := clang.getCursorExtent(cursor)
+
+    cxf  := (_nullptr() as CXFile*)
+    line : u32 = 0
+    col  : u32 = 0
+    off  : u32 = 0
+
+    _beg := clang.getRangeStart(rng)
+    clang.getSpellingLocation(_beg, &cxf, &line, &col, &off)
+    beg := { Loc: .line = line, .character = col }
+    
+    _end := clang.getRangeStart(rng)
+    clang.getSpellingLocation(_end, &cxf, &line, &col, &off)
+    end := { Loc: .line = line, .character = col + 1 }
+
+    fname := clang.getCString(clang.getFileName(cxf))
+
+    return bjou_createContext(&beg, &end, fname)   
+}
+
+proc dispatch(cursor      : CXCursor,
+              parent      : CXCursor,
+              client_data : CXClientData*) : u32 {
+
+    translator := client_data as c2bJou*
+
+    cursor.clangASTNodePrint(translator)
+
+    visitor := translator.visitor_table[cursor.kind]
+
+    size_before := |translator.created|
+    visitor(cursor, parent, client_data)
+    size_after := |translator.created|
+
+    if size_after > size_before {
+        ctx := getCursorContext(cursor)
+        bjou_setContext(translator.created.back(), ctx)
+        bjou_freeContext(ctx)
+    }
+
+    return CXVisit_Continue
+}
+
+proc init_visitor_table(table : visitor_t[CXCursor_END_]) {
+    table.fill(|table|, v_unimplemented)
+
+    table[CXCursor_MacroDefinition]        = v_ignore
+    table[CXCursor_InclusionDirective]     = v_ignore
+    table[CXCursor_MacroExpansion]         = v_MacroExpansion
+    table[CXCursor_TypedefDecl]            = v_TypedefDecl
+    table[CXCursor_FunctionDecl]           = v_FunctionDecl
+    table[CXCursor_ParmDecl]               = v_ParmDecl
+    table[CXCursor_DeclStmt]               = v_DeclStmt
+    table[CXCursor_VarDecl]                = v_VarDecl
+    table[CXCursor_CompoundStmt]           = v_CompoundStmt
+    table[CXCursor_IfStmt]                 = v_IfStmt
+    table[CXCursor_ForStmt]                = v_ForStmt
+    table[CXCursor_ParenExpr]              = v_under
+    table[CXCursor_BinaryOperator]         = v_BinaryOperator
+    table[CXCursor_CompoundAssignOperator] = v_BinaryOperator
+    table[CXCursor_UnexposedExpr]          = v_under
+    table[CXCursor_CStyleCastExpr]         = v_CStyleCastExpr
+    table[CXCursor_DeclRefExpr]            = v_DeclRefExpr
+    table[CXCursor_TypeRef]                = v_TypeRef
+    table[CXCursor_IntegerLiteral]         = v_IntegerLiteral
+    table[CXCursor_ReturnStmt]             = v_ReturnStmt
+    table[CXCursor_CallExpr]               = v_CallExpr
+}
+
+proc clangASTNodePrint(cursor : CXCursor, translator : c2bJou*) {
+    if not PRINT_AST return
+    name_str := ClangWrapper.getCursorName(cursor)
+    kind_cxstr := clang.getCursorKindSpelling(cursor.kind)
+    kind_str := clang.getCString(kind_cxstr)
+
+    for i := 0; i < translator.indent; i += 1
+        printf("  ")
+    print "%: '%'", kind_str, name_str
+}
+
+proc v_unimplemented(cursor      : CXCursor,
+                     parent      : CXCursor,
+                     client_data : CXClientData*) : u32 {
+
+    buff : char[1024]
+    kind_cxstr := clang.getCursorKindSpelling(cursor.kind)
+    kind_str := clang.getCString(kind_cxstr)
+
+    buff.sprintf("c2bjou: missing visitor for CXCursor kind %d -- %s", cursor.kind, kind_str)
+
+    panic(buff)
+
+    return CXVisit_Break
+}
+
+proc v_ignore(cursor      : CXCursor,
+              parent      : CXCursor,
+              client_data : CXClientData*) : u32 {
+
+    return CXVisit_Continue
+}
+
+extern strlen(char*) : u64
+
+proc v_MacroExpansion(cursor      : CXCursor,
+                      parent      : CXCursor,
+                      client_data : CXClientData*) : u32 {
+
+    name := ClangWrapper.getCursorName(cursor)
+    if strcmp(name, "BJOU_CT") == 0 {
+        translator := client_data as c2bJou*
+
+        tokens := translator.cw.getCursorTokens(cursor)
+
+        if |tokens| < 4
+            panic("c2bjou: BJOU_CT macro expansion missing directive name")
+
+        directive := clang.getCString(clang.getTokenSpelling(translator.cw.tu, tokens[2]))
+        args      := [...ASTNode*]
+
+        if |tokens| > 4 {
+            arg_tokens := [tokens, 4:(|tokens| - 5)] # skip first 4 and last token -- BJOU_CT(MACRONAME, {we want these})
+            foreach t in arg_tokens {
+                str := clang.getCString(clang.getTokenSpelling(translator.cw.tu, t))     
+                args.push(bjou_createStringLiteral(str))
+            }
+        }
+
+        translator.created.push(bjou_createMacroUse(directive, args.data(), |args|))
+    }
+
+    return CXVisit_Continue
+}
+
+proc v_TypedefDecl(cursor      : CXCursor,
+                   parent      : CXCursor,
+                   client_data : CXClientData*) : u32 {
+
+    translator := client_data as c2bJou*
+
+    name := ClangWrapper.getCursorName(cursor)
+    decl := (_nullptr() as ASTNode*)
+
+    cx_t := clang.getCanonicalType(clang.getCursorType(cursor))
+    decl = tyToDecl(@translator, &cx_t)
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    foreach child in children
+        dispatch(child, cursor, client_data)
+
+    translator.indent -= 1
+
+    # create result
+    a := bjou_createAlias(name, decl)
+
+    translator.created.push(a)
+
+    return CXVisit_Continue
+}
+
+proc v_CompoundStmt(cursor      : CXCursor,
+                    parent      : CXCursor,
+                    client_data : CXClientData*) : u32 {
+    return CXVisit_Continue
+}
+
+proc v_FunctionDecl(cursor      : CXCursor,
+                    parent      : CXCursor,
+                    client_data : CXClientData*) : u32 {
+
+    translator := client_data as c2bJou*
+
+    name       := ClangWrapper.getCursorName(cursor)
+    params     := [...ASTNode*]
+    isVararg   := clang.Cursor_isVariadic(cursor) == 1
+    retDecl    := (_nullptr() as ASTNode*)
+    statements := [...ASTNode*]
+
+    cx_t := clang.getResultType(clang.getCursorType(cursor))
+    retDecl = tyToDecl(@translator, &cx_t)
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    c := 0
+    for ; c < |children|; c += 1 {
+        if children[c].kind != CXCursor_ParmDecl
+            break
+        dispatch(children[c], cursor, client_data)
+        params.push(translator.created.back())
+        translator.created.pop()
+    }
+
+    for ; c < |children|; c += 1 {
+        dispatch(children[c], cursor, client_data)
+        statements.push(translator.created.back())
+        translator.created.pop()    
+    }
+
+    translator.indent -= 1
+
+    # create result
+    p := bjou_createProcedure(
+             name,
+             params.data(), |params|,
+             isVararg,
+             retDecl,
+             statements.data(), |statements|)
+
+    translator.created.push(p)
+
+    return CXVisit_Continue
+}
+
+proc v_ParmDecl(cursor      : CXCursor,
+                parent      : CXCursor,
+                client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    name           := ClangWrapper.getCursorName(cursor)
+    typeDeclarator := (_nullptr() as ASTNode*)
+    initialization := (_nullptr() as ASTNode*)
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    if |children| != 0 panic("why does a param decl have children?")
+
+    translator.indent -= 1
+   
+    cx_t := clang.getCursorType(cursor)
+    typeDeclarator = tyToDecl(@translator, &cx_t)
+
+    p := bjou_createParamDeclaration(
+            name,
+            typeDeclarator,
+            initialization)
+
+    translator.created.push(p)
+
+    return CXVisit_Continue  
+}
+
+proc v_DeclStmt(cursor      : CXCursor,
+                parent      : CXCursor,
+                client_data : CXClientData*) : u32 {
+
+    translator := client_data as c2bJou*
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    dispatch(children[0], cursor, client_data) 
+
+    translator.indent -= 1
+   
+    # create result
+    d := translator.created.back()
+    translator.created.pop()
+
+    translator.created.push(d)
+
+    return CXVisit_Continue  
+}
+
+proc v_VarDecl(cursor      : CXCursor,
+               parent      : CXCursor,
+               client_data : CXClientData*) : u32 {
+   
+    translator := client_data as c2bJou*
+
+    name           := ClangWrapper.getCursorName(cursor)
+    typeDeclarator := (_nullptr() as ASTNode*)
+    initialization := (_nullptr() as ASTNode*)
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    if |children| != 0 {
+        dispatch(children[0], cursor, client_data)
+        initialization = translator.created.back()
+        translator.created.pop()
+    }
+
+    translator.indent -= 1
+   
+    cx_t := clang.getCursorType(cursor)
+    typeDeclarator = tyToDecl(@translator, &cx_t)
+
+    v := bjou_createVariableDeclaration(
+            name,
+            typeDeclarator,
+            initialization)
+
+    translator.created.push(v)
+
+    return CXVisit_Continue  
+}
+
+proc v_IfStmt(cursor      : CXCursor,
+              parent      : CXCursor,
+              client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    conditional := (_nullptr() as ASTNode*)
+    statements  := [...ASTNode*]
+    _else       := (_nullptr() as ASTNode*)
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    c := 0
+
+    dispatch(children[c], cursor, client_data) #conditional
+    conditional = translator.created.back()
+    translator.created.pop()
+
+    last_end := clang.getRangeEnd(clang.getCursorExtent(children[c]))
+
+    c += 1
+
+    for ; c < |children|; c += 1 {        
+        c_beg := clang.getRangeStart(clang.getCursorExtent(children[c]))
+
+        rng := clang.getRange(last_end, c_beg)
+
+        _tokens := (_nullptr() as CXToken*)
+        n_tokens : u32 = 0
+
+        clang.tokenize(translator.cw.tu, rng, &_tokens, &n_tokens)
+
+        tokens := [_tokens, 0:n_tokens]
+
+        hasElse := false
+
+        foreach t in tokens {
+            cxs := clang.getTokenSpelling(translator.cw.tu, t)
+            spl := clang.getCString(cxs)
+            if strcmp(spl, "else") == 0 {
+                hasElse = true
+                break
+            }
+        }
+
+        if hasElse {
+            _else = handleElse(@translator, cursor, [children, c:(|children| - c)])
+            break     
+        } else {
+            dispatch(children[c], cursor, client_data)
+            statements.push(translator.created.back())
+            translator.created.pop()
+
+            last_end = c_beg
+        }
+    }
+
+    translator.indent -= 1
+   
+    # create result
+    i := bjou_createIf(
+            conditional,
+            statements.data(), |statements|,
+            _else)
+
+    translator.created.push(i)
+
+    return CXVisit_Continue  
+}
+
+proc handleElse(translator : c2bJou ref,
+                cursor     : CXCursor,
+                children   : CXCursor[])
+                : ASTNode* {
+   
+    statements := [...ASTNode*]
+
+    foreach child in children {
+        dispatch(child, cursor, (&translator) as CXClientData*)
+        statements.push(translator.created.back())
+        translator.created.pop()
+    }
+
+    return bjou_createElse(statements.data(), |statements|)
+}
+
+proc v_ForStmt(cursor      : CXCursor,
+               parent      : CXCursor,
+               client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    initializations := [...ASTNode*]
+    conditional     := (_nullptr() as ASTNode*)
+    afterthoughts   := [...ASTNode*]
+    statements      := [...ASTNode*]
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    last_end := clang.getRangeStart(clang.getCursorExtent(cursor))
+
+    c := 0
+
+    section := 0
+
+    for ; c < |children|; c += 1 {        
+        c_beg := clang.getRangeStart(clang.getCursorExtent(children[c]))
+
+        rng := clang.getRange(last_end, c_beg)
+
+        _tokens := (_nullptr() as CXToken*)
+        n_tokens : u32 = 0
+
+        clang.tokenize(translator.cw.tu, rng, &_tokens, &n_tokens)
+
+        tokens := [_tokens, 0:n_tokens]
+
+        foreach t in tokens {
+            cxs := clang.getTokenSpelling(translator.cw.tu, t)
+            spl := clang.getCString(cxs)
+            if strcmp(spl, ";") == 0
+                section += 1
+        }
+
+        dispatch(children[c], cursor, client_data)
+
+        if section == 0      # initializations
+            initializations.push(translator.created.back())
+        else if section == 1 # conditional
+            conditional = translator.created.back()
+        else if section == 2 # afterthoughts
+            afterthoughts.push(translator.created.back())
+        else if section == 3 # statements
+            statements.push(translator.created.back())
+       
+        translator.created.pop()
+
+        last_end = c_beg
+    }
+
+    translator.indent -= 1
+   
+    # create result
+    f := bjou_createFor(
+            initializations.data(), |initializations|,
+            conditional,
+            afterthoughts.data(), |afterthoughts|,
+            statements.data(), |statements|)
+
+    translator.created.push(f)
+
+    return CXVisit_Continue  
+}
+
+proc getBinOp(translator : c2bJou ref,
+              cursor     : CXCursor,
+              l          : CXCursor,
+              r          : CXCursor)
+              : char* {
+
+    range_l := clang.getCursorExtent(l)
+    range_r := clang.getCursorExtent(r)
+
+    l_end := clang.getRangeEnd(range_l)
+    r_beg := clang.getRangeStart(range_r)
+
+    range := clang.getRange(l_end, r_beg)
+
+    tokens := (_nullptr() as CXToken*)
+    n_tokens : u32 = 0
+
+    clang.tokenize(translator.cw.tu, range, &tokens, &n_tokens)
+
+    cxs := clang.getTokenSpelling(translator.cw.tu, tokens[0])
+    spl := clang.getCString(cxs)
+
+    return spl
+}
+
+proc v_BinaryOperator(cursor      : CXCursor,
+                      parent      : CXCursor,
+                      client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    left  := (_nullptr() as ASTNode*)
+    right := (_nullptr() as ASTNode*)
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    dispatch(children[0], cursor, client_data) # left 
+    left = translator.created.back()
+    translator.created.pop()
+
+    dispatch(children[1], cursor, client_data) # right
+    right = translator.created.back()
+    translator.created.pop()
+
+    translator.indent -= 1
+   
+    # create result
+    
+    op := getBinOp(@translator, cursor, children[0], children[1])
+
+    e := (_nullptr() as ASTNode*)
+
+    if strcmp(op, "+") == 0
+        e = bjou_createAddExpression(left, right)
+    else if strcmp(op, "-") == 0
+        e = bjou_createSubExpression(left, right)
+    else if strcmp(op, "*") == 0
+        e = bjou_createMultExpression(left, right)
+    else if strcmp(op, "/") == 0
+        e = bjou_createDivExpression(left, right)
+    else if strcmp(op, "%") == 0
+        e = bjou_createModExpression(left, right)
+    else if strcmp(op, "=") == 0
+        e = bjou_createAssignmentExpression(left, right)
+    else if strcmp(op, "+=") == 0
+        e = bjou_createAddAssignExpression(left, right)
+    else if strcmp(op, "-=") == 0
+        e = bjou_createSubAssignExpression(left, right)
+    else if strcmp(op, "*=") == 0
+        e = bjou_createMultAssignExpression(left, right)
+    else if strcmp(op, "/=") == 0
+        e = bjou_createDivAssignExpression(left, right)
+    else if strcmp(op, "%=") == 0
+        e = bjou_createModAssignExpression(left, right)
+    else if strcmp(op, "<") == 0
+        e = bjou_createLssExpression(left, right)
+    else if strcmp(op, "<=") == 0
+        e = bjou_createLeqExpression(left, right)
+    else if strcmp(op, ">") == 0
+        e = bjou_createGtrExpression(left, right)
+    else if strcmp(op, ">=") == 0
+        e = bjou_createGeqExpression(left, right)
+    else if strcmp(op, "==") == 0
+        e = bjou_createEquExpression(left, right)
+    else if strcmp(op, "!=") == 0
+        e = bjou_createNeqExpression(left, right)
+    else if strcmp(op, "&&") == 0
+        e = bjou_createLogAndExpression(left, right)
+    else if strcmp(op, "||") == 0
+        e = bjou_createLogOrExpression(left, right)
+    else if strcmp(op, "[]") == 0
+        e = bjou_createSubscriptExpression(left, right)
+    else if strcmp(op, ".") == 0
+        e = bjou_createAccessExpression(left, right)
+    else panic("c2bjou: unrecognized operator")
+
+    translator.created.push(e)
+    return CXVisit_Continue  
+}
+
+proc v_CallExpr(cursor      : CXCursor,
+                parent      : CXCursor,
+                client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    left  := (_nullptr() as ASTNode*)
+    _args := [...ASTNode*]
+    args  := (_nullptr() as ASTNode*)
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    dispatch(children[0], cursor, client_data) # left 
+    left = translator.created.back()
+    translator.created.pop()
+
+    arg_children := [children, 1:(|children| - 1)]
+
+    foreach child in arg_children {
+        dispatch(child, cursor, client_data)
+        _args.push(translator.created.back())
+        translator.created.pop()
+    }
+
+    args = bjou_createArgList(_args.data(), |_args|)
+
+    translator.indent -= 1
+   
+    # create result
+    c := bjou_createCallExpression(left, args)
+
+    translator.created.push(c)
+
+    return CXVisit_Continue  
+}
+
+proc v_under(cursor      : CXCursor,
+             parent      : CXCursor,
+             client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    dispatch(children[0], cursor, client_data) 
+
+    translator.indent -= 1
+   
+    # create result
+    u := translator.created.back()
+    translator.created.pop()
+
+    translator.created.push(u)
+
+    return CXVisit_Continue  
+}
+
+proc v_DeclRefExpr(cursor      : CXCursor,
+                   parent      : CXCursor,
+                   client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    tokens := translator.cw.getCursorTokens(cursor)
+    cxs := clang.getTokenSpelling(translator.cw.tu, tokens[0])
+    spl := clang.getCString(cxs)
+
+    # create result
+    i := bjou_createIdentifier(spl)
+
+    translator.created.push(i)
+
+    return CXVisit_Continue  
+}
+
+proc v_TypeRef(cursor      : CXCursor,
+               parent      : CXCursor,
+               client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    cx_t := clang.getCursorType(cursor)
+    spl  := clang.getCString(clang.getTypeSpelling(cx_t))
+
+    # create result
+    i := bjou_createIdentifier(spl)
+
+    translator.created.push(i)
+
+    return CXVisit_Continue  
+}
+
+proc v_CStyleCastExpr(cursor      : CXCursor,
+                      parent      : CXCursor,
+                      client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    expr  := (_nullptr() as ASTNode*)
+    ident := (_nullptr() as ASTNode*)
+    decl  := (_nullptr() as ASTNode*)
+
+    tokens := translator.cw.getCursorTokens(cursor)
+
+    print "%", |tokens|
+    foreach t in tokens {
+        cxs := clang.getTokenSpelling(translator.cw.tu, t)
+        spl := clang.getCString(cxs)
+        print "%", spl
+    }
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    dispatch(children[0], cursor, client_data)
+    ident = translator.created.back()
+    translator.created.pop()
+
+    dispatch(children[1], cursor, client_data)
+    expr = translator.created.back()
+    translator.created.pop()
+
+    translator.indent -= 1
+   
+    # create result
+
+    decl = bjou_createDeclarator(
+                ident,
+                (_nullptr() as ASTNode*),
+                (_nullptr() as char**), 0)
+
+    a := bjou_createAsExpression(expr, decl)
+
+    translator.created.push(a)
+
+    return CXVisit_Continue  
+}
+
+proc v_IntegerLiteral(cursor      : CXCursor,
+                      parent      : CXCursor,
+                      client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    tokens := translator.cw.getCursorTokens(cursor)
+    cxs := clang.getTokenSpelling(translator.cw.tu, tokens[0])
+    spl := clang.getCString(cxs)
+
+    # create result
+    i := bjou_createIntegerLiteral(spl)
+
+    translator.created.push(i)
+
+    return CXVisit_Continue  
+}
+
+proc v_ReturnStmt(cursor      : CXCursor,
+                  parent      : CXCursor,
+                  client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    expr := (_nullptr() as ASTNode*)
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    if |children| > 0 {
+        dispatch(children[0], cursor, client_data) 
+        expr = translator.created.back()
+        translator.created.pop()
+    }
+
+    translator.indent -= 1
+   
+    # create result
+
+    r := bjou_createReturn(expr)
+
+    translator.created.push(r)
+
+    return CXVisit_Continue  
+}
+
+proc tyToDecl(translator : c2bJou ref, t : CXType*) : ASTNode* {
+    # if translator.types.find(t).isnull()
+    #     translator.types.insert(t, makeDeclFromTy(translator, t))
+    # return bjou_clone(translator.types[t])
+    return makeDeclFromTy(translator, t)
+}
+
+proc makeDeclFromTy(translator : c2bJou ref, t : CXType*) : ASTNode* {
+    name := ""
+
+    if        t.kind == CXType_Void {
+        name = "void" 
+    } else if t.kind == CXType_Bool {
+        name = "bool"
+    } else if t.kind == CXType_Char_U {
+        name = "u8"
+    } else if t.kind == CXType_UShort {
+        name = "u16"
+    } else if t.kind == CXType_UInt {
+        name = "u32"
+    } else if t.kind == CXType_ULong or t.kind == CXType_ULongLong {
+        name = "u64"
+    } else if t.kind == CXType_Char_S {
+        name = "i8"
+    } else if t.kind == CXType_Short {
+        name = "i16"
+    } else if t.kind == CXType_Int {
+        name = "i32"
+    } else if t.kind == CXType_Long or t.kind == CXType_LongLong {
+        name = "i64"
+    } else if t.kind == CXType_Float {
+        name = "f32"
+    } else if t.kind == CXType_Double {
+        name = "f64"
+    } else {
+        print "bad type: %", t.kind
+        panic("c2bjou: unable to translate type")
+    }
+
+    id := bjou_createIdentifier(name)
+    d  := bjou_createDeclarator(
+            id,
+            (_nullptr() as ASTNode*),
+            (_nullptr() as char**), 0)
+
+    return d
+}
+
+extern strcmp(char*, char*) : int
+
+\op{ "=="
+    proc (a : char*, b : char*) : bool
+        return strcmp(a, b) == 0
+}
+
+\op{ "!="
+    proc (a : char*, b : char*) : bool
+        return not (a == b)
+}
+
+proc getBinOp(translator : c2bJou ref, cursor : CXCursor) : char* {
+    tokens := translator.cw.getCursorTokens(cursor)
+
+    cloc := clang.getCursorLocation(cursor)
+
+    foreach t in tokens {
+        tloc := clang.getTokenLocation(translator.cw.tu, t)
+        cxs := clang.getTokenSpelling(translator.cw.tu, t)
+        spl := clang.getCString(cxs)
+
+        if clang.equalLocations(cloc, tloc) != 0
+            print "%", spl
+    }
+
+    panic("c2bjou: did not find operator")
+
+    return ""
+}
+
+

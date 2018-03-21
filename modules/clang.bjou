@@ -15,6 +15,9 @@ clang := { libclang: }
 proc init_clang()
     clang = libclang.create(libclang_path)
 
+const CXVisit_Break     := 0
+const CXVisit_Continue  := 1
+
 type CXString {
     data          : void*
     private_flags : u32
@@ -22,7 +25,10 @@ type CXString {
 
 abstract type CXIndex           { }
 abstract type CXTargetInfo      { }
+
 abstract type CXTranslationUnit { }
+const CXTranslationUnit_DetailedPreprocessingRecord := 1
+
 abstract type CXClientData      { }
 
 type CXUnsavedFile {
@@ -733,9 +739,32 @@ type libclang {
         CXCursor)
         : CXType>
 
+    getCanonicalType : <(
+        CXType)
+        : CXType>
+
+    getTypeSpelling : <(
+        CXType)
+        : CXString>
+
+    getResultType : <(
+        CXType)
+        : CXType>
+
     getCursorLocation : <(
         CXCursor)
         : CXSourceLocation>
+
+    getSpellingLocation : <(
+        CXSourceLocation,
+        CXFile**,
+        u32*,
+        u32*,
+        u32*)>
+
+    getFileName : <(
+        CXFile*)
+        :CXString>
 
     getCursorExtent : <(
         CXCursor)
@@ -766,6 +795,19 @@ type libclang {
         CXSourceLocation,
         CXSourceLocation)
         : u32>
+
+    getRange : <(
+        CXSourceLocation,
+        CXSourceLocation)
+        : CXSourceRange>
+
+    getRangeStart : <(
+        CXSourceRange)
+        : CXSourceLocation>
+    
+    getRangeEnd : <(
+        CXSourceRange)
+        : CXSourceLocation>
 
     # ------------- end symbols --------------
    
@@ -848,9 +890,21 @@ type libclang {
 
         lib.getCursorType = (lib._handleGetSymbol("clang_getCursorType"))
             as <(CXCursor) : CXType>
+        
+        lib.getCanonicalType = (lib._handleGetSymbol("clang_getCanonicalType"))
+            as <(CXType) : CXType>
+
+        lib.getTypeSpelling = (lib._handleGetSymbol("clang_getTypeSpelling"))
+            as <(CXType) : CXString>
 
         lib.getCursorLocation = (lib._handleGetSymbol("clang_getCursorLocation"))
             as <(CXCursor) : CXSourceLocation>
+        
+        lib.getSpellingLocation = (lib._handleGetSymbol("clang_getSpellingLocation"))
+            as <(CXSourceLocation, CXFile**, u32*, u32*, u32*)>
+
+        lib.getFileName = (lib._handleGetSymbol("clang_getFileName"))
+            as <(CXFile*) : CXString>
 
         lib.getCursorExtent = (lib._handleGetSymbol("clang_getCursorExtent"))
             as <(CXCursor) : CXSourceRange>
@@ -874,6 +928,18 @@ type libclang {
 
         lib.equalLocations = (lib._handleGetSymbol("clang_equalLocations"))
             as <(CXSourceLocation, CXSourceLocation) : u32>
+
+        lib.getRange = (lib._handleGetSymbol("clang_getRange"))
+            as <(CXSourceLocation, CXSourceLocation) : CXSourceRange>
+        
+        lib.getRangeStart = (lib._handleGetSymbol("clang_getRangeStart"))
+            as <(CXSourceRange) : CXSourceLocation>
+        
+        lib.getRangeEnd = (lib._handleGetSymbol("clang_getRangeEnd"))
+            as <(CXSourceRange) : CXSourceLocation>
+
+        lib.getResultType = (lib._handleGetSymbol("clang_getResultType"))
+            as <(CXType) : CXType>
 
         return lib
     }

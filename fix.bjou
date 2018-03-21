@@ -1,0 +1,5 @@
+main()
+
+proc main() {
+    f := f + 1    
+}

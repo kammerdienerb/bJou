@@ -4,7 +4,16 @@
 
 \run{ main() }
 
+############# run time code
+print "running benchmark.."
+mybenchmark()
+print "done"
+###########################
+
 \ct {
+const C_FILE    := "fact.c"
+const PRINT_AST := false
+
 import "null.bjou"
 
 import "dict.bjou"
@@ -24,19 +33,20 @@ proc main() {
     cw := ClangWrapper.create()
     translator := c2bJou.create(cw)
 
-    translator.cw.parseTU("fact.c")
+    translator.cw.parseTU(C_FILE)
 
     translator.cw.traverseTU(dispatch, (&translator) as CXClientData*)
 
     # run passes on translated nodes
     gs := bjou_getGlobalScope()
 
-    foreach node in translator.created
-        bjou_addSymbols(node, gs)
     foreach node in translator.created {
-        bjou_analyze(node)
         bjou_appendNode(node)
+        bjou_setGlobalNodeRP(node)
+        bjou_addSymbols(node, gs)
     }
+    foreach node in translator.created
+        bjou_analyze(node)
 }
 
 type c2bJou {

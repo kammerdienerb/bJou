@@ -13,14 +13,23 @@
 
 namespace bjou {
 
+extern "C" Context * bjou_createContext(Loc * beg, Loc * end, const char * fname);
+extern "C" void bjou_freeContext(Context * c);
+
+extern "C" void bjou_error(Context * c, const char * message);
+
 extern "C" const char * bjou_getVersionString();
+
 extern "C" void bjou_parseAndAppend(const char * str);
 extern "C" void bjou_appendNode(ASTNode * node);
+
+extern "C" void bjou_setGlobalNodeRP(ASTNode * node);
 
 extern "C" Scope * bjou_getGlobalScope();
 
 extern "C" ASTNode* bjou_clone(ASTNode * node);
 extern "C" void bjou_addSymbols(ASTNode * node, Scope * scope);
+extern "C" void bjou_setContext(ASTNode * node, Context * c);
 extern "C" void bjou_analyze(ASTNode * node);
 extern "C" void bjou_forceAnalyze(ASTNode * node);
 
@@ -30,7 +39,7 @@ extern "C" ASTNode * bjou_createMultExpression(ASTNode * left, ASTNode * right);
 extern "C" ASTNode * bjou_createDivExpression(ASTNode * left, ASTNode * right);
 extern "C" ASTNode * bjou_createModExpression(ASTNode * left, ASTNode * right);
 
-extern "C" ASTNode * bjou_createAssignExpression(ASTNode * left,
+extern "C" ASTNode * bjou_createAssignmentExpression(ASTNode * left,
                                                  ASTNode * right);
 extern "C" ASTNode * bjou_createAddAssignExpression(ASTNode * left,
                                                     ASTNode * right);
@@ -102,6 +111,8 @@ extern "C" ASTNode * bjou_createVariableDeclaration(const char * name,
                                                     ASTNode * typeDeclarator,
                                                     ASTNode * initialization);
 
+extern "C" ASTNode * bjou_createAlias(const char * name, ASTNode * decl);
+
 extern "C" ASTNode * bjou_createStruct(
     const char * name, ASTNode * extends, ASTNode ** memberVarDecls,
     int n_memberVarDecls, ASTNode ** constantDecls, int n_constantDecls,
@@ -133,6 +144,8 @@ extern "C" ASTNode * bjou_createWhile(ASTNode * conditional,
 extern "C" ASTNode * bjou_createDoWhile(ASTNode * conditional,
                                         ASTNode ** statements,
                                         int n_statements);
+
+extern "C" ASTNode * bjou_createMacroUse(const char * macroName, ASTNode ** args, int n_args);
 
 } // namespace bjou
 

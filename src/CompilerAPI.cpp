@@ -15,6 +15,21 @@
 
 namespace bjou {
 
+extern "C" Context * bjou_createContext(Loc * beg, Loc * end, const char * fname) {
+    Context * c = new Context;
+    c->begin = *beg;
+    c->end = *end;
+    c->filename = fname;
+
+    return c;
+}
+
+extern "C" void bjou_freeContext(Context * c) { delete c; }
+
+extern "C" void bjou_error(Context * c, const char * message) {
+    errorl(*c, message);
+}
+
 extern "C" const char * bjou_getVersionString() { return BJOU_VER_STR; }
 
 extern "C" void bjou_parseAndAppend(const char * str) {
@@ -33,6 +48,10 @@ extern "C" void bjou_appendNode(ASTNode * node) {
     compilation->frontEnd.deferredAST.push_back(node);
 }
 
+extern "C" void bjou_setGlobalNodeRP(ASTNode * node) {
+    node->replace = rpget<replacementPolicy_Global_Node>();
+}
+
 extern "C" Scope * bjou_getGlobalScope() {
     return compilation->frontEnd.globalScope;
 }
@@ -45,12 +64,17 @@ extern "C" void bjou_addSymbols(ASTNode * node, Scope * scope) {
     node->addSymbols(scope);
 }
 
+extern "C" void bjou_setContext(ASTNode * node, Context * c) {
+    node->setContext(*c);
+}
+
 extern "C" void bjou_analyze(ASTNode * node) { node->analyze(); }
 
 extern "C" void bjou_forceAnalyze(ASTNode * node) { node->analyze(true); }
 
 extern "C" ASTNode * bjou_createAddExpression(ASTNode * left, ASTNode * right) {
     AddExpression * node = new AddExpression;
+    node->setContents("+");
     node->setLeft(left);
     node->setRight(right);
 
@@ -59,6 +83,7 @@ extern "C" ASTNode * bjou_createAddExpression(ASTNode * left, ASTNode * right) {
 
 extern "C" ASTNode * bjou_createSubExpression(ASTNode * left, ASTNode * right) {
     SubExpression * node = new SubExpression;
+    node->setContents("-");
     node->setLeft(left);
     node->setRight(right);
 
@@ -68,6 +93,7 @@ extern "C" ASTNode * bjou_createSubExpression(ASTNode * left, ASTNode * right) {
 extern "C" ASTNode * bjou_createMultExpression(ASTNode * left,
                                                ASTNode * right) {
     MultExpression * node = new MultExpression;
+    node->setContents("*");
     node->setLeft(left);
     node->setRight(right);
 
@@ -76,6 +102,7 @@ extern "C" ASTNode * bjou_createMultExpression(ASTNode * left,
 
 extern "C" ASTNode * bjou_createDivExpression(ASTNode * left, ASTNode * right) {
     DivExpression * node = new DivExpression;
+    node->setContents("/");
     node->setLeft(left);
     node->setRight(right);
 
@@ -84,6 +111,62 @@ extern "C" ASTNode * bjou_createDivExpression(ASTNode * left, ASTNode * right) {
 
 extern "C" ASTNode * bjou_createModExpression(ASTNode * left, ASTNode * right) {
     ModExpression * node = new ModExpression;
+    node->setContents("%");
+    node->setLeft(left);
+    node->setRight(right);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createAssignmentExpression(ASTNode * left, ASTNode * right) {
+    AssignmentExpression * node = new AssignmentExpression;
+    node->setContents("=");
+    node->setLeft(left);
+    node->setRight(right);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createAddAssignExpression(ASTNode * left, ASTNode * right) {
+    AddAssignExpression * node = new AddAssignExpression;
+    node->setContents("+=");
+    node->setLeft(left);
+    node->setRight(right);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createSubAssignExpression(ASTNode * left, ASTNode * right) {
+    SubAssignExpression * node = new SubAssignExpression;
+    node->setContents("-=");
+    node->setLeft(left);
+    node->setRight(right);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createMultAssignExpression(ASTNode * left,
+                                               ASTNode * right) {
+    MultAssignExpression * node = new MultAssignExpression;
+    node->setContents("*=");
+    node->setLeft(left);
+    node->setRight(right);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createDivAssignExpression(ASTNode * left, ASTNode * right) {
+    DivAssignExpression * node = new DivAssignExpression;
+    node->setContents("/=");
+    node->setLeft(left);
+    node->setRight(right);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createModAssignExpression(ASTNode * left, ASTNode * right) {
+    ModAssignExpression * node = new ModAssignExpression;
+    node->setContents("%=");
     node->setLeft(left);
     node->setRight(right);
 
@@ -92,6 +175,7 @@ extern "C" ASTNode * bjou_createModExpression(ASTNode * left, ASTNode * right) {
 
 extern "C" ASTNode * bjou_createLssExpression(ASTNode * left, ASTNode * right) {
     LssExpression * node = new LssExpression;
+    node->setContents("<");
     node->setLeft(left);
     node->setRight(right);
 
@@ -99,6 +183,7 @@ extern "C" ASTNode * bjou_createLssExpression(ASTNode * left, ASTNode * right) {
 }
 extern "C" ASTNode * bjou_createLeqExpression(ASTNode * left, ASTNode * right) {
     LeqExpression * node = new LeqExpression;
+    node->setContents("<=");
     node->setLeft(left);
     node->setRight(right);
 
@@ -107,6 +192,7 @@ extern "C" ASTNode * bjou_createLeqExpression(ASTNode * left, ASTNode * right) {
 
 extern "C" ASTNode * bjou_createGtrExpression(ASTNode * left, ASTNode * right) {
     GtrExpression * node = new GtrExpression;
+    node->setContents(">");
     node->setLeft(left);
     node->setRight(right);
 
@@ -115,6 +201,7 @@ extern "C" ASTNode * bjou_createGtrExpression(ASTNode * left, ASTNode * right) {
 
 extern "C" ASTNode * bjou_createGeqExpression(ASTNode * left, ASTNode * right) {
     GeqExpression * node = new GeqExpression;
+    node->setContents(">=");
     node->setLeft(left);
     node->setRight(right);
 
@@ -123,6 +210,7 @@ extern "C" ASTNode * bjou_createGeqExpression(ASTNode * left, ASTNode * right) {
 
 extern "C" ASTNode * bjou_createEquExpression(ASTNode * left, ASTNode * right) {
     EquExpression * node = new EquExpression;
+    node->setContents("==");
     node->setLeft(left);
     node->setRight(right);
 
@@ -131,6 +219,7 @@ extern "C" ASTNode * bjou_createEquExpression(ASTNode * left, ASTNode * right) {
 
 extern "C" ASTNode * bjou_createNeqExpression(ASTNode * left, ASTNode * right) {
     NeqExpression * node = new NeqExpression;
+    node->setContents("!=");
     node->setLeft(left);
     node->setRight(right);
 
@@ -140,6 +229,7 @@ extern "C" ASTNode * bjou_createNeqExpression(ASTNode * left, ASTNode * right) {
 extern "C" ASTNode * bjou_createLogAndExpression(ASTNode * left,
                                                  ASTNode * right) {
     LogAndExpression * node = new LogAndExpression;
+    node->setContents("and");
     node->setLeft(left);
     node->setRight(right);
 
@@ -149,6 +239,7 @@ extern "C" ASTNode * bjou_createLogAndExpression(ASTNode * left,
 extern "C" ASTNode * bjou_createLogOrExpression(ASTNode * left,
                                                 ASTNode * right) {
     LogOrExpression * node = new LogOrExpression;
+    node->setContents("or");
     node->setLeft(left);
     node->setRight(right);
 
@@ -158,6 +249,7 @@ extern "C" ASTNode * bjou_createLogOrExpression(ASTNode * left,
 extern "C" ASTNode * bjou_createCallExpression(ASTNode * left,
                                                ASTNode * right) {
     CallExpression * node = new CallExpression;
+    node->setContents("()");
     node->setLeft(left);
     node->setRight(right);
 
@@ -167,6 +259,7 @@ extern "C" ASTNode * bjou_createCallExpression(ASTNode * left,
 extern "C" ASTNode * bjou_createSubscriptExpression(ASTNode * left,
                                                     ASTNode * right) {
     SubscriptExpression * node = new SubscriptExpression;
+    node->setContents("[]");
     node->setLeft(left);
     node->setRight(right);
 
@@ -176,6 +269,7 @@ extern "C" ASTNode * bjou_createSubscriptExpression(ASTNode * left,
 extern "C" ASTNode * bjou_createAccessExpression(ASTNode * left,
                                                  ASTNode * right) {
     AccessExpression * node = new AccessExpression;
+    node->setContents(".");
     node->setLeft(left);
     node->setRight(right);
 
@@ -185,6 +279,7 @@ extern "C" ASTNode * bjou_createAccessExpression(ASTNode * left,
 extern "C" ASTNode * bjou_createInjectExpression(ASTNode * left,
                                                  ASTNode * right) {
     InjectExpression * node = new InjectExpression;
+    node->setContents("->");
     node->setLeft(left);
     node->setRight(right);
 
@@ -193,6 +288,7 @@ extern "C" ASTNode * bjou_createInjectExpression(ASTNode * left,
 
 extern "C" ASTNode * bjou_createNewExpression(ASTNode * right) {
     NewExpression * node = new NewExpression;
+    node->setContents("new");
     node->setRight(right);
 
     return node;
@@ -200,6 +296,7 @@ extern "C" ASTNode * bjou_createNewExpression(ASTNode * right) {
 
 extern "C" ASTNode * bjou_createDeleteExpression(ASTNode * right) {
     DeleteExpression * node = new DeleteExpression;
+    node->setContents("delete");
     node->setRight(right);
 
     return node;
@@ -207,6 +304,7 @@ extern "C" ASTNode * bjou_createDeleteExpression(ASTNode * right) {
 
 extern "C" ASTNode * bjou_createSizeofExpression(ASTNode * right) {
     SizeofExpression * node = new SizeofExpression;
+    node->setContents("sizeof");
     node->setRight(right);
 
     return node;
@@ -214,6 +312,7 @@ extern "C" ASTNode * bjou_createSizeofExpression(ASTNode * right) {
 
 extern "C" ASTNode * bjou_createNotExpression(ASTNode * right) {
     NotExpression * node = new NotExpression;
+    node->setContents("not");
     node->setRight(right);
 
     return node;
@@ -221,6 +320,7 @@ extern "C" ASTNode * bjou_createNotExpression(ASTNode * right) {
 
 extern "C" ASTNode * bjou_createDerefExpression(ASTNode * right) {
     DerefExpression * node = new DerefExpression;
+    node->setContents("@");
     node->setRight(right);
 
     return node;
@@ -228,6 +328,7 @@ extern "C" ASTNode * bjou_createDerefExpression(ASTNode * right) {
 
 extern "C" ASTNode * bjou_createAddressExpression(ASTNode * right) {
     AddressExpression * node = new AddressExpression;
+    node->setContents("&");
     node->setRight(right);
 
     return node;
@@ -235,6 +336,7 @@ extern "C" ASTNode * bjou_createAddressExpression(ASTNode * right) {
 
 extern "C" ASTNode * bjou_createRefExpression(ASTNode * right) {
     RefExpression * node = new RefExpression;
+    node->setContents("~");
     node->setRight(right);
 
     return node;
@@ -242,6 +344,7 @@ extern "C" ASTNode * bjou_createRefExpression(ASTNode * right) {
 
 extern "C" ASTNode * bjou_createAsExpression(ASTNode * left, ASTNode * right) {
     AsExpression * node = new AsExpression;
+    node->setContents("as");
     node->setLeft(left);
     node->setRight(right);
 
@@ -359,6 +462,13 @@ extern "C" ASTNode * bjou_createParamDeclaration(const char * name,
     return node;
 }
 
+extern "C" ASTNode * bjou_createAlias(const char * name, ASTNode * decl) {
+    Alias * node = new Alias;
+    node->setName(name);
+    node->setDeclarator(decl);
+
+    return node;
+}
 
 extern "C" ASTNode *
 bjou_createStruct(const char * name, ASTNode * extends,
@@ -477,6 +587,15 @@ extern "C" ASTNode * bjou_createDoWhile(ASTNode * conditional,
     node->setConditional(conditional);
     for (int i = 0; i < n_statements; i += 1)
         node->addStatement(statements[i]);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createMacroUse(const char * macroName, ASTNode ** args, int n_args) {
+    MacroUse * node = new MacroUse;
+    node->setMacroName(macroName);
+    for (int i = 0; i < n_args; i += 1)
+        node->addArg(args[i]);
 
     return node;
 }
