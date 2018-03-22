@@ -51,6 +51,8 @@ char get_ch_value(std::string & str) {
         ch = '\n';
     else if (str == "'\\t'")
         ch = '\t';
+    else if (str == "'\\\\'")
+        ch = '\\';
     else
         return -1; // @incomplete
 

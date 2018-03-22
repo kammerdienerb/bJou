@@ -151,11 +151,14 @@ static ASTNode * static_do(MacroUse * use) {
 }
 
 static ASTNode * add_llvm_pass(MacroUse * use) {
-    if (!use->parent || use->parent->nodeKind != ASTNode::PROCEDURE)
+    ASTNode * p = use->parent;
+    while (p && p->nodeKind == ASTNode::MULTINODE)
+        p = p->parent;
+    if (!p || p->nodeKind != ASTNode::PROCEDURE)
         errorl(use->getContext(),
                "add_llvm_pass must be used in the main body of a procedure");
 
-    Procedure * proc = (Procedure *)use->parent;
+    Procedure * proc = (Procedure *)p;
 
     StringLiteral * lit = (StringLiteral *)use->getArgs()[0];
     std::string pass_name = de_quote(lit->getContents());
@@ -173,11 +176,14 @@ static ASTNode * add_llvm_pass(MacroUse * use) {
 }
 
 static ASTNode * add_llvm_passes(MacroUse * use) {
-    if (!use->parent || use->parent->nodeKind != ASTNode::PROCEDURE)
+    ASTNode * p = use->parent;
+    while (p && p->nodeKind == ASTNode::MULTINODE)
+        p = p->parent;
+    if (!p || p->nodeKind != ASTNode::PROCEDURE)
         errorl(use->getContext(),
                "add_llvm_passes must be used in the main body of a procedure");
 
-    Procedure * proc = (Procedure *)use->parent;
+    Procedure * proc = (Procedure *)p;
 
     LLVMBackEnd * llbe = (LLVMBackEnd *)&compilation->backEnd;
 

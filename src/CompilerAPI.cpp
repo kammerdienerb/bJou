@@ -32,6 +32,14 @@ extern "C" void bjou_error(Context * c, const char * message) {
 
 extern "C" const char * bjou_getVersionString() { return BJOU_VER_STR; }
 
+extern "C" ASTNode * bjou_parseToMultiNode(const char * str) {
+    BJOU_DEBUG_ASSERT(str);
+    AsyncParser p(str);
+    p();
+
+    return new MultiNode(p.nodes);
+}
+
 extern "C" void bjou_parseAndAppend(const char * str) {
     BJOU_DEBUG_ASSERT(str);
     AsyncParser p(str);

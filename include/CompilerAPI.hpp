@@ -20,6 +20,7 @@ extern "C" void bjou_error(Context * c, const char * message);
 
 extern "C" const char * bjou_getVersionString();
 
+extern "C" ASTNode * bjou_parseToMultiNode(const char * str);
 extern "C" void bjou_parseAndAppend(const char * str);
 extern "C" void bjou_appendNode(ASTNode * node);
 

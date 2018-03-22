@@ -95,6 +95,7 @@ proc init_visitor_table(table : visitor_t[CXCursor_END_]) {
     table[CXCursor_DeclRefExpr]            = v_DeclRefExpr
     table[CXCursor_TypeRef]                = v_TypeRef
     table[CXCursor_IntegerLiteral]         = v_IntegerLiteral
+    table[CXCursor_StringLiteral]          = v_StringLiteral
     table[CXCursor_ReturnStmt]             = v_ReturnStmt
     table[CXCursor_CallExpr]               = v_CallExpr
 }
@@ -684,9 +685,7 @@ proc v_DeclRefExpr(cursor      : CXCursor,
     
     translator := client_data as c2bJou*
 
-    tokens := translator.cw.getCursorTokens(cursor)
-    cxs := clang.getTokenSpelling(translator.cw.tu, tokens[0])
-    spl := clang.getCString(cxs)
+    spl := ClangWrapper.getCursorName(cursor)
 
     # create result
     i := bjou_createIdentifier(spl)
@@ -723,41 +722,51 @@ proc v_CStyleCastExpr(cursor      : CXCursor,
     ident := (_nullptr() as ASTNode*)
     decl  := (_nullptr() as ASTNode*)
 
-    tokens := translator.cw.getCursorTokens(cursor)
-
-    print "%", |tokens|
-    foreach t in tokens {
-        cxs := clang.getTokenSpelling(translator.cw.tu, t)
-        spl := clang.getCString(cxs)
-        print "%", spl
-    }
-
     # visit children
-    translator.indent += 1
-
     children := [...CXCursor]
     translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
 
-    dispatch(children[0], cursor, client_data)
-    ident = translator.created.back()
-    translator.created.pop()
+    if strcmp(ClangWrapper.getCursorName(children[0]), "bjou_ct_t") == 0 {
+        unex := children[1]
+        unex_ch := [...CXCursor]
+        translator.cw.traverse(unex, child_collector, (&unex_ch) as CXClientData*)
+        code := ClangWrapper.getCursorName(unex_ch[0])
+        code += 1
+        code[strlen(code) - 1] = '\0'
 
-    dispatch(children[1], cursor, client_data)
-    expr = translator.created.back()
-    translator.created.pop()
+        code' := [...char]
+        for i := 0; i < strlen(code); i += 1 {
+            if code[i] == '\\'
+                i += 1
+            code'.push(code[i])
+        }
+        code'.push('\0')
 
-    translator.indent -= 1
-   
-    # create result
+        multi := bjou_parseToMultiNode(code'.data())
+        translator.created.push(multi)
+    } else {
+        translator.indent += 1
 
-    decl = bjou_createDeclarator(
-                ident,
-                (_nullptr() as ASTNode*),
-                (_nullptr() as char**), 0)
+        dispatch(children[0], cursor, client_data)
+        ident = translator.created.back()
+        translator.created.pop()
 
-    a := bjou_createAsExpression(expr, decl)
+        dispatch(children[1], cursor, client_data)
+        expr = translator.created.back()
+        translator.created.pop()
+    
+        translator.indent -= 1
 
-    translator.created.push(a)
+        # create result
+        decl = bjou_createDeclarator(
+                    ident,
+                    (_nullptr() as ASTNode*),
+                    (_nullptr() as char**), 0)
+
+        a := bjou_createAsExpression(expr, decl)
+
+        translator.created.push(a)
+    }
 
     return CXVisit_Continue  
 }
@@ -776,6 +785,24 @@ proc v_IntegerLiteral(cursor      : CXCursor,
     i := bjou_createIntegerLiteral(spl)
 
     translator.created.push(i)
+
+    return CXVisit_Continue  
+}
+
+proc v_StringLiteral(cursor      : CXCursor,
+                     parent      : CXCursor,
+                     client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    spl := ClangWrapper.getCursorName(cursor)
+    spl += 1
+    spl[strlen(spl) - 1] = '\0'
+
+    # create result
+    s := bjou_createStringLiteral(spl)
+
+    translator.created.push(s)
 
     return CXVisit_Continue  
 }

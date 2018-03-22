@@ -17,6 +17,7 @@ extern bjou_error(Context*, char*)
 
 extern bjou_getVersionString() : char*
 
+extern bjou_parseToMultiNode(char*) : ASTNode*
 extern bjou_parseAndAppend(char*)
 extern bjou_appendNode(ASTNode*)
 

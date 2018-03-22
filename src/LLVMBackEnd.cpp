@@ -21,6 +21,7 @@
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/IR/IRPrintingPasses.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/IPO/AlwaysInliner.h>
 #include <llvm/Transforms/Scalar.h>
 
 #include "ASTNode.hpp"
@@ -184,10 +185,12 @@ void LLVMBackEnd::jit_reset() {
         delete ee;
 
     /* Create execution engine */
+    // No optimization seems to be the best route here as far as 
+    // compile times go..
     std::string err_str;
     ee = llvm::EngineBuilder(std::move(jitModule))
              .setErrorStr(&err_str)
-             .setOptLevel(llvm::CodeGenOpt::Default)
+             .setOptLevel(llvm::CodeGenOpt::None)
              .create();
 
     if (!ee) {
@@ -251,6 +254,7 @@ void LLVMBackEnd::run(Procedure * proc) {
     completeGlobs();
     completeProcs();
 
+    // verify module
     std::string errstr;
     llvm::raw_string_ostream errstream(errstr);
     if (llvm::verifyModule(*llModule, &errstream)) {
@@ -259,7 +263,6 @@ void LLVMBackEnd::run(Procedure * proc) {
         internalError("There was an llvm error.");
     }
 
-    // ee->runFunction(fn, { });
     uint64_t ptr = ee->getFunctionAddress(name);
     void (*fn_ptr)() = (void (*)())ptr;
 
