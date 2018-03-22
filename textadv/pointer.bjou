@@ -1,9 +1,0 @@
-# pointer.bjou
-
-module pointer
-
-extern null() : void*
-extern isnull(void*) : bool
-
-proc isnull!(T)(ptr : T*) : bool
-    return isnull(ptr as void*)
