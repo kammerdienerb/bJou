@@ -7186,6 +7186,12 @@ void Foreach::analyze(bool force) {
         errorl(getExpression()->getContext(),
                "Can't take references from slice.");
 
+    if (t->under()->isArray() && !getFlag(TAKE_REF))
+        errorl(getExpression()->getContext(),
+               "The element type being iterated over is an array and must be taken by reference.", true,
+               "Expression has type '" + t->getDemangledName() + "'",
+               "Element type '" + t->under()->getDemangledName() + "' requires that the loop be by 'ref'");
+
     desugar();
 
     setFlag(ANALYZED, true);

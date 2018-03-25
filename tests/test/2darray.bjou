@@ -1,0 +1,33 @@
+# 2darray.bjou
+
+# \run{ main() }
+main()
+
+proc main() {
+    mat : float[8][8]
+    f := 0.0
+    for i := 0; i < 8; i += 1
+        for j := 0; j < 8; j += 1
+            mat[i][j] = 0.0
+    foreach ref row in mat foreach ref elem in row {
+        elem = f
+        f += 1.0
+    }
+    foreach ref row in mat {
+        foreach ref elem in row
+            printf("| %4.1f ", elem)
+        print ""
+    }
+
+    ptr := &mat[0][0]
+    for i := 0; i < 64; i += 1
+        printf("%4.1f ", ptr[i])
+    print ""
+
+    mat3 : int[2][2][2]
+    for x := 0; x < 2; x += 1
+        for y := 0; y < 2; y += 1
+            for z := 0; z < 2; z += 1
+                mat3[x][y][z] = (x + 1) * (y + 1) * (z + 1)
+    foreach ref x in mat3 foreach ref y in x foreach z in y print "%", z
+}

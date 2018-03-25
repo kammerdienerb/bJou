@@ -3,7 +3,7 @@
 import "dict.bjou"
 import "input.bjou"
 
-# \run{ main() }
+\run{ main() }
 main()
 
 extern strcmp(char*, char*) : int
@@ -30,22 +30,19 @@ proc main() {
         if strcmp(str, "quit") == 0
             break
 
+        printf("    key: ")
+        key := getstring()
+
         if strcmp(str, "add") == 0 {
-            printf("    key: ")
-            key := getstring()
             printf("    val: ")
             val := getlong()
             map[key] = val
         } else if strcmp(str, "find") == 0 {
-            printf("    key: ") 
-            key := getstring()
             search := map.find(key)
             if search.isnull()
                 print "    '%' not found", key
             else print "    %", search.val
         } else if strcmp(str, "remove") == 0 {
-            printf("    key: ")
-            key := getstring()
             search := map.find(key)
             if search.isnull()
                 print "    '%' not found", key

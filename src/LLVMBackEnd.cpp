@@ -866,8 +866,12 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
         */
         case Type::ARRAY: {
             ArrayType * array_t = (ArrayType *)t;
-            return llvm::ArrayType::get(getOrGenType(array_t->under()),
-                                        array_t->width);
+            uint64_t width = 1;
+            while (array_t->isArray()) {
+                width *= array_t->width;
+                array_t = (ArrayType*)array_t->under();
+            }
+            return llvm::ArrayType::get(getOrGenType(array_t), width);
         }
         case Type::SLICE: {
             SliceType * s_t = (SliceType *)t;
