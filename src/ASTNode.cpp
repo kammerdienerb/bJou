@@ -6316,13 +6316,17 @@ void Procedure::analyze(bool force) {
                "Can't use '" + r_t->getDemangledName() +
                    "' as a return type because it is an abstract type.");
 
+    bool returnInIf = false;
     for (ASTNode *& statement : getStatements()) {
         statement->analyze(force);
         handleTerminators(this, getStatements(), statement);
+        if (statement->nodeKind == ASTNode::IF)
+            if (((If*)statement)->alwaysReturns())
+                returnInIf = true;
     }
 
     if (!getFlag(HAS_TOP_LEVEL_RETURN) && !getFlag(IS_EXTERN) &&
-        !conv(getRetDeclarator()->getType(), VoidType::get())) {
+        !conv(getRetDeclarator()->getType(), VoidType::get()) && !returnInIf) {
 
         errorl(getContext().lastchar(),
                "'" + getName() + "' must explicitly return a value of type '" +
@@ -6856,6 +6860,22 @@ void If::setElse(ASTNode * __else) {
     _else->replace = rpget<replacementPolicy_If_Else>();
 }
 
+bool If::alwaysReturns() const {
+    if (!getFlag(ASTNode::HAS_TOP_LEVEL_RETURN))
+        return false;
+    if (getElse()) {
+        Else * _else = (Else*)getElse();
+        if (_else->getFlag(ASTNode::HAS_TOP_LEVEL_RETURN))
+            return true;
+
+        if (_else->getStatements().size() > 0) {
+            if (_else->getStatements()[0]->nodeKind == ASTNode::IF)
+                return ((If*)_else->getStatements()[0])->alwaysReturns();
+        }
+    }
+    return true;
+}
+
 // Node interface
 void If::analyze(bool force) {
     HANDLE_FORCE();
@@ -7204,12 +7224,17 @@ void Foreach::addSymbols(Scope * _scope) {
 
 void Foreach::unwrap(std::vector<ASTNode *> & terminals) {
     getExpression()->unwrap(terminals);
+    for (ASTNode * statement : getStatements())
+        statement->unwrap(terminals);
 }
 
 ASTNode * Foreach::clone() {
     Foreach * c = new Foreach(*this);
 
     c->setExpression(getExpression()->clone());
+
+    for (ASTNode * statement : getStatements())
+        c->addStatement(statement);
 
     return c;
 }
@@ -7261,10 +7286,12 @@ void Foreach::desugar() {
     elem->setContext(getIdentContext());
     elem->setNameContext(getIdentContext());
     elem->setName(getIdent());
-    if (getFlag(TAKE_REF))
+
+    if (getFlag(TAKE_REF)) {
         elem->setTypeDeclarator(elem_t->getRef()->getGenericDeclarator());
-    else
+    } else {
         elem->setTypeDeclarator(elem_t->getGenericDeclarator());
+    }
 
     SubscriptExpression * sub = new SubscriptExpression;
 
@@ -7289,7 +7316,9 @@ void Foreach::desugar() {
 
 bool Foreach::isStatement() const { return true; }
 
-Foreach::~Foreach() { delete getExpression(); }
+Foreach::~Foreach() { 
+    delete getExpression();
+}
 //
 
 // ~~~~~ While ~~~~~

@@ -2552,6 +2552,8 @@ struct If : ASTNode {
     ASTNode * getElse() const;
     void setElse(ASTNode * __else);
 
+    bool alwaysReturns() const;
+
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();

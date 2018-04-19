@@ -7,7 +7,14 @@ LLVM_CFG	= llvm-config
 R_CFLAGS 	= -I$(INCLUDE) -I$(TCLAP_INCLUDE) -DBJOU_USE_COLOR $(shell $(LLVM_CFG) --cxxflags) -fno-rtti -fno-exceptions -O3
 D_CFLAGS 	= -I$(INCLUDE) -I$(TCLAP_INCLUDE) -DBJOU_USE_COLOR -DBJOU_DEBUG_BUILD $(shell $(LLVM_CFG) --cxxflags) -fno-rtti -w -g -O0
 LLVM_LIBS	= $(shell $(LLVM_CFG) --libs all --system-libs)
-R_LFLAGS	= $(shell $(LLVM_CFG) --ldflags) $(LLVM_LIBS) -lffi 
+TCMLC_PATH  = /usr/local/lib/libtcmalloc.a
+JEMLC_PATH  = /usr/local/lib/libjemalloc.a
+R_LFLAGS	= $(shell $(LLVM_CFG) --ldflags) $(LLVM_LIBS) -lffi
+ifneq ("$(wildcard $(TCMLC_PATH))","")
+	R_LFLAGS += -ltcmalloc
+else ifneq ("$(wildcard $(JEMLC_PATH))", "")
+	R_LFLAGS += -ljemalloc
+endif
 D_LFLAGS	= $(R_LFLAGS)
 SRC			= $(wildcard src/*.cpp)
 TCLAP_SRC	= $(wildcard tclap/*.cpp)
@@ -53,6 +60,13 @@ obj/release/%.o: %.cpp
 	@mkdir -p obj/release/tclap
 	@echo "Compiling $<"
 	@$(CC) $(R_CFLAGS) -c -o $@ $<
+
+install: bin/$(TARGET)
+	@mkdir -p /usr/local/lib/bjou
+	@mkdir -p /usr/local/lib/bjou/modules
+	@cp bin/$(TARGET) /usr/local/bin/$(TARGET)
+	@rsync -a modules/ /usr/local/lib/bjou/modules/	
+	@cp bjou.h /usr/local/include
 
 clean:
 	@\rm -f obj/debug/src/*.o

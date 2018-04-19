@@ -10,7 +10,15 @@ type Context { } # opaque -- bjou::Context
 type ASTNode { } # opaque -- bjou::ASTNode
 type Scope   { } # opaque -- bjou::Scope
 
+extern bjou_makeUID(char*) : char*
+
 extern bjou_createContext(Loc*, Loc*, char*) : Context*
+extern bjou_getContext(ASTNode*) : Context*
+extern bjou_setContext(ASTNode*, Context*)
+extern bjou_setProcNameContext(ASTNode*, Context*)
+extern bjou_setVarDeclNameContext(ASTNode*, Context*)
+extern bjou_setStructNameContext(ASTNode*, Context*)
+extern bjou_setAliasNameContext(ASTNode*, Context*)
 extern bjou_freeContext(Context*)
 
 extern bjou_error(Context*, char*)
@@ -21,15 +29,21 @@ extern bjou_parseToMultiNode(char*) : ASTNode*
 extern bjou_parseAndAppend(char*)
 extern bjou_appendNode(ASTNode*)
 
+extern bjou_runTypeCompletion()
+
 extern bjou_setGlobalNodeRP(ASTNode*)
 
 extern bjou_getGlobalScope() : Scope*
 
 extern bjou_clone(ASTNode*) : ASTNode*
-extern bjou_setContext(ASTNode*, Context*)
+extern bjou_preDeclare(ASTNode*, Scope*)
 extern bjou_addSymbols(ASTNode*, Scope*)
 extern bjou_analyze(ASTNode*)
 extern bjou_forceAnalyze(ASTNode*)
+
+extern bjou_getStructName(ASTNode*) : char*
+
+extern bjou_setVarDeclName(ASTNode*, char*)
 
 ################################################## Binary Expressions
 #####################################################################
@@ -111,7 +125,7 @@ extern bjou_createPointerDeclarator(ASTNode*) : ASTNode*
 # RefDeclarator
 # MaybeDeclarator
 # TupleDeclarator
-# ProcedureDeclarator
+extern bjou_createProcedureDeclarator(ASTNode**, int, ASTNode*, bool) : ASTNode*
 # PlaceholderDeclarator
 
 #####################################################################
@@ -119,18 +133,19 @@ extern bjou_createPointerDeclarator(ASTNode*) : ASTNode*
 # Constant
 
 extern bjou_createVariableDeclaration(char*, ASTNode*, ASTNode*) : ASTNode*
+extern bjou_createFieldDeclaration(char*, ASTNode*, ASTNode*) : ASTNode*
 extern bjou_createParamDeclaration(char*, ASTNode*, ASTNode*) : ASTNode*
 
 extern bjou_createAlias(char*, ASTNode*) : ASTNode*
 
 extern bjou_createStruct(
-    char*,
-    ASTNode*,
-    ASTNode**, int,
-    ASTNode**, int,
-    ASTNode**, int,
-    ASTNode**, int,
-    ASTNode**, int)
+    char*,          # name
+    ASTNode*,       # extends
+    ASTNode**, int, # memberVarDecls
+    ASTNode**, int, # constantDecls
+    ASTNode**, int, # memberProcs
+    ASTNode**, int, # memberTemplateProcs
+    ASTNode**, int) # interfaceImpls
     : ASTNode*
 
 # InterfaceDef
@@ -142,6 +157,7 @@ extern bjou_createArgList(ASTNode**, int) : ASTNode*
 # This
 
 extern bjou_createProcedure(char*, ASTNode**, int, bool, ASTNode*, ASTNode**, int) : ASTNode*
+extern bjou_createExternProcedure(char*, ASTNode**, int, bool, ASTNode*) : ASTNode*
 
 # Namespace
 # Import

@@ -12,4 +12,23 @@ type __bjou_string {
             .__data = [...char] 
         }     
     }
+    
+    proc create(c_str : char*) : __bjou_string {
+        s := { __bjou_string:
+            .__data = [...char] 
+        }
+        s.__data.set([c_str, 0:strlen(c_str)])
+        return s
+    }
+
+    # destroy
+}
+
+# proc len(s : __bjou_string ref) : u64
+#     return |s.__data|
+
+proc c_str(s : __bjou_string ref) : char* {
+    s.__data.push(0)
+    s.__data.pop()
+    return s.__data.data()
 }

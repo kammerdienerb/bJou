@@ -56,10 +56,15 @@ Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
             outputbasefilename.substr(outputbasefilename.find_last_of("/") + 1);
     }
 
-    for (auto & f : args.files.getValue())
+    for (auto & f : args.files.getValue()) {
         if (has_suffix(f, ".o") || has_suffix(f, ".a") ||
             has_suffix(f, ".so") || has_suffix(f, ".dylib"))
             obj_files.push_back(f);
+
+        else if (!has_suffix(f, ".bjou")) {
+            warning("Ignoring file '" + f + "'.");
+        }
+    }
 
     module_search_paths.push_back("");
     for (auto & _path : args.module_search_path_arg.getValue()) {

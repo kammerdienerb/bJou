@@ -251,6 +251,9 @@ void Scope::addSymbol(_Symbol<Procedure> * symbol, Context * context) {
                                    existing_t->getDemangledName() + "'");
                     }
 
+                    if (!proc->getFlag(ASTNode::CT))
+                        existing_proc->setFlag(ASTNode::CT, false);
+
                     // proc->setFlag(ASTNode::IGNORE_GEN, true);
                 }
             }

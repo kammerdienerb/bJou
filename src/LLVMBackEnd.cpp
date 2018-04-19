@@ -188,10 +188,12 @@ void LLVMBackEnd::jit_reset() {
     // No optimization seems to be the best route here as far as 
     // compile times go..
     std::string err_str;
-    ee = llvm::EngineBuilder(std::move(jitModule))
-             .setErrorStr(&err_str)
-             .setOptLevel(llvm::CodeGenOpt::None)
-             .create();
+    llvm::EngineBuilder engineBuilder(std::move(jitModule));
+    engineBuilder
+        .setErrorStr(&err_str)
+        .setOptLevel(llvm::CodeGenOpt::None);
+
+    ee = engineBuilder.create();
 
     if (!ee) {
         error(COMPILER_SRC_CONTEXT(), "LLVM:", true, err_str);
@@ -218,15 +220,19 @@ milliseconds LLVMBackEnd::go() {
                                              ? " and Optimization"
                                              : ""));
 
-    auto l_time = LinkingStage();
-    if (compilation->args.time_arg.getValue())
-        prettyPrintTimeMin(l_time, "Linking");
+    if (!compilation->args.c_arg.getValue()) {
+        auto l_time = LinkingStage();
+        if (compilation->args.time_arg.getValue())
+            prettyPrintTimeMin(l_time, "Linking");
+    }
 
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
 }
 
-void LLVMBackEnd::run(Procedure * proc) {
+void * LLVMBackEnd::run(Procedure * proc, void * _val_args) {
+    std::vector<Val>& val_args = *(std::vector<Val>*)_val_args;
+
     mode = GEN_MODE::CT;
 
     if (!ee)
@@ -264,9 +270,238 @@ void LLVMBackEnd::run(Procedure * proc) {
     }
 
     uint64_t ptr = ee->getFunctionAddress(name);
-    void (*fn_ptr)() = (void (*)())ptr;
 
-    fn_ptr();
+    const Type * _t = proc->getType();
+    ProcedureType * t = (ProcedureType*)_t;
+    const std::vector<const Type*>& param_types = t->getParamTypes();
+    const Type * ret_t = t->getRetType();
+
+    if (param_types.size() == 0) {
+        if (ret_t->isVoid()) {
+            void (*fn_ptr)() = (void (*)())ptr;
+            fn_ptr();
+            return nullptr;
+        } else if (ret_t->isInt()) {
+            if (((IntType*)ret_t)->width == 32) {
+                int (*fn_ptr)() = (int(*)())ptr;
+                return (void*)fn_ptr(); 
+            } else if (((IntType*)ret_t)->width == 64) {
+                long long(*fn_ptr)() = (long long(*)())ptr;
+                return (void*)fn_ptr(); 
+            }
+        } else if (ret_t->isChar()) {
+            char (*fn_ptr)() = (char(*)())ptr;
+            return (void*)fn_ptr(); 
+        } else if (ret_t->isFloat()) {
+            if (((FloatType*)ret_t)->width == 32) {
+                float (*fn_ptr)() = (float(*)())ptr;
+                float r = fn_ptr();
+                return (void*)*((uint64_t*)&r);
+            } else if (((FloatType*)ret_t)->width == 64) {
+                double (*fn_ptr)() = (double(*)())ptr;
+                double r = fn_ptr();
+                return (void*)*((uint64_t*)&r);
+            }
+        } else if (ret_t->isPointer() && ret_t->under()->isChar()) {
+            char * (*fn_ptr)() = (char*(*)())ptr;
+            return (void*)fn_ptr();
+        }
+    } else if (param_types.size() == 1) {
+        const Type * param_t = param_types[0];
+        Val& arg = val_args[0];
+        if (ret_t->isVoid()) {
+            if (param_t->isInt()) {
+                if (((IntType*)param_t)->width == 32) {
+                    void (*fn_ptr)(int) = (void(*)(int))ptr;
+                    fn_ptr(arg.as_i64);
+                    return nullptr;
+                } else if (((IntType*)param_t)->width == 64) {
+                    void (*fn_ptr)(long long) = (void(*)(long long))ptr;
+                    fn_ptr(arg.as_i64); 
+                    return nullptr;
+                }
+            } else if (param_t->isChar()) {
+                void (*fn_ptr)(char) = (void(*)(char))ptr;
+                fn_ptr(arg.as_i64); 
+                return nullptr;
+            } else if (param_t->isFloat()) {
+                if (((FloatType*)param_t)->width == 32) {
+                    void (*fn_ptr)(float) = (void(*)(float))ptr;
+                    fn_ptr(arg.as_f64); 
+                    return nullptr;
+                } else if (((FloatType*)param_t)->width == 64) {
+                    void (*fn_ptr)(double) = (void(*)(double))ptr;
+                    fn_ptr(arg.as_f64); 
+                    return nullptr;
+                }
+           } else if (param_t->isPointer() && param_t->under()->isChar()) {
+                void (*fn_ptr)(char*) = (void(*)(char*))ptr;
+                fn_ptr((char*)arg.as_string.c_str()); 
+                return nullptr;
+           }
+        } else if (ret_t->isInt()) {
+            if (((IntType*)ret_t)->width == 32) {
+                if (param_t->isInt()) {
+                    if (((IntType*)param_t)->width == 32) {
+                        int (*fn_ptr)(int) = (int(*)(int))ptr;
+                        return (void*)fn_ptr(arg.as_i64); 
+                    } else if (((IntType*)param_t)->width == 64) {
+                        int (*fn_ptr)(long long) = (int(*)(long long))ptr;
+                        return (void*)fn_ptr(arg.as_i64); 
+                    }
+                } else if (param_t->isChar()) {
+                    int (*fn_ptr)(char) = (int(*)(char))ptr;
+                    return (void*)fn_ptr(arg.as_i64); 
+                } else if (param_t->isFloat()) {
+                    if (((FloatType*)param_t)->width == 32) {
+                        int (*fn_ptr)(float) = (int(*)(float))ptr;
+                        return (void*)fn_ptr(arg.as_f64); 
+                    } else if (((FloatType*)param_t)->width == 64) {
+                        int (*fn_ptr)(double) = (int(*)(double))ptr;
+                        return (void*)fn_ptr(arg.as_f64); 
+                    }
+               } else if (param_t->isPointer() && param_t->under()->isChar()) {
+                    int (*fn_ptr)(char*) = (int(*)(char*))ptr;
+                    return (void*)fn_ptr((char*)arg.as_string.c_str()); 
+               }
+            } else if (((IntType*)ret_t)->width == 64) {
+                if (param_t->isInt()) {
+                    if (((IntType*)param_t)->width == 32) {
+                        long long (*fn_ptr)(int) = (long long(*)(int))ptr;
+                        return (void*)fn_ptr(arg.as_i64); 
+                    } else if (((IntType*)param_t)->width == 64) {
+                        long long (*fn_ptr)(long long) = (long long(*)(long long))ptr;
+                        return (void*)fn_ptr(arg.as_i64); 
+                    }
+                } else if (param_t->isChar()) {
+                    long long (*fn_ptr)(char) = (long long(*)(char))ptr;
+                    return (void*)fn_ptr(arg.as_i64); 
+                } else if (param_t->isFloat()) {
+                    if (((FloatType*)param_t)->width == 32) {
+                        long long (*fn_ptr)(float) = (long long(*)(float))ptr;
+                        return (void*)fn_ptr(arg.as_f64); 
+                    } else if (((FloatType*)param_t)->width == 64) {
+                        long long (*fn_ptr)(double) = (long long(*)(double))ptr;
+                        return (void*)fn_ptr(arg.as_f64); 
+                    }
+                } else if (param_t->isPointer() && param_t->under()->isChar()) {
+                    long long (*fn_ptr)(char*) = (long long(*)(char*))ptr;
+                    return (void*)fn_ptr((char*)arg.as_string.c_str()); 
+                }
+            }
+        } else if (ret_t->isChar()) {
+            if (param_t->isInt()) {
+                if (((IntType*)param_t)->width == 32) {
+                    char (*fn_ptr)(int) = (char(*)(int))ptr;
+                    return (void*)fn_ptr(arg.as_i64); 
+                } else if (((IntType*)param_t)->width == 64) {
+                    char (*fn_ptr)(long long) = (char(*)(long long))ptr;
+                    return (void*)fn_ptr(arg.as_i64); 
+                }
+            } else if (param_t->isChar()) {
+                char (*fn_ptr)(char) = (char(*)(char))ptr;
+                return (void*)fn_ptr(arg.as_i64); 
+            } else if (param_t->isFloat()) {
+                if (((FloatType*)param_t)->width == 32) {
+                    char (*fn_ptr)(float) = (char(*)(float))ptr;
+                    return (void*)fn_ptr(arg.as_f64); 
+                } else if (((FloatType*)param_t)->width == 64) {
+                    char (*fn_ptr)(double) = (char(*)(double))ptr;
+                    return (void*)fn_ptr(arg.as_f64); 
+                }
+            } else if (param_t->isPointer() && param_t->under()->isChar()) {
+                char (*fn_ptr)(char*) = (char(*)(char*))ptr;
+                return (void*)fn_ptr((char*)arg.as_string.c_str()); 
+            }
+        } else if (ret_t->isFloat()) {
+            if (((FloatType*)ret_t)->width == 32) {
+                if (param_t->isInt()) {
+                    if (((IntType*)param_t)->width == 32) {
+                        float (*fn_ptr)(int) = (float(*)(int))ptr;
+                        float r = fn_ptr(arg.as_i64);
+                        return (void*)*((uint64_t*)&r);
+                    } else if (((IntType*)param_t)->width == 64) {
+                        float (*fn_ptr)(long long) = (float(*)(long long))ptr;
+                        float r = fn_ptr(arg.as_i64);
+                        return (void*)*((uint64_t*)&r);
+                    }
+                } else if (param_t->isChar()) {
+                    float (*fn_ptr)(char) = (float(*)(char))ptr;
+                    float r = fn_ptr(arg.as_i64);
+                    return (void*)*((uint64_t*)&r);
+                } else if (param_t->isFloat()) {
+                    if (((FloatType*)param_t)->width == 32) {
+                        float (*fn_ptr)(float) = (float(*)(float))ptr;
+                        float r = fn_ptr(arg.as_f64);
+                        return (void*)*((uint64_t*)&r);
+                    } else if (((FloatType*)param_t)->width == 64) {
+                        float (*fn_ptr)(double) = (float(*)(double))ptr;
+                        float r = fn_ptr(arg.as_f64);
+                        return (void*)*((uint64_t*)&r);
+                    }
+                } else if (param_t->isPointer() && param_t->under()->isChar()) {
+                    float (*fn_ptr)(char*) = (float(*)(char*))ptr;
+                    float r = fn_ptr((char*)arg.as_string.c_str());
+                    return (void*)*((uint64_t*)&r);
+                }
+            } else if (((FloatType*)ret_t)->width == 64) {
+                if (param_t->isInt()) {
+                    if (((IntType*)param_t)->width == 32) {
+                        double (*fn_ptr)(int) = (double(*)(int))ptr;
+                        double r = fn_ptr(arg.as_i64);
+                        return (void*)*((uint64_t*)&r);
+                    } else if (((IntType*)param_t)->width == 64) {
+                        double (*fn_ptr)(long long) = (double(*)(long long))ptr;
+                        double r = fn_ptr(arg.as_i64);
+                        return (void*)*((uint64_t*)&r);
+                    }
+                } else if (param_t->isChar()) {
+                    double (*fn_ptr)(char) = (double(*)(char))ptr;
+                    double r = fn_ptr(arg.as_i64);
+                    return (void*)*((uint64_t*)&r);
+                } else if (param_t->isFloat()) {
+                    if (((FloatType*)param_t)->width == 32) {
+                        double (*fn_ptr)(float) = (double(*)(float))ptr;
+                        double r = fn_ptr(arg.as_f64);
+                        return (void*)*((uint64_t*)&r);
+                    } else if (((FloatType*)param_t)->width == 64) {
+                        double (*fn_ptr)(double) = (double(*)(double))ptr;
+                        double r = fn_ptr(arg.as_f64);
+                        return (void*)*((uint64_t*)&r);
+                    }
+                } else if (param_t->isPointer() && param_t->under()->isChar()) {
+                    double (*fn_ptr)(char*) = (double(*)(char*))ptr;
+                    double r = fn_ptr((char*)arg.as_string.c_str());
+                    return (void*)*((uint64_t*)&r);
+                }
+            }
+        } else if (ret_t->isPointer() && ret_t->under()->isChar()) {
+            if (param_t->isInt()) {
+                if (((IntType*)param_t)->width == 32) {
+                    char * (*fn_ptr)(int) = (char*(*)(int))ptr;
+                    return (void*)fn_ptr(arg.as_i64); 
+                } else if (((IntType*)param_t)->width == 64) {
+                    char * (*fn_ptr)(long long) = (char*(*)(long long))ptr;
+                    return (void*)fn_ptr(arg.as_i64); 
+                }
+            } else if (param_t->isChar()) {
+                char * (*fn_ptr)(char) = (char*(*)(char))ptr;
+                return (void*)fn_ptr(arg.as_i64); 
+            } else if (param_t->isFloat()) {
+                if (((FloatType*)param_t)->width == 32) {
+                    char * (*fn_ptr)(float) = (char*(*)(float))ptr;
+                    return (void*)fn_ptr(arg.as_f64); 
+                } else if (((FloatType*)param_t)->width == 64) {
+                    char * (*fn_ptr)(double) = (char*(*)(double))ptr;
+                    return (void*)fn_ptr(arg.as_f64); 
+                }
+            } else if (param_t->isPointer() && param_t->under()->isChar()) {
+                char * (*fn_ptr)(char*) = (char*(*)(char*))ptr;
+                return (void*)fn_ptr((char*)arg.as_string.c_str()); 
+            }
+        }
+    }
+    internalError("LLVMBackEnd::run(): For now, there is a limit to the type signatures of procedures that we can call.");
 }
 
 void LLVMBackEnd::addProcedurePass(Procedure * proc, std::string pass_name) {
@@ -1939,44 +2174,105 @@ void * SubscriptExpression::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
     const Type * lt = getLeft()->getType()->unRef();
-
-    llvm::Value * lv = nullptr;
-    llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
-
+    const Type * elem_t = getType();
+    llvm::Value * lv = nullptr,
+                * rv = nullptr;
     std::vector<llvm::Value *> indices;
 
-    if (lt->isPointer()) {
-        lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
-        /*
-        const Type * sub_t = ((PointerType*)lt)->pointer_of;
-        uint64_t size =
-        llbe->layout->getTypeAllocSize(llbe->getOrGenType(sub_t));
-        llvm::Value * size_val =
-        llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), size);
-        rv = llbe->builder.CreateMul(size_val, rv);
-         */
-    } else if (lt->isArray()) {
-        lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
-        /*
-         if (llvm::isa<llvm::Constant>(lv)) {
-            BJOU_DEBUG_ASSERT(!getAddr);
-            Expression * r = (Expression*)getRight();
-            BJOU_DEBUG_ASSERT(r->isConstant());
-            return llbe->builder.CreateExtractValue(lv, { static_cast<unsigned
-        int>(r->eval().as_i64) });
-        }
-
-        */
-        // indices.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext),
-        // 0));
-    } else {
-        BJOU_DEBUG_ASSERT(false);
+    if (!lt->isPointer() && !lt->isArray()) {
+        BJOU_DEBUG_ASSERT(false && "Invalid subscript type");
         return nullptr;
     }
+
+    if (lt->isArray()) {
+        std::vector<unsigned int> widths, steps;  // number of steps per dimension
+                                                  // int[2][2][3] -> { 1, 3, 6 }
+        std::vector<llvm::Value*> indices;
+        
+        auto multiplicative_sum = [&](std::vector<unsigned int>& vec, int take) {
+            unsigned int sum = 1;
+            for (int i = 0; i < take; i += 1)
+                sum *= vec[i];
+            return sum;
+        };
+
+        
+        ASTNode * s = this->getLeft(),
+                * l = nullptr;
+       
+        // find bottom of subscript chain
+        while (s && s->nodeKind == ASTNode::SUBSCRIPT_EXPRESSION)
+            s = ((Expression*)s)->getLeft();
+        // s is the array.. save it
+        ASTNode * the_array = s;
+        // go back up one to find the last subscript
+        s = s->parent;
+        // go back up, gathering widths
+        while (s != this->parent) {
+            Expression * e = (Expression*)s;
+            const Type * t = e->getLeft()->getType();
+            if (!t->isArray()) break;
+            ArrayType * a_t = (ArrayType*)t;
+
+            widths.push_back(a_t->width);
+
+            s = s->parent; 
+        }
+
+        // this level
+        // first step is always 1
+        steps.push_back(1);
+        indices.push_back(llbe->getOrGenNode(getRight()));
+       
+        s = this->getLeft();
+        l = this->getLeft();
+        // traverse down
+        int take = 1;
+        while (s && s->nodeKind == ASTNode::SUBSCRIPT_EXPRESSION) {
+            Expression * e = (Expression*)s;
+            const Type * t = e->getLeft()->getType();
+            if (!t->isArray()) break;
+            ArrayType * a_t = (ArrayType*)t;
+
+            steps.push_back(multiplicative_sum(widths, take++));
+
+            widths.push_back(a_t->width);
+
+            indices.push_back(llbe->getOrGenNode(e->getRight()));
+
+            l = e->getLeft();
+
+            s = l;
+        }
+
+        BJOU_DEBUG_ASSERT(the_array);
+
+        lv = llbe->getOrGenNode(the_array);
+
+        llvm::Value * sum_value = indices[0];
+        for (int i = 1; i < (int)indices.size(); i += 1) {
+            llvm::Value * tmp = indices[1];
+            llvm::Value * step = llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), steps[i]);
+            tmp = llbe->builder.CreateMul(tmp, step);
+            sum_value = llbe->builder.CreateAdd(sum_value, tmp);
+        }
+
+        rv = sum_value;
+    } else {
+        lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
+        rv = (llvm::Value *)llbe->getOrGenNode(getRight());
+    }
+
+    BJOU_DEBUG_ASSERT(lv);
+    BJOU_DEBUG_ASSERT(rv);
 
     indices.push_back(rv);
 
     llvm::Value * gep = llbe->builder.CreateInBoundsGEP(lv, indices);
+
+    if (elem_t->isArray())
+        getAddr = true;
+
     if (getAddr)
         return gep;
     return llbe->builder.CreateLoad(gep, "subscript");
@@ -2702,10 +2998,15 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
     if (getType()->isRef()) {
         BJOU_DEBUG_ASSERT(getInitialization());
 
-        val = llbe->addNamedVal(
-            getMangledName(),
-            (llvm::Value *)llbe->getOrGenNode(getInitialization(), true),
-            getType());
+        if (getType()->unRef()->isArray()) {
+            val = llbe->allocNamedVal(getMangledName(), getType()->unRef()->under()->getPointer());
+            llbe->builder.CreateStore(llbe->getOrGenNode(getInitialization(), true), val);
+        } else {
+            val = llbe->addNamedVal(
+                getMangledName(),
+                (llvm::Value *)llbe->getOrGenNode(getInitialization(), true),
+                getType());
+        }
     } else {
         val = llbe->allocNamedVal(getMangledName(), getType());
         BJOU_DEBUG_ASSERT(val);
@@ -2742,7 +3043,7 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
             //
         }
 
-        if (getInitialization()) {
+        if (getInitialization() && !getType()->isRef()) {
             if (getType()->isStruct()) {
                 static bool checked_memcpy = false;
                 if (!checked_memcpy) {

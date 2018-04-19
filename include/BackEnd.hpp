@@ -24,7 +24,7 @@ struct BackEnd {
 
     virtual milliseconds go() = 0;
 
-    virtual void run(Procedure * proc) = 0;
+    virtual void * run(Procedure * proc, void * args) = 0;
 };
 } // namespace bjou
 

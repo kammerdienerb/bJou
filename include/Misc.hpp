@@ -74,11 +74,11 @@ inline void _BJOU_TRIGGER_DEBUG_ASSERT(int line, const char * file) {
 #define CAT3(x, y, z) _CAT3(x, y, z)
 
 #define BJOU_VER_MAJ 0
-#define BJOU_VER_MIN 6
+#define BJOU_VER_MIN 7
 #define BJOU_VER CAT3(BJOU_VER_MAJ, ., BJOU_VER_MIN)
 #define BJOU_VER_STR STR(BJOU_VER)
 
-#define BJOU_VER_COLOR GREEN
+#define BJOU_VER_COLOR RED
 
 #define _BJOU_VER_COLOR_STR STR(BJOU_VER_COLOR)
 #define BJOU_VER_COLOR_STR _BJOU_VER_COLOR_STR

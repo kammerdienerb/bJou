@@ -2,16 +2,16 @@
 # source to source translator from C to bJou
 # uses libclang
 
-\run{ main() }
+module c2bjou
 
-############# run time code
-print "running benchmark.."
-mybenchmark()
-print "done"
-###########################
+# @hack -- where is this supposed to come from?
+abstract type __va_list_tag { }
+
+extern sprintf(char*, char*, ...) : int
+extern strcmp(char*, char*) : int
+extern strlen(char*) : u64
 
 \ct {
-const C_FILE    := "fact.c"
 const PRINT_AST := false
 
 import "null.bjou"
@@ -21,19 +21,18 @@ import "dict.bjou"
 # must be defined for clang.bjou to compile
 const libclang_path := "/usr/local/Cellar/llvm/5.0.1/lib/libclang.dylib"
 import "clang.bjou"
-import "ClangWrapper.bjou"
-import "visitors.bjou"
+import "c2bjou/ClangWrapper.bjou"
+import "c2bjou/visitors.bjou"
 
 import "compiler.bjou"
 
-
-proc main() {
+proc include(fname : char*) {
     init_clang()
 
     cw := ClangWrapper.create()
     translator := c2bJou.create(cw)
 
-    translator.cw.parseTU(C_FILE)
+    translator.cw.parseTU(fname)
 
     translator.cw.traverseTU(dispatch, (&translator) as CXClientData*)
 
@@ -43,8 +42,12 @@ proc main() {
     foreach node in translator.created {
         bjou_appendNode(node)
         bjou_setGlobalNodeRP(node)
-        bjou_addSymbols(node, gs)
     }
+    foreach node in translator.structs
+        bjou_preDeclare(node, gs)
+    foreach node in translator.created
+        bjou_addSymbols(node, gs)
+    bjou_runTypeCompletion()
     foreach node in translator.created
         bjou_analyze(node)
 }
@@ -55,13 +58,15 @@ type c2bJou {
     indent        : int
     types         : dict$(CXType*, ASTNode*)
     created       : ASTNode*[...]
+    structs       : ASTNode*[...]
 
     proc create(cw : ClangWrapper ref) : c2bJou {
         c := { c2bJou:
             .cw            = cw,
             .indent        = 0,
             .types         = dict$(CXType*, ASTNode*).create(),
-            .created       = [...ASTNode*]
+            .created       = [...ASTNode*],
+            .structs       = [...ASTNode*]
         }
 
         init_visitor_table(c.visitor_table)

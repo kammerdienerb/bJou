@@ -1,0 +1,17 @@
+# io.bjou
+
+import "c2bjou.bjou"
+\run{ include("/usr/include/stdio.h") }
+
+main()
+
+proc main() {
+    f := fopen("out.txt", "w")
+
+    the_num := 0
+    printf("enter a number: ")
+    scanf("%d", &the_num)
+    f.fprintf("%d", the_num)
+
+    f.fclose()
+}

@@ -731,7 +731,19 @@ type libclang {
         u32)
         : CXString>
 
+    Cursor_getNumArguments : <(
+        CXCursor)
+        : int>
+
     Cursor_isVariadic : <(
+        CXCursor)
+        : u32>
+
+    isCursorDefinition : <(
+        CXCursor)
+        : u32>
+
+    Cursor_isAnonymous : <(
         CXCursor)
         : u32>
 
@@ -747,9 +759,38 @@ type libclang {
         CXType)
         : CXString>
 
+    getNumArgTypes : <(
+        CXType)
+        : int>
+
+    getArgType : <(
+        CXType,
+        u32)
+        : CXType>
+
+    isFunctionTypeVariadic : <(
+        CXType)
+        : u32>
+
     getResultType : <(
         CXType)
         : CXType>
+
+    getElementType : <(
+        CXType)
+        : CXType>
+
+    getPointeeType : <(
+        CXType)
+        : CXType>
+
+    getNumElements: <(
+        CXType)
+        : i64>
+
+    Type_getSizeOf : <(
+        CXType)
+        : i64>
 
     getCursorLocation : <(
         CXCursor)
@@ -828,7 +869,7 @@ type libclang {
     proc create(path : char*) : libclang {
         lib := { libclang: }
         lib._load(path)
-        
+
         # load symbols
          lib.getCString = (lib._handleGetSymbol("clang_getCString"))
             as <(CXString) : char*>
@@ -887,6 +928,15 @@ type libclang {
 
         lib.Cursor_isVariadic = (lib._handleGetSymbol("clang_Cursor_isVariadic"))
             as <(CXCursor) : u32>
+    
+        lib.Cursor_getNumArguments = (lib._handleGetSymbol("clang_Cursor_getNumArguments"))
+            as <(CXCursor) : int>
+
+        lib.isCursorDefinition = (lib._handleGetSymbol("clang_isCursorDefinition"))
+            as <(CXCursor) : u32>
+
+        lib.Cursor_isAnonymous = (lib._handleGetSymbol("clang_Cursor_isAnonymous"))
+            as <(CXCursor) : u32>
 
         lib.getCursorType = (lib._handleGetSymbol("clang_getCursorType"))
             as <(CXCursor) : CXType>
@@ -896,6 +946,30 @@ type libclang {
 
         lib.getTypeSpelling = (lib._handleGetSymbol("clang_getTypeSpelling"))
             as <(CXType) : CXString>
+
+        lib.getResultType = (lib._handleGetSymbol("clang_getResultType"))
+            as <(CXType) : CXType>
+
+        lib.getNumArgTypes = (lib._handleGetSymbol("clang_getNumArgTypes"))
+            as <(CXType) : int>
+
+        lib.getArgType = (lib._handleGetSymbol("clang_getArgType"))
+            as <(CXType, u32) : CXType>
+
+        lib.isFunctionTypeVariadic = (lib._handleGetSymbol("clang_isFunctionTypeVariadic"))
+            as <(CXType) : u32>
+
+        lib.getElementType = (lib._handleGetSymbol("clang_getElementType"))
+            as <(CXType) : CXType>
+
+        lib.getPointeeType = (lib._handleGetSymbol("clang_getPointeeType"))
+            as <(CXType) : CXType>
+
+        lib.getNumElements = (lib._handleGetSymbol("clang_getNumElements"))
+            as <(CXType) : i64>
+
+        lib.Type_getSizeOf = (lib._handleGetSymbol("clang_Type_getSizeOf"))
+            as <(CXType) : i64>
 
         lib.getCursorLocation = (lib._handleGetSymbol("clang_getCursorLocation"))
             as <(CXCursor) : CXSourceLocation>
@@ -937,9 +1011,6 @@ type libclang {
         
         lib.getRangeEnd = (lib._handleGetSymbol("clang_getRangeEnd"))
             as <(CXSourceRange) : CXSourceLocation>
-
-        lib.getResultType = (lib._handleGetSymbol("clang_getResultType"))
-            as <(CXType) : CXType>
 
         return lib
     }

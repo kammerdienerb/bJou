@@ -107,16 +107,24 @@ static ASTNode * run(MacroUse * use) {
     }
 
     BJOU_DEBUG_ASSERT(proc);
+    
+    ArgList * arglist = (ArgList*)call->getRight();
 
-    t = (const ProcedureType *)proc->getType();
+    BJOU_DEBUG_ASSERT(arglist);
 
-    if (!equal(t, ProcedureType::get({}, VoidType::get())))
-        errorl(call->getLeft()->getContext(),
-               "Procedure call must have type <()>", true,
-               "Call has type " + t->getDemangledName());
+    std::vector<Val> val_args;
+
+    for (ASTNode * _expr : arglist->getExpressions()) {
+        Expression * expr = (Expression*)_expr;
+        if (!expr->isConstant())
+            errorl(expr->getContext(),
+                    "run: argument value to compile-time invokation of '" +
+                    proc->getName() + "' must be known at compile time.") ;
+        val_args.push_back(expr->eval());
+    }
 
     auto start = Clock::now();
-    compilation->backEnd.run(proc);
+    void * ret = compilation->backEnd.run(proc, &val_args);
     auto end = Clock::now();
     milliseconds time = duration_cast<milliseconds>(end - start);
 
@@ -145,7 +153,8 @@ static ASTNode * static_do(MacroUse * use) {
                "Anonymouse procedure in $do must have type <()>", true,
                "Procedure has type " + t->getDemangledName());
 
-    compilation->backEnd.run(proc);
+    std::vector<Val> no_args;
+    compilation->backEnd.run(proc, &no_args);
 
     return nullptr;
 }

@@ -68,6 +68,7 @@ struct TCLAPArgSet {
     TCLAP::MultiArg<std::string> & module_search_path_arg;
     TCLAP::SwitchArg & nopreload_arg;
     TCLAP::SwitchArg & lld_arg;
+    TCLAP::SwitchArg & c_arg;
     TCLAP::ValueArg<std::string> & output_arg;
     TCLAP::MultiArg<std::string> & link_arg;
     TCLAP::UnlabeledMultiArg<std::string> & files;
@@ -93,6 +94,16 @@ void _more(std::string message, continuations... c) {
 }
 
 template <typename... continuations>
+void _error(std::string message) {
+    bjouSetColor(RED);
+    std::cout << "     Error: ";
+    bjouSetColor(GREEN);
+    std::cout << message;
+    bjouResetColor();
+    std::cout << "\n";
+}
+
+template <typename... continuations>
 void _error(Context & context, std::string message) {
     bjouSetColor(CYAN);
     std::cout << "bJou :: " << context.filename << " :: " << context.begin.line
@@ -106,7 +117,17 @@ void _error(Context & context, std::string message) {
 }
 
 template <typename... continuations>
-void _warning(Context & context, std::string message, continuations... c) {
+void _warning(std::string message) {
+    bjouSetColor(YELLOW);
+    std::cout << "   Warning: ";
+    bjouSetColor(GREEN);
+    std::cout << message;
+    bjouResetColor();
+    std::cout << "\n";
+}
+
+template <typename... continuations>
+void _warning(Context & context, std::string message) {
     bjouSetColor(CYAN);
     std::cout << "bJou :: " << context.filename << " :: " << context.begin.line
               << " :: " << context.begin.character << "\n";
@@ -121,9 +142,21 @@ void _warning(Context & context, std::string message, continuations... c) {
 std::string linenobuf(int ln, bool mark = false);
 void _here(Context & context);
 
+void error(std::string message, bool exit = true);
+void error(std::string message, std::vector<std::string> continuations, bool exit = true);
 void error(Context context, std::string message, bool exit = true);
 void error(Context context, std::string message,
            std::vector<std::string> continuations);
+
+template <typename... continuations>
+void error(std::string message, bool exit,
+           continuations... c) {
+    std::lock_guard<std::mutex> lock(cli_mtx);
+    _error(message);
+    _more(c...);
+    if (exit)
+        compilation->abort();
+}
 
 template <typename... continuations>
 void error(Context context, std::string message, bool exit,
@@ -163,9 +196,18 @@ void errornext(Parser & parser, std::string message, bool exit,
     errorl(e_context, message, true, c...);
 }
 
+void warning(std::string message);
+void warning(std::string message, std::vector<std::string> continuations);
 void warning(Context context, std::string message);
 void warning(Context context, std::string message,
              std::vector<std::string> continuations);
+
+template <typename... continuations>
+void warning(std::string message, continuations... c) {
+    std::lock_guard<std::mutex> lock(cli_mtx);
+    _warning(message);
+    _more(c...);
+}
 
 template <typename... continuations>
 void warning(Context context, std::string message, continuations... c) {

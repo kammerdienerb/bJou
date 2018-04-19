@@ -13,7 +13,15 @@
 
 namespace bjou {
 
+extern "C" const char * bjou_makeUID(const char * hint);
+    
 extern "C" Context * bjou_createContext(Loc * beg, Loc * end, const char * fname);
+extern "C" Context * bjou_getContext(ASTNode * node);
+extern "C" void bjou_setContext(ASTNode * node, Context * c);
+extern "C" void bjou_setProcNameContext(ASTNode * node, Context * c);
+extern "C" void bjou_setVarDeclNameContext(ASTNode * node, Context * c);
+extern "C" void bjou_setStructNameContext(ASTNode * node, Context * c);
+extern "C" void bjou_setAliasNameContext(ASTNode * node, Context * c);
 extern "C" void bjou_freeContext(Context * c);
 
 extern "C" void bjou_error(Context * c, const char * message);
@@ -24,15 +32,20 @@ extern "C" ASTNode * bjou_parseToMultiNode(const char * str);
 extern "C" void bjou_parseAndAppend(const char * str);
 extern "C" void bjou_appendNode(ASTNode * node);
 
+extern "C" void bjou_runTypeCompletion();
+
 extern "C" void bjou_setGlobalNodeRP(ASTNode * node);
 
 extern "C" Scope * bjou_getGlobalScope();
 
 extern "C" ASTNode* bjou_clone(ASTNode * node);
+extern "C" void bjou_preDeclare(ASTNode * node, Scope * scope);
 extern "C" void bjou_addSymbols(ASTNode * node, Scope * scope);
-extern "C" void bjou_setContext(ASTNode * node, Context * c);
 extern "C" void bjou_analyze(ASTNode * node);
 extern "C" void bjou_forceAnalyze(ASTNode * node);
+
+extern "C" const char * bjou_getStructName(ASTNode * node);
+extern "C" void bjou_setVarDeclName(ASTNode * node, const char * name);
 
 extern "C" ASTNode * bjou_createAddExpression(ASTNode * left, ASTNode * right);
 extern "C" ASTNode * bjou_createSubExpression(ASTNode * left, ASTNode * right);
@@ -112,6 +125,16 @@ extern "C" ASTNode * bjou_createVariableDeclaration(const char * name,
                                                     ASTNode * typeDeclarator,
                                                     ASTNode * initialization);
 
+extern "C" ASTNode * bjou_createFieldDeclaration(const char * name,
+                                                 ASTNode * typeDeclarator,
+                                                 ASTNode * initialization);
+
+extern "C" ASTNode * bjou_createParamDeclaration(const char * name,
+                                                 ASTNode * typeDeclarator,
+                                                 ASTNode * initialization);
+
+extern "C" ASTNode * bjou_createProcedureDeclarator(ASTNode ** paramDecls, int n_paramDecls, ASTNode * retDecl, bool isVararg);
+
 extern "C" ASTNode * bjou_createAlias(const char * name, ASTNode * decl);
 
 extern "C" ASTNode * bjou_createStruct(
@@ -128,6 +151,11 @@ bjou_createProcedure(const char * name, ASTNode ** paramVarDeclarations,
                      int n_paramVarDeclarations, bool isVararg,
                      ASTNode * retDeclarator, ASTNode ** statements,
                      int n_statements);
+
+extern "C" ASTNode *
+bjou_createExternProcedure(const char * name, ASTNode ** paramVarDeclarations,
+                           int n_paramVarDeclarations, bool isVararg,
+                           ASTNode * retDeclarator);
 
 extern "C" ASTNode * bjou_createReturn(ASTNode * expression);
 extern "C" ASTNode * bjou_createBreak();

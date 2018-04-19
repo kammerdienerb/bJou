@@ -124,7 +124,7 @@ struct LLVMBackEnd : BackEnd {
     void completeTypes();
     void completeGlobs();
     void completeProcs();
-    void run(Procedure * proc);
+    void * run(Procedure * proc, void * _val_args);
 
     void pushFrame();
     void popFrame();

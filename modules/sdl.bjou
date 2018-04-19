@@ -1,0 +1,106 @@
+# sdl.bjou
+# bindings to sdl2
+
+module sdl
+
+
+abstract type SDL_Window      {  }
+abstract type SDL_PixelFormat {  }
+
+type SDL_Rect {
+    x : int
+    y : int
+    w : int
+    h : int
+}
+
+abstract type SDL_BlitMap     {  }
+
+abstract type SDL_Surface {
+    flags  : u32
+    format : SDL_PixelFormat*
+    w      : int
+    h      : int
+    pitch  : int
+    pixels : void*
+
+    userdata : void*
+
+    locked    : int
+    lock_data : void*
+
+    clip_rect : SDL_Rect
+
+    map : SDL_BlitMap*
+
+    refcount : int
+}
+
+type SDL_Event {
+    __bytes : u8[56]
+
+    proc _type(this) : u32 ref
+        return @((&(this.__bytes[0])) as u32*)
+}
+
+abstract type sdl {
+    const INIT_TIMER          := 1
+    const INIT_AUDIO          := 16
+    const INIT_VIDEO          := 32
+    const INIT_JOYSTICK       := 512
+    const INIT_HAPTIC         := 4096
+    const INIT_GAMECONTROLLER := 8192
+    const INIT_EVENTS         := 16384
+    const INIT_NOPARACHUTE    := 1048576
+    const INIT_EVERYTHING     := 1077809
+
+    const Init := extern SDL_Init(u32) : int
+    const Quit := extern SDL_Quit()
+
+    const GetError := extern SDL_GetError() : char*
+
+    const WINDOWPOS_UNDEFINED := 536805376
+
+    const WINDOW_FULLSCREEN := 1
+    const WINDOW_OPENGL := 2
+    const WINDOW_SHOWN := 4
+
+    const QUIT := 256
+
+    # SDL_video
+    const CreateWindow := extern SDL_CreateWindow(
+                                    char*,    # title
+                                    int, int, # x and y
+                                    int, int, # w and h
+                                    u32)      # flags
+                                    : SDL_Window*
+
+    const GetWindowSurface := extern SDL_GetWindowSurface(
+                                    SDL_Window*) # the window
+                                    : SDL_Surface*
+
+    const UpdateWindowSurface := extern SDL_UpdateWindowSurface(
+                                    SDL_Window*) # the window
+                                    : int
+
+    # SDL_surface
+    const FillRect := extern SDL_FillRect(
+                        SDL_Surface*, # dst
+                        SDL_Rect*,    # rect
+                        u32)          # color
+                        : int
+
+    # SDL_timer
+    const Delay := extern SDL_Delay(u32)
+
+    # SDL_pixels
+    const MapRGB := extern SDL_MapRGB(
+                        SDL_PixelFormat*, # format
+                        u8, u8, u8) # r, g, b
+                        : u32
+
+    # SDL_events
+    const PollEvent := extern SDL_PollEvent(
+                            SDL_Event*) # the event
+                            : int
+}

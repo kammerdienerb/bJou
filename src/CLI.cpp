@@ -226,6 +226,24 @@ void _here(Context & context) {
     }
 }
 
+void error(std::string message, bool exit) {
+    std::lock_guard<std::mutex> lock(cli_mtx);
+    _error(message);
+    if (exit)
+        compilation->abort();
+}
+
+void error(std::string message,
+           std::vector<std::string> continuations,
+           bool exit) {
+    std::lock_guard<std::mutex> lock(cli_mtx);
+    _error(message);
+    for (std::string & c : continuations)
+        _more(c);
+    if (exit)
+        compilation->abort();
+}
+
 void error(Context context, std::string message, bool exit) {
     std::lock_guard<std::mutex> lock(cli_mtx);
     _error(context, message);
@@ -279,6 +297,19 @@ void errornext(Parser & parser, std::string message, bool exit,
                std::vector<std::string> continuations) {
     Context e_context = errornextGetContext(parser);
     errorl(e_context, message, exit, continuations);
+}
+
+void warning(std::string message) {
+    std::lock_guard<std::mutex> lock(cli_mtx);
+    _warning(message);
+}
+
+void warning(std::string message,
+             std::vector<std::string> continuations) {
+    std::lock_guard<std::mutex> lock(cli_mtx);
+    _warning(message);
+    for (std::string & c : continuations)
+        _more(c);
 }
 
 void warning(Context context, std::string message) {
