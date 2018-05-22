@@ -1,5 +1,5 @@
 TARGET		= bjou
-CC 			= g++
+CC 			= clang++
 INCLUDE		= include
 TCLAP_INCLUDE = . 
 # LLVM_CFG	= ~/Desktop/llvm/build/bin/llvm-config
@@ -23,7 +23,14 @@ ALL_SRC 	+= $(TCLAP_SRC)
 R_OBJ 		= $(patsubst %.cpp,obj/release/%.o,$(ALL_SRC))
 D_OBJ 		= $(patsubst %.cpp,obj/debug/%.o,$(ALL_SRC))
 
-CORES ?= $(shell sysctl -n hw.ncpu || echo 1)
+GETCONF    := $(shell command -v getconf 2> /dev/null)
+ifdef GETCONF
+CORES = $(shell getconf _NPROCESSORS_ONLN 2> /dev/null ||\
+				getconf  NPROCESSORS_ONLN 2> /dev/null ||\
+				echo 1)
+else
+CORES = 1
+endif
 
 all:; @$(MAKE) _all -j$(CORES)
 _all: debug release
@@ -33,7 +40,13 @@ debug:; @$(MAKE) _debug -j$(CORES)
 _debug: $(D_OBJ)
 	@mkdir -p bin
 	@echo "----------------------------"
+ifneq ("$(wildcard $(TCMLC_PATH))","")
+	@echo "Building Debug Target $(TARGET) (with tcmalloc)"
+else ifneq ("$(wildcard $(JEMLC_PATH))", "")
+	@echo "Building Debug Target $(TARGET) (with jemalloc)"
+else
 	@echo "Building Debug Target $(TARGET)"
+endif
 	@echo
 	@$(CC) -o bin/$(TARGET) $(D_LFLAGS) $? 
 

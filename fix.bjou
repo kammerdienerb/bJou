@@ -1,8 +1,0 @@
-main()
-
-proc main() {
-    array : int[4][4]
-
-    foreach ref row in array
-        print "%", &row[0]
-}

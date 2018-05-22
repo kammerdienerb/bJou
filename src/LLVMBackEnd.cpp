@@ -1025,6 +1025,9 @@ llvm::Value * LLVMBackEnd::allocNamedVal(std::string name, const Type * type) {
 
     BJOU_DEBUG_ASSERT(t);
 
+    auto save = builder.saveIP();
+    builder.SetInsertPoint(local_alloc_stack.top());
+
     llvm::Value * alloca = builder.CreateAlloca(t, 0, name);
     ((llvm::AllocaInst *)alloca)->setAlignment(layout->getABITypeAlignment(t));
 
@@ -1040,10 +1043,48 @@ llvm::Value * LLVMBackEnd::allocNamedVal(std::string name, const Type * type) {
             ptr);
 
         addNamedVal(name, ptr, type);
+
+        builder.restoreIP(save);
+
         return ptr;
     }
 
     addNamedVal(name, alloca, type);
+
+    builder.restoreIP(save);
+
+    return alloca;
+}
+
+llvm::Value * LLVMBackEnd::allocUnnamedVal(const Type * type, bool array2pointer) {
+    llvm::Type * t = getOrGenType(type);
+
+    BJOU_DEBUG_ASSERT(t);
+
+    auto save = builder.saveIP();
+    builder.SetInsertPoint(local_alloc_stack.top());
+
+    llvm::Value * alloca = builder.CreateAlloca(t, 0, "");
+    ((llvm::AllocaInst *)alloca)->setAlignment(layout->getABITypeAlignment(t));
+
+    if (t->isArrayTy() && array2pointer) {
+        llvm::Value * ptr =
+            builder.CreateAlloca(t->getArrayElementType()->getPointerTo());
+        builder.CreateStore(
+            builder.CreateInBoundsGEP(
+                alloca, {llvm::Constant::getNullValue(
+                             llvm::IntegerType::getInt32Ty(llContext)),
+                         llvm::Constant::getNullValue(
+                             llvm::IntegerType::getInt32Ty(llContext))}),
+            ptr);
+
+        addUnnamedVal(ptr, type);
+        return ptr;
+    }
+
+    addUnnamedVal(alloca, type);
+
+    builder.restoreIP(save);
 
     return alloca;
 }
@@ -2017,7 +2058,7 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
     payload->t = plt;
     llbe->abi_lowerer->ABILowerProcedureType(payload);
     if (payload->sret) {
-        sret = llbe->builder.CreateAlloca(llbe->getOrGenType(plt->retType));
+        sret = llbe->allocUnnamedVal(plt->retType);
         args.push_back(sret);
     }
     //
@@ -2124,8 +2165,8 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
         else ret = sret;
     } else {
         if (payload->t->getRetType()->isStruct() && getAddr) {
-            llvm::Value * tmp_ret = llbe->builder.CreateAlloca(
-                                        llbe->getOrGenType(payload->t->getRetType()));
+            llvm::Value * tmp_ret = llbe->allocUnnamedVal(
+                                        payload->t->getRetType());
             llbe->builder.CreateStore(ret, tmp_ret);
 
             ret = tmp_ret;
@@ -2363,7 +2404,7 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
     BJOU_DEBUG_ASSERT(access->getType()->isPointerTy());
 
     if (access->getType()->getPointerElementType()->isArrayTy())
-        access = llbe->createPointerToArrayElementsOnStack(access);
+        access = llbe->createPointerToArrayElementsOnStack(access, getType());
 
     if (getType()->isRef())
         access = llbe->builder.CreateLoad(access, "ref");
@@ -2634,9 +2675,10 @@ void * StringLiteral::generate(BackEnd & backEnd, bool flag) {
 void * TupleLiteral::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    llvm::StructType * ll_t = (llvm::StructType *)llbe->getOrGenType(getType());
+    const Type * my_t = getType();
+    llvm::StructType * ll_t = (llvm::StructType *)llbe->getOrGenType(my_t);
 
-    llvm::AllocaInst * alloca = llbe->builder.CreateAlloca(ll_t);
+    llvm::Value * alloca = llbe->allocUnnamedVal(my_t);
     std::vector<ASTNode *> & subExpressions = getSubExpressions();
     for (size_t i = 0; i < subExpressions.size(); i += 1) {
         llvm::Value * elem = llbe->builder.CreateInBoundsGEP(
@@ -2720,20 +2762,17 @@ llvm::Value * LLVMBackEnd::getPointerToArrayElements(llvm::Value * array) {
 }
 
 llvm::Value *
-LLVMBackEnd::createPointerToArrayElementsOnStack(llvm::Value * array) {
+LLVMBackEnd::createPointerToArrayElementsOnStack(llvm::Value * array, const Type * t) {
     BJOU_DEBUG_ASSERT(array->getType()->isPointerTy() &&
                       array->getType()->getPointerElementType()->isArrayTy());
-    llvm::Value * ptr = builder.CreateAlloca(array->getType()
-                                                 ->getPointerElementType()
-                                                 ->getArrayElementType()
-                                                 ->getPointerTo());
+    llvm::Value * ptr = allocUnnamedVal(t->under()->getPointer());
     builder.CreateStore(getPointerToArrayElements(array), ptr);
     return ptr;
 }
 
 llvm::Value *
-LLVMBackEnd::copyConstantInitializerToStack(llvm::Constant * constant_init) {
-    llvm::AllocaInst * alloca = builder.CreateAlloca(constant_init->getType());
+LLVMBackEnd::copyConstantInitializerToStack(llvm::Constant * constant_init, const Type * t) {
+    llvm::Value * alloca = allocUnnamedVal(t, false);
     builder.CreateStore(constant_init, alloca);
     return alloca;
 }
@@ -2811,12 +2850,12 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
         llvm::Constant * constant_init = llbe->createConstantInitializer(this);
         if (myt->isStruct()) {
             if (getAddr)
-                return llbe->copyConstantInitializerToStack(constant_init);
+                return llbe->copyConstantInitializerToStack(constant_init, myt);
             return constant_init;
         } else if (myt->isArray()) {
             llvm::Value * onStack =
-                llbe->copyConstantInitializerToStack(constant_init);
-            ptr = llbe->createPointerToArrayElementsOnStack(onStack);
+                llbe->copyConstantInitializerToStack(constant_init, myt);
+            ptr = llbe->createPointerToArrayElementsOnStack(onStack, myt);
             if (getAddr)
                 return ptr;
             return llbe->builder.CreateLoad(ptr, "array_ptr");
@@ -2832,7 +2871,7 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
 
         std::vector<std::string> & names = getMemberNames();
 
-        alloca = llbe->builder.CreateAlloca(ll_t);
+        alloca = (llvm::AllocaInst*)llbe->allocUnnamedVal(myt);
         ptr = llbe->builder.CreateInBoundsGEP(
             alloca, {llvm::Constant::getNullValue(
                         llvm::IntegerType::getInt32Ty(llbe->llContext))});
@@ -2941,9 +2980,9 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
 
         ldptr = llbe->builder.CreateLoad(alloca, "structinitializer_ld");
     } else if (myt->isArray()) {
-        alloca = llbe->builder.CreateAlloca(ll_t);
+        alloca = (llvm::AllocaInst*)llbe->allocUnnamedVal(myt);
         alloca->setName("arrayinitializer");
-        ptr = llbe->createPointerToArrayElementsOnStack(alloca);
+        ptr = llbe->createPointerToArrayElementsOnStack(alloca, myt);
         ldptr = llbe->builder.CreateLoad(ptr, "arrayptr");
 
         for (size_t i = 0; i < expressions.size(); i += 1) {
@@ -3532,12 +3571,17 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
 
         BJOU_DEBUG_ASSERT(func->getBasicBlockList().empty());
 
-        llvm::BasicBlock * bblock = llvm::BasicBlock::Create(
+        llvm::BasicBlock * entry = llvm::BasicBlock::Create(
             llbe->llContext, getMangledName() + "_entry", func);
 
-        llbe->builder.SetInsertPoint(bblock);
+        llvm::BasicBlock * begin = llvm::BasicBlock::Create(
+            llbe->llContext, getMangledName() + "_begin", func);
+
+        llbe->builder.SetInsertPoint(begin);
 
         llbe->pushFrame();
+
+        llbe->local_alloc_stack.push(entry);
 
         int j = 0;
         for (auto & Arg : func->args()) {
@@ -3577,13 +3621,20 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         if (!getFlag(HAS_TOP_LEVEL_RETURN)) {
             // dangerous to assume void ret type..  @bad
             // but we hope that semantic analysis will have caught
-            // a missing explicit typed return
+            // a missing explicitly typed return
 
             generateFramePreExit(llbe);
             llbe->builder.CreateRetVoid();
         }
 
+        llbe->local_alloc_stack.pop();
+
         llbe->popFrame();
+      
+        auto save = llbe->builder.saveIP();
+        llbe->builder.SetInsertPoint(entry);
+        llbe->builder.CreateBr(begin);
+        llbe->builder.restoreIP(save);
 
         std::string errstr;
         llvm::raw_string_ostream errstream(errstr);

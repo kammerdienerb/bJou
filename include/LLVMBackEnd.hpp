@@ -119,6 +119,7 @@ struct LLVMBackEnd : BackEnd {
     std::stack<LoopFrameInfo> loop_break_stack;
     std::stack<LoopFrameInfo> loop_continue_stack;
     std::stack<Procedure *> proc_stack;
+    std::stack<llvm::BasicBlock*> local_alloc_stack;
 
     milliseconds go();
     void completeTypes();
@@ -134,6 +135,7 @@ struct LLVMBackEnd : BackEnd {
                               const Type * type);
     llvm::Value * addUnnamedVal(llvm::Value * val, const Type * type);
     llvm::Value * allocNamedVal(std::string name, const Type * type);
+    llvm::Value * allocUnnamedVal(const Type * type, bool array2pointer = true);
     llvm::Value * getNamedVal(std::string name);
 
     llvm::Type * bJouTypeToLLVMType(const bjou::Type * t);
@@ -145,10 +147,10 @@ struct LLVMBackEnd : BackEnd {
 
     void createPrintfProto();
     llvm::Value * getPointerToArrayElements(llvm::Value * array);
-    llvm::Value * createPointerToArrayElementsOnStack(llvm::Value * array);
+    llvm::Value * createPointerToArrayElementsOnStack(llvm::Value * array, const Type * t);
     llvm::Constant * createConstantInitializer(InitializerList * ilist);
     llvm::Value *
-    copyConstantInitializerToStack(llvm::Constant * constant_init);
+    copyConstantInitializerToStack(llvm::Constant * constant_init, const Type * t);
     llvm::Value * createGlobalStringVariable(std::string str);
     llvm::ConstantArray * create_v_table_constant_array(Struct * s);
     llvm::Value * createGlobaltypeinfo(Struct * s);

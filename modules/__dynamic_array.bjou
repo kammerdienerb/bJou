@@ -17,13 +17,16 @@ type __bjou_dyn_array$T {
         }
     }
 
-    implements idestroy {
-        proc destroy(this) {
-            delete this.__data
-            this.__capacity = 0
-            this.__used = 0
-        }     
-    }
+# @note @temporary
+# Taking this out until we figure out the best way to handle temporary values with destructors
+
+#     implements idestroy {
+#         proc destroy(this) {
+#             delete this.__data
+#             this.__capacity = 0
+#             this.__used = 0
+#         }     
+#     }
 }
 
 \static_if { \abc{}
