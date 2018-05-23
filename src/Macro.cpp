@@ -159,6 +159,8 @@ static ASTNode * static_do(MacroUse * use) {
     for (auto arg : use->getArgs())
         proc->addStatement(arg->clone());
 
+    proc->setFlag(ASTNode::CT, true);
+
     proc->addSymbols(use->getScope());
     proc->analyze();
 
@@ -637,6 +639,7 @@ MacroManager::MacroManager() {
     macros["typeisfloat"] = {"typeisfloat",
                              Macros::typeisfloat,
                              {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+    macros["front"] = { "front", Macros::front, {{ANY_EXPRESSION}}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {

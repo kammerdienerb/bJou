@@ -3,9 +3,23 @@
 
 module build \ct {
 
-abstract type Build {
-    proc build() {
-        print "building"
+import "compiler.bjou"
+
+\front{ true }
+
+type BuildOptions {
+    target_name  : char*
+    source_files : char*[...]
+
+    proc create() : BuildOptions
+        return { BuildOptions:
+            .source_files = [...char*]
+        }
+
+    proc build(this) {
+        print "building %", this.target_name
+        foreach f in this.source_files
+            print "  ->%", f
     }
 }
 

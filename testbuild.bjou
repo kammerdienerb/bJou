@@ -1,5 +1,12 @@
 import "build.bjou"
 
 \static_do {
-    Build.build()
+    options := BuildOptions.create()
+
+    options.target_name = "target"
+
+    options.source_files.push("file1.bjou")
+    options.source_files.push("file2.bjou")
+
+    options.build()
 }

@@ -8266,10 +8266,10 @@ void MacroUse::addSymbols(Scope * _scope) {
     }
 
     if (!compilation->frontEnd.stop_tracking_macros) {
-        if (fast_track)
+        if (fast_track && getMacroName() != "static_do")
             compilation->frontEnd.macros_need_fast_tracked_analysis.insert(
                 this);
-        else if (getMacroName() != "run")
+        else if (getMacroName() != "run" && getMacroName() != "static_do")
             compilation->frontEnd.non_run_non_fast_tracked_macros.insert(this);
     }
 }
