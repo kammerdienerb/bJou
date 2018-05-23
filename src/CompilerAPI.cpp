@@ -12,8 +12,57 @@
 #include "FrontEnd.hpp"
 #include "Misc.hpp"
 #include "Parser.hpp"
+#include "CLI.hpp"
+
+#include <vector>
+#include <string>
 
 namespace bjou {
+
+extern "C" void bjou_StartDefaultCompilation( 
+    bool verbose_arg,
+    bool front_arg,
+    bool time_arg,
+    bool symbols_arg,
+    bool noparallel_arg,
+    bool opt_arg,
+    bool noabc_arg,
+    bool module_arg,
+    bool nopreload_arg,
+    bool lld_arg,
+    bool c_arg,
+    const char ** module_search_path_arg,
+    int n_module_search_path_arg,
+    const char * output_arg,
+    const char ** link_arg,
+    int n_link_arg,
+    const char ** files,
+    int n_files 
+    ) {
+
+    std::vector<std::string> _module_search_path_arg;
+    for (int i = 0; i < n_module_search_path_arg; i += 1)
+        _module_search_path_arg.push_back(module_search_path_arg[i]);
+    std::string _output_arg;
+    std::vector<std::string> _link_arg;
+    for (int i = 0; i < n_link_arg; i += 1)
+        _link_arg.push_back(link_arg[i]);
+    std::vector<std::string> _files;
+    for (int i = 0; i < n_files; i += 1)
+        _files.push_back(files[i]);
+
+    bjou::ArgSet args = {
+        verbose_arg,    front_arg,
+        time_arg,       symbols_arg,
+        noparallel_arg, opt_arg,
+        noabc_arg,      module_arg,
+        nopreload_arg,  lld_arg,
+        c_arg,          _module_search_path_arg,
+        output_arg,     _link_arg,
+        _files};
+
+    StartDefaultCompilation(args);
+}
 
 extern "C" const char * bjou_makeUID(const char * hint) {
     std::string uid = compilation->frontEnd.makeUID(hint);

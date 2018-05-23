@@ -2,31 +2,12 @@
 
 module compiler \ct { # this module is only available at compile time
 
-type bjou_ArgSet {
-    verbose_arg    : bool
-    front_arg      : bool
-    time_arg       : bool
-    symbols_arg    : bool
-    noparallel_arg : bool
-    opt_arg        : bool
-    noabc_arg      : bool
-    module_arg     : bool
-    nopreload_arg  : bool
-    lld_arg        : bool
-    c_arg          : bool
-
-    module_search_path_arg : char*[...]
-    output_arg             : char*
-    link_arg               : char*[...]
-    files                  : char*[...]
-
-    proc create() : bjou_ArgSet
-        return { bjou_ArgSet:
-            .module_search_path_arg = [...char*],
-            .link_arg               = [...char*],
-            .files                  = [...char*]
-        }
-}
+extern bjou_StartDefaultCompilation(
+    bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool,
+    char**, int,
+    char*,
+    char**, int,
+    char**, int)
 
 type Loc {
     line      : int

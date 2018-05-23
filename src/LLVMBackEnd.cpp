@@ -887,6 +887,10 @@ milliseconds LLVMBackEnd::LinkingStage() {
         */
     }
 
+    int fds[2];
+    int status;
+    pid_t childpid;
+
     if (use_system_linker) {
         const char * cc = getenv("CC");
         if (!cc)
@@ -895,12 +899,10 @@ milliseconds LLVMBackEnd::LinkingStage() {
         link_args.insert(link_args.begin(), cc);
         link_args.push_back(NULL);
 
-        int fds[2];
-        int status;
         if (pipe(fds) == -1)
             internalError("Error creating pipe to system linker.");
 
-        pid_t childpid = fork();
+        childpid = fork();
         if (childpid == 0) {
             dup2(fds[1], STDERR_FILENO);
             close(fds[0]);
@@ -923,6 +925,20 @@ milliseconds LLVMBackEnd::LinkingStage() {
                 error(COMPILER_SRC_CONTEXT(), "Linker error.", false, s_errout);
             }
         }
+    }
+
+    if (!compilation->args.c_arg) {
+        const char * rm_args[] = { "rm", dest_o.c_str(), nullptr };
+        
+        childpid = fork();
+        if (childpid == 0) {
+            execvp(rm_args[0], (char**)rm_args);
+            internalError("Error executing 'rm'.");
+        } else if (childpid == -1) {
+            internalError("Error forking 'rm'.");
+        }
+
+        waitpid(childpid, &status, 0);
     }
 
     auto end = Clock::now();

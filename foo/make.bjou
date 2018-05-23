@@ -1,0 +1,17 @@
+import "build.bjou"
+
+\static_do {
+    sources := {
+        "file1.bjou",
+        "file2.bjou"
+    }
+
+    options := BuildOptions.create()
+
+    options.output_name = "foo"
+
+    foreach f in sources
+        options.files.push(f)
+
+    build(options)
+}

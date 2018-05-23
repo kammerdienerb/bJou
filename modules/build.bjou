@@ -10,21 +10,79 @@ import "compiler.bjou"
 \front{ true }
 
 type BuildOptions {
-    target_name  : char*
-    source_files : char*[...]
+    build_dir : char*
+
+    ################## cmd line args
+    verbose             : bool
+    front               : bool
+    time                : bool
+    symbols             : bool
+    noparallel          : bool
+    opt                 : bool
+    noabc               : bool
+    mod                 : bool
+    nopreload           : bool
+    lld                 : bool
+    c                   : bool
+    module_search_paths : char*[...]
+    output_name         : char*
+    link                : char*[...]
+    files               : char*[...]
+    ################################
 
     proc create() : BuildOptions
         return { BuildOptions:
-            .source_files = [...char*]
+            .build_dir           = "build",
+            .module_search_paths = [...char*],
+            .link                = [...char*],
+            .files               = [...char*]
         }
+}
 
-    proc build(this) {
-        args := bjou_ArgSet.create()
-        print "args: %", &args
-        print "building % for bJou version %", this.target_name, bjou_getVersionString()
-        foreach f in this.source_files
-            print "  ->%", f
-    }
+extern strcat(char*, char*) : char*
+
+extern mkdir(char*, u16) : int
+const MODE_0777 := 511
+
+proc prepare(options : BuildOptions ref) {
+    print "preparing.."
+    mkdir(options.build_dir, MODE_0777)
+    buff : char[4096]
+    buff[0] = 0
+    strcat(buff, options.build_dir)
+    strcat(buff, "/")
+    strcat(buff, options.output_name)
+    options.output_name = buff
+}
+
+proc build(options : BuildOptions ref) {
+    prepare(options)
+
+    print "building % for bJou version %", options.output_name, bjou_getVersionString()
+    foreach f in options.files
+        print "  ->%", f
+
+    bjou_StartDefaultCompilation(
+        options.verbose,
+        options.front,
+        options.time,
+        options.symbols,
+        options.noparallel,
+        options.opt,
+        options.noabc,
+        options.mod,
+        options.noparallel,
+        options.lld,
+        options.c,
+        options.module_search_paths.data(),
+        |options.module_search_paths|,
+        options.output_name,
+        options.link.data(),
+        |options.link|,
+        options.files.data(),
+        |options.files|)
+
+    print "done"
 }
 
 }

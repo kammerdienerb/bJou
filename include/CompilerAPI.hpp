@@ -13,6 +13,27 @@
 
 namespace bjou {
 
+extern "C" void bjou_StartDefaultCompilation(
+    bool verbose_arg,
+    bool front_arg,
+    bool time_arg,
+    bool symbols_arg,
+    bool noparallel_arg,
+    bool opt_arg,
+    bool noabc_arg,
+    bool module_arg,
+    bool nopreload_arg,
+    bool lld_arg,
+    bool c_arg,
+    const char ** module_search_path_arg,
+    int n_module_search_path_arg,
+    const char * output_arg,
+    const char ** link_arg,
+    int n_link_arg,
+    const char ** files,
+    int n_files 
+);
+
 extern "C" const char * bjou_makeUID(const char * hint);
 
 extern "C" Context * bjou_createContext(Loc * beg, Loc * end,
