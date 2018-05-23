@@ -5,6 +5,8 @@ module build \ct {
 
 import "compiler.bjou"
 
+# Only run the front end for build.
+# The compilation we spawn will (maybe) run through to the back end.
 \front{ true }
 
 type BuildOptions {
@@ -17,7 +19,9 @@ type BuildOptions {
         }
 
     proc build(this) {
-        print "building %", this.target_name
+        args := bjou_ArgSet.create()
+        print "args: %", &args
+        print "building % for bJou version %", this.target_name, bjou_getVersionString()
         foreach f in this.source_files
             print "  ->%", f
     }

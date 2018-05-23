@@ -21,6 +21,7 @@
 #include "Global.hpp"
 #include "LLVMBackEnd.hpp"
 #include "Misc.hpp"
+#include "Defaults.hpp"
 
 #ifdef BJOU_DEBUG_BUILD
 #define SAVE_BJOU_DEBUG_BUILD
@@ -100,11 +101,13 @@ int main(int argc, const char ** argv) {
         output_arg.getValue(),     link_arg.getValue(),
         files.getValue()};
 
-    bjou::FrontEnd frontEnd;
-    bjou::LLVMBackEnd llvmBackEnd(frontEnd);
+    StartDefaultCompilation(args);
 
-    compilation = new bjou::Compilation(frontEnd, llvmBackEnd, args);
-    compilation->go();
+    // bjou::FrontEnd frontEnd;
+    // bjou::LLVMBackEnd llvmBackEnd(frontEnd);
+
+    // // compilation = new bjou::Compilation(frontEnd, llvmBackEnd, args);
+    // compilation->go();
 
     return 0;
 }

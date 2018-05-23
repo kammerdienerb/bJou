@@ -48,6 +48,8 @@ struct Compilation {
     void abort(int exitCode = 1);
 };
 
+void StartDefaultCompilation(ArgSet& args);
+
 double RunTimeToSeconds(milliseconds time);
 } // namespace bjou
 
