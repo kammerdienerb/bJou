@@ -46,32 +46,16 @@ class bJouOutput : public TCLAP::StdOutput {
     virtual void version(TCLAP::CmdLineInterface & c);
 };
 
-namespace TCLAP {
-class SwitchArg;
-template <class T> class ValueArg;
-template <class T> class MultiArg;
-template <class T> class UnlabeledMultiArg;
-} // namespace TCLAP
-
 namespace bjou {
 struct Parser;
 
-struct TCLAPArgSet {
-    TCLAP::SwitchArg & verbose_arg;
-    TCLAP::SwitchArg & justcheck_arg;
-    TCLAP::SwitchArg & time_arg;
-    TCLAP::SwitchArg & symbols_arg;
-    TCLAP::SwitchArg & noparallel_arg;
-    TCLAP::SwitchArg & opt_arg;
-    TCLAP::SwitchArg & noabc_arg;
-    TCLAP::SwitchArg & module_arg;
-    TCLAP::MultiArg<std::string> & module_search_path_arg;
-    TCLAP::SwitchArg & nopreload_arg;
-    TCLAP::SwitchArg & lld_arg;
-    TCLAP::SwitchArg & c_arg;
-    TCLAP::ValueArg<std::string> & output_arg;
-    TCLAP::MultiArg<std::string> & link_arg;
-    TCLAP::UnlabeledMultiArg<std::string> & files;
+struct ArgSet {
+    bool verbose_arg, front_arg, time_arg, symbols_arg, noparallel_arg, opt_arg,
+        noabc_arg, module_arg, nopreload_arg, lld_arg, c_arg;
+    std::vector<std::string> module_search_path_arg;
+    std::string output_arg;
+    std::vector<std::string> link_arg;
+    std::vector<std::string> files;
 };
 
 using namespace rlutil;
@@ -93,8 +77,7 @@ void _more(std::string message, continuations... c) {
     _more(c...);
 }
 
-template <typename... continuations>
-void _error(std::string message) {
+template <typename... continuations> void _error(std::string message) {
     bjouSetColor(RED);
     std::cout << "     Error: ";
     bjouSetColor(GREEN);
@@ -116,8 +99,7 @@ void _error(Context & context, std::string message) {
     std::cout << "\n";
 }
 
-template <typename... continuations>
-void _warning(std::string message) {
+template <typename... continuations> void _warning(std::string message) {
     bjouSetColor(YELLOW);
     std::cout << "   Warning: ";
     bjouSetColor(GREEN);
@@ -143,14 +125,14 @@ std::string linenobuf(int ln, bool mark = false);
 void _here(Context & context);
 
 void error(std::string message, bool exit = true);
-void error(std::string message, std::vector<std::string> continuations, bool exit = true);
+void error(std::string message, std::vector<std::string> continuations,
+           bool exit = true);
 void error(Context context, std::string message, bool exit = true);
 void error(Context context, std::string message,
            std::vector<std::string> continuations);
 
 template <typename... continuations>
-void error(std::string message, bool exit,
-           continuations... c) {
+void error(std::string message, bool exit, continuations... c) {
     std::lock_guard<std::mutex> lock(cli_mtx);
     _error(message);
     _more(c...);

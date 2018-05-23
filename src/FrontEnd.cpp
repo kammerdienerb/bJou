@@ -68,7 +68,8 @@ void FrontEnd::fix_typeinfo_v_table_size() {
 
 FrontEnd::FrontEnd()
     : typeinfo_struct(nullptr), printf_decl(nullptr), malloc_decl(nullptr),
-      free_decl(nullptr), memset_decl(nullptr), memcpy_decl(nullptr), n_nodes(0), n_primatives(0) {
+      free_decl(nullptr), memset_decl(nullptr), memcpy_decl(nullptr),
+      n_nodes(0), n_primatives(0) {
 
     ctruntime = milliseconds::zero();
 
@@ -207,11 +208,11 @@ milliseconds FrontEnd::go() {
     n_primatives = typeTable.size();
     typeTable.insert(primativeTypeTable.begin(), primativeTypeTable.end());
 
-    bool time_arg = compilation->args.time_arg.getValue();
+    bool time_arg = compilation->args.time_arg;
 
     auto p_time = ParseStage();
     if (time_arg) {
-        size_t nfiles = compilation->args.files.getValue().size();
+        size_t nfiles = compilation->args.files.size();
         prettyPrintTimeMin(p_time, "Parsed " + std::to_string(nfiles) +
                                        (nfiles == 1 ? " file" : " files"));
     }
@@ -223,7 +224,7 @@ milliseconds FrontEnd::go() {
     auto s_time = SymbolsStage();
     if (time_arg)
         prettyPrintTimeMin(s_time, "Populate symbol tables");
-    if (compilation->args.symbols_arg.getValue())
+    if (compilation->args.symbols_arg)
         printSymbolTables();
 
     auto t_time = TypesStage();
@@ -234,7 +235,7 @@ milliseconds FrontEnd::go() {
     if (time_arg)
         prettyPrintTimeMin(a_time - ctruntime, "Semantic analysis");
 
-    if (!compilation->args.nopreload_arg.isSet())
+    if (!compilation->args.nopreload_arg)
         fix_typeinfo_v_table_size();
 
     auto end = Clock::now();
@@ -247,7 +248,7 @@ milliseconds FrontEnd::ParseStage() {
     unsigned int nthreaded = std::thread::hardware_concurrency() - 1;
 
     std::vector<std::string> fnames;
-    for (auto & f : compilation->args.files.getValue())
+    for (auto & f : compilation->args.files)
         if (has_suffix(f, ".bjou"))
             fnames.push_back(f);
 
@@ -255,8 +256,7 @@ milliseconds FrontEnd::ParseStage() {
 
     std::unordered_map<std::string, milliseconds> times;
 
-    if (nfiles > 1 && nthreaded > 0 &&
-        !compilation->args.noparallel_arg.getValue()) {
+    if (nfiles > 1 && nthreaded > 0 && !compilation->args.noparallel_arg) {
         // do threads
         std::vector<AsyncParser> parserContainer;
         parserContainer.reserve(nthreaded);
@@ -323,7 +323,7 @@ milliseconds FrontEnd::ParseStage() {
             structs.insert(structs.end(), p.structs.begin(), p.structs.end());
             ifaceDefs.insert(ifaceDefs.end(), p.ifaceDefs.begin(),
                              p.ifaceDefs.end());
-            
+
             n_lines += p.n_lines;
         }
 
@@ -345,7 +345,7 @@ milliseconds FrontEnd::ParseStage() {
         }
     }
 
-    if (compilation->args.time_arg.getValue())
+    if (compilation->args.time_arg)
         for (auto & t : times)
             prettyPrintTimeMin(t.second, "    parsed " + t.first);
 
@@ -356,7 +356,7 @@ milliseconds FrontEnd::ParseStage() {
 milliseconds FrontEnd::ImportStage() {
     auto start = Clock::now();
 
-    if (!compilation->args.nopreload_arg.getValue())
+    if (!compilation->args.nopreload_arg)
         importModuleFromFile(*this, "__preload.bjou");
 
     importModulesFromAST(*this);
@@ -427,7 +427,7 @@ milliseconds FrontEnd::AnalysisStage() {
 
     // filter so that, for example, \static_if{ \static_if {...}...}
     // only runs on the outermost macro use
-    auto filter_parent_child = [](std::set<ASTNode*>& nodes) {
+    auto filter_parent_child = [](std::set<ASTNode *> & nodes) {
         bool changed = true;
         while (changed) {
             changed = false;
@@ -454,7 +454,7 @@ milliseconds FrontEnd::AnalysisStage() {
     filter_parent_child(macros_need_fast_tracked_analysis);
     for (ASTNode * node : macros_need_fast_tracked_analysis)
         node->analyze();
-    
+
     filter_parent_child(non_run_non_fast_tracked_macros);
     for (ASTNode * node : non_run_non_fast_tracked_macros)
         node->analyze();

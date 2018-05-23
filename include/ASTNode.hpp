@@ -2102,7 +2102,8 @@ struct Struct : ASTNode {
 
     unsigned int n_interface_procs;
 
-    enum eBitFlags E_BIT_FLAGS_AND(IS_ABSTRACT, IS_C_UNION, IS_TEMPLATE_DERIVED);
+    enum eBitFlags E_BIT_FLAGS_AND(IS_ABSTRACT, IS_C_UNION,
+                                   IS_TEMPLATE_DERIVED);
 
     std::string & getName();
     void setName(std::string _name);

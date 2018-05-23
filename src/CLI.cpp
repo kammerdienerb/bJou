@@ -233,8 +233,7 @@ void error(std::string message, bool exit) {
         compilation->abort();
 }
 
-void error(std::string message,
-           std::vector<std::string> continuations,
+void error(std::string message, std::vector<std::string> continuations,
            bool exit) {
     std::lock_guard<std::mutex> lock(cli_mtx);
     _error(message);
@@ -304,8 +303,7 @@ void warning(std::string message) {
     _warning(message);
 }
 
-void warning(std::string message,
-             std::vector<std::string> continuations) {
+void warning(std::string message, std::vector<std::string> continuations) {
     std::lock_guard<std::mutex> lock(cli_mtx);
     _warning(message);
     for (std::string & c : continuations)

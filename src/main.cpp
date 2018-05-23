@@ -49,10 +49,8 @@ int main(int argc, const char ** argv) {
 
     TCLAP::SwitchArg verbose_arg("v", "verbose", "Print the LLVM IR to STDOUT.",
                                  cmd_line);
-    TCLAP::SwitchArg justcheck_arg(
-        "", "justcheck",
-        "Verify source correctness, but skip optimization and codegen.",
-        cmd_line);
+    TCLAP::SwitchArg front_arg(
+        "", "front", "Only run the front end of the compiler.", cmd_line);
     TCLAP::SwitchArg time_arg(
         "", "time", "Print the running times of compilation stages to STDOUT.",
         cmd_line);
@@ -77,10 +75,7 @@ int main(int argc, const char ** argv) {
         "", "lld",
         "Attempt to use lld to link. If unsuccessful, use system linker.",
         cmd_line);
-    TCLAP::SwitchArg c_arg(
-        "c", "nolink",
-        "Compile but do not link.",
-        cmd_line);
+    TCLAP::SwitchArg c_arg("c", "nolink", "Compile but do not link.", cmd_line);
     TCLAP::ValueArg<std::string> output_arg("o", "output",
                                             "Name of target output file.",
                                             false, "", "file name", cmd_line);
@@ -92,15 +87,18 @@ int main(int argc, const char ** argv) {
         cmd_line); // this actually is required, but I wanted to provide the
                    // error message instead of tclap
 
-    bjou::TCLAPArgSet args = {
-        verbose_arg,   justcheck_arg,  time_arg,
-        symbols_arg,   noparallel_arg, opt_arg,
-        noabc_arg,     module_arg,     module_search_path_arg,
-        nopreload_arg, lld_arg,        c_arg,
-        output_arg,    link_arg,       files};
-
     cmd_line.parse(argc, (char **)argv); // cast away constness
     // end command line options
+
+    bjou::ArgSet args = {
+        verbose_arg.getValue(),    front_arg.getValue(),
+        time_arg.getValue(),       symbols_arg.getValue(),
+        noparallel_arg.getValue(), opt_arg.getValue(),
+        noabc_arg.getValue(),      module_arg.getValue(),
+        nopreload_arg.getValue(),  lld_arg.getValue(),
+        c_arg.getValue(),          module_search_path_arg.getValue(),
+        output_arg.getValue(),     link_arg.getValue(),
+        files.getValue()};
 
     bjou::FrontEnd frontEnd;
     bjou::LLVMBackEnd llvmBackEnd(frontEnd);

@@ -804,7 +804,7 @@ RLUTIL_INLINE void setConsoleTitle(RLUTIL_STRING_T title) {
 #endif // defined(_WIN32) && !defined(RLUTIL_USE_ANSI)
 }
 
-    // Classes are here at the end so that documentation is pretty.
+// Classes are here at the end so that documentation is pretty.
 
 #ifdef __cplusplus
 /// Class: CursorHider

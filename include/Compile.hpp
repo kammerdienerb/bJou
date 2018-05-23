@@ -21,12 +21,12 @@ using std::chrono::time_point;
 namespace bjou {
 struct FrontEnd;
 struct BackEnd;
-struct TCLAPArgSet;
+struct ArgSet;
 
 struct Type;
 
 struct Compilation {
-    Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd, TCLAPArgSet & _args);
+    Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd, ArgSet & _args);
     ~Compilation();
 
     enum Mode { NORMAL, MODULE, CT_EXEC };
@@ -42,7 +42,7 @@ struct Compilation {
     FrontEnd & frontEnd;
     BackEnd & backEnd;
 
-    TCLAPArgSet & args;
+    ArgSet & args;
 
     void go();
     void abort(int exitCode = 1);

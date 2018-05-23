@@ -52,7 +52,7 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
 
     unsigned int nthreaded = std::thread::hardware_concurrency() - 1;
 
-    if (nthreaded > 0 && !compilation->args.noparallel_arg.getValue()) {
+    if (nthreaded > 0 && !compilation->args.noparallel_arg) {
         std::vector<ImportParser *> parserContainer;
         std::unordered_map<std::string, std::future<milliseconds>> futureTimes;
         parserContainer.reserve(nthreaded);
@@ -126,7 +126,7 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                 frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(),
                                           p->ifaceDefs.begin(),
                                           p->ifaceDefs.end());
-                
+
                 frontEnd.n_lines += p->n_lines;
                 delete p;
             }
@@ -188,7 +188,7 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                     frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(),
                                               parser.ifaceDefs.begin(),
                                               parser.ifaceDefs.end());
-                
+
                     frontEnd.n_lines += parser.n_lines;
                 } else
                     parser.Dispose();
@@ -196,7 +196,7 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
         }
     }
 
-    if (compilation->args.time_arg.getValue())
+    if (compilation->args.time_arg)
         for (auto & t : times)
             prettyPrintTimeMin(t.second, "    imported " + t.first);
 }

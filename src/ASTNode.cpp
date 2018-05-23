@@ -2980,12 +2980,15 @@ void InitializerList::analyze(bool force) {
         }
 
         for (ASTNode * _mem : s_t->_struct->getMemberVarDecls()) {
-            VariableDeclaration * mem = (VariableDeclaration*)_mem;
+            VariableDeclaration * mem = (VariableDeclaration *)_mem;
             if (mem->getType()->isRef()) {
-                std::string& name = mem->getName();
+                std::string & name = mem->getName();
                 auto search = std::find(names.begin(), names.end(), name);
                 if (search == names.end())
-                    errorl(getContext(), "Member '" + name + "' of '" + s_t->getDemangledName() + "' must be explicitly initialized because it is a reference.");
+                    errorl(getContext(), "Member '" + name + "' of '" +
+                                             s_t->getDemangledName() +
+                                             "' must be explicitly initialized "
+                                             "because it is a reference.");
             }
         }
 
@@ -3126,10 +3129,11 @@ void SliceExpression::analyze(bool force) {
     const Type * start_t = getStart()->getType()->unRef();
     const Type * length_t = getLength()->getType()->unRef();
 
-    if (!src_t->isPointer() && !src_t->isArray() &&
-        !src_t->isSlice()   && !src_t->isDynamicArray())
+    if (!src_t->isPointer() && !src_t->isArray() && !src_t->isSlice() &&
+        !src_t->isDynamicArray())
         errorl(getSrc()->getContext(),
-               "Slice source must be either a pointer, an array, a dynamic array, or another "
+               "Slice source must be either a pointer, an array, a dynamic "
+               "array, or another "
                "slice.",
                true, "got '" + src_t->getDemangledName() + "'");
 
@@ -3206,14 +3210,14 @@ void SliceExpression::desugar() {
 
         access->setLeft(getSrc());
         access->setRight(__data);
-        
+
         access->setType(getSrc()->getType()->under()->getPointer());
         access->setFlag(ANALYZED, true);
-        
+
         r->addExpression(access);
     } else
         r->addExpression(getSrc());
-    
+
     r->addExpression(getStart());
     r->addExpression(getLength());
 
@@ -3857,9 +3861,10 @@ void Declarator::analyze(bool force) {
                     errorl(getContext(),
                            "Missing template instantiation arguments.");
                 TemplateStruct * ttype = (TemplateStruct *)sym->node();
-                Declarator * new_decl = makeTemplateStruct(ttype, getTemplateInst())
-                                            ->getType()
-                                            ->getGenericDeclarator();
+                Declarator * new_decl =
+                    makeTemplateStruct(ttype, getTemplateInst())
+                        ->getType()
+                        ->getGenericDeclarator();
                 new_decl->setScope(getScope());
                 new_decl->setContext(getContext());
                 (*replace)(parent, this, new_decl);
@@ -3871,7 +3876,7 @@ void Declarator::analyze(bool force) {
                 errorl(getContext(),
                        "'" + sym->demangledString() + "' is not a type.");
             }
-        } 
+        }
     } else if (compilation->frontEnd.typeTable.count(mangled) == 0 ||
                !compilation->frontEnd.typeTable[mangled]->isPrimative())
         getScope()->getSymbol(getScope(), getIdentifier(),
@@ -4008,7 +4013,8 @@ void ArrayDeclarator::analyze(bool force) {
     getArrayOf()->analyze();
 
     if (getArrayOf()->getType()->isRef())
-        errorl(getContext(), "Can't have an array of references because references are not assignable.");
+        errorl(getContext(), "Can't have an array of references because "
+                             "references are not assignable.");
 
     if (getExpression()) {
         Expression * expr = (Expression *)getExpression();
@@ -4129,7 +4135,8 @@ void SliceDeclarator::analyze(bool force) {
     getSliceOf()->analyze();
 
     if (getSliceOf()->getType()->isRef())
-        errorl(getContext(), "Can't have a slice of references because references are not assignable.");
+        errorl(getContext(), "Can't have a slice of references because "
+                             "references are not assignable.");
 
     setFlag(ANALYZED, true);
 
@@ -4230,7 +4237,8 @@ void DynamicArrayDeclarator::analyze(bool force) {
     getArrayOf()->analyze();
 
     if (getArrayOf()->getType()->isRef())
-        errorl(getContext(), "Can't have a dynamic array of references because references are not assignable.");
+        errorl(getContext(), "Can't have a dynamic array of references because "
+                             "references are not assignable.");
 
     setFlag(ANALYZED, true);
 
@@ -4336,7 +4344,8 @@ void PointerDeclarator::analyze(bool force) {
     getPointerOf()->analyze();
 
     if (getPointerOf()->getType()->isRef())
-        errorl(getContext(), "Can't have a pointer to a reference because references are not assignable.");
+        errorl(getContext(), "Can't have a pointer to a reference because "
+                             "references are not assignable.");
 
     setFlag(ANALYZED, true);
 }
@@ -4425,7 +4434,8 @@ void RefDeclarator::analyze(bool force) {
     getRefOf()->analyze();
 
     if (getRefOf()->getType()->isRef())
-        errorl(getContext(), "Can't have a reference to a reference because references are not assignable.");
+        errorl(getContext(), "Can't have a reference to a reference because "
+                             "references are not assignable.");
 
     setFlag(ANALYZED, true);
 }
@@ -5185,7 +5195,7 @@ void Alias::analyze(bool force) {
 
 void Alias::addSymbols(Scope * _scope) {
     setScope(_scope);
-    
+
     getDeclarator()->addSymbols(_scope);
 
     setScope(_scope);
@@ -5195,7 +5205,7 @@ void Alias::addSymbols(Scope * _scope) {
     // do this before adding symbol so that it can't self reference
     getDeclarator()->analyze();
     Type::alias(getMangledName(), getDeclarator()->getType());
-    
+
     _scope->addSymbol(symbol, &getNameContext());
 }
 
@@ -6321,7 +6331,7 @@ void Procedure::analyze(bool force) {
         statement->analyze(force);
         handleTerminators(this, getStatements(), statement);
         if (statement->nodeKind == ASTNode::IF)
-            if (((If*)statement)->alwaysReturns())
+            if (((If *)statement)->alwaysReturns())
                 returnInIf = true;
     }
 
@@ -6684,7 +6694,7 @@ void Return::analyze(bool force) {
         p = p->parent;
     }
 
-    Procedure * proc = (Procedure*)p;
+    Procedure * proc = (Procedure *)p;
 
     if (proc) {
         const Type * retLVal = proc->getRetDeclarator()->getType(); // @leak
@@ -6864,13 +6874,13 @@ bool If::alwaysReturns() const {
     if (!getFlag(ASTNode::HAS_TOP_LEVEL_RETURN))
         return false;
     if (getElse()) {
-        Else * _else = (Else*)getElse();
+        Else * _else = (Else *)getElse();
         if (_else->getFlag(ASTNode::HAS_TOP_LEVEL_RETURN))
             return true;
 
         if (_else->getStatements().size() > 0) {
             if (_else->getStatements()[0]->nodeKind == ASTNode::IF)
-                return ((If*)_else->getStatements()[0])->alwaysReturns();
+                return ((If *)_else->getStatements()[0])->alwaysReturns();
         }
     }
     return true;
@@ -7208,9 +7218,11 @@ void Foreach::analyze(bool force) {
 
     if (t->under()->isArray() && !getFlag(TAKE_REF))
         errorl(getExpression()->getContext(),
-               "The element type being iterated over is an array and must be taken by reference.", true,
-               "Expression has type '" + t->getDemangledName() + "'",
-               "Element type '" + t->under()->getDemangledName() + "' requires that the loop be by 'ref'");
+               "The element type being iterated over is an array and must be "
+               "taken by reference.",
+               true, "Expression has type '" + t->getDemangledName() + "'",
+               "Element type '" + t->under()->getDemangledName() +
+                   "' requires that the loop be by 'ref'");
 
     desugar();
 
@@ -7316,9 +7328,7 @@ void Foreach::desugar() {
 
 bool Foreach::isStatement() const { return true; }
 
-Foreach::~Foreach() { 
-    delete getExpression();
-}
+Foreach::~Foreach() { delete getExpression(); }
 //
 
 // ~~~~~ While ~~~~~
@@ -8249,14 +8259,16 @@ void MacroUse::addSymbols(Scope * _scope) {
         if (arg->nodeKind != STRUCT && arg->nodeKind != INTERFACE_DEF) {
             if (compilation->frontEnd.macroManager.shouldAddSymbols(this, i))
                 arg->addSymbols(_scope);
-            else fast_track = true;
+            else
+                fast_track = true;
         }
         i += 1;
     }
 
     if (!compilation->frontEnd.stop_tracking_macros) {
         if (fast_track)
-            compilation->frontEnd.macros_need_fast_tracked_analysis.insert(this);
+            compilation->frontEnd.macros_need_fast_tracked_analysis.insert(
+                this);
         else if (getMacroName() != "run")
             compilation->frontEnd.non_run_non_fast_tracked_macros.insert(this);
     }

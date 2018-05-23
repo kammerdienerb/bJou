@@ -25,9 +25,7 @@ const char * signLtr = "ui";
 
 Type::Type(Kind _kind, const std::string _key) : kind(_kind), key(_key) {}
 
-void Type::alias(std::string name, const Type * t) {
-    addTypeToTable(t, name);
-}
+void Type::alias(std::string name, const Type * t) { addTypeToTable(t, name); }
 
 bool Type::isPlaceholder() const { return kind == PLACEHOLDER; }
 bool Type::isVoid() const { return kind == VOID; }
@@ -314,10 +312,9 @@ SliceType::SliceType(const Type * _elem_t)
     // This will force template instantiation of the real type
     // in the front end. If we don't do this we will still instantiate,
     // but it will be lazy and might be in the back end. If that happens,
-    // some things could be off like max_interface_procs   
+    // some things could be off like max_interface_procs
 
     getRealType();
-    
 }
 
 const Type * SliceType::get(const Type * elem_t) {
@@ -335,7 +332,7 @@ const Type * SliceType::getRealType() const {
     Identifier * ident = new Identifier;
     ident->setScope(compilation->frontEnd.globalScope);
     ident->setUnqualified("__bjou_slice");
-    
+
     TemplateInstantiation * new_inst = new TemplateInstantiation;
     new_inst->setScope(compilation->frontEnd.globalScope);
     new_inst->addElement(elem_decl);
@@ -376,12 +373,12 @@ const Type * SliceType::replacePlaceholders(const Type * t) const {
 
 DynamicArrayType::DynamicArrayType(const Type * _elem_t)
     : Type(DYNAMIC_ARRAY, dkey(_elem_t)), elem_t(_elem_t) {
- 
+
     // This will force template instantiation of the real type
     // in the front end. If we don't do this we will still instantiate,
     // but it will be lazy and might be in the back end. If that happens,
-    // some things could be off like max_interface_procs   
-    
+    // some things could be off like max_interface_procs
+
     getRealType();
 }
 
@@ -932,8 +929,12 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
                     mem->getTypeDeclarator()->analyze();
                     Declarator * decl = (Declarator *)mem->getTypeDeclarator();
 
-                    if (((Declarator*)decl->getBase())->getType()->isStruct()) {
-                        const StructType * s_t = (StructType*)((Declarator*)decl->getBase())->getType();
+                    if (((Declarator *)decl->getBase())
+                            ->getType()
+                            ->isStruct()) {
+                        const StructType * s_t =
+                            (StructType *)((Declarator *)decl->getBase())
+                                ->getType();
                         if (s_t->_struct->getFlag(Struct::IS_TEMPLATE_DERIVED))
                             availableByKey.insert(s_t->key);
                     }
@@ -942,8 +943,8 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
                     // don't need to know the size of the base type
                     // PointerDeclarator handles this on construction and sets a
                     // flag in their respective base Declarator
-                    if (decl &&
-                        decl->getBase()->getFlag(Declarator::IMPLIES_COMPLETE)) {
+                    if (decl && decl->getBase()->getFlag(
+                                    Declarator::IMPLIES_COMPLETE)) {
 
                         terms.push_back(decl);
                     }
@@ -1043,8 +1044,8 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
             else
                 errorl(ref_context, "'" + demangledB + "' referenced here.",
                        true,
-                       "Did you mean to declare a reference or pointer to '" + demangledB +
-                           "'?");
+                       "Did you mean to declare a reference or pointer to '" +
+                           demangledB + "'?");
         }
     }
 

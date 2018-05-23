@@ -1,0 +1,5 @@
+import "build.bjou"
+
+\static_do {
+    Build.build()
+}

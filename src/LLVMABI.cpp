@@ -65,9 +65,9 @@ static ParamClass ABIClassForType(LLVMBackEnd & backEnd, const Type * t) {
             return MEMORY;
         return ABIClassForType(backEnd, ((ArrayType *)t)->elem_t);
     } else if (t->isSlice()) {
-        return ABIClassForType(backEnd, ((SliceType*)t)->getRealType());
+        return ABIClassForType(backEnd, ((SliceType *)t)->getRealType());
     } else if (t->isDynamicArray()) {
-        return ABIClassForType(backEnd, ((DynamicArrayType*)t)->getRealType());
+        return ABIClassForType(backEnd, ((DynamicArrayType *)t)->getRealType());
     } else if (t->isStruct() || t->isTuple()) {
         if (size > MEM_THRESH)
             return MEMORY;
@@ -98,7 +98,7 @@ template <> void x86Lowerer<LLVMBackEnd>::ABILowerProcedureType(void * data) {
     using namespace x86;
 
     ABILowerProcedureTypeData * payload = (ABILowerProcedureTypeData *)data;
-    LLVMBackEnd& llbe = ((LLVMBackEnd&)backEnd);
+    LLVMBackEnd & llbe = ((LLVMBackEnd &)backEnd);
     ProcedureType * t = payload->t;
 
     const Type * new_ret_t = nullptr;
@@ -144,13 +144,15 @@ template <> void x86Lowerer<LLVMBackEnd>::ABILowerProcedureType(void * data) {
         i += 1;
     }
 
-    payload->t = (ProcedureType*)ProcedureType::get(new_params, new_ret_t, t->isVararg);
+    payload->t =
+        (ProcedureType *)ProcedureType::get(new_params, new_ret_t, t->isVararg);
 
-    std::vector<llvm::Type*> ll_param_types;
+    std::vector<llvm::Type *> ll_param_types;
     for (const Type * t : new_params)
         ll_param_types.push_back(llbe.getOrGenType(t));
 
-    payload->fn_t = llvm::FunctionType::get(llbe.getOrGenType(new_ret_t), ll_param_types, t->isVararg);
+    payload->fn_t = llvm::FunctionType::get(llbe.getOrGenType(new_ret_t),
+                                            ll_param_types, t->isVararg);
 }
 
 template <> void x86Lowerer<LLVMBackEnd>::ABILowerCall(void * data) {}

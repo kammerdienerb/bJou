@@ -27,20 +27,20 @@
 
 namespace bjou {
 Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
-                         TCLAPArgSet & _args)
+                         ArgSet & _args)
     : max_interface_procs(0), frontEnd(_frontEnd), backEnd(_backEnd),
       args(_args) {
-    if (args.files.getValue().empty()) {
+    if (args.files.empty()) {
         Context e_context;
         _error(e_context, "No input files!");
         abort();
     }
 
-    if (args.noabc_arg.getValue())
+    if (args.noabc_arg)
         frontEnd.abc = false;
 
-    if (args.output_arg.getValue().size()) {
-        std::string o = de_quote(args.output_arg.getValue());
+    if (args.output_arg.size()) {
+        std::string o = de_quote(args.output_arg);
         outputpath = o.find('/') == std::string::npos
                          ? ""
                          : o.substr(0, o.find_last_of('/')) + "/";
@@ -48,7 +48,7 @@ Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
         outputbasefilename =
             outputbasefilename.substr(outputbasefilename.find_last_of("/") + 1);
     } else {
-        std::string firstfile = args.files.getValue()[0];
+        std::string firstfile = args.files[0];
         firstfile = de_quote(firstfile);
         outputpath = "";
         outputbasefilename = firstfile.substr(0, firstfile.find_last_of('.'));
@@ -56,7 +56,7 @@ Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
             outputbasefilename.substr(outputbasefilename.find_last_of("/") + 1);
     }
 
-    for (auto & f : args.files.getValue()) {
+    for (auto & f : args.files) {
         if (has_suffix(f, ".o") || has_suffix(f, ".a") ||
             has_suffix(f, ".so") || has_suffix(f, ".dylib"))
             obj_files.push_back(f);
@@ -67,7 +67,7 @@ Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
     }
 
     module_search_paths.push_back("");
-    for (auto & _path : args.module_search_path_arg.getValue()) {
+    for (auto & _path : args.module_search_path_arg) {
         std::string path = _path;
         path = de_quote(path);
         if (_path.back() != '/')
@@ -88,20 +88,20 @@ void Compilation::go() {
     backEnd.init();
 
     auto f_time = frontEnd.go();
-    if (args.time_arg.getValue())
+    if (args.time_arg)
         prettyPrintTimeMaj(f_time, "Front-end");
 
-    if (!args.justcheck_arg.getValue() && mode != MODULE) {
+    if (!args.front_arg && mode != MODULE) {
         auto b_time = backEnd.go();
-        if (args.time_arg.getValue())
+        if (args.time_arg)
             prettyPrintTimeMaj(b_time, "Back-end");
     }
 
     auto end = Clock::now();
     auto compile_time = duration_cast<milliseconds>(end - start);
-    if (args.time_arg.getValue())
+    if (args.time_arg)
         prettyPrintTimeMaj(compile_time, "Grand total");
-    if (args.time_arg.getValue()) {
+    if (args.time_arg) {
         bjouSetColor(LIGHTCYAN);
         float s = RunTimeToSeconds(compile_time);
         float per_s = ((float)frontEnd.n_lines) / s;

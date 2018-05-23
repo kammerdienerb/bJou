@@ -29,6 +29,12 @@ type __bjou_dyn_array$T {
 #     }
 }
 
+proc free$T(da : T[...] ref) {
+    delete \__da_data{da}
+    \__da_capacity{da} = 0
+    \__da_used{da} = 0
+}
+
 \static_if { \abc{}
     proc __bjou_dynamic_array_subscript$T(
             _s     : T[...] ref, # the dynamic array

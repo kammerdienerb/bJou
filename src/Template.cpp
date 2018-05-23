@@ -347,7 +347,7 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
                         check.second = match;
                 }
             }
-            
+
             delete passed_decl;
         }
     }

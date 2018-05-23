@@ -55,7 +55,7 @@ static ASTNode * static_if(MacroUse * use) {
     use->setFlag(ASTNode::CT, true);
     use->getArgs()[0]->analyze();
 
-    if (((Expression*)use->getArgs()[0])->eval().as_i64) {
+    if (((Expression *)use->getArgs()[0])->eval().as_i64) {
         use->getArgs()[1]->addSymbols(use->getScope());
         use->getArgs()[1]->analyze();
         return use->getArgs()[1];
@@ -107,19 +107,19 @@ static ASTNode * run(MacroUse * use) {
     }
 
     BJOU_DEBUG_ASSERT(proc);
-    
-    ArgList * arglist = (ArgList*)call->getRight();
+
+    ArgList * arglist = (ArgList *)call->getRight();
 
     BJOU_DEBUG_ASSERT(arglist);
 
     std::vector<Val> val_args;
 
     for (ASTNode * _expr : arglist->getExpressions()) {
-        Expression * expr = (Expression*)_expr;
+        Expression * expr = (Expression *)_expr;
         if (!expr->isConstant())
             errorl(expr->getContext(),
-                    "run: argument value to compile-time invokation of '" +
-                    proc->getName() + "' must be known at compile time.") ;
+                   "run: argument value to compile-time invokation of '" +
+                       proc->getName() + "' must be known at compile time.");
         val_args.push_back(expr->eval());
     }
 
@@ -128,7 +128,7 @@ static ASTNode * run(MacroUse * use) {
     auto end = Clock::now();
     milliseconds time = duration_cast<milliseconds>(end - start);
 
-    if (compilation->args.time_arg.getValue())
+    if (compilation->args.time_arg)
         prettyPrintTimeMin(
             time,
             "\\run '" + proc->getName() + "' from " +
@@ -144,14 +144,23 @@ static ASTNode * run(MacroUse * use) {
 static ASTNode * static_do(MacroUse * use) {
     use->setFlag(ASTNode::CT, true);
 
-    use->getArgs()[0]->analyze();
-    Procedure * proc = (Procedure *)use->getArgs()[0];
-    const ProcedureType * t = (const ProcedureType *)proc->getType();
+    Procedure * proc = new Procedure;
+    proc->setContext(use->getContext());
+    proc->setNameContext(use->getContext());
+    Identifier * vi = new Identifier;
+    vi->setUnqualified("void");
+    vi->setContext(use->getContext());
+    Declarator * vd = new Declarator;
+    vd->setIdentifier(vi);
+    vd->setContext(use->getContext());
 
-    if (!equal(t, ProcedureType::get({}, VoidType::get())))
-        errorl(proc->getNameContext(),
-               "Anonymouse procedure in $do must have type <()>", true,
-               "Procedure has type " + t->getDemangledName());
+    proc->setRetDeclarator(vd);
+
+    for (auto arg : use->getArgs())
+        proc->addStatement(arg->clone());
+
+    proc->addSymbols(use->getScope());
+    proc->analyze();
 
     std::vector<Val> no_args;
     compilation->backEnd.run(proc, &no_args);
@@ -542,6 +551,16 @@ static ASTNode * typeisfloat(MacroUse * use) {
     return lit;
 }
 
+static ASTNode * front(MacroUse * use) {
+    use->getArgs()[0]->analyze();
+
+    bool f = ((Expression *)use->getArgs()[0])->eval().as_i64;
+
+    compilation->args.front_arg = f;
+
+    return nullptr;
+}
+
 } // namespace Macros
 
 Macro::Macro() : name(""), dispatch(nullptr), arg_kinds({}), isVararg(false) {}
@@ -558,16 +577,18 @@ MacroManager::MacroManager() {
                       Macros::rand,
                       {{ASTNode::NodeKind::INTEGER_LITERAL},
                        {ASTNode::NodeKind::INTEGER_LITERAL}}};
-    macros["static_if"] = {
-        "static_if", Macros::static_if, {{ANY_EXPRESSION}, {ANY_NODE}}, false, {1}};
+    macros["static_if"] = {"static_if",
+                           Macros::static_if,
+                           {{ANY_EXPRESSION}, {ANY_NODE}},
+                           false,
+                           {1}};
     macros["same_type"] = {"same_type",
                            Macros::same_type,
                            {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER},
                             {ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
     macros["run"] = {
         "run", Macros::run, {{ASTNode::NodeKind::CALL_EXPRESSION}}};
-    macros["static_do"] = {
-        "static_do", Macros::static_do, {{ASTNode::NodeKind::PROCEDURE}}, true};
+    macros["static_do"] = {"static_do", Macros::static_do, {}, true, {-1}};
     macros["add_llvm_pass"] = {"add_llvm_pass",
                                Macros::add_llvm_pass,
                                {{ASTNode::NodeKind::STRING_LITERAL}}};
@@ -596,24 +617,26 @@ MacroManager::MacroManager() {
         "error", Macros::error, {{ASTNode::NodeKind::STRING_LITERAL}}};
 
     macros["os"] = {"os", Macros::os, {}};
-    macros["typeisstruct"] = {"typeisstruct",
-                           Macros::typeisstruct,
-                           {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
-    macros["typeispointer"] = {"typeispointer",
-                           Macros::typeispointer,
-                           {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+    macros["typeisstruct"] = {
+        "typeisstruct",
+        Macros::typeisstruct,
+        {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+    macros["typeispointer"] = {
+        "typeispointer",
+        Macros::typeispointer,
+        {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
     macros["typeisproc"] = {"typeisproc",
-                           Macros::typeisproc,
-                           {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+                            Macros::typeisproc,
+                            {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
     macros["typeisint"] = {"typeisint",
                            Macros::typeisint,
                            {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
     macros["typeischar"] = {"typeischar",
-                           Macros::typeischar,
-                           {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+                            Macros::typeischar,
+                            {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
     macros["typeisfloat"] = {"typeisfloat",
-                           Macros::typeisfloat,
-                           {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+                             Macros::typeisfloat,
+                             {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {
@@ -677,7 +700,7 @@ bool MacroManager::shouldAddSymbols(MacroUse * use, int arg_index) {
     Macro & macro = search->second;
 
     for (int i : macro.args_no_add_symbols)
-        if (i == arg_index)
+        if (i == arg_index || i == -1)
             return false;
 
     return true;

@@ -2031,8 +2031,8 @@ MaybeASTNode Parser::parseType() {
             ASTNode * aliasDeclarator = nullptr;
             if (m_aliasDeclarator.assignTo(aliasDeclarator)) {
                 if (abstract)
-                    errorl(nameContext, "Only struct types can be abstract.", true,
-                           "'" + name + "' is a type alias.");
+                    errorl(nameContext, "Only struct types can be abstract.",
+                           true, "'" + name + "' is a type alias.");
                 Alias * result = new Alias();
                 TemplateAlias * templateResult = new TemplateAlias();
                 result->setContext(context);
@@ -2042,10 +2042,12 @@ MaybeASTNode Parser::parseType() {
                 templateResult->setNameContext(nameContext);
                 result->setDeclarator(aliasDeclarator);
 
-                result->getContext().finish(&currentContext, &justCleanedContext);
-                
+                result->getContext().finish(&currentContext,
+                                            &justCleanedContext);
+
                 if (templateDef) {
-                    templateResult->getContext().finish(&currentContext, &justCleanedContext);
+                    templateResult->getContext().finish(&currentContext,
+                                                        &justCleanedContext);
                     templateResult->setTemplateDef(templateDef);
                 }
 

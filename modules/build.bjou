@@ -1,0 +1,12 @@
+# build.bjou
+# build system via a bJou compile-time metaprogram
+
+module build \ct {
+
+abstract type Build {
+    proc build() {
+        print "building"
+    }
+}
+
+}

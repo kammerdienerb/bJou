@@ -82,7 +82,7 @@ void LLVMGenerator::generate() {
     pass.add(createTargetTransformInfoWrapperPass(
         backEnd.defaultTargetMachine->getTargetIRAnalysis()));
 
-    if (compilation->args.opt_arg.getValue()) {
+    if (compilation->args.opt_arg) {
         fpass.add(createTargetTransformInfoWrapperPass(
             backEnd.defaultTargetMachine->getTargetIRAnalysis()));
         AddOptimizationPasses(pass, fpass, backEnd.defaultTargetMachine, 3, 0);

@@ -14,8 +14,9 @@
 namespace bjou {
 
 extern "C" const char * bjou_makeUID(const char * hint);
-    
-extern "C" Context * bjou_createContext(Loc * beg, Loc * end, const char * fname);
+
+extern "C" Context * bjou_createContext(Loc * beg, Loc * end,
+                                        const char * fname);
 extern "C" Context * bjou_getContext(ASTNode * node);
 extern "C" void bjou_setContext(ASTNode * node, Context * c);
 extern "C" void bjou_setProcNameContext(ASTNode * node, Context * c);
@@ -38,7 +39,7 @@ extern "C" void bjou_setGlobalNodeRP(ASTNode * node);
 
 extern "C" Scope * bjou_getGlobalScope();
 
-extern "C" ASTNode* bjou_clone(ASTNode * node);
+extern "C" ASTNode * bjou_clone(ASTNode * node);
 extern "C" void bjou_preDeclare(ASTNode * node, Scope * scope);
 extern "C" void bjou_addSymbols(ASTNode * node, Scope * scope);
 extern "C" void bjou_analyze(ASTNode * node);
@@ -54,7 +55,7 @@ extern "C" ASTNode * bjou_createDivExpression(ASTNode * left, ASTNode * right);
 extern "C" ASTNode * bjou_createModExpression(ASTNode * left, ASTNode * right);
 
 extern "C" ASTNode * bjou_createAssignmentExpression(ASTNode * left,
-                                                 ASTNode * right);
+                                                     ASTNode * right);
 extern "C" ASTNode * bjou_createAddAssignExpression(ASTNode * left,
                                                     ASTNode * right);
 extern "C" ASTNode * bjou_createSubAssignExpression(ASTNode * left,
@@ -133,7 +134,10 @@ extern "C" ASTNode * bjou_createParamDeclaration(const char * name,
                                                  ASTNode * typeDeclarator,
                                                  ASTNode * initialization);
 
-extern "C" ASTNode * bjou_createProcedureDeclarator(ASTNode ** paramDecls, int n_paramDecls, ASTNode * retDecl, bool isVararg);
+extern "C" ASTNode * bjou_createProcedureDeclarator(ASTNode ** paramDecls,
+                                                    int n_paramDecls,
+                                                    ASTNode * retDecl,
+                                                    bool isVararg);
 
 extern "C" ASTNode * bjou_createAlias(const char * name, ASTNode * decl);
 
@@ -152,10 +156,11 @@ bjou_createProcedure(const char * name, ASTNode ** paramVarDeclarations,
                      ASTNode * retDeclarator, ASTNode ** statements,
                      int n_statements);
 
-extern "C" ASTNode *
-bjou_createExternProcedure(const char * name, ASTNode ** paramVarDeclarations,
-                           int n_paramVarDeclarations, bool isVararg,
-                           ASTNode * retDeclarator);
+extern "C" ASTNode * bjou_createExternProcedure(const char * name,
+                                                ASTNode ** paramVarDeclarations,
+                                                int n_paramVarDeclarations,
+                                                bool isVararg,
+                                                ASTNode * retDeclarator);
 
 extern "C" ASTNode * bjou_createReturn(ASTNode * expression);
 extern "C" ASTNode * bjou_createBreak();
@@ -174,7 +179,8 @@ extern "C" ASTNode * bjou_createDoWhile(ASTNode * conditional,
                                         ASTNode ** statements,
                                         int n_statements);
 
-extern "C" ASTNode * bjou_createMacroUse(const char * macroName, ASTNode ** args, int n_args);
+extern "C" ASTNode * bjou_createMacroUse(const char * macroName,
+                                         ASTNode ** args, int n_args);
 
 } // namespace bjou
 

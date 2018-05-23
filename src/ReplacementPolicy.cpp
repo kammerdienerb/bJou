@@ -186,14 +186,16 @@ RP_FUNCTOR_IMPL(
     auto found_node = std::find(compilation->frontEnd.AST.begin(),
                                 compilation->frontEnd.AST.end(), old_node);
     if (found_node == compilation->frontEnd.AST.end()) {
-        found_node = std::find(compilation->frontEnd.deferredAST.begin(),
-                               compilation->frontEnd.deferredAST.end(), old_node);
+        found_node =
+            std::find(compilation->frontEnd.deferredAST.begin(),
+                      compilation->frontEnd.deferredAST.end(), old_node);
         if (found_node == compilation->frontEnd.deferredAST.end())
             internalError(
                 "node to replace not found in replacementPolicy_Global_Node()");
     }
 
-    *found_node = new_node; new_node->parent = nullptr;
+        * found_node = new_node;
+    new_node->parent = nullptr;
     new_node->replace = rpget<replacementPolicy_Global_Node>();
 
     return new_node;);
