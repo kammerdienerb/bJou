@@ -213,8 +213,9 @@ std::vector<Symbol *> ProcSet::getCandidates(ProcedureType * compare_type,
             } else {
                 TemplateProc * tproc = (TemplateProc *)p.second->node();
 
+                // don't fail with the check when we are just gathering candidates
                 if (checkTemplateProcInstantiation(tproc, args, inst, context,
-                                                   fail) != -1)
+                                                   false) != -1)
                     candidates.push_back(p.second);
             }
         }
