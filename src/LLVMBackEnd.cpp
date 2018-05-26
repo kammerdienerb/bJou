@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <unordered_map>
+#include <future>
 
 // #include <llvm/CodeGen/CommandFlags.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
@@ -672,6 +673,41 @@ void LLVMBackEnd::completeProcs() {
                     procs_need_completion.end());
         procs_need_completion.clear();
 
+#if 0
+        if (!compilation->args.noparallel_arg) {
+            size_t n_procs = copy.size();
+
+            auto completeProc = [this](ASTNode * proc) { return proc->generate(*this); };
+          
+            unsigned int nthreaded = std::thread::hardware_concurrency() - 1;
+
+            std::vector<std::future<void*> > futures;
+
+            unsigned int i;
+            for (i = 0; i < n_procs / nthreaded; i += 1) {
+                for (unsigned int j = 0; j < nthreaded; j += 1) {
+                    ASTNode * the_proc = copy[(i * nthreaded) + j];
+                    futures.push_back(std::async(std::launch::async, completeProc, the_proc));
+                }
+
+                for (auto& f : futures)
+                    f.get();
+
+                futures.clear();
+            }
+
+            for (unsigned long i = n_procs - (n_procs % nthreaded); i < n_procs; i += 1) {
+                ASTNode * the_proc = copy[i];
+                futures.push_back(std::async(std::launch::async, completeProc, the_proc));
+            }
+
+            for (auto& f : futures)
+                f.get();
+        } else {
+            for (ASTNode * node : copy)
+                node->generate(*this);
+        }
+#endif
         for (ASTNode * node : copy)
             node->generate(*this);
     }

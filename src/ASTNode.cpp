@@ -66,12 +66,22 @@ bool isCT(ASTNode * node) {
     while (node) {
         if (node->getFlag(ASTNode::CT))
             return true;
-        node = node->parent;
+        node = node->getParent();
     }
     return false;
 }
 
 void ASTNode::printFlags() { std::cout << std::bitset<32>(getFlags()) << "\n"; }
+
+ASTNode * ASTNode::getParent() const {
+    if (parent) {
+        if (parent->nodeKind == ASTNode::MULTINODE)
+            return parent->getParent();
+        return parent;
+    }
+
+    return nullptr;
+}
 
 Context & ASTNode::getContext() { return context; }
 void ASTNode::setContext(Context _context) { context = _context; }
@@ -391,7 +401,7 @@ static void emplaceConversion(Expression * expr, const Type * dest_t) {
         (expr->getType()->isRef() && conv(dest_t, expr->getType()->unRef())))
         return;
 
-    ASTNode * p = expr->parent;
+    ASTNode * p = expr->getParent();
 
     AsExpression * conversion = new AsExpression;
     conversion->setContext(expr->getContext());
@@ -1527,8 +1537,8 @@ void CallExpression::analyze(bool force) {
             ((Identifier *)getLeft())->resolved = proc;
 
         resolved_proc = proc;
-        if (proc->parent &&
-            proc->parent->nodeKind == ASTNode::INTERFACE_IMPLEMENTATION) {
+        if (proc->getParent() &&
+            proc->getParent()->nodeKind == ASTNode::INTERFACE_IMPLEMENTATION) {
             Struct * s = proc->getParentStruct();
             BJOU_DEBUG_ASSERT(s);
             if (s->getFlag(Struct::IS_ABSTRACT))
@@ -5534,7 +5544,7 @@ void Struct::addSymbols(Scope * _scope) {
         tproc->addSymbols(_scope);
     for (ASTNode * _impl : getAllInterfaceImplsSorted()) {
         InterfaceImplementation * impl = (InterfaceImplementation *)_impl;
-        if (impl->parent == this) {
+        if (impl->getParent() == this) {
             if (impl->getFlag(InterfaceImplementation::PUNT_TO_EXTENSION))
                 createProcSetsForPuntedInterfaceImpl(this, impl);
             impl->addSymbols(_scope);
@@ -6135,33 +6145,58 @@ ArgList::~ArgList() {
 
 static void handleTerminators(ASTNode * statement,
                               std::vector<ASTNode *> & statements,
-                              ASTNode *& node) {
-    if (node->nodeKind == ASTNode::RETURN || node->nodeKind == ASTNode::BREAK ||
+                              ASTNode *& node, bool from_multi = false, MultiNode ** m = nullptr) {
+    if (node->nodeKind == ASTNode::MULTINODE) {
+        MultiNode * multi = (MultiNode*)node;
+        for (ASTNode * n : multi->nodes) {
+            handleTerminators(statement, statements, n, true, (MultiNode**)&node);
+        }
+    } else if (node->nodeKind == ASTNode::RETURN || node->nodeKind == ASTNode::BREAK ||
         node->nodeKind == ASTNode::CONTINUE) {
 
         statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
 
-        auto search = std::find(statements.begin(), statements.end(), node);
+        ////////////////////////////////////////// convenience lambda
+        /////////////////////////////////////////////////////////////
+        auto searchUnreach = [&](ASTNode *& the_node, std::vector<ASTNode*>& the_statements) {
+            auto search = std::find(the_statements.begin(), the_statements.end(), the_node);
 
-        BJOU_DEBUG_ASSERT(search != statements.end());
+            BJOU_DEBUG_ASSERT(search != the_statements.end());
 
-        search++;
+            search++;
 
-        for (; search != statements.end(); search++) {
-            if ((*search)->nodeKind != ASTNode::MACRO_USE &&
-                (*search)->nodeKind != ASTNode::IGNORE) {
+            for (; search != the_statements.end(); search++) {
+                if ((*search)->nodeKind != ASTNode::MACRO_USE &&
+                    (*search)->nodeKind != ASTNode::IGNORE) {
 
-                std::string err_str;
+                    std::string err_str;
 
-                if (node->nodeKind == ASTNode::RETURN)
-                    err_str = "return";
-                else if (node->nodeKind == ASTNode::BREAK)
-                    err_str = "break";
-                else if (node->nodeKind == ASTNode::CONTINUE)
-                    err_str = "continue";
+                    if (the_node->nodeKind == ASTNode::RETURN)
+                        err_str = "return";
+                    else if (the_node->nodeKind == ASTNode::BREAK)
+                        err_str = "break";
+                    else if (the_node->nodeKind == ASTNode::CONTINUE)
+                        err_str = "continue";
 
-                errorl(node->getContext(),
-                       "Code below this " + err_str + " will never execute.");
+                    errorl(the_node->getContext(),
+                           "Code below this " + err_str + " will never execute.");
+                }
+            }
+        };
+        /////////////////////////////////////////////////////////////
+
+        if (!from_multi) {
+            searchUnreach(node, statements);
+        } else {
+            BJOU_DEBUG_ASSERT(m && "no MulitNode");
+            if (&node == &((*m)->nodes.back())) {
+                // node is last in multinode
+                // search for nodes after the multinode
+                searchUnreach(*(ASTNode**)m, statements);
+            } else {
+                // there are nodes after this one in the multinode
+                // check those for error
+                searchUnreach(node, (*m)->nodes);
             }
         }
     }
@@ -6253,16 +6288,16 @@ Struct * Procedure::getParentStruct() {
     if (parent->nodeKind == ASTNode::STRUCT) {
         s = (Struct *)parent;
     } else if (parent->nodeKind == ASTNode::TEMPLATE_PROC &&
-               parent->parent->nodeKind == ASTNode::STRUCT) {
-        s = (Struct *)parent->parent;
+               parent->getParent()->nodeKind == ASTNode::STRUCT) {
+        s = (Struct *)parent->getParent();
     } else if (parent->nodeKind == ASTNode::INTERFACE_IMPLEMENTATION) {
-        BJOU_DEBUG_ASSERT(parent->parent);
-        s = (Struct *)parent->parent;
+        BJOU_DEBUG_ASSERT(parent->getParent());
+        s = (Struct *)parent->getParent();
     } else if (parent->nodeKind == ASTNode::TEMPLATE_PROC &&
-               parent->parent->nodeKind == ASTNode::INTERFACE_IMPLEMENTATION) {
-        BJOU_DEBUG_ASSERT(parent->parent);
-        BJOU_DEBUG_ASSERT(parent->parent->parent);
-        s = (Struct *)parent->parent->parent;
+               parent->getParent()->nodeKind == ASTNode::INTERFACE_IMPLEMENTATION) {
+        BJOU_DEBUG_ASSERT(parent->getParent());
+        BJOU_DEBUG_ASSERT(parent->getParent()->getParent());
+        s = (Struct *)parent->getParent()->getParent();
     }
 
     BJOU_DEBUG_ASSERT(s);
@@ -6297,7 +6332,7 @@ void Procedure::desugarThis() {
             param->getTypeDeclarator()->addSymbols(
                 node->getScope()); // @bad. does this make sense?
 
-            (*node->replace)(node->parent, node, param);
+            (*node->replace)(node->getParent(), node, param);
 
             seen = (This *)node;
         }
@@ -6687,11 +6722,11 @@ void Return::setExpression(ASTNode * _expression) {
 void Return::analyze(bool force) {
     HANDLE_FORCE();
 
-    ASTNode * p = parent;
+    ASTNode * p = getParent();
     while (p) {
         if (p->nodeKind == PROCEDURE)
             break;
-        p = p->parent;
+        p = p->getParent();
     }
 
     Procedure * proc = (Procedure *)p;
@@ -6783,7 +6818,7 @@ void Break::analyze(bool force) {
             p->nodeKind == ASTNode::FOR) {
             break;
         }
-        p = p->parent;
+        p = p->getParent();
     }
 
     if (!p || !p->isStatement())
@@ -6819,7 +6854,7 @@ void Continue::analyze(bool force) {
             p->nodeKind == ASTNode::FOR) {
             break;
         }
-        p = p->parent;
+        p = p->getParent();
     }
 
     if (!p || !p->isStatement())

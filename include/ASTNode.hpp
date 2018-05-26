@@ -326,6 +326,8 @@ struct ASTNode {
     void setFlag(int flag, bool _val);
     void printFlags();
 
+    ASTNode * getParent() const;
+
     Context & getContext();
     void setContext(Context _context);
 

@@ -53,12 +53,19 @@ static ASTNode * rand(MacroUse * use) {
 
 static ASTNode * static_if(MacroUse * use) {
     use->setFlag(ASTNode::CT, true);
+    
+    // static_if is marked as 'no add symbols' below.
+    // we have to add symbols here just for the expression
+    // argument.
+    use->getArgs()[0]->addSymbols(use->getScope());
     use->getArgs()[0]->analyze();
 
     if (((Expression *)use->getArgs()[0])->eval().as_i64) {
-        use->getArgs()[1]->addSymbols(use->getScope());
-        use->getArgs()[1]->analyze();
-        return use->getArgs()[1];
+        std::vector<ASTNode*> keep(use->getArgs().begin() + 1, use->getArgs().end());
+        MultiNode * multi = new MultiNode(keep);
+        multi->addSymbols(use->getScope());
+        // multi->analyze();
+        return multi;
     }
 
     return nullptr;
@@ -581,9 +588,9 @@ MacroManager::MacroManager() {
                        {ASTNode::NodeKind::INTEGER_LITERAL}}};
     macros["static_if"] = {"static_if",
                            Macros::static_if,
-                           {{ANY_EXPRESSION}, {ANY_NODE}},
-                           false,
-                           {1}};
+                           {{ANY_EXPRESSION}},
+                           true,
+                           {-1}};
     macros["same_type"] = {"same_type",
                            Macros::same_type,
                            {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER},
@@ -668,7 +675,8 @@ ASTNode * MacroManager::invoke(MacroUse * use) {
 
     if (arg_err)
         errorl(errContext, "Wrong number of args for macro '" + name + "'",
-               true, "expected " + std::to_string(nexpected),
+               true, "expected " + (macro.isVararg ? "at least " : std::string("")) + 
+               std::to_string(nexpected),
                "got " + std::to_string(nargs));
 
     for (int i = 0; i < nexpected; i += 1) {

@@ -1,3 +1,39 @@
+#######################################################################
+# bJou Makefile
+# #####################################################################
+#
+#
+# Progress indicator stuff
+# ########################
+
+BLACK   =\033[30m
+RED     =\033[31m
+GREEN   =\033[32m
+YELLOW  =\033[33m
+BLUE    =\033[34m
+MAGENTA =\033[35m
+CYAN    =\033[36m
+WHITE   =\033[37m
+RESET   =\033[0m
+
+ifneq ($(words $(MAKECMDGOALS)),1) # if no argument was given to make...
+.DEFAULT_GOAL = all # set the default goal to all
+%:                   # define a last resort default rule
+	@$(MAKE) $@ --no-print-directory -rRf $(firstword $(MAKEFILE_LIST)) # recursive make call, 
+else
+ifndef PROGRESS
+T := $(shell $(MAKE) $(MAKECMDGOALS) --no-print-directory \
+      -nrRf $(firstword $(MAKEFILE_LIST)) \
+      PROGRESS="COUNTTHIS" | grep -c "COUNTTHIS")
+N := x
+C = $(words $N)$(eval N := x $N)
+PROGRESS = @printf "$(GREEN)[%3s%%]$(RESET) $(CYAN)%s$(RESET)\n" `expr $C '*' 100 / $T`
+endif
+
+#######################################################################
+# main makefile
+###############
+
 TARGET		= bjou
 CC 			= clang++
 INCLUDE		= include
@@ -39,15 +75,14 @@ _all: debug release
 debug:; @$(MAKE) _debug -j$(CORES)
 _debug: $(D_OBJ)
 	@mkdir -p bin
-	@echo "----------------------------"
 ifneq ("$(wildcard $(TCMLC_PATH))","")
-	@echo "Building Debug Target $(TARGET) (with tcmalloc)"
+	$(PROGRESS) "Building Debug Target $(TARGET) (with tcmalloc)"
 else ifneq ("$(wildcard $(JEMLC_PATH))", "")
-	@echo "Building Debug Target $(TARGET) (with jemalloc)"
+	$(PROGRESS) "Building Debug Target $(TARGET) (with jemalloc)"
 else
-	@echo "Building Debug Target $(TARGET)"
+	$(PROGRESS) "Building Debug Target $(TARGET)"
 endif
-	@echo
+	$(PROGRESS) ""
 	@$(CC) -o bin/$(TARGET) $(D_LFLAGS) $? 
 
 .PHONY: debug _debug
@@ -55,9 +90,8 @@ endif
 release:; @$(MAKE) _release -j$(CORES)
 _release: $(R_OBJ)
 	@mkdir -p bin
-	@echo "------------------------------"
-	@echo "Building Release Target $(TARGET)"
-	@echo
+	$(PROGRESS) "Building Release Target $(TARGET)"
+	$(PROGRESS) ""
 	@$(CC) -o bin/$(TARGET) $? $(R_LFLAGS) 
 
 .PHONY: release _release
@@ -65,13 +99,13 @@ _release: $(R_OBJ)
 obj/debug/%.o: %.cpp
 	@mkdir -p obj/debug/src
 	@mkdir -p obj/debug/tclap
-	@echo "Compiling $<"
+	$(PROGRESS) "Compiling $<"
 	@$(CC) $(D_CFLAGS) -c -o $@ $<	
 
 obj/release/%.o: %.cpp
 	@mkdir -p obj/release/src
 	@mkdir -p obj/release/tclap
-	@echo "Compiling $<"
+	$(PROGRESS) "Compiling $<"
 	@$(CC) $(R_CFLAGS) -c -o $@ $<
 
 install: bin/$(TARGET)
@@ -87,3 +121,5 @@ clean:
 	@\rm -f obj/release/src/*.o
 	@\rm -f obj/release/tclap/*.o
 	@\rm -f bin/$(TARGET)
+#######################################################################
+endif # endif for progress bar

@@ -3,7 +3,7 @@
 module compiler \ct { # this module is only available at compile time
 
 extern bjou_StartDefaultCompilation(
-    bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool,
+    bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool,
     char**, int,
     char*,
     char**, int,

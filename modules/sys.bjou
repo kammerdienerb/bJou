@@ -6,6 +6,11 @@ module sys
 
 \ct { import "os.bjou" }
 
+\static_if{ os.IS_POSIX
 abstract type sys {
+ 
+}}
 
+\static_if{ os.OS == os.WINDOWS
+\error{ "'sys' module not implemented on Windows yet." }
 }

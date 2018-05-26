@@ -51,11 +51,15 @@ struct Parser;
 
 struct ArgSet {
     bool verbose_arg, front_arg, time_arg, symbols_arg, noparallel_arg, opt_arg,
-        noabc_arg, module_arg, nopreload_arg, lld_arg, c_arg;
+        noabc_arg, module_arg, nopreload_arg, lld_arg, c_arg, emitllvm_arg;
     std::vector<std::string> module_search_path_arg;
     std::string output_arg;
     std::vector<std::string> link_arg;
     std::vector<std::string> files;
+
+    ArgSet(bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, const std::vector<std::string>&, const std::string&, const std::vector<std::string>&, const std::vector<std::string>&);
+
+    void print();
 };
 
 using namespace rlutil;

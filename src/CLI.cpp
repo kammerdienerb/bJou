@@ -73,7 +73,64 @@ void bJouOutput::version(TCLAP::CmdLineInterface & c) {
 }
 
 namespace bjou {
+
 using bjou::compilation;
+
+ArgSet::ArgSet(bool _verbose_arg, bool _front_arg, bool _time_arg, bool _symbols_arg, bool _noparallel_arg, bool _opt_arg, bool _noabc_arg, bool _module_arg, bool _nopreload_arg, bool _lld_arg, bool _c_arg, bool _emitllvm_arg, const std::vector<std::string>& _module_search_path_arg, const std::string& _output_arg, const std::vector<std::string>& _link_arg, const std::vector<std::string>& _files) : verbose_arg(_verbose_arg), front_arg(_front_arg), time_arg(_time_arg), symbols_arg(_symbols_arg), noparallel_arg(_noparallel_arg), opt_arg(_opt_arg), noabc_arg(_noabc_arg), module_arg(_module_arg), nopreload_arg(_nopreload_arg), lld_arg(_lld_arg), c_arg(_c_arg), emitllvm_arg(_emitllvm_arg), module_search_path_arg(_module_search_path_arg), output_arg(_output_arg), link_arg(_link_arg), files(_files) {  }
+
+void ArgSet::print() {
+    printf("verbose             = %s\n", (verbose_arg ? "true" : "false"));
+    printf("front               = %s\n", (front_arg ? "true" : "false"));
+    printf("time                = %s\n", (time_arg ? "true" : "false"));
+    printf("symbols             = %s\n", (symbols_arg ? "true" : "false"));
+    printf("noparallel          = %s\n", (noparallel_arg ? "true" : "false"));
+    printf("opt                 = %s\n", (opt_arg ? "true" : "false"));
+    printf("noabc               = %s\n", (noabc_arg ? "true" : "false"));
+    printf("module              = %s\n", (module_arg ? "true" : "false"));
+    printf("nopreload           = %s\n", (nopreload_arg ? "true" : "false"));
+    printf("lld                 = %s\n", (lld_arg ? "true" : "false"));
+    printf("c                   = %s\n", (c_arg ? "true" : "false"));
+    printf("emitllvm            = %s\n", (emitllvm_arg ? "true" : "false"));
+
+    const char * comma = ", ";
+
+    printf("module search paths = { ");
+    if (module_search_path_arg.empty()) {
+        printf(" }\n");
+    } else {
+        for (auto& path : module_search_path_arg) {
+            if (&path == &module_search_path_arg.back())
+                comma = " }\n";
+            printf("%s%s", path.c_str(), comma); 
+        }
+    }
+
+    printf("output              = %s\n", output_arg.c_str());
+
+    printf("link                = { ");
+    if (link_arg.empty()) {
+        printf(" }\n");
+    } else {
+        comma = ", ";
+        for (auto& l : link_arg) {
+            if (&l == &link_arg.back())
+                comma = " }\n";
+            printf("%s%s", l.c_str(), comma); 
+        }
+    }
+
+    printf("files               = { ");
+    if (files.empty()) {
+        printf(" }\n");
+    } else {
+        comma = ", ";
+        for (auto& f : files) {
+            if (&f == &files.back())
+                comma = " }\n";
+            printf("%s%s", f.c_str(), comma); 
+        }
+    }
+}
 
 void prettyPrintTimeMaj(milliseconds ms, std::string label) {
     bjouSetColor(GREEN);

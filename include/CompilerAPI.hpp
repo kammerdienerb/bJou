@@ -25,6 +25,7 @@ extern "C" void bjou_StartDefaultCompilation(
     bool nopreload_arg,
     bool lld_arg,
     bool c_arg,
+    bool emitllvm_arg,
     const char ** module_search_path_arg,
     int n_module_search_path_arg,
     const char * output_arg,

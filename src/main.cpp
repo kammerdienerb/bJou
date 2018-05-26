@@ -77,6 +77,7 @@ int main(int argc, const char ** argv) {
         "Attempt to use lld to link. If unsuccessful, use system linker.",
         cmd_line);
     TCLAP::SwitchArg c_arg("c", "nolink", "Compile but do not link.", cmd_line);
+    TCLAP::SwitchArg emitllvm_arg("", "emitllvm", "Output an LLVM bytecode file.", cmd_line);
     TCLAP::ValueArg<std::string> output_arg("o", "output",
                                             "Name of target output file.",
                                             false, "", "file name", cmd_line);
@@ -97,9 +98,11 @@ int main(int argc, const char ** argv) {
         noparallel_arg.getValue(), opt_arg.getValue(),
         noabc_arg.getValue(),      module_arg.getValue(),
         nopreload_arg.getValue(),  lld_arg.getValue(),
-        c_arg.getValue(),          module_search_path_arg.getValue(),
+        c_arg.getValue(), emitllvm_arg.getValue(),          module_search_path_arg.getValue(),
         output_arg.getValue(),     link_arg.getValue(),
         files.getValue()};
+
+    // args.print();
 
     StartDefaultCompilation(args);
 

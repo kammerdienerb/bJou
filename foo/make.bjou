@@ -13,5 +13,7 @@ import "build.bjou"
     foreach f in sources
         options.files.push(f)
 
+    options.noparallel = true
+
     build(options)
 }

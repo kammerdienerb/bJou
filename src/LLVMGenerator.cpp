@@ -60,15 +60,6 @@ namespace bjou {
 LLVMGenerator::LLVMGenerator(LLVMBackEnd & _backEnd) : backEnd(_backEnd) {}
 
 void LLVMGenerator::generate() {
-    std::error_code EC;
-    llvm::raw_fd_ostream dest(
-        (compilation->outputpath + compilation->outputbasefilename + ".o"), EC,
-        llvm::sys::fs::F_None);
-
-    if (EC)
-        error(Context(),
-              "Could not open output file for object code emission.");
-
     llvm::legacy::PassManager pass;
     llvm::legacy::FunctionPassManager fpass(backEnd.llModule);
     llvm::TargetMachine::CodeGenFileType ftype =
@@ -88,10 +79,36 @@ void LLVMGenerator::generate() {
         AddOptimizationPasses(pass, fpass, backEnd.defaultTargetMachine, 3, 0);
     }
 
-    if (backEnd.defaultTargetMachine->addPassesToEmitFile(pass, dest, ftype))
-        error(Context(), "TargetMachine can't emit a file of this type");
+
+    llvm::raw_fd_ostream * dest = nullptr;
+    std::error_code EC;
+
+    if (!(compilation->args.c_arg && compilation->args.emitllvm_arg)) {
+        dest = new llvm::raw_fd_ostream(
+            (compilation->outputpath + compilation->outputbasefilename + ".o"), EC,
+            llvm::sys::fs::F_None);
+
+        if (EC)
+            error(Context(),
+                  "Could not open output file for object code emission.");
+        
+        if (backEnd.defaultTargetMachine->addPassesToEmitFile(pass, *dest, ftype))
+            error(Context(), "TargetMachine can't emit a file of this type");
+    }
 
     pass.run(*(backEnd.llModule));
-    dest.flush();
+
+    if (dest) {
+        dest->flush();
+        delete dest;
+    }
+
+    if (compilation->args.emitllvm_arg) {
+        llvm::raw_fd_ostream ll_dest(
+            (compilation->outputpath + compilation->outputbasefilename + ".ll"), EC,
+            llvm::sys::fs::F_None);
+
+        backEnd.llModule->print(ll_dest, nullptr, true);
+    }
 }
 } // namespace bjou
