@@ -1,0 +1,7 @@
+# sys/windows/basetsd.bjou
+
+module sys_windows_basetsd
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

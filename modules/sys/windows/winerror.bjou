@@ -1,0 +1,7 @@
+# sys/windows/winerror.bjou
+
+module sys_windows_winerror
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

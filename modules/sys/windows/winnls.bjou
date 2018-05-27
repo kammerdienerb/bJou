@@ -1,0 +1,7 @@
+# sys/windows/winnls.bjou
+
+module sys_windows_winnls
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

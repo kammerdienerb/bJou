@@ -35,6 +35,8 @@ extern "C" void bjou_StartDefaultCompilation(
     int n_files 
 );
 
+extern "C" void bjou_dump(ASTNode ** nodes, int n_nodes, const char * fname, bool dumpCT);
+
 extern "C" const char * bjou_makeUID(const char * hint);
 
 extern "C" Context * bjou_createContext(Loc * beg, Loc * end,

@@ -1,0 +1,7 @@
+# sys/posix/cpio.bjou
+
+module sys_posix_cpio
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

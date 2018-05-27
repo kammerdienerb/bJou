@@ -1,0 +1,7 @@
+# sys/windows/imm.bjou
+
+module sys_windows_imm
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

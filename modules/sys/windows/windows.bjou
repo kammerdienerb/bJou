@@ -1,0 +1,29 @@
+# sys/windows/windows.bjou
+
+module sys_windows_windows
+
+\ct{ import "os.bjou" }
+
+\static_if { os.OS == os.WINDOWS
+import "sys/windows/winerror.bjou"
+import "sys/windows/winsvc.bjou"
+import "sys/windows/winnls.bjou"
+import "sys/windows/basetsd.bjou"
+import "sys/windows/winnetwk.bjou"
+import "sys/windows/wincon.bjou"
+import "sys/windows/winver.bjou"
+import "sys/windows/imm.bjou"
+import "sys/windows/guiddef.bjou"
+import "sys/windows/ctype.bjou"
+import "sys/windows/sys_windows.bjou"
+import "sys/windows/winbase.bjou"
+import "sys/windows/stdarg.bjou"
+import "sys/windows/excpt.bjou"
+import "sys/windows/winnt.bjou"
+import "sys/windows/winreg.bjou"
+import "sys/windows/windef.bjou"
+import "sys/windows/windows.bjou"
+import "sys/windows/winuser.bjou"
+import "sys/windows/string.bjou"
+import "sys/windows/wingdi.bjou"
+}

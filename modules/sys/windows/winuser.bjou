@@ -1,0 +1,7 @@
+# sys/windows/winuser.bjou
+
+module sys_windows_winuser
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

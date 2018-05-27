@@ -1,0 +1,7 @@
+# sys/windows/winver.bjou
+
+module sys_windows_winver
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

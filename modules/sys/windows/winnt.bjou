@@ -1,0 +1,7 @@
+# sys/windows/winnt.bjou
+
+module sys_windows_winnt
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

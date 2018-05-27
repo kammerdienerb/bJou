@@ -1,0 +1,7 @@
+# sys/windows/ctype.bjou
+
+module sys_windows_ctype
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

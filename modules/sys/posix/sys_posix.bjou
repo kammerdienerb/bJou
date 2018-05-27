@@ -1,0 +1,14 @@
+# sys/sys_posix.bjou
+
+# posix system calls
+
+module sys_posix
+
+\ct{ import "os.bjou" }
+
+\static_if { os.IS_POSIX
+import "sys/posix/aio.bjou"
+import "sys/posix/arpa/inet.bjou"
+import "sys/posix/cpio.bjou"
+import "sys/posix/dirent.bjou"
+}

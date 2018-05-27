@@ -21,6 +21,7 @@
 #include <map>
 #include <unordered_map>
 #include <vector>
+#include <ostream>
 
 namespace bjou {
 struct Scope;
@@ -350,6 +351,8 @@ struct ASTNode {
 
     virtual void * generate(BackEnd & backEnd, bool flag = false);
 
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
+
     virtual ~ASTNode() = 0;
     //
 };
@@ -365,6 +368,8 @@ struct MultiNode : ASTNode {
     void addSymbols(Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     void * generate(BackEnd & backEnd, bool flag = false);
+
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
 
     ASTNode * clone();
     ~MultiNode();
@@ -463,6 +468,7 @@ struct AddExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~AddExpression();
     //
 };
@@ -484,6 +490,7 @@ struct SubExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~SubExpression();
     //
 };
@@ -505,6 +512,7 @@ struct MultExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~MultExpression();
     //
 };
@@ -526,6 +534,7 @@ struct DivExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~DivExpression();
     //
 };
@@ -547,6 +556,7 @@ struct ModExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~ModExpression();
     //
 };
@@ -567,6 +577,7 @@ struct AssignmentExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~AssignmentExpression();
     //
 };
@@ -587,6 +598,7 @@ struct AddAssignExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~AddAssignExpression();
     //
 };
@@ -607,6 +619,7 @@ struct SubAssignExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~SubAssignExpression();
     //
 };
@@ -627,6 +640,7 @@ struct MultAssignExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~MultAssignExpression();
     //
 };
@@ -647,6 +661,7 @@ struct DivAssignExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~DivAssignExpression();
     //
 };
@@ -667,6 +682,7 @@ struct ModAssignExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~ModAssignExpression();
     //
 };
@@ -687,6 +703,7 @@ struct MaybeAssignExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~MaybeAssignExpression();
     //
 };
@@ -707,6 +724,7 @@ struct LssExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~LssExpression();
     //
 };
@@ -727,6 +745,7 @@ struct LeqExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~LeqExpression();
     //
 };
@@ -747,6 +766,7 @@ struct GtrExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~GtrExpression();
     //
 };
@@ -767,6 +787,7 @@ struct GeqExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~GeqExpression();
     //
 };
@@ -788,6 +809,7 @@ struct EquExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~EquExpression();
     //
 };
@@ -809,6 +831,7 @@ struct NeqExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~NeqExpression();
     //
 };
@@ -830,6 +853,7 @@ struct LogAndExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~LogAndExpression();
     //
 };
@@ -851,6 +875,7 @@ struct LogOrExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~LogOrExpression();
     //
 };
@@ -877,6 +902,7 @@ struct CallExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~CallExpression();
     //
 };
@@ -898,6 +924,7 @@ struct SubscriptExpression : BinaryExpression {
     virtual ASTNode * clone();
     void desugar();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~SubscriptExpression();
     //
 };
@@ -929,6 +956,7 @@ struct AccessExpression : BinaryExpression {
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~AccessExpression();
     //
 };
@@ -948,6 +976,7 @@ struct InjectExpression : BinaryExpression {
     // Node interface
     virtual void analyze(bool force = false);
     virtual ASTNode * clone();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual void * generate(BackEnd& backEnd, bool flag = false);
     // virtual ~AccessExpression();
     //
@@ -988,6 +1017,7 @@ struct NewExpression : UnaryPreExpression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~NewExpression();
     //
 };
@@ -1008,6 +1038,7 @@ struct DeleteExpression : UnaryPreExpression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~DeleteExpression();
     //
 };
@@ -1028,6 +1059,7 @@ struct SizeofExpression : UnaryPreExpression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~SizeofExpression();
     //
 };
@@ -1048,6 +1080,7 @@ struct NotExpression : UnaryPreExpression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~NotExpression();
     //
 };
@@ -1068,6 +1101,7 @@ struct DerefExpression : UnaryPreExpression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~DerefExpression();
     //
 };
@@ -1088,6 +1122,7 @@ struct AddressExpression : UnaryPreExpression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~AddressExpression();
     //
 };
@@ -1108,6 +1143,7 @@ struct RefExpression : UnaryPreExpression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~RefExpression();
     //
 };
@@ -1147,6 +1183,7 @@ struct AsExpression : UnaryPostExpression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~AsExpression();
     //
 };
@@ -1184,6 +1221,7 @@ struct Identifier : Expression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
 
     virtual const Type * getType();
 
@@ -1225,6 +1263,7 @@ struct InitializerList : Expression {
     ASTNode * clone();
     void desugar();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual void addSymbols(Scope * _scope);
     virtual ~InitializerList();
     //
@@ -1262,6 +1301,7 @@ struct SliceExpression : Expression {
     // no generation, will be desugared
     // virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~SliceExpression();
     //
 };
@@ -1292,6 +1332,7 @@ struct DynamicArrayExpression : Expression {
     // no generation, will be desugared
     // virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~DynamicArrayExpression();
     //
 };
@@ -1321,6 +1362,7 @@ struct LenExpression : Expression {
     // no generation, will be desugared
     // virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~LenExpression();
     //
 };
@@ -1344,6 +1386,7 @@ struct BooleanLiteral : Expression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~BooleanLiteral();
     //
 };
@@ -1367,6 +1410,7 @@ struct IntegerLiteral : Expression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~IntegerLiteral();
     //
 };
@@ -1390,6 +1434,7 @@ struct FloatLiteral : Expression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
 
     // virtual ~FloatLiteral();
     //
@@ -1414,6 +1459,7 @@ struct StringLiteral : Expression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~StringLiteral();
     //
 };
@@ -1437,6 +1483,7 @@ struct CharLiteral : Expression {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~CharLiteral();
     //
 };
@@ -1460,6 +1507,7 @@ struct ProcLiteral : UnaryPreExpression {
     ASTNode * clone();
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~ProcLiteral();
     //
 };
@@ -1483,6 +1531,7 @@ struct ExternLiteral : UnaryPreExpression {
     ASTNode * clone();
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~ExternLiteral();
     //
 };
@@ -1504,6 +1553,7 @@ struct SomeLiteral : UnaryPreExpression {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~SomeLiteral();
     //
 };
@@ -1525,6 +1575,7 @@ struct NothingLiteral : Expression {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~NothingLiteral();
     //
 };
@@ -1555,6 +1606,7 @@ struct TupleLiteral : Expression {
     ASTNode * clone();
     void desugar();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // virtual ~NothingLiteral();
     //
 };
@@ -1610,6 +1662,7 @@ struct Declarator : ASTNode {
     virtual const Type * getType();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~Declarator();
     //
 
@@ -1662,6 +1715,7 @@ struct ArrayDeclarator : Declarator {
     void addSymbols(Scope * _scope);
     virtual void analyze(bool force = false);
     virtual const Type * getType();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~ArrayDeclarator();
     //
 
@@ -1697,6 +1751,7 @@ struct SliceDeclarator : Declarator {
     void addSymbols(Scope * _scope);
     virtual void analyze(bool force = false);
     virtual const Type * getType();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~SliceDeclarator();
     //
 
@@ -1732,6 +1787,7 @@ struct DynamicArrayDeclarator : Declarator {
     void addSymbols(Scope * _scope);
     virtual void analyze(bool force = false);
     virtual const Type * getType();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~DynamicArrayDeclarator();
     //
 
@@ -1768,6 +1824,7 @@ struct PointerDeclarator : Declarator {
     void desugar();
     virtual void analyze(bool force = false);
     virtual const Type * getType();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~PointerDeclarator();
     //
 
@@ -1804,6 +1861,7 @@ struct RefDeclarator : Declarator {
     void desugar();
     virtual void analyze(bool force = false);
     virtual const Type * getType();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~RefDeclarator();
     //
 
@@ -1840,6 +1898,7 @@ struct MaybeDeclarator : Declarator {
     void desugar();
     virtual void analyze(bool force = false);
     virtual const Type * getType();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~MaybeDeclarator();
     //
 
@@ -1877,6 +1936,7 @@ struct TupleDeclarator : Declarator {
     void desugar();
     virtual void analyze(bool force = false);
     virtual const Type * getType();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~TupleDeclarator();
     //
 
@@ -1922,6 +1982,7 @@ struct ProcedureDeclarator : Declarator {
     void desugar();
     virtual void analyze(bool force = false);
     virtual const Type * getType();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~ProcedureDeclarator();
     //
 
@@ -1951,6 +2012,7 @@ struct PlaceholderDeclarator : Declarator {
     void desugar();
     virtual void analyze(bool force = false);
     virtual const Type * getType();
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~PlaceholderDeclarator();
     //
 
@@ -1998,6 +2060,7 @@ struct Constant : ASTNode {
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual bool isStatement() const;
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~Constant();
     //
 
@@ -2042,6 +2105,7 @@ struct VariableDeclaration : ASTNode {
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~VariableDeclaration();
     //
 };
@@ -2076,6 +2140,7 @@ struct Alias : ASTNode {
     void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~Alias();
     //
 };
@@ -2141,6 +2206,7 @@ struct Struct : ASTNode {
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~Struct();
     //
 };
@@ -2179,6 +2245,7 @@ struct InterfaceDef : ASTNode {
     void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~InterfaceDef();
     //
 };
@@ -2213,6 +2280,7 @@ struct InterfaceImplementation : ASTNode {
     void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~InterfaceImplementation();
     //
 };
@@ -2247,6 +2315,7 @@ struct Enum : ASTNode {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~Enum();
     //
 };
@@ -2276,6 +2345,7 @@ struct ArgList : ASTNode {
     void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~ArgList();
     //
 };
@@ -2296,6 +2366,7 @@ struct This : ASTNode {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~This();
     //
 };
@@ -2350,6 +2421,7 @@ struct Procedure : ASTNode {
     virtual void addSymbols(Scope * _scope);
 
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
 
     virtual ~Procedure();
     //
@@ -2390,6 +2462,7 @@ struct Namespace : ASTNode {
     virtual void addSymbols(Scope * _scope);
 
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
 
     virtual ~Namespace();
     //
@@ -2418,6 +2491,7 @@ struct Import : ASTNode {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~Import();
     //
 };
@@ -2449,6 +2523,7 @@ struct Print : ASTNode {
     virtual void addSymbols(Scope * _scope);
 
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual bool isStatement() const;
     virtual ~Print();
     //
@@ -2481,6 +2556,7 @@ struct Return : ASTNode {
     virtual void addSymbols(Scope * _scope);
 
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
 
     virtual ~Return();
     //
@@ -2504,6 +2580,7 @@ struct Break : ASTNode {
     bool isStatement() const;
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~Break();
     //
 };
@@ -2526,6 +2603,7 @@ struct Continue : ASTNode {
     bool isStatement() const;
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~Continue();
     //
 };
@@ -2565,6 +2643,7 @@ struct If : ASTNode {
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~If();
     //
 };
@@ -2595,6 +2674,7 @@ struct Else : ASTNode {
     bool isStatement() const;
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~Else();
     //
 };
@@ -2638,6 +2718,7 @@ struct For : ASTNode {
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~For();
     //
 };
@@ -2676,6 +2757,7 @@ struct Foreach : ASTNode {
     void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     // no generate(). will be desugared
     // virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual ~Foreach();
@@ -2711,6 +2793,7 @@ struct While : ASTNode {
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~While();
     //
 };
@@ -2743,6 +2826,7 @@ struct DoWhile : ASTNode {
     bool isStatement() const;
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~DoWhile();
     //
 };
@@ -2776,6 +2860,7 @@ struct Match : ASTNode {
     bool isStatement() const;
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~Match();
     //
 };
@@ -2809,6 +2894,7 @@ struct With : ASTNode {
     bool isStatement() const;
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~With();
     //
 };
@@ -2837,6 +2923,7 @@ struct TemplateDefineList : ASTNode {
     void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~TemplateDefineList();
     //
 };
@@ -2957,6 +3044,7 @@ struct TemplateInstantiation : ASTNode {
     void desugar();
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~TemplateInstantiation();
     //
 };
@@ -3014,6 +3102,7 @@ struct TemplateStruct : ASTNode {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void addSymbols(Scope * _scope);
+    void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = false);
     virtual ~TemplateStruct();
     //
 };
@@ -3046,6 +3135,7 @@ struct TemplateProc : ASTNode {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void addSymbols(Scope * _scope);
+    void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = false);
     virtual ~TemplateProc();
     //
 };
@@ -3066,6 +3156,7 @@ struct SLComment : ASTNode {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~SLComment();
     //
 };
@@ -3086,6 +3177,7 @@ struct ModuleDeclaration : ASTNode {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~ModuleDeclaration();
     //
 };
@@ -3100,6 +3192,7 @@ struct IgnoreNode : ASTNode {
     ASTNode * clone();
     virtual void addSymbols(Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
+    void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = false);
     virtual ~IgnoreNode();
     //
 };
@@ -3128,6 +3221,7 @@ struct MacroUse : ASTNode {
     ASTNode * clone();
     void unwrap(std::vector<ASTNode *> & terminals);
     virtual void addSymbols(Scope * _scope);
+    virtual void dump(std::ostream& stream, unsigned int level = 0, bool dumpCT = true);
     virtual ~MacroUse();
     //
 };

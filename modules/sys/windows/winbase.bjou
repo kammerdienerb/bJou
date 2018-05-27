@@ -1,0 +1,7 @@
+# sys/windows/winbase.bjou
+
+module sys_windows_winbase
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

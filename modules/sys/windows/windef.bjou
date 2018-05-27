@@ -1,0 +1,7 @@
+# sys/windows/windef.bjou
+
+module sys_windows_windef
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

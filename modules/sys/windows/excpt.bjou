@@ -1,0 +1,7 @@
+# sys/windows/excpt.bjou
+
+module sys_windows_excpt
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

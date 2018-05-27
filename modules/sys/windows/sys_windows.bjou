@@ -1,0 +1,12 @@
+# sys/sys_windows.bjou
+
+# windows system calls
+
+module sys_windows
+
+\ct{ import "os.bjou" }
+
+\static_if { os.OS == os.WINDOWS
+\error{ "'sys.bjou' not implemented for Windows yet." }
+import "sys/windows/windows.bjou"
+}

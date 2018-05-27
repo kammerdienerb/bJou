@@ -1,0 +1,7 @@
+# sys/windows/winsvc.bjou
+
+module sys_windows_winsvc
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

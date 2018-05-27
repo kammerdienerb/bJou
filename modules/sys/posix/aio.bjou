@@ -1,0 +1,7 @@
+# sys/posix/aio.bjou
+
+module sys_posix_aio
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

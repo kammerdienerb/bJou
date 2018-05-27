@@ -1,0 +1,7 @@
+# sys/windows/winnetwk.bjou
+
+module sys_windows_winnetwk
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

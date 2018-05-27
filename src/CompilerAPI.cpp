@@ -16,6 +16,7 @@
 
 #include <vector>
 #include <string>
+#include <fstream>
 
 namespace bjou {
 
@@ -63,6 +64,20 @@ extern "C" void bjou_StartDefaultCompilation(
         _files};
 
     StartDefaultCompilation(args);
+}
+
+extern "C" void bjou_dump(ASTNode ** nodes, int n_nodes, const char * fname, bool dumpCT) {
+    std::ofstream of(fname);
+
+    if (!of) {
+        Context err_ctx;
+        error("Unable to open file '" + std::string(fname) + "' for bjou_dump().");
+    }
+
+    for (int i = 0; i < n_nodes; i += 1)
+        nodes[i]->dump(of, 0, dumpCT);
+
+    of.close();
 }
 
 extern "C" const char * bjou_makeUID(const char * hint) {

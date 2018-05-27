@@ -22,6 +22,7 @@
 #define BJOU_DEBUG_BUILD
 #endif
 
+#include <fstream>
 #include <cstdlib>
 
 namespace bjou {
@@ -570,6 +571,26 @@ static ASTNode * front(MacroUse * use) {
     return nullptr;
 }
 
+static ASTNode * canfindmodule(MacroUse * use) {
+    StringLiteral * lit = (StringLiteral *)use->getArgs()[0];
+    std::string path = de_quote(lit->getContents());
+
+    std::ifstream in;
+    for (std::string & spath : compilation->module_search_paths) {
+        in.open(spath + path, std::ios::binary);
+        if (in) break;
+    }
+    
+    BooleanLiteral * result = new BooleanLiteral();
+    result->setContext(use->getContext());
+    result->setScope(use->getScope());
+    result->setContents(in ? "true" : "false");
+
+    in.close();
+
+    return result;
+}
+
 } // namespace Macros
 
 Macro::Macro() : name(""), dispatch(nullptr), arg_kinds({}), isVararg(false) {}
@@ -647,6 +668,7 @@ MacroManager::MacroManager() {
                              Macros::typeisfloat,
                              {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
     macros["front"] = { "front", Macros::front, {{ANY_EXPRESSION}}};
+    macros["canfindmodule"] = { "canfindmodule", Macros::canfindmodule, {{ASTNode::NodeKind::STRING_LITERAL}}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {

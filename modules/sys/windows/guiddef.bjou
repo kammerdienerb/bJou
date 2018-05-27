@@ -1,0 +1,7 @@
+# sys/windows/guiddef.bjou
+
+module sys_windows_guiddef
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

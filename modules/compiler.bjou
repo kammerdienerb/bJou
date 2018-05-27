@@ -9,6 +9,8 @@ extern bjou_StartDefaultCompilation(
     char**, int,
     char**, int)
 
+extern bjou_dump(ASTNode**, int, char*, bool)
+
 type Loc {
     line      : int
     character : int

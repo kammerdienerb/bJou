@@ -1,0 +1,7 @@
+# sys/windows/stdarg.bjou
+
+module sys_windows_stdarg
+
+\static_if{ os.IS_POSIX
+# @incomplete
+}

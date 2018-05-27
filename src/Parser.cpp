@@ -1510,6 +1510,12 @@ MaybeASTNode Parser::parseTerminatingExpression() {
             result->setFlag(Expression::TERMINAL, true);
 
             result->setContents(val);
+
+            if (kind == STRING_LITERAL) {
+                std::string str = str_escape(result->getContents());
+                result->setContents(de_quote(str));
+            }
+
             context.end = currentContext.end;
             result->setContext(context);
             result->getContext().finish(&context, &justCleanedContext);
