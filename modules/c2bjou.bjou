@@ -19,7 +19,7 @@ import "null.bjou"
 import "dict.bjou"
 
 # must be defined for clang.bjou to compile
-const libclang_path := "/usr/local/Cellar/llvm/5.0.1/lib/libclang.dylib"
+const libclang_path := "/usr/local/Cellar/llvm/6.0.0/lib/libclang.dylib"
 import "clang.bjou"
 import "c2bjou/ClangWrapper.bjou"
 import "c2bjou/visitors.bjou"

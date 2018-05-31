@@ -82,8 +82,9 @@ else ifneq ("$(wildcard $(JEMLC_PATH))", "")
 else
 	$(PROGRESS) "Building Debug Target $(TARGET)"
 endif
-	$(PROGRESS) ""
-	@$(CC) -o bin/$(TARGET) $(D_LFLAGS) $? 
+	@$(CC) -o bin/$(TARGET) $(D_LFLAGS) $?
+	$(PROGRESS) "Creating .clang_complete"
+	@echo "$(D_CFLAGS)" | tr " " "\n" > ".clang_complete"
 
 .PHONY: debug _debug
 

@@ -79,20 +79,20 @@ void LLVMGenerator::generate() {
         AddOptimizationPasses(pass, fpass, backEnd.defaultTargetMachine, 3, 0);
     }
 
-
     llvm::raw_fd_ostream * dest = nullptr;
     std::error_code EC;
 
     if (!(compilation->args.c_arg && compilation->args.emitllvm_arg)) {
         dest = new llvm::raw_fd_ostream(
-            (compilation->outputpath + compilation->outputbasefilename + ".o"), EC,
-            llvm::sys::fs::F_None);
+            (compilation->outputpath + compilation->outputbasefilename + ".o"),
+            EC, llvm::sys::fs::F_None);
 
         if (EC)
             error(Context(),
                   "Could not open output file for object code emission.");
-        
-        if (backEnd.defaultTargetMachine->addPassesToEmitFile(pass, *dest, ftype))
+
+        if (backEnd.defaultTargetMachine->addPassesToEmitFile(pass, *dest,
+                                                              ftype))
             error(Context(), "TargetMachine can't emit a file of this type");
     }
 
@@ -105,8 +105,8 @@ void LLVMGenerator::generate() {
 
     if (compilation->args.emitllvm_arg) {
         llvm::raw_fd_ostream ll_dest(
-            (compilation->outputpath + compilation->outputbasefilename + ".ll"), EC,
-            llvm::sys::fs::F_None);
+            (compilation->outputpath + compilation->outputbasefilename + ".ll"),
+            EC, llvm::sys::fs::F_None);
 
         backEnd.llModule->print(ll_dest, nullptr, true);
     }

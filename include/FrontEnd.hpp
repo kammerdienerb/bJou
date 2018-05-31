@@ -15,7 +15,9 @@
 #include "Scope.hpp"
 #include "Symbol.hpp"
 #include "Type.hpp"
+#include "Module.hpp"
 
+#include <map>
 #include <set>
 #include <stack>
 #include <string>
@@ -49,6 +51,8 @@ struct FrontEnd {
     std::stack<ASTNode *> procStack;
     std::stack<const Type *> lValStack;
     std::set<std::string> modulesImported;
+    std::map<std::string, Module*> modulesByID;
+    std::map<std::string, Module*> modulesByPath;
     std::map<ASTNode::NodeKind, std::string> kind2string;
     MacroManager macroManager;
 

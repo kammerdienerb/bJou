@@ -159,7 +159,7 @@ void init_replacementPolicies() {
     rpget<replacementPolicy_TemplateProc_Template>()->allowed_nodeKinds = {};
     rpget<replacementPolicy_TemplateProc_TemplateDef>()->allowed_nodeKinds = {};
     rpget<replacementPolicy_MacroUse_Arg>()->allowed_nodeKinds = {
-        ANY_EXPRESSION};
+        ANY_NODE};
 }
 
 bool replacementPolicy::canReplace(ASTNode * node) const {

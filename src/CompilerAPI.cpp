@@ -8,39 +8,25 @@
 
 #include "CompilerAPI.hpp"
 
+#include "CLI.hpp"
 #include "Compile.hpp"
 #include "FrontEnd.hpp"
 #include "Misc.hpp"
 #include "Parser.hpp"
-#include "CLI.hpp"
 
-#include <vector>
-#include <string>
 #include <fstream>
+#include <string>
+#include <vector>
 
 namespace bjou {
 
-extern "C" void bjou_StartDefaultCompilation( 
-    bool verbose_arg,
-    bool front_arg,
-    bool time_arg,
-    bool symbols_arg,
-    bool noparallel_arg,
-    bool opt_arg,
-    bool noabc_arg,
-    bool module_arg,
-    bool nopreload_arg,
-    bool lld_arg,
-    bool c_arg,
-    bool emitllvm_arg,
-    const char ** module_search_path_arg,
-    int n_module_search_path_arg,
-    const char * output_arg,
-    const char ** link_arg,
-    int n_link_arg,
-    const char ** files,
-    int n_files 
-    ) {
+extern "C" void bjou_StartDefaultCompilation(
+    bool verbose_arg, bool front_arg, bool time_arg, bool symbols_arg,
+    bool noparallel_arg, bool opt_arg, bool noabc_arg, bool module_arg,
+    bool nopreload_arg, bool lld_arg, bool c_arg, bool emitllvm_arg,
+    const char ** module_search_path_arg, int n_module_search_path_arg,
+    const char * output_arg, const char ** link_arg, int n_link_arg,
+    const char ** files, int n_files) {
 
     std::vector<std::string> _module_search_path_arg;
     for (int i = 0; i < n_module_search_path_arg; i += 1)
@@ -53,25 +39,34 @@ extern "C" void bjou_StartDefaultCompilation(
     for (int i = 0; i < n_files; i += 1)
         _files.push_back(files[i]);
 
-    bjou::ArgSet args = {
-        verbose_arg,    front_arg,
-        time_arg,       symbols_arg,
-        noparallel_arg, opt_arg,
-        noabc_arg,      module_arg,
-        nopreload_arg,  lld_arg,
-        c_arg, emitllvm_arg,          _module_search_path_arg,
-        _output_arg,     _link_arg,
-        _files};
+    bjou::ArgSet args = {verbose_arg,
+                         front_arg,
+                         time_arg,
+                         symbols_arg,
+                         noparallel_arg,
+                         opt_arg,
+                         noabc_arg,
+                         module_arg,
+                         nopreload_arg,
+                         lld_arg,
+                         c_arg,
+                         emitllvm_arg,
+                         _module_search_path_arg,
+                         _output_arg,
+                         _link_arg,
+                         _files};
 
     StartDefaultCompilation(args);
 }
 
-extern "C" void bjou_dump(ASTNode ** nodes, int n_nodes, const char * fname, bool dumpCT) {
+extern "C" void bjou_dump(ASTNode ** nodes, int n_nodes, const char * fname,
+                          bool dumpCT) {
     std::ofstream of(fname);
 
     if (!of) {
         Context err_ctx;
-        error("Unable to open file '" + std::string(fname) + "' for bjou_dump().");
+        error("Unable to open file '" + std::string(fname) +
+              "' for bjou_dump().");
     }
 
     for (int i = 0; i < n_nodes; i += 1)

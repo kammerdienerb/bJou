@@ -57,7 +57,9 @@ struct ArgSet {
     std::vector<std::string> link_arg;
     std::vector<std::string> files;
 
-    ArgSet(bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, const std::vector<std::string>&, const std::string&, const std::vector<std::string>&, const std::vector<std::string>&);
+    ArgSet(bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool,
+           bool, const std::vector<std::string> &, const std::string &,
+           const std::vector<std::string> &, const std::vector<std::string> &);
 
     void print();
 };

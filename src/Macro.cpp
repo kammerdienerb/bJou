@@ -22,8 +22,8 @@
 #define BJOU_DEBUG_BUILD
 #endif
 
-#include <fstream>
 #include <cstdlib>
+#include <fstream>
 
 namespace bjou {
 namespace Macros {
@@ -54,7 +54,7 @@ static ASTNode * rand(MacroUse * use) {
 
 static ASTNode * static_if(MacroUse * use) {
     use->setFlag(ASTNode::CT, true);
-    
+
     // static_if is marked as 'no add symbols' below.
     // we have to add symbols here just for the expression
     // argument.
@@ -62,8 +62,10 @@ static ASTNode * static_if(MacroUse * use) {
     use->getArgs()[0]->analyze();
 
     if (((Expression *)use->getArgs()[0])->eval().as_i64) {
-        std::vector<ASTNode*> keep(use->getArgs().begin() + 1, use->getArgs().end());
-        MultiNode * multi = new MultiNode(keep);
+        std::vector<ASTNode *> keep(use->getArgs().begin() + 1,
+                                    use->getArgs().end());
+        MultiNode * multi = new MultiNode;
+        multi->take(keep);
         multi->addSymbols(use->getScope());
         // multi->analyze();
         return multi;
@@ -126,7 +128,7 @@ static ASTNode * run(MacroUse * use) {
         Expression * expr = (Expression *)_expr;
         if (!expr->isConstant())
             errorl(expr->getContext(),
-                   "run: argument value to compile-time invokation of '" +
+                   "run: argument value to compile-time invocation of '" +
                        proc->getName() + "' must be known at compile time.");
         val_args.push_back(expr->eval());
     }
@@ -578,9 +580,10 @@ static ASTNode * canfindmodule(MacroUse * use) {
     std::ifstream in;
     for (std::string & spath : compilation->module_search_paths) {
         in.open(spath + path, std::ios::binary);
-        if (in) break;
+        if (in)
+            break;
     }
-    
+
     BooleanLiteral * result = new BooleanLiteral();
     result->setContext(use->getContext());
     result->setScope(use->getScope());
@@ -607,11 +610,8 @@ MacroManager::MacroManager() {
                       Macros::rand,
                       {{ASTNode::NodeKind::INTEGER_LITERAL},
                        {ASTNode::NodeKind::INTEGER_LITERAL}}};
-    macros["static_if"] = {"static_if",
-                           Macros::static_if,
-                           {{ANY_EXPRESSION}},
-                           true,
-                           {-1}};
+    macros["static_if"] = {
+        "static_if", Macros::static_if, {{ANY_EXPRESSION}}, true, {-1}};
     macros["same_type"] = {"same_type",
                            Macros::same_type,
                            {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER},
@@ -667,8 +667,10 @@ MacroManager::MacroManager() {
     macros["typeisfloat"] = {"typeisfloat",
                              Macros::typeisfloat,
                              {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
-    macros["front"] = { "front", Macros::front, {{ANY_EXPRESSION}}};
-    macros["canfindmodule"] = { "canfindmodule", Macros::canfindmodule, {{ASTNode::NodeKind::STRING_LITERAL}}};
+    macros["front"] = {"front", Macros::front, {{ANY_EXPRESSION}}};
+    macros["canfindmodule"] = {"canfindmodule",
+                               Macros::canfindmodule,
+                               {{ASTNode::NodeKind::STRING_LITERAL}}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {
@@ -697,8 +699,9 @@ ASTNode * MacroManager::invoke(MacroUse * use) {
 
     if (arg_err)
         errorl(errContext, "Wrong number of args for macro '" + name + "'",
-               true, "expected " + (macro.isVararg ? "at least " : std::string("")) + 
-               std::to_string(nexpected),
+               true,
+               "expected " + (macro.isVararg ? "at least " : std::string("")) +
+                   std::to_string(nexpected),
                "got " + std::to_string(nargs));
 
     for (int i = 0; i < nexpected; i += 1) {

@@ -10,6 +10,7 @@
 #include "FrontEnd.hpp"
 #include "Misc.hpp"
 #include "Parser.hpp"
+#include "CLI.hpp"
 
 #ifdef BJOU_DEBUG_BUILD
 #define SAVE_BJOU_DEBUG_BUILD
@@ -28,6 +29,52 @@
 #include <utility>
 
 namespace bjou {
+
+Module::Module() : activated(false), filled(false), n_lines(0), multi(nullptr) {  }
+
+void Module::fill(std::vector<ASTNode*>& _nodes, std::vector<ASTNode*>& _structs, std::vector<ASTNode*>& _ifaceDefs) {
+    if (filled)
+        return;
+
+    multi = new MultiNode;
+    multi->isModuleContainer = true;
+
+    nodes     = std::move(_nodes);
+    structs   = std::move(_structs);
+    ifaceDefs = std::move(_ifaceDefs);
+}
+
+void Module::activate(Import * source) {
+    if (activated)
+        return;
+
+    activated = true;
+
+    BJOU_DEBUG_ASSERT(multi && multi->isModuleContainer);
+
+    (*source->replace)(source->parent, source, multi);
+
+    multi->take(nodes);
+
+    for (ASTNode * i : ifaceDefs)
+        ((InterfaceDef *)i)->preDeclare(source->getScope());
+    for (ASTNode * s : structs)
+        ((Struct *)s)->preDeclare(source->getScope());
+
+    for (ASTNode * i : ifaceDefs)
+        ((InterfaceDef *)i)->addSymbols(source->getScope());
+    for (ASTNode * s : structs)
+        ((Struct*)s)->addSymbols(source->getScope());
+
+    for (ASTNode * node : multi->nodes) {
+        if (node->nodeKind != ASTNode::STRUCT &&
+            node->nodeKind != ASTNode::INTERFACE_DEF)
+            node->addSymbols(source->getScope());
+    }
+
+    compilation->frontEnd.n_lines += n_lines;
+}
+
 static void pushImportsFromAST(std::vector<ASTNode *> & AST,
                                std::deque<Import *> & imports) {
     for (ASTNode * node : AST) {
@@ -66,43 +113,57 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
 
                 std::ifstream in;
                 for (std::string & path : compilation->module_search_paths) {
-                    in.open(path + fname, std::ios::binary);
+                    in.open(path + fname);
                     if (in) {
                         fname = path + fname;
                         break;
                     }
                 }
-                if (!in)
-                    errorl(import->getContext(),
-                           "Unable to read file '" + fname + "'.");
 
-                if (filesSeen.find(fname) == filesSeen.end()) {
-                    filesSeen.insert(fname);
+                if (in) {
+                    if (filesSeen.find(fname) == filesSeen.end()) {
+                        filesSeen.insert(fname);
 
-                    ImportParser * parser = new ImportParser(in, fname);
-                    parser->source = import;
-                    in.close();
-                    // go ahead and start
-                    peektimes[fname] = (*parser)();
+                        ImportParser * parser = new ImportParser(in, fname);
+                        parser->source = import;
+                        in.close();
+                        // go ahead and start
+                        peektimes[fname] = (*parser)();
 
-                    if (!parser->mod_decl)
-                        error(import->getContext(),
-                              "File '" + fname +
-                                  "' does not declare a module.");
+                        if (parser->mod_decl) {
+                            Module * module = nullptr;
+                            if (modulesImported.find(
+                                    parser->mod_decl->getIdentifier()) ==
+                                modulesImported.end()) {
+                                modulesImported.insert(
+                                    parser->mod_decl->getIdentifier());
 
-                    if (modulesImported.find(
-                            parser->mod_decl->getIdentifier()) ==
-                        modulesImported.end()) {
-                        modulesImported.insert(
-                            parser->mod_decl->getIdentifier());
-                        parserContainer.push_back(parser);
-                        futureTimes[fname] =
-                            std::async(std::launch::async,
-                                       std::ref(*parserContainer.back()));
+                                module = new Module;
+                                compilation->frontEnd.modulesByID[parser->mod_decl->getIdentifier()] = module;
+                                compilation->frontEnd.modulesByPath[fname] = module;
+
+                                parserContainer.push_back(parser);
+                                futureTimes[fname] =
+                                    std::async(std::launch::async,
+                                               std::ref(*parserContainer.back()));
+                            } else {
+                                module = compilation->frontEnd.modulesByID[parser->mod_decl->getIdentifier()];
+
+                                parser->Dispose();
+                                delete parser;
+                            }
+
+                            BJOU_DEBUG_ASSERT(module);
+
+                            import->theModule = module;
+                        } else {
+                            import->notModuleError = true;
+                        }
                     } else {
-                        parser->Dispose();
-                        delete parser;
+                        import->theModule = compilation->frontEnd.modulesByPath[fname];
                     }
+                } else {
+                    import->fileError = true;
                 }
             }
 
@@ -113,28 +174,19 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
             for (ImportParser * p : parserContainer) {
                 pushImportsFromAST(p->nodes, imports);
 
-                if (p->source->parent) {
-                    (*p->source->replace)(p->source->parent, p->source,
-                                          new MultiNode(p->nodes));
-                } else {
-                    frontEnd.AST.reserve(frontEnd.AST.size() + p->nodes.size());
-                    frontEnd.AST.insert(frontEnd.AST.end(), p->nodes.begin(),
-                                        p->nodes.end());
-                }
-                frontEnd.structs.insert(frontEnd.structs.end(),
-                                        p->structs.begin(), p->structs.end());
-                frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(),
-                                          p->ifaceDefs.begin(),
-                                          p->ifaceDefs.end());
+                Module * module = p->source->theModule;
 
-                frontEnd.n_lines += p->n_lines;
+                BJOU_DEBUG_ASSERT(module);
+
+                module->fill(p->nodes, p->structs, p->ifaceDefs);
+
                 delete p;
             }
 
             futureTimes.clear();
             parserContainer.clear();
         }
-    } else {
+    } else { // single threaded
         while (!imports.empty()) {
             Import * import = imports.front();
             imports.pop_front();
@@ -149,49 +201,48 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                         break;
                     }
                 }
-                if (!in)
-                    errorl(import->getContext(),
-                           "Unable to read file '" + fname + "'.");
 
-                filesSeen.insert(fname);
+                if (in) {
+                    filesSeen.insert(fname);
 
-                ImportParser parser(in, fname);
-                parser.source = import;
-                in.close();
-                // go ahead and start
-                peektimes[fname] = parser();
+                    ImportParser parser(in, fname);
+                    parser.source = import;
+                    in.close();
+                    // go ahead and start
+                    peektimes[fname] = parser();
 
-                if (!parser.mod_decl)
-                    error(import->getContext(),
-                          "File '" + import->getModule() +
-                              "' does not declare a module.");
+                    if (parser.mod_decl) {
+                        Module * module = nullptr;
+                        if (modulesImported.find(parser.mod_decl->getIdentifier()) ==
+                            modulesImported.end()) {
+                            modulesImported.insert(parser.mod_decl->getIdentifier());
+                            times[fname] = peektimes[fname] + parser(); // continue
 
-                if (modulesImported.find(parser.mod_decl->getIdentifier()) ==
-                    modulesImported.end()) {
-                    modulesImported.insert(parser.mod_decl->getIdentifier());
-                    times[fname] = peektimes[fname] + parser(); // continue
-                    pushImportsFromAST(parser.nodes, imports);
-                    if (parser.source->parent) {
-                        (*parser.source->replace)(parser.source->parent,
-                                                  parser.source,
-                                                  new MultiNode(parser.nodes));
+                            module = new Module; 
+
+                            compilation->frontEnd.modulesByID[parser.mod_decl->getIdentifier()] = module;
+                            compilation->frontEnd.modulesByPath[fname] = module;
+
+                            pushImportsFromAST(parser.nodes, imports);
+
+                            module->fill(parser.nodes, parser.structs, parser.ifaceDefs);
+                        } else {
+                            module = compilation->frontEnd.modulesByID[parser.mod_decl->getIdentifier()];
+
+                            parser.Dispose();
+                        }
+                            
+                        BJOU_DEBUG_ASSERT(module);
+
+                        import->theModule = module;
                     } else {
-                        frontEnd.AST.reserve(frontEnd.AST.size() +
-                                             parser.nodes.size());
-                        frontEnd.AST.insert(frontEnd.AST.end(),
-                                            parser.nodes.begin(),
-                                            parser.nodes.end());
+                        import->notModuleError = true;
                     }
-                    frontEnd.structs.insert(frontEnd.structs.end(),
-                                            parser.structs.begin(),
-                                            parser.structs.end());
-                    frontEnd.ifaceDefs.insert(frontEnd.ifaceDefs.end(),
-                                              parser.ifaceDefs.begin(),
-                                              parser.ifaceDefs.end());
-
-                    frontEnd.n_lines += parser.n_lines;
-                } else
-                    parser.Dispose();
+                } else {
+                    import->fileError = true;
+                }
+            } else {
+                import->theModule = compilation->frontEnd.modulesByPath[fname];
             }
         }
     }
@@ -212,9 +263,13 @@ void importModuleFromFile(FrontEnd & frontEnd, const char * _fname) {
     import->setModule(_fname);
     import->setFlag(Import::FROM_PATH, true);
 
-    std::deque<Import *> imports{import};
+    import->replace = rpget<replacementPolicy_Global_Node>();
 
-    importModules(imports, frontEnd);
+    compilation->frontEnd.AST.push_back(import);
+
+    // std::deque<Import *> imports{import};
+
+    // importModules(imports, frontEnd);
 }
 
 /*

@@ -9,17 +9,17 @@
 #ifndef Defaults_hpp
 #define Defaults_hpp
 
+#include "BackEnd.hpp"
+#include "CLI.hpp"
 #include "Compile.hpp"
 #include "FrontEnd.hpp"
-#include "BackEnd.hpp"
 #include "LLVMBackEnd.hpp"
-#include "CLI.hpp"
 
 #define DEFAULT_FE FrontEnd
 #define DEFAULT_BE LLVMBackEnd
 
 namespace bjou {
-void StartDefaultCompilation(ArgSet& args);
+void StartDefaultCompilation(ArgSet & args);
 }
 
 #endif

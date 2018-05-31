@@ -66,7 +66,7 @@ bool isCT(ASTNode * node) {
     while (node) {
         if (node->getFlag(ASTNode::CT))
             return true;
-        node = node->getParent();
+        node = node->parent;
     }
     return false;
 }
@@ -102,7 +102,7 @@ ASTNode * ASTNode::clone() { return nullptr; }
 void ASTNode::desugar() {}
 void * ASTNode::generate(BackEnd & backEnd, bool flag) { return nullptr; }
 
-void ASTNode::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void ASTNode::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     BJOU_DEBUG_ASSERT(false);
 }
 
@@ -113,8 +113,21 @@ bool ASTNode::isStatement() const { return false; }
     if (getFlag(ANALYZED) && !force)                                           \
     return
 
-MultiNode::MultiNode(std::vector<ASTNode *> & _nodes) : nodes(_nodes) {
+MultiNode::MultiNode() : isModuleContainer(false) {
     nodeKind = MULTINODE;
+}
+
+MultiNode::MultiNode(std::vector<ASTNode *> & _nodes) : isModuleContainer(false), nodes(_nodes) {
+    nodeKind = MULTINODE;
+    for (ASTNode * node : nodes) {
+        node->parent = this;
+        node->replace = rpget<replacementPolicy_MultiNode_Node>();
+    }
+}
+
+void MultiNode::take(std::vector<ASTNode*> & _nodes) {
+    nodes = std::move(_nodes);
+
     for (ASTNode * node : nodes) {
         node->parent = this;
         node->replace = rpget<replacementPolicy_MultiNode_Node>();
@@ -128,9 +141,12 @@ void MultiNode::analyze(bool force) {
 
 void MultiNode::addSymbols(Scope * _scope) {
     setScope(_scope);
-    for (ASTNode * node : nodes) {
-        if (node->nodeKind != STRUCT && node->nodeKind != INTERFACE_DEF)
-            node->addSymbols(_scope);
+
+    if (!isModuleContainer) {
+        for (ASTNode * node : nodes) {
+            if (node->nodeKind != STRUCT && node->nodeKind != INTERFACE_DEF)
+                node->addSymbols(_scope);
+        }
     }
 }
 
@@ -139,14 +155,25 @@ void MultiNode::unwrap(std::vector<ASTNode *> & terminals) {
         node->unwrap(terminals);
 }
 
+void MultiNode::flatten(std::vector<ASTNode*>& out) {
+    for (ASTNode * node : nodes) {
+        if (node->nodeKind == MULTINODE) {
+            MultiNode * multi = (MultiNode*)node;
+            multi->flatten(out);
+        } else {
+            out.push_back(node);
+        }
+    }
+}
+
 ASTNode * MultiNode::clone() {
     MultiNode * clone = new MultiNode(*this);
     return clone;
 }
 
-void MultiNode::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void MultiNode::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     for (ASTNode * node : nodes)
         node->dump(stream, level, dumpCT);
 }
@@ -514,9 +541,10 @@ out:
 
 ASTNode * AddExpression::clone() { return ExpressionClone(this); }
 
-void AddExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void AddExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " + ";
@@ -591,9 +619,10 @@ out:
 
 ASTNode * SubExpression::clone() { return ExpressionClone(this); }
 
-void SubExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void SubExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " - ";
@@ -663,9 +692,10 @@ out:
 
 ASTNode * MultExpression::clone() { return ExpressionClone(this); }
 
-void MultExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void MultExpression::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " * ";
@@ -735,9 +765,10 @@ out:
 
 ASTNode * DivExpression::clone() { return ExpressionClone(this); }
 
-void DivExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void DivExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " * ";
@@ -801,9 +832,10 @@ out:
 
 ASTNode * ModExpression::clone() { return ExpressionClone(this); }
 
-void ModExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void ModExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " % ";
@@ -899,9 +931,10 @@ void AssignmentExpression::analyze(bool force) {
 
 ASTNode * AssignmentExpression::clone() { return ExpressionClone(this); }
 
-void AssignmentExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void AssignmentExpression::dump(std::ostream & stream, unsigned int level,
+                                bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " = ";
@@ -933,9 +966,10 @@ void AddAssignExpression::analyze(bool force) {
 
 ASTNode * AddAssignExpression::clone() { return ExpressionClone(this); }
 
-void AddAssignExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void AddAssignExpression::dump(std::ostream & stream, unsigned int level,
+                               bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " += ";
@@ -967,9 +1001,10 @@ void SubAssignExpression::analyze(bool force) {
 
 ASTNode * SubAssignExpression::clone() { return ExpressionClone(this); }
 
-void SubAssignExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void SubAssignExpression::dump(std::ostream & stream, unsigned int level,
+                               bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " -= ";
@@ -1001,9 +1036,10 @@ void MultAssignExpression::analyze(bool force) {
 
 ASTNode * MultAssignExpression::clone() { return ExpressionClone(this); }
 
-void MultAssignExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void MultAssignExpression::dump(std::ostream & stream, unsigned int level,
+                                bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " *= ";
@@ -1035,9 +1071,10 @@ void DivAssignExpression::analyze(bool force) {
 
 ASTNode * DivAssignExpression::clone() { return ExpressionClone(this); }
 
-void DivAssignExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void DivAssignExpression::dump(std::ostream & stream, unsigned int level,
+                               bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " /= ";
@@ -1069,9 +1106,10 @@ void ModAssignExpression::analyze(bool force) {
 
 ASTNode * ModAssignExpression::clone() { return ExpressionClone(this); }
 
-void ModAssignExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void ModAssignExpression::dump(std::ostream & stream, unsigned int level,
+                               bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " %= ";
@@ -1098,9 +1136,10 @@ void MaybeAssignExpression::analyze(bool force) {
 
 ASTNode * MaybeAssignExpression::clone() { return ExpressionClone(this); }
 
-void MaybeAssignExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void MaybeAssignExpression::dump(std::ostream & stream, unsigned int level,
+                                 bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " ?? ";
@@ -1188,9 +1227,10 @@ out:
 
 ASTNode * LssExpression::clone() { return ExpressionClone(this); }
 
-void LssExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void LssExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " < ";
@@ -1221,9 +1261,10 @@ void LeqExpression::analyze(bool force) {
 
 ASTNode * LeqExpression::clone() { return ExpressionClone(this); }
 
-void LeqExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void LeqExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " <= ";
@@ -1257,9 +1298,10 @@ void GtrExpression::analyze(bool force) {
 
 ASTNode * GtrExpression::clone() { return ExpressionClone(this); }
 
-void GtrExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void GtrExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " > ";
@@ -1290,9 +1332,10 @@ void GeqExpression::analyze(bool force) {
 
 ASTNode * GeqExpression::clone() { return ExpressionClone(this); }
 
-void GeqExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void GeqExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " >= ";
@@ -1338,9 +1381,10 @@ void EquExpression::analyze(bool force) {
 
 ASTNode * EquExpression::clone() { return ExpressionClone(this); }
 
-void EquExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void EquExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " == ";
@@ -1386,9 +1430,10 @@ void NeqExpression::analyze(bool force) {
 
 ASTNode * NeqExpression::clone() { return ExpressionClone(this); }
 
-void NeqExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void NeqExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " != ";
@@ -1451,9 +1496,10 @@ void LogAndExpression::analyze(bool force) {
 
 ASTNode * LogAndExpression::clone() { return ExpressionClone(this); }
 
-void LogAndExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void LogAndExpression::dump(std::ostream & stream, unsigned int level,
+                            bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " and ";
@@ -1496,9 +1542,10 @@ void LogOrExpression::analyze(bool force) {
 
 ASTNode * LogOrExpression::clone() { return ExpressionClone(this); }
 
-void LogOrExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void LogOrExpression::dump(std::ostream & stream, unsigned int level,
+                           bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " or ";
@@ -1575,9 +1622,10 @@ void SubscriptExpression::analyze(bool force) {
 
 ASTNode * SubscriptExpression::clone() { return ExpressionClone(this); }
 
-void SubscriptExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void SubscriptExpression::dump(std::ostream & stream, unsigned int level,
+                               bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << "[";
@@ -1851,9 +1899,10 @@ void CallExpression::analyze(bool force) {
 
 ASTNode * CallExpression::clone() { return ExpressionClone(this); }
 
-void CallExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void CallExpression::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << "(";
@@ -2464,9 +2513,10 @@ void AccessExpression::analyze(bool force) {
 
 ASTNode * AccessExpression::clone() { return ExpressionClone(this); }
 
-void AccessExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void AccessExpression::dump(std::ostream & stream, unsigned int level,
+                            bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << ".";
@@ -2498,9 +2548,10 @@ void InjectExpression::analyze(bool force) {
 
 ASTNode * InjectExpression::clone() { return ExpressionClone(this); }
 
-void InjectExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void InjectExpression::dump(std::ostream & stream, unsigned int level,
+                            bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << "->";
@@ -2641,9 +2692,10 @@ void NewExpression::analyze(bool force) {
 
 ASTNode * NewExpression::clone() { return ExpressionClone(this); }
 
-void NewExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void NewExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     stream << "new ";
     getRight()->dump(stream, level, dumpCT);
@@ -2686,9 +2738,10 @@ void DeleteExpression::analyze(bool force) {
 
 ASTNode * DeleteExpression::clone() { return ExpressionClone(this); }
 
-void DeleteExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void DeleteExpression::dump(std::ostream & stream, unsigned int level,
+                            bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     stream << "delete ";
     getRight()->dump(stream, level, dumpCT);
@@ -2722,9 +2775,10 @@ void SizeofExpression::analyze(bool force) {
 
 ASTNode * SizeofExpression::clone() { return ExpressionClone(this); }
 
-void SizeofExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void SizeofExpression::dump(std::ostream & stream, unsigned int level,
+                            bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     stream << "sizeof ";
     getRight()->dump(stream, level, dumpCT);
@@ -2773,9 +2827,10 @@ void NotExpression::analyze(bool force) {
 
 ASTNode * NotExpression::clone() { return ExpressionClone(this); }
 
-void NotExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void NotExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     stream << "not ";
     getRight()->dump(stream, level, dumpCT);
@@ -2813,9 +2868,10 @@ void DerefExpression::analyze(bool force) {
 
 ASTNode * DerefExpression::clone() { return ExpressionClone(this); }
 
-void DerefExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void DerefExpression::dump(std::ostream & stream, unsigned int level,
+                           bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     stream << "@";
     getRight()->dump(stream, level, dumpCT);
@@ -2882,9 +2938,10 @@ void AddressExpression::analyze(bool force) {
 
 ASTNode * AddressExpression::clone() { return ExpressionClone(this); }
 
-void AddressExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void AddressExpression::dump(std::ostream & stream, unsigned int level,
+                             bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     stream << "&";
     getRight()->dump(stream, level, dumpCT);
@@ -2942,9 +2999,10 @@ void RefExpression::analyze(bool force) {
 
 ASTNode * RefExpression::clone() { return ExpressionClone(this); }
 
-void RefExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void RefExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     stream << "~";
     getRight()->dump(stream, level, dumpCT);
@@ -3019,9 +3077,10 @@ void AsExpression::analyze(bool force) {
 
 ASTNode * AsExpression::clone() { return ExpressionClone(this); }
 
-void AsExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void AsExpression::dump(std::ostream & stream, unsigned int level,
+                        bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " as ";
@@ -3209,9 +3268,9 @@ void Identifier::analyze(bool force) {
 
 ASTNode * Identifier::clone() { return ExpressionClone(this); }
 
-void Identifier::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Identifier::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << (qualified.empty() ? unqualified : qualified);
 }
 
@@ -3395,9 +3454,10 @@ ASTNode * InitializerList::clone() {
     return c;
 }
 
-void InitializerList::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void InitializerList::dump(std::ostream & stream, unsigned int level,
+                           bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "{ ";
     if (getObjDeclarator()) {
         getObjDeclarator()->dump(stream, level, dumpCT);
@@ -3536,9 +3596,10 @@ ASTNode * SliceExpression::clone() {
     return c;
 }
 
-void SliceExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void SliceExpression::dump(std::ostream & stream, unsigned int level,
+                           bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "[";
     getSrc()->dump(stream, level, dumpCT);
     stream << ", ";
@@ -3679,9 +3740,10 @@ ASTNode * DynamicArrayExpression::clone() {
     return c;
 }
 
-void DynamicArrayExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void DynamicArrayExpression::dump(std::ostream & stream, unsigned int level,
+                                  bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "[...";
     getTypeDeclarator()->dump(stream, level, dumpCT);
     stream << "]";
@@ -3784,9 +3846,10 @@ ASTNode * LenExpression::clone() {
     return c;
 }
 
-void LenExpression::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void LenExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "|";
     getExpr()->dump(stream, level, dumpCT);
     stream << "|";
@@ -3894,9 +3957,10 @@ void BooleanLiteral::analyze(bool force) {
 
 ASTNode * BooleanLiteral::clone() { return ExpressionClone(this); }
 
-void BooleanLiteral::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void BooleanLiteral::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << getContents();
 }
 //
@@ -3925,9 +3989,10 @@ void IntegerLiteral::analyze(bool force) {
 
 ASTNode * IntegerLiteral::clone() { return ExpressionClone(this); }
 
-void IntegerLiteral::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void IntegerLiteral::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << getContents();
 }
 //
@@ -3956,9 +4021,10 @@ void FloatLiteral::analyze(bool force) {
 
 ASTNode * FloatLiteral::clone() { return ExpressionClone(this); }
 
-void FloatLiteral::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void FloatLiteral::dump(std::ostream & stream, unsigned int level,
+                        bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << getContents();
 }
 //
@@ -3978,7 +4044,7 @@ Val StringLiteral::eval() {
 
 void StringLiteral::analyze(bool force) {
     HANDLE_FORCE();
-    
+
     setType(CharType::get()->getPointer());
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
@@ -3987,9 +4053,10 @@ void StringLiteral::analyze(bool force) {
 
 ASTNode * StringLiteral::clone() { return ExpressionClone(this); }
 
-void StringLiteral::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void StringLiteral::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "\"" << getContents() << "\"";
 }
 //
@@ -4018,9 +4085,9 @@ void CharLiteral::analyze(bool force) {
 
 ASTNode * CharLiteral::clone() { return ExpressionClone(this); }
 
-void CharLiteral::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void CharLiteral::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << getContents();
 }
 //
@@ -4078,9 +4145,9 @@ void ProcLiteral::addSymbols(Scope * _scope) {
 
 ASTNode * ProcLiteral::clone() { return ExpressionClone(this); }
 
-void ProcLiteral::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void ProcLiteral::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getRight()->dump(stream, level, dumpCT);
     stream << ")";
@@ -4118,9 +4185,10 @@ void ExternLiteral::addSymbols(Scope * _scope) {
 
 ASTNode * ExternLiteral::clone() { return ExpressionClone(this); }
 
-void ExternLiteral::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void ExternLiteral::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     getRight()->dump(stream, level, dumpCT);
     stream << ")";
@@ -4146,9 +4214,9 @@ void SomeLiteral::analyze(bool force) {
 
 ASTNode * SomeLiteral::clone() { return ExpressionClone(this); }
 
-void SomeLiteral::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void SomeLiteral::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "some ";
     getRight()->dump(stream, level, dumpCT);
 }
@@ -4180,9 +4248,10 @@ void NothingLiteral::analyze(bool force) {
 
 ASTNode * NothingLiteral::clone() { return ExpressionClone(this); }
 
-void NothingLiteral::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void NothingLiteral::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "nothing";
 }
 //
@@ -4245,13 +4314,14 @@ ASTNode * TupleLiteral::clone() {
     return t;
 }
 
-void TupleLiteral::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void TupleLiteral::dump(std::ostream & stream, unsigned int level,
+                        bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     std::string comma = ", ";
     for (ASTNode *& expr : getSubExpressions()) {
-        expr->dump(stream, level, dumpCT); 
+        expr->dump(stream, level, dumpCT);
         if (&expr == &getSubExpressions().back())
             comma = "";
         stream << comma;
@@ -4363,9 +4433,9 @@ void Declarator::unwrap(std::vector<ASTNode *> & terminals) {
 
 ASTNode * Declarator::clone() { return DeclaratorClone(this); }
 
-void Declarator::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Declarator::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     getIdentifier()->dump(stream, level, dumpCT);
 }
 
@@ -4536,9 +4606,10 @@ ASTNode * ArrayDeclarator::clone() {
     return c;
 }
 
-void ArrayDeclarator::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void ArrayDeclarator::dump(std::ostream & stream, unsigned int level,
+                           bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     getArrayOf()->dump(stream, level, dumpCT);
     stream << "[";
     getExpression()->dump(stream, level, dumpCT);
@@ -4648,9 +4719,10 @@ ASTNode * SliceDeclarator::clone() {
     return c;
 }
 
-void SliceDeclarator::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void SliceDeclarator::dump(std::ostream & stream, unsigned int level,
+                           bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     getSliceOf()->dump(stream, level, dumpCT);
     stream << "[]";
 }
@@ -4757,9 +4829,10 @@ ASTNode * DynamicArrayDeclarator::clone() {
     return c;
 }
 
-void DynamicArrayDeclarator::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void DynamicArrayDeclarator::dump(std::ostream & stream, unsigned int level,
+                                  bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     getArrayOf()->dump(stream, level, dumpCT);
     stream << "[...]";
 }
@@ -4870,9 +4943,10 @@ ASTNode * PointerDeclarator::clone() {
     return c;
 }
 
-void PointerDeclarator::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void PointerDeclarator::dump(std::ostream & stream, unsigned int level,
+                             bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     getPointerOf()->dump(stream, level, dumpCT);
     stream << "*";
 }
@@ -4967,9 +5041,10 @@ ASTNode * RefDeclarator::clone() {
     return c;
 }
 
-void RefDeclarator::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void RefDeclarator::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     getRefOf()->dump(stream, level, dumpCT);
     stream << " ref";
 }
@@ -5054,9 +5129,10 @@ ASTNode * MaybeDeclarator::clone() {
     return c;
 }
 
-void MaybeDeclarator::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void MaybeDeclarator::dump(std::ostream & stream, unsigned int level,
+                           bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     getMaybeOf()->dump(stream, level, dumpCT);
     stream << "?";
 }
@@ -5151,13 +5227,14 @@ ASTNode * TupleDeclarator::clone() {
     return c;
 }
 
-void TupleDeclarator::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void TupleDeclarator::dump(std::ostream & stream, unsigned int level,
+                           bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "(";
     std::string comma = ", ";
     for (ASTNode *& sub : getSubDeclarators()) {
-        sub->dump(stream, level, dumpCT); 
+        sub->dump(stream, level, dumpCT);
         if (&sub == &getSubDeclarators().back())
             comma = "";
         stream << comma;
@@ -5292,14 +5369,16 @@ ASTNode * ProcedureDeclarator::clone() {
     return c;
 }
 
-void ProcedureDeclarator::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void ProcedureDeclarator::dump(std::ostream & stream, unsigned int level,
+                               bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "<(";
     std::string comma = ", ";
     for (ASTNode *& p : getParamDeclarators()) {
-        p->dump(stream, level, dumpCT); 
-        if (&p == &getParamDeclarators().back() && !getFlag(ProcedureDeclarator::IS_VARARG))
+        p->dump(stream, level, dumpCT);
+        if (&p == &getParamDeclarators().back() &&
+            !getFlag(ProcedureDeclarator::IS_VARARG))
             comma = "";
         stream << comma;
     }
@@ -5382,9 +5461,10 @@ void PlaceholderDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
 
 ASTNode * PlaceholderDeclarator::clone() { return DeclaratorClone(this); }
 
-void PlaceholderDeclarator::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void PlaceholderDeclarator::dump(std::ostream & stream, unsigned int level,
+                                 bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "_";
 }
 
@@ -5496,9 +5576,9 @@ ASTNode * Constant::clone() {
     return c;
 }
 
-void Constant::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Constant::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
 
     BJOU_DEBUG_ASSERT(getInitialization());
 
@@ -5716,9 +5796,10 @@ ASTNode * VariableDeclaration::clone() {
     return c;
 }
 
-void VariableDeclaration::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void VariableDeclaration::dump(std::ostream & stream, unsigned int level,
+                               bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
     stream << getName();
     if (getTypeDeclarator()) {
@@ -5827,15 +5908,15 @@ ASTNode * Alias::clone() {
     return c;
 }
 
-void Alias::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Alias::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     // @incomplete -- don't forget about this when we do template
     // aliases
     stream << std::string(4 * level, ' ');
     stream << "type " << getName() << " = ";
     getDeclarator()->dump(stream, level, dumpCT);
-    
+
     stream << "\n";
 }
 
@@ -6196,9 +6277,9 @@ ASTNode * Struct::clone() {
     return c;
 }
 
-void Struct::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Struct::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     if (getFlag(Struct::IS_TEMPLATE_DERIVED))
         return;
 
@@ -6206,12 +6287,12 @@ void Struct::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
     if (getFlag(IS_ABSTRACT))
         stream << "abstract ";
     stream << "type " << getName();
-    
+
     if (getParent() && getParent()->nodeKind == TEMPLATE_STRUCT) {
-        TemplateStruct * tstruct = (TemplateStruct*)getParent();
+        TemplateStruct * tstruct = (TemplateStruct *)getParent();
         tstruct->getTemplateDef()->dump(stream, level, dumpCT);
     }
-    
+
     stream << " ";
 
     if (getExtends()) {
@@ -6245,7 +6326,7 @@ void Struct::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
 
     stream << std::string(4 * level, ' ');
     stream << "}";
-    
+
     stream << "\n";
 }
 
@@ -6425,9 +6506,10 @@ ASTNode * InterfaceDef::clone() {
     return c;
 }
 
-void InterfaceDef::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void InterfaceDef::dump(std::ostream & stream, unsigned int level,
+                        bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
 
     stream << "interface " << getName() << "{\n";
@@ -6687,9 +6769,10 @@ ASTNode * InterfaceImplementation::clone() {
     return c;
 }
 
-void InterfaceImplementation::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void InterfaceImplementation::dump(std::ostream & stream, unsigned int level,
+                                   bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
     level += 1;
     for (auto & procs : getProcs())
@@ -6746,22 +6829,22 @@ void Enum::addSymbols(Scope * _scope) {
     _scope->addSymbol(symbol, &getNameContext());
 }
 
-void Enum::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Enum::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
     stream << "enum " << getName() << " {\n";
-   
+
     level += 1;
     std::string comma = ",\n";
-    for (auto& id : getIdentifiers()) {
+    for (auto & id : getIdentifiers()) {
         stream << std::string(4 * level, ' ');
         if (&id == &getIdentifiers().back())
             comma = "\n";
         stream << id << comma;
     }
     level -= 1;
-    
+
     stream << std::string(4 * level, ' ');
     stream << "}\n";
 }
@@ -6825,9 +6908,9 @@ ASTNode * ArgList::clone() {
     return c;
 }
 
-void ArgList::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void ArgList::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     std::string comma = ", ";
     for (ASTNode *& expr : getExpressions()) {
         if (&expr == &getExpressions().back())
@@ -6856,21 +6939,26 @@ ArgList::~ArgList() {
 
 static void handleTerminators(ASTNode * statement,
                               std::vector<ASTNode *> & statements,
-                              ASTNode *& node, bool from_multi = false, MultiNode ** m = nullptr) {
+                              ASTNode *& node, bool from_multi = false,
+                              MultiNode ** m = nullptr) {
     if (node->nodeKind == ASTNode::MULTINODE) {
-        MultiNode * multi = (MultiNode*)node;
+        MultiNode * multi = (MultiNode *)node;
         for (ASTNode * n : multi->nodes) {
-            handleTerminators(statement, statements, n, true, (MultiNode**)&node);
+            handleTerminators(statement, statements, n, true,
+                              (MultiNode **)&node);
         }
-    } else if (node->nodeKind == ASTNode::RETURN || node->nodeKind == ASTNode::BREAK ||
-        node->nodeKind == ASTNode::CONTINUE) {
+    } else if (node->nodeKind == ASTNode::RETURN ||
+               node->nodeKind == ASTNode::BREAK ||
+               node->nodeKind == ASTNode::CONTINUE) {
 
         statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
 
         ////////////////////////////////////////// convenience lambda
         /////////////////////////////////////////////////////////////
-        auto searchUnreach = [&](ASTNode *& the_node, std::vector<ASTNode*>& the_statements) {
-            auto search = std::find(the_statements.begin(), the_statements.end(), the_node);
+        auto searchUnreach = [&](ASTNode *& the_node,
+                                 std::vector<ASTNode *> & the_statements) {
+            auto search = std::find(the_statements.begin(),
+                                    the_statements.end(), the_node);
 
             BJOU_DEBUG_ASSERT(search != the_statements.end());
 
@@ -6889,8 +6977,9 @@ static void handleTerminators(ASTNode * statement,
                     else if (the_node->nodeKind == ASTNode::CONTINUE)
                         err_str = "continue";
 
-                    errorl(the_node->getContext(),
-                           "Code below this " + err_str + " will never execute.");
+                    errorl(the_node->getContext(), "Code below this " +
+                                                       err_str +
+                                                       " will never execute.");
                 }
             }
         };
@@ -6903,7 +6992,7 @@ static void handleTerminators(ASTNode * statement,
             if (&node == &((*m)->nodes.back())) {
                 // node is last in multinode
                 // search for nodes after the multinode
-                searchUnreach(*(ASTNode**)m, statements);
+                searchUnreach(*(ASTNode **)m, statements);
             } else {
                 // there are nodes after this one in the multinode
                 // check those for error
@@ -6932,9 +7021,9 @@ void This::addSymbols(Scope * _scope) {
     // and...
 }
 
-void This::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void This::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "this";
 }
 
@@ -7011,7 +7100,8 @@ Struct * Procedure::getParentStruct() {
         BJOU_DEBUG_ASSERT(parent->getParent());
         s = (Struct *)parent->getParent();
     } else if (parent->nodeKind == ASTNode::TEMPLATE_PROC &&
-               parent->getParent()->nodeKind == ASTNode::INTERFACE_IMPLEMENTATION) {
+               parent->getParent()->nodeKind ==
+                   ASTNode::INTERFACE_IMPLEMENTATION) {
         BJOU_DEBUG_ASSERT(parent->getParent());
         BJOU_DEBUG_ASSERT(parent->getParent()->getParent());
         s = (Struct *)parent->getParent()->getParent();
@@ -7049,7 +7139,7 @@ void Procedure::desugarThis() {
             param->getTypeDeclarator()->addSymbols(
                 node->getScope()); // @bad. does this make sense?
 
-            (*node->replace)(node->getParent(), node, param);
+            (*node->replace)(node->parent, node, param);
 
             seen = (This *)node;
         }
@@ -7194,9 +7284,9 @@ ASTNode * Procedure::clone() {
     return c;
 }
 
-void Procedure::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Procedure::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     if (getFlag(Procedure::IS_TEMPLATE_DERIVED))
         return;
 
@@ -7211,7 +7301,7 @@ void Procedure::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
         stream << getName();
 
     if (getParent() && getParent()->nodeKind == TEMPLATE_PROC) {
-        TemplateProc * tproc = (TemplateProc*)getParent();
+        TemplateProc * tproc = (TemplateProc *)getParent();
         tproc->getTemplateDef()->dump(stream, level, dumpCT);
     }
 
@@ -7223,14 +7313,14 @@ void Procedure::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
         if (!getFlag(Procedure::IS_EXTERN)) {
             param->dump(stream, level, dumpCT);
         } else {
-            VariableDeclaration * var = (VariableDeclaration*)param;
+            VariableDeclaration * var = (VariableDeclaration *)param;
             BJOU_DEBUG_ASSERT(var->getTypeDeclarator());
             var->getTypeDeclarator()->dump(stream, level, dumpCT);
         }
         stream << comma;
     }
     stream << ") : ";
-    
+
     getRetDeclarator()->dump(stream, level, dumpCT);
 
     if (!getFlag(Procedure::IS_EXTERN)) {
@@ -7240,14 +7330,13 @@ void Procedure::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
         for (ASTNode * s : getStatements()) {
             s->dump(stream, level, dumpCT);
             stream << "\n";
-        } 
+        }
         level -= 1;
 
         stream << std::string(4 * level, ' ');
         stream << "}";
     }
     stream << "\n";
-
 }
 
 void Procedure::desugar() {
@@ -7380,9 +7469,9 @@ ASTNode * Namespace::clone() {
     return c;
 }
 
-void Namespace::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Namespace::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
 
     stream << "namespace " << getName() << " {\n";
@@ -7410,7 +7499,7 @@ Namespace::~Namespace() {
 
 // ~~~~~ Import ~~~~~
 
-Import::Import() : module({}) { nodeKind = IMPORT; }
+Import::Import() : fileError(false), notModuleError(false), module({}), theModule(nullptr) { nodeKind = IMPORT; }
 
 std::string & Import::getModule() { return module; }
 void Import::setModule(std::string _module) { module = _module; }
@@ -7422,6 +7511,7 @@ void Import::unwrap(std::vector<ASTNode *> & terminals) {
 
 void Import::analyze(bool force) {
     HANDLE_FORCE();
+
     setFlag(ANALYZED, true);
 }
 
@@ -7429,12 +7519,28 @@ ASTNode * Import::clone() { return new Import(*this); }
 
 void Import::addSymbols(Scope * _scope) {
     setScope(_scope);
-    // and...
+
+    if (fileError) {
+        errorl(getContext(),
+            "Unable to read file '" + module + "'.");
+    }
+
+    if (notModuleError) {
+        error(getContext(),
+              "File '" + module +
+                  "' does not declare a module.", false);
+        errorl(getContext(),
+              "Attempted import from this location.");
+    }
+    
+    BJOU_DEBUG_ASSERT(theModule);
+
+    theModule->activate(this); // replaces 'this'
 }
 
-void Import::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Import::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
 
     stream << "import " << getModule();
@@ -7499,9 +7605,9 @@ ASTNode * Print::clone() {
 
 void Print::desugar() { getArgs()->desugar(); }
 
-void Print::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Print::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
 
     stream << "print ";
@@ -7601,9 +7707,9 @@ ASTNode * Return::clone() {
     return c;
 }
 
-void Return::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Return::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
 
     stream << "return";
@@ -7659,9 +7765,9 @@ void Break::addSymbols(Scope * _scope) {
     // and...
 }
 
-void Break::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Break::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
     stream << "break";
 
@@ -7704,9 +7810,9 @@ void Continue::addSymbols(Scope * _scope) {
     // and...
 }
 
-void Continue::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Continue::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
     stream << "continue";
 
@@ -7825,11 +7931,11 @@ ASTNode * If::clone() {
     return c;
 }
 
-void If::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void If::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
-   
+
     stream << "if ";
     getConditional()->dump(stream, level, dumpCT);
     stream << " {\n";
@@ -7928,9 +8034,9 @@ void Else::desugar() {
         s->desugar();
 }
 
-void Else::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Else::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "else {\n";
 
     level += 1;
@@ -8072,11 +8178,11 @@ ASTNode * For::clone() {
     return c;
 }
 
-void For::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void For::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
-   
+
     stream << "for ";
 
     std::string comma = ", ";
@@ -8215,11 +8321,11 @@ ASTNode * Foreach::clone() {
     return c;
 }
 
-void Foreach::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Foreach::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
-   
+
     stream << "foreach ";
 
     if (getFlag(Foreach::TAKE_REF))
@@ -8395,11 +8501,11 @@ ASTNode * While::clone() {
     return c;
 }
 
-void While::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void While::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
-   
+
     stream << "while ";
 
     getConditional()->dump(stream, level, dumpCT);
@@ -8509,11 +8615,11 @@ ASTNode * DoWhile::clone() {
     return c;
 }
 
-void DoWhile::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void DoWhile::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
-   
+
     stream << "do ";
 
     stream << " {\n";
@@ -8615,11 +8721,11 @@ ASTNode * Match::clone() {
     return c;
 }
 
-void Match::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void Match::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
-   
+
     stream << "match ";
 
     getExpression()->dump(stream, level, dumpCT);
@@ -8719,11 +8825,11 @@ ASTNode * With::clone() {
     return c;
 }
 
-void With::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void With::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
-   
+
     stream << "with ";
 
     if (getFlag(WITH_ELSE)) {
@@ -8805,9 +8911,10 @@ ASTNode * TemplateDefineList::clone() {
     return c;
 }
 
-void TemplateDefineList::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void TemplateDefineList::dump(std::ostream & stream, unsigned int level,
+                              bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "$";
     if (getElements().size() > 1) {
         stream << "(";
@@ -8815,11 +8922,11 @@ void TemplateDefineList::dump(std::ostream& stream, unsigned int level, bool dum
         for (ASTNode *& elem : getElements()) {
             if (&elem == &getElements().back())
                 comma = "";
-            stream << ((TemplateDefineElement*)elem)->getName() << comma;
+            stream << ((TemplateDefineElement *)elem)->getName() << comma;
         }
         stream << ")";
     } else {
-        stream << ((TemplateDefineElement*)getElements()[0])->getName();
+        stream << ((TemplateDefineElement *)getElements()[0])->getName();
     }
 }
 
@@ -9010,9 +9117,10 @@ ASTNode * TemplateInstantiation::clone() {
     return c;
 }
 
-void TemplateInstantiation::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void TemplateInstantiation::dump(std::ostream & stream, unsigned int level,
+                                 bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << "$";
     if (getElements().size() > 1) {
         stream << "(";
@@ -9168,7 +9276,8 @@ void TemplateStruct::addSymbols(Scope * _scope) {
     */
 }
 
-void TemplateStruct::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void TemplateStruct::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
     getTemplate()->dump(stream, level, dumpCT);
 }
 
@@ -9235,7 +9344,8 @@ void TemplateProc::addSymbols(Scope * _scope) {
     _scope->addSymbol(symbol, &procedureTemplate->getNameContext());
 }
 
-void TemplateProc::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void TemplateProc::dump(std::ostream & stream, unsigned int level,
+                        bool dumpCT) {
     getTemplate()->dump(stream, level, dumpCT);
 }
 
@@ -9264,9 +9374,9 @@ ASTNode * SLComment::clone() { return new SLComment(*this); }
 
 void SLComment::addSymbols(Scope * _scope) { setScope(_scope); }
 
-void SLComment::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void SLComment::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
     stream << "# " << getContents();
 }
@@ -9298,9 +9408,10 @@ ASTNode * ModuleDeclaration::clone() { return new ModuleDeclaration(*this); }
 
 void ModuleDeclaration::addSymbols(Scope * _scope) { setScope(_scope); }
 
-void ModuleDeclaration::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void ModuleDeclaration::dump(std::ostream & stream, unsigned int level,
+                             bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
 
     stream << "module " << getIdentifier();
@@ -9326,7 +9437,7 @@ void IgnoreNode::addSymbols(Scope * _scope) { setScope(_scope); }
 
 void * IgnoreNode::generate(BackEnd & backEnd, bool flag) { return nullptr; }
 
-void IgnoreNode::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void IgnoreNode::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     return;
 }
 
@@ -9430,9 +9541,9 @@ void MacroUse::addSymbols(Scope * _scope) {
     }
 }
 
-void MacroUse::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
+void MacroUse::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
-		return;
+        return;
     stream << std::string(4 * level, ' ');
 
     stream << "\\" << getMacroName() << "{\n";
@@ -9444,7 +9555,7 @@ void MacroUse::dump(std::ostream& stream, unsigned int level, bool dumpCT) {
         stream << "\n";
     }
     level -= 1;
-    
+
     stream << std::string(4 * level, ' ');
     stream << "}\n";
 }

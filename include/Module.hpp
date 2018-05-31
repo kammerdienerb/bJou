@@ -12,6 +12,9 @@
 #include "ASTNode.hpp"
 #include "Serialization.hpp"
 
+#include <vector>
+#include <map>
+
 namespace bjou {
 /*
 struct AsyncImporter {
@@ -32,8 +35,27 @@ boost::archive::text_iarchive * _ar);
 
 struct FrontEnd;
 
+struct Module {
+    bool activated,
+         filled;
+
+    unsigned int n_lines;
+
+    std::vector<ASTNode*> nodes,
+                          structs,
+                          ifaceDefs;
+
+    MultiNode * multi;
+
+    Module();
+
+    void fill(std::vector<ASTNode*>& _nodes, std::vector<ASTNode*>& _structs, std::vector<ASTNode*>& _ifaceDefs);
+    void activate(Import * source);
+};
+
 void importModulesFromAST(FrontEnd & frontEnd);
 void importModuleFromFile(FrontEnd & frontEnd, const char * _fname);
+void activateModule(Import * import);
 // void exportModule(std::vector<ASTNode*>& AST);
 // void exportModuleToFile(std::vector<ASTNode*>& AST, const char * fname);
 // void joinTypeTableWithCompilation(std::unordered_map<std::string, Type*>&

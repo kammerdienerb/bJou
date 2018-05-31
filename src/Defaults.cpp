@@ -9,7 +9,7 @@
 #include "Defaults.hpp"
 
 namespace bjou {
-void StartDefaultCompilation(ArgSet& args) {
+void StartDefaultCompilation(ArgSet & args) {
     bjou::DEFAULT_FE frontEnd;
     bjou::DEFAULT_BE backEnd(frontEnd);
 
@@ -20,4 +20,4 @@ void StartDefaultCompilation(ArgSet& args) {
 
     compilation = save;
 }
-}
+} // namespace bjou

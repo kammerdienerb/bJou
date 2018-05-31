@@ -9,8 +9,8 @@
 #include "LLVMBackEnd.hpp"
 
 #include <algorithm>
-#include <unordered_map>
 #include <future>
+#include <unordered_map>
 
 // #include <llvm/CodeGen/CommandFlags.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
@@ -573,9 +573,6 @@ static void genDeps(ASTNode * node, LLVMBackEnd & llbe) {
         } else if (term->nodeKind == ASTNode::IDENTIFIER) {
             Identifier * ident = (Identifier *)term;
 
-            if (ident->unqualified == "_nullptr")
-                BJOU_DEBUG_ASSERT(true);
-
             if (ident->resolved) {
                 ASTNode * r = ident->resolved;
 
@@ -964,11 +961,11 @@ milliseconds LLVMBackEnd::LinkingStage() {
     }
 
     if (!compilation->args.c_arg) {
-        const char * rm_args[] = { "rm", dest_o.c_str(), nullptr };
-        
+        const char * rm_args[] = {"rm", dest_o.c_str(), nullptr};
+
         childpid = fork();
         if (childpid == 0) {
-            execvp(rm_args[0], (char**)rm_args);
+            execvp(rm_args[0], (char **)rm_args);
             internalError("Error executing 'rm'.");
         } else if (childpid == -1) {
             internalError("Error forking 'rm'.");
@@ -1296,9 +1293,19 @@ llvm::Function * LLVMBackEnd::createMainEntryPoint() {
     addNamedVal("__bjou_main_arg1", &(*arg_it),
                 CharType::get()->getPointer()->getPointer());
 
-    for (ASTNode * node : compilation->frontEnd.AST)
-        if (node->isStatement() || node->nodeKind == ASTNode::MULTINODE)
+    for (ASTNode * node : compilation->frontEnd.AST) {
+        if (node->isStatement()) {
             genDeps(node, *this);
+        } else if (node->nodeKind == ASTNode::MULTINODE) {
+            std::vector<ASTNode*> subNodes;
+
+            ((MultiNode*)node)->flatten(subNodes);
+
+            for (ASTNode * sub : subNodes)
+                if (sub->isStatement())
+                    genDeps(node, *this);
+        }
+    }
 
     return func;
 }
@@ -1308,9 +1315,19 @@ void LLVMBackEnd::completeMainEntryPoint(llvm::Function * func) {
 
     builder.SetInsertPoint(&func->back());
 
-    for (ASTNode * node : compilation->frontEnd.AST)
-        if (node->isStatement() || node->nodeKind == ASTNode::MULTINODE)
+    for (ASTNode * node : compilation->frontEnd.AST) {
+        if (node->isStatement()) {
             getOrGenNode(node);
+        } else if (node->nodeKind == ASTNode::MULTINODE) {
+            std::vector<ASTNode*> subNodes;
+
+            ((MultiNode*)node)->flatten(subNodes);
+
+            for (ASTNode * sub : subNodes)
+                if (sub->isStatement())
+                    getOrGenNode(node);
+        }
+    }
 
     builder.CreateRet(
         llvm::ConstantInt::get(llContext, llvm::APInt(32, 0, true)));
