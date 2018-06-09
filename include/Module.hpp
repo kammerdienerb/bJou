@@ -37,6 +37,7 @@ struct FrontEnd;
 
 struct Module {
     bool activated,
+         activatedAsCT,
          filled;
 
     unsigned int n_lines;
@@ -50,7 +51,7 @@ struct Module {
     Module();
 
     void fill(std::vector<ASTNode*>& _nodes, std::vector<ASTNode*>& _structs, std::vector<ASTNode*>& _ifaceDefs);
-    void activate(Import * source);
+    void activate(Import * source, bool ct);
 };
 
 void importModulesFromAST(FrontEnd & frontEnd);

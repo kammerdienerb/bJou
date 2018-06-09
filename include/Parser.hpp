@@ -85,6 +85,8 @@ MaybeString parser_l_sqr_bracket(StringViewableBuffer & buff);
 MaybeString parser_r_sqr_bracket(StringViewableBuffer & buff);
 MaybeString parser_l_paren(StringViewableBuffer & buff);
 MaybeString parser_r_paren(StringViewableBuffer & buff);
+MaybeString parser_dbl_lt(StringViewableBuffer & buff);
+MaybeString parser_dbl_gt(StringViewableBuffer & buff);
 MaybeString parser_integer(StringViewableBuffer & buff);
 MaybeString parser_floating_pt(StringViewableBuffer & buff);
 MaybeString parser_char_literal(StringViewableBuffer & buff);
@@ -95,6 +97,7 @@ MaybeString parser_kwd_nothing(StringViewableBuffer & buff);
 MaybeString parser_kwd_as(StringViewableBuffer & buff);
 MaybeString parser_dot(StringViewableBuffer & buff);
 MaybeString parser_arrow(StringViewableBuffer & buff);
+MaybeString parser_l_arrow(StringViewableBuffer & buff);
 MaybeString parser_exclam(StringViewableBuffer & buff);
 MaybeString parser_kwd_sizeof(StringViewableBuffer & buff);
 MaybeString parser_amp(StringViewableBuffer & buff);
@@ -192,6 +195,8 @@ enum TokenKind {
     R_SQR_BRACKET,
     L_PAREN,
     R_PAREN,
+    DBL_LT,
+    DBL_GT,
     INTEGER,
     FLOATING_PT,
     CHAR_LITERAL,
@@ -202,6 +207,7 @@ enum TokenKind {
     KWD_AS,
     DOT,
     ARROW,
+    L_ARROW,
     EXCLAM,
     KWD_SIZEOF,
     AMP,
@@ -306,6 +312,7 @@ struct Parser {
     MaybeASTNode parseInitializerList();
     MaybeASTNode parseSliceOrDynamicArrayExpression();
     MaybeASTNode parseLenExpression();
+    MaybeASTNode parseExprBlock();
     MaybeASTNode parseOperand();
     MaybeASTNode parseArgList();
 
@@ -337,6 +344,7 @@ struct Parser {
     MaybeASTNode parseReturn();
     MaybeASTNode parseBreak();
     MaybeASTNode parseContinue();
+    MaybeASTNode parseExprBlockYield();
 
     MaybeASTNode parseMacroUse();
     MaybeASTNode parseMacroArg();

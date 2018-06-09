@@ -1,9 +1,24 @@
 # sys.bjou
-
 # system calls
 
 module sys
 
+import "os.bjou"
 
-# import "sys/posix/sys_posix.bjou"
-# import "sys/windows/sys_windows.bjou"
+\ct{
+    proc createSysModules() {
+    } }
+
+\static_if{ os.IS_POSIX
+    \static_if{ \canfindmodule{ "sys/posix/aio.bjou" }
+        import "sys/posix/aio.bjou"
+        import "sys/posix/arpa/inet.bjou"
+        import "sys/posix/cpio.bjou"
+        import "sys/posix/dirent.bjou" }
+
+    \static_if{ not \canfindmodule{ "sys/posix/aio.bjou" }
+        \static_do{
+            createSysModules() } } }
+
+\static_if{ os.OS == os.WINDOWS
+    \error{ "'sys.bjou' not implemented for Windows yet." } }

@@ -38,10 +38,10 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_kwd_foreach, parser_kwd_in, parser_kwd_match, parser_kwd_with,
     parser_kwd_break, parser_kwd_continue, parser_l_curly_brace,
     parser_r_curly_brace, parser_l_sqr_bracket, parser_r_sqr_bracket,
-    parser_l_paren, parser_r_paren, parser_integer, parser_floating_pt,
+    parser_l_paren, parser_r_paren, parser_dbl_lt, parser_dbl_gt, parser_integer, parser_floating_pt,
     parser_char_literal, parser_string_literal, parser_kwd_true,
     parser_kwd_false, parser_kwd_nothing, parser_kwd_as, parser_dot,
-    parser_arrow, parser_exclam, parser_kwd_sizeof, parser_amp, parser_tilde,
+    parser_arrow, parser_l_arrow, parser_exclam, parser_kwd_sizeof, parser_amp, parser_tilde,
     parser_at, parser_kwd_not, parser_kwd_new, parser_kwd_proc,
     parser_kwd_extern, parser_kwd_some, parser_mult, parser_div, parser_mod,
     parser_plus, parser_minus, parser_lss, parser_leq, parser_gtr, parser_geq,
@@ -343,6 +343,12 @@ MaybeString parser_l_paren(StringViewableBuffer & buff) {
 MaybeString parser_r_paren(StringViewableBuffer & buff) {
     return parse_punc(buff, ")");
 }
+MaybeString parser_dbl_lt(StringViewableBuffer & buff) {
+    return parse_punc(buff, "<<");
+}
+MaybeString parser_dbl_gt(StringViewableBuffer & buff) {
+    return parse_punc(buff, ">>");
+}
 MaybeString parser_integer(StringViewableBuffer & buff) {
     size_t p = 0;
     if (IS_C(buff, p, '-')) {
@@ -426,6 +432,9 @@ MaybeString parser_dot(StringViewableBuffer & buff) {
 }
 MaybeString parser_arrow(StringViewableBuffer & buff) {
     return parse_punc(buff, "->");
+}
+MaybeString parser_l_arrow(StringViewableBuffer & buff) {
+    return parse_punc(buff, "<-");
 }
 MaybeString parser_exclam(StringViewableBuffer & buff) {
     return parse_punc(buff, "!");
@@ -1363,6 +1372,12 @@ MaybeString Parser::parseBinaryOperator(bool skipEat) {
 
     MaybeString m_op;
 
+    // special case for expression block syntax '<< ... >>'
+    if (optional(DBL_LT, true) ||
+        optional(DBL_GT, true) ||
+        optional(L_ARROW, true))
+        return MaybeString();
+
     for (TokenKind tok : opOrder) {
         m_op = optional(tok, true);
         std::string op, result;
@@ -1542,7 +1557,8 @@ MaybeASTNode Parser::parseTerminatingExpression() {
     } else if ((m_node = parseInitializerList()) ||
                (m_node = parseParentheticalExpressionOrTuple()) ||
                (m_node = parseSliceOrDynamicArrayExpression()) ||
-               (m_node = parseLenExpression())) {
+               (m_node = parseLenExpression()) || 
+               (m_node = parseExprBlock())) {
         m_node.assignTo(node);
         BJOU_DEBUG_ASSERT(node);
     } else
@@ -1739,6 +1755,35 @@ MaybeASTNode Parser::parseLenExpression() {
         expect(VERT, "'|'");
 
         result->getContext().finish(&currentContext, &justCleanedContext);
+        return MaybeASTNode(result);
+    }
+
+    return MaybeASTNode();
+}
+
+MaybeASTNode Parser::parseExprBlock() {
+    if (optional(DBL_LT, true)) {
+        ExprBlock * result = new ExprBlock(); 
+        result->getContext().start(&currentContext);
+
+        eat("<<");
+
+        while (true) {
+            ASTNode * stmt = nullptr;
+            MaybeASTNode m_stmt = parseStatement();
+            if (!m_stmt.assignTo(stmt))
+                break;
+            result->addStatement(stmt);
+        }
+
+        expect(DBL_GT, "'>>'");
+    
+        result->getContext().finish(&currentContext, &justCleanedContext);
+
+        if (result->getStatements().empty()) {
+            errorl(result->getContext(), "Empty expression blocks are not allowed.");
+        }
+
         return MaybeASTNode(result);
     }
 
@@ -2579,7 +2624,8 @@ MaybeASTNode Parser::parseExternSig() {
 MaybeASTNode Parser::parseStatement() {
     MaybeASTNode m_statement;
 
-    (m_statement = parseConstant()) ||
+    (m_statement = parseExprBlockYield()) ||
+        (m_statement = parseConstant()) ||
         (m_statement = parseVariableDeclaration()) ||
         (m_statement = parseExpression()) || (m_statement = parseBreak()) ||
         (m_statement = parseContinue()) || (m_statement = parseReturn()) ||
@@ -3035,6 +3081,30 @@ MaybeASTNode Parser::parseContinue() {
 
         return MaybeASTNode(result);
     }
+    return MaybeASTNode();
+}
+
+MaybeASTNode Parser::parseExprBlockYield() {
+    if (optional(L_ARROW, true)) {
+        ExprBlockYield * result = new ExprBlockYield();
+        result->getContext().start(&currentContext);
+
+        eat("<-");
+
+        ASTNode * expr = nullptr;
+        MaybeASTNode m_expr = parseExpression();
+
+        if (!m_expr.assignTo(expr)) {
+            errornext(*this, "Expected expression.", true, "to yield in expression block");
+        }
+
+        result->setExpression(expr);
+
+        result->getContext().finish(&currentContext, &justCleanedContext);
+
+        return MaybeASTNode(result);
+    }
+
     return MaybeASTNode();
 }
 

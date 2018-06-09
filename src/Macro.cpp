@@ -239,7 +239,11 @@ static ASTNode * add_llvm_passes(MacroUse * use) {
 
 static ASTNode * ct(MacroUse * use) {
     MultiNode * multi = new MultiNode(use->getArgs());
-    multi->setFlag(ASTNode::CT, true);
+
+    for (ASTNode * node : multi->nodes) {
+        if (use->leaveMeAloneArgs.find(node) == use->leaveMeAloneArgs.end())
+            node->setFlag(ASTNode::CT, true);
+    }
 
     return multi;
 }

@@ -850,6 +850,14 @@ type libclang {
         CXSourceRange)
         : CXSourceLocation>
 
+    Cursor_Evaluate : <(
+        CXCursor)
+        : CXEvalResult*>
+
+    EvalResult_getAsLongLong : <(
+        CXEvalResult*)
+        : i64>
+
     # ------------- end symbols --------------
    
     proc _load(this, path : char*) {
@@ -1011,6 +1019,12 @@ type libclang {
         
         lib.getRangeEnd = (lib._handleGetSymbol("clang_getRangeEnd"))
             as <(CXSourceRange) : CXSourceLocation>
+
+        lib.Cursor_Evaluate = (lib._handleGetSymbol("clang_Cursor_Evaluate"))
+            as <(CXCursor) : CXEvalResult*>
+
+        lib.EvalResult_getAsLongLong = (lib._handleGetSymbol("clang_EvalResult_getAsLongLong"))
+            as <(CXEvalResult*) : i64>
 
         return lib
     }

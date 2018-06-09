@@ -12,7 +12,7 @@ extern strcmp(char*, char*) : int
 extern strlen(char*) : u64
 
 \ct {
-const PRINT_AST := false
+const PRINT_AST := true
 
 import "null.bjou"
 

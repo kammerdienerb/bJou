@@ -930,12 +930,15 @@ proc v_IntegerLiteral(cursor      : CXCursor,
     
     translator := client_data as c2bJou*
 
-    tokens := translator.cw.getCursorTokens(cursor)
-    cxs := clang.getTokenSpelling(translator.cw.tu, tokens[0])
-    spl := clang.getCString(cxs)
+    # Use eval instead of tokens so that integer literals
+    # that came from macro instantiations work.
+    val := clang.EvalResult_getAsLongLong(clang.Cursor_Evaluate(cursor))
+
+    buff : char[32]
+    sprintf(buff, "%lld", val)
 
     # create result
-    i := bjou_createIntegerLiteral(spl)
+    i := bjou_createIntegerLiteral(buff)
 
     translator.created.push(i)
 
@@ -1182,7 +1185,8 @@ proc makeDeclFromTy(translator : c2bJou ref, t : CXType*, cursor : CXCursor) : A
         decl = declFromName("f32")
     } else if t.kind == CXType_Double {
         decl = declFromName("f64")
-    } else if t.kind == CXType_Record {
+    } else if t.kind == CXType_Record
+           or t.kind == CXType_Elaborated {
         name := clang.getCString(clang.getTypeSpelling(@t))
         str  := "struct "
         if strlen(name) > strlen(str) {
@@ -1237,4 +1241,3 @@ proc makeDeclFromTy(translator : c2bJou ref, t : CXType*, cursor : CXCursor) : A
 
     return decl
 }
-

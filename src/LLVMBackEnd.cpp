@@ -861,9 +861,17 @@ milliseconds LLVMBackEnd::CodeGenStage() {
 milliseconds LLVMBackEnd::LinkingStage() {
     auto start = Clock::now();
 
-    std::string dest =
-        compilation->outputpath + compilation->outputbasefilename;
-    std::string dest_o = dest + ".o";
+    std::string dest, dest_o;
+    if (!compilation->args.output_arg.empty()) {
+        dest = compilation->args.output_arg;
+        if (compilation->args.c_arg)
+            dest_o = dest;
+        else
+            dest_o = dest + ".o";
+    } else {
+        dest = compilation->outputpath + compilation->outputbasefilename;
+        dest_o = dest + ".o";
+    }
 
     std::vector<const char *> link_args = {dest_o.c_str()};
 
@@ -1303,7 +1311,7 @@ llvm::Function * LLVMBackEnd::createMainEntryPoint() {
 
             for (ASTNode * sub : subNodes)
                 if (sub->isStatement())
-                    genDeps(node, *this);
+                    genDeps(sub, *this);
         }
     }
 
@@ -1325,7 +1333,7 @@ void LLVMBackEnd::completeMainEntryPoint(llvm::Function * func) {
 
             for (ASTNode * sub : subNodes)
                 if (sub->isStatement())
-                    getOrGenNode(node);
+                    getOrGenNode(sub);
         }
     }
 
@@ -3893,6 +3901,51 @@ void * Continue::generate(BackEnd & backEnd, bool flag) {
 
     generateFramePreExit(llbe, lfi.frame);
     return llbe->builder.CreateBr(lfi.bb);
+}
+
+void * ExprBlock::generate(BackEnd & backEnd, bool getAddr) {
+    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+    const Type * t = getType();
+
+    llvm::Value * alloca = llbe->allocUnnamedVal(t); 
+
+    llbe->expr_block_yield_stack.push(alloca);
+
+    for (ASTNode * statement : getStatements())
+        llbe->getOrGenNode(statement);
+
+    llbe->expr_block_yield_stack.pop();
+
+    if (getAddr && !t->isRef())
+        return alloca;
+
+    return llbe->builder.CreateLoad(alloca);
+}
+
+void * ExprBlockYield::generate(BackEnd & backEnd, bool flag) {
+    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+    ASTNode * p = getParent();
+    while (p) {
+        if (p->nodeKind == EXPR_BLOCK)
+            break;
+        p = p->getParent();
+    }
+
+    ExprBlock * block = (ExprBlock*)p;
+
+    const Type * block_t = block->getType();
+
+    llvm::Value * val = (llvm::Value*)llbe->getOrGenNode(getExpression(), block_t->isRef());
+
+    BJOU_DEBUG_ASSERT(val);
+
+    llvm::Value * dest = llbe->expr_block_yield_stack.top();
+
+    llbe->builder.CreateStore(val, dest);
+
+    return val;
 }
 
 } // namespace bjou

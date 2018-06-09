@@ -743,9 +743,9 @@ const Type * conv(const Type * t1, const Type * t2) {
 
     // handle int and float conversions
     // one of l and r is float, choose float type
-    if (t1->isFloat() && !t2->isFloat())
+    if (t1->isFloat() && (t2->isInt() || t2->isChar()))
         return t1;
-    if (!t1->isFloat() && t2->isFloat())
+    if ((t1->isInt() || t1->isChar()) && t2->isFloat())
         return t2;
     // if both float, choose larger
     if (t1->isFloat() && t2->isFloat()) {

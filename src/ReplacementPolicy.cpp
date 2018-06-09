@@ -39,6 +39,8 @@ void init_replacementPolicies() {
         ANY_EXPRESSION};
     rpget<replacementPolicy_TupleLiteral_subExpression>()->allowed_nodeKinds = {
         ANY_EXPRESSION};
+    rpget<replacementPolicy_ExprBlock_Statement>()->allowed_nodeKinds = {
+        ANY_STATEMENT};
     rpget<replacementPolicy_Declarator_Identifier>()->allowed_nodeKinds = {
         ASTNode::NodeKind::IDENTIFIER};
     rpget<replacementPolicy_Declarator_TemplateInst>()->allowed_nodeKinds = {
@@ -104,6 +106,8 @@ void init_replacementPolicies() {
     rpget<replacementPolicy_Namespace_Node>()->allowed_nodeKinds = {ANY_NODE};
     rpget<replacementPolicy_Print_Args>()->allowed_nodeKinds = {ANY_EXPRESSION};
     rpget<replacementPolicy_Return_Expression>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
+    rpget<replacementPolicy_ExprBlockYield_Expression>()->allowed_nodeKinds = {
         ANY_EXPRESSION};
     rpget<replacementPolicy_If_Conditional>()->allowed_nodeKinds = {
         ANY_EXPRESSION};
@@ -274,6 +278,20 @@ RP_FUNCTOR_IMPL(
 
     *found_node = new_node; new_node->parent = parent;
     new_node->replace = rpget<replacementPolicy_TupleLiteral_subExpression>();
+
+    return new_node;);
+RP_FUNCTOR_IMPL(
+    ExprBlock_Statement,
+    ExprBlock * parent_expr_block = (ExprBlock *)parent;
+    auto found_node = std::find(parent_expr_block->getStatements().begin(),
+                                parent_expr_block->getStatements().end(),
+                                old_node);
+    if (found_node == parent_expr_block->getStatements().end())
+        internalError("node to replace not found in "
+                      "replacementPolicy_ExprBlock_Statement()");
+
+    *found_node = new_node; new_node->parent = parent;
+    new_node->replace = rpget<replacementPolicy_ExprBlock_Statement>();
 
     return new_node;);
 RP_FUNCTOR_IMPL(Declarator_Identifier,
@@ -550,6 +568,10 @@ RP_FUNCTOR_IMPL(Return_Expression,
                 BJOU_DEBUG_ASSERT(((Return *)parent)->getExpression() ==
                                   old_node);
                 ((Return *)parent)->setExpression(new_node); return new_node;);
+RP_FUNCTOR_IMPL(ExprBlockYield_Expression,
+                BJOU_DEBUG_ASSERT(((ExprBlockYield *)parent)->getExpression() ==
+                                  old_node);
+                ((ExprBlockYield *)parent)->setExpression(new_node); return new_node;);
 RP_FUNCTOR_IMPL(If_Conditional,
                 BJOU_DEBUG_ASSERT(((If *)parent)->getConditional() == old_node);
                 ((If *)parent)->setConditional(new_node); return new_node;);

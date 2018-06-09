@@ -286,6 +286,10 @@ bool Expression::canBeLVal() {
     if (getType()->isRef())
         return true;
 
+    if (nodeKind == EXPR_BLOCK) {
+        return false;
+    }
+
     if (getFlag(Expression::IDENT)) {
         Maybe<Symbol *> m_sym =
             getScope()->getSymbol(getScope(), (Identifier *)this, &getContext(),
@@ -4307,9 +4311,7 @@ void TupleLiteral::analyze(bool force) {
 ASTNode * TupleLiteral::clone() {
     TupleLiteral * t = ExpressionClone(this);
     std::vector<ASTNode *> & my_subExpressions = getSubExpressions();
-    std::vector<ASTNode *> expressions = my_subExpressions;
-    my_subExpressions.clear();
-    for (ASTNode * e : expressions)
+    for (ASTNode * e : my_subExpressions)
         t->addSubExpression(e->clone());
     return t;
 }
@@ -4334,6 +4336,110 @@ void TupleLiteral::desugar() {
         expr->desugar();
 }
 //
+
+
+// ~~~~~ ExprBlock ~~~~~
+
+ExprBlock::ExprBlock() { nodeKind = EXPR_BLOCK; }
+
+bool ExprBlock::isConstant() { return false; }
+
+std::vector<ASTNode *> & ExprBlock::getStatements() {
+    return statements;
+}
+void ExprBlock::setStatements(std::vector<ASTNode *> _statements) {
+    statements = _statements;
+}
+void ExprBlock::addStatement(ASTNode * _statement) {
+    _statement->parent = this;
+    _statement->replace =
+        rpget<replacementPolicy_ExprBlock_Statement>();
+    statements.push_back(_statement);
+}
+
+void ExprBlock::addSymbols(Scope * _scope) {
+    Expression::addSymbols(_scope);
+    for (ASTNode * statement : getStatements())
+        statement->addSymbols(_scope);
+}
+
+void ExprBlock::analyze(bool force) {
+    HANDLE_FORCE();
+
+    for (ASTNode * statement : getStatements()) {
+        statement->analyze(force);
+    }
+
+    if (yieldTypes.empty()) {
+        errorl(getContext(), "Expression block does not yield any value.", true,
+                             "to yield a value: '<-the_value' in the expression block");
+    }
+
+    const Type * first_t = nullptr;
+
+    for (auto& yt : yieldTypes) {
+        if (!first_t) {
+            first_t = yt.second;
+        } else {
+            if (first_t->isRef()) {
+                Expression * expr = (Expression*)yt.first->getExpression();
+                if (!expr->canBeLVal()) {
+                    errorl(yt.first->getExpression()->getContext(),
+                       "Type of expression block yield does not match previous yields.", false,
+                       "expected '" + first_t->getDemangledName() + "'",
+                       "got '" + yt.second->getDemangledName() + "'",
+                       "value can't be used as a reference",
+                       "Note: All expression yielded from an expression block must be of compatible types.");
+                    errorl(yieldTypes[0].first->getContext(), "Expected yield type of '" + first_t->getDemangledName() + "' established by this yield:");
+                }
+            }
+            if (!conv(first_t, yt.second)) {
+                errorl(yt.first->getExpression()->getContext(),
+                       "Type of expression block yield does not match previous yields.", false,
+                       "expected '" + first_t->getDemangledName() + "'",
+                       "got '" + yt.second->getDemangledName() + "'",
+                       "Note: All expression yielded from an expression block must be of compatible types.");
+                errorl(yieldTypes[0].first->getContext(), "Expected yield type of '" + first_t->getDemangledName() + "' established by this yield:");
+            }
+
+            if (!equal(first_t, yt.second))
+                emplaceConversion((Expression *)yt.first->getExpression(), first_t);
+        }
+    }
+
+    setType(first_t);
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * ExprBlock::clone() {
+    ExprBlock * t = ExpressionClone(this);
+    std::vector<ASTNode *> & my_statements = getStatements();
+    for (ASTNode * statement : my_statements)
+        t->addStatement(statement->clone());
+    return t;
+}
+
+void ExprBlock::dump(std::ostream & stream, unsigned int level,
+                        bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << "<<\n";
+    level += 1;
+    for (ASTNode * statement : getStatements())
+        statement->dump(stream, level);
+    level -= 1;
+    stream << std::string(4 * level, ' ');
+    stream << ">>\n";
+}
+
+void ExprBlock::desugar() {
+    for (ASTNode * statement : getStatements())
+        statement->desugar();
+}
+//
+
 
 // ~~~~~ Declarator ~~~~~
 
@@ -7522,20 +7628,39 @@ void Import::addSymbols(Scope * _scope) {
 
     if (fileError) {
         errorl(getContext(),
-            "Unable to read file '" + module + "'.");
+            "Unable to read file '" + de_quote(module) + "'.");
     }
 
     if (notModuleError) {
         error(getContext(),
-              "File '" + module +
+              "File '" + de_quote(module) +
                   "' does not declare a module.", false);
         errorl(getContext(),
               "Attempted import from this location.");
     }
-    
+
+    if (getScope()->parent && !getScope()->parent->nspace) {
+        errorl(getContext(), "Module imports must be made at global scope.", false);
+        errorl(getContext(), "Attempting to import " + getModule() + " in scope with description '" + getScope()->description + "'.");
+    }
+
     BJOU_DEBUG_ASSERT(theModule);
 
-    theModule->activate(this); // replaces 'this'
+    bool ct = false;
+
+    ASTNode * p = getParent();
+    while (p) {
+        if (p->nodeKind == MACRO_USE) {
+            MacroUse * use = (MacroUse*)p;
+            if (use->getMacroName() == "ct") {
+                ct = true;
+                break;
+            }
+        }
+        p = p->getParent();
+    }
+
+    theModule->activate(this, ct); // replaces 'this'
 }
 
 void Import::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
@@ -7823,6 +7948,7 @@ bool Continue::isStatement() const { return true; }
 
 Continue::~Continue() {}
 //
+
 
 // ~~~~~ If ~~~~~
 
@@ -9419,6 +9545,87 @@ void ModuleDeclaration::dump(std::ostream & stream, unsigned int level,
 
 ModuleDeclaration::~ModuleDeclaration() {}
 //
+
+// ~~~~~ ExprBlockYield ~~~~~
+
+ExprBlockYield::ExprBlockYield() : expression(nullptr) { nodeKind = EXPR_BLOCK_YIELD; }
+
+ASTNode * ExprBlockYield::getExpression() const { return expression; }
+void ExprBlockYield::setExpression(ASTNode * _expression) {
+    _expression->parent = this;
+    _expression->replace = rpget<replacementPolicy_ExprBlockYield_Expression>();
+    expression = _expression;
+}
+
+// Node interface
+void ExprBlockYield::analyze(bool force) {
+    HANDLE_FORCE();
+
+    ASTNode * p = getParent();
+    while (p) {
+        if (p->nodeKind == EXPR_BLOCK)
+            break;
+        p = p->getParent();
+    }
+
+    ExprBlock * block = (ExprBlock*)p;
+
+    if (block) {
+        BJOU_DEBUG_ASSERT(getExpression());
+        getExpression()->analyze();
+        const Type * expr_t = getExpression()->getType();
+        block->yieldTypes.push_back(std::make_pair(this, expr_t));
+    } else
+        errorl(getContext(),
+               "Unexpected yield statement outside of expression block.");
+
+    setFlag(ANALYZED, true);
+}
+
+void ExprBlockYield::addSymbols(Scope * _scope) {
+    setScope(_scope);
+    if (expression)
+        expression->addSymbols(_scope);
+}
+
+void ExprBlockYield::unwrap(std::vector<ASTNode *> & terminals) {
+    if (getExpression())
+        getExpression()->unwrap(terminals);
+}
+
+ASTNode * ExprBlockYield::clone() {
+    ExprBlockYield * c = new ExprBlockYield(*this);
+
+    if (c->getExpression())
+        c->setExpression(c->getExpression()->clone());
+
+    return c;
+}
+
+void ExprBlockYield::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << std::string(4 * level, ' ');
+
+    stream << "<-";
+    getExpression()->dump(stream, level, dumpCT);
+
+    stream << "\n";
+}
+
+void ExprBlockYield::desugar() {
+    if (getExpression())
+        getExpression()->desugar();
+}
+
+bool ExprBlockYield::isStatement() const { return true; }
+
+ExprBlockYield::~ExprBlockYield() {
+    if (expression)
+        delete expression;
+}
+//
+
 
 // ~~~~~ IgnoreNode ~~~~~
 

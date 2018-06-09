@@ -146,6 +146,8 @@ struct ASTNode {
         RETURN,
         BREAK,
         CONTINUE,
+        EXPR_BLOCK,
+        EXPR_BLOCK_YIELD,
         IF,
         ELSE,
         FOR,
@@ -209,7 +211,7 @@ struct ASTNode {
         ASTNode::NodeKind::STRING_LITERAL, ASTNode::NodeKind::CHAR_LITERAL,    \
         ASTNode::NodeKind::PROC_LITERAL, ASTNode::NodeKind::EXTERN_LITERAL,    \
         ASTNode::NodeKind::SOME_LITERAL, ASTNode::NodeKind::NOTHING_LITERAL,   \
-        ASTNode::NodeKind::TUPLE_LITERAL, ASTNode::NodeKind::_END_EXPRESSIONS, \
+        ASTNode::NodeKind::TUPLE_LITERAL, ASTNode::NodeKind::EXPR_BLOCK, ASTNode::NodeKind::_END_EXPRESSIONS, \
         ASTNode::NodeKind::DECLARATOR, ASTNode::NodeKind::ARRAY_DECLARATOR,    \
         ASTNode::NodeKind::SLICE_DECLARATOR,                                   \
         ASTNode::NodeKind::DYNAMIC_ARRAY_DECLARATOR,                           \
@@ -227,7 +229,8 @@ struct ASTNode {
         ASTNode::NodeKind::PROCEDURE, ASTNode::NodeKind::NAMESPACE,            \
         ASTNode::NodeKind::IMPORT, ASTNode::NodeKind::PRINT,                   \
         ASTNode::NodeKind::RETURN, ASTNode::NodeKind::BREAK,                   \
-        ASTNode::NodeKind::CONTINUE, ASTNode::NodeKind::IF,                    \
+        ASTNode::NodeKind::CONTINUE, \
+        ASTNode::NodeKind::IF,                    \
         ASTNode::NodeKind::ELSE, ASTNode::NodeKind::FOR,                       \
         ASTNode::NodeKind::FOREACH, ASTNode::NodeKind::WHILE,                  \
         ASTNode::NodeKind::DO_WHILE, ASTNode::NodeKind::MATCH,                 \
@@ -239,7 +242,7 @@ struct ASTNode {
         ASTNode::NodeKind::TEMPLATE_INSTANTIATION,                             \
         ASTNode::NodeKind::TEMPLATE_ALIAS, ASTNode::NodeKind::TEMPLATE_STRUCT, \
         ASTNode::NodeKind::TEMPLATE_PROC, ASTNode::NodeKind::SL_COMMENT,       \
-        ASTNode::NodeKind::MODULE_DECL, ASTNode::NodeKind::IGNORE,             \
+        ASTNode::NodeKind::MODULE_DECL, ASTNode::NodeKind::EXPR_BLOCK_YIELD, ASTNode::NodeKind::IGNORE,             \
         ASTNode::NodeKind::MULTINODE, ASTNode::NodeKind::MACRO_USE
 
 #define ANY_EXPRESSION                                                         \
@@ -280,7 +283,8 @@ struct ASTNode {
         ASTNode::NodeKind::STRING_LITERAL, ASTNode::NodeKind::CHAR_LITERAL,    \
         ASTNode::NodeKind::PROC_LITERAL, ASTNode::NodeKind::EXTERN_LITERAL,    \
         ASTNode::NodeKind::SOME_LITERAL, ASTNode::NodeKind::NOTHING_LITERAL,   \
-        ASTNode::NodeKind::TUPLE_LITERAL
+        ASTNode::NodeKind::TUPLE_LITERAL,\
+        ASTNode::NodeKind::EXPR_BLOCK
 
 #define ANY_DECLARATOR                                                         \
     ASTNode::NodeKind::DECLARATOR, ASTNode::NodeKind::ARRAY_DECLARATOR,        \
@@ -297,11 +301,12 @@ struct ASTNode {
     ASTNode::NodeKind::IGNORE, ANY_EXPRESSION, ASTNode::NodeKind::CONSTANT,    \
         ASTNode::NodeKind::VARIABLE_DECLARATION, ASTNode::NodeKind::IMPORT,    \
         ASTNode::NodeKind::PRINT, ASTNode::NodeKind::RETURN,                   \
-        ASTNode::NodeKind::BREAK, ASTNode::NodeKind::CONTINUE,                 \
+        ASTNode::NodeKind::BREAK, ASTNode::NodeKind::CONTINUE,                  \
         ASTNode::NodeKind::IF, ASTNode::NodeKind::ELSE,                        \
         ASTNode::NodeKind::FOR, ASTNode::NodeKind::FOREACH,                    \
         ASTNode::NodeKind::WHILE, ASTNode::NodeKind::DO_WHILE,                 \
-        ASTNode::NodeKind::MATCH, ASTNode::NodeKind::MODULE_DECL
+        ASTNode::NodeKind::MATCH, ASTNode::NodeKind::MODULE_DECL,\
+        ASTNode::NodeKind::EXPR_BLOCK_YIELD
 
 #define IS_DECLARATOR(node)                                                    \
     ((node)->nodeKind >= ASTNode::DECLARATOR &&                                \
@@ -440,6 +445,13 @@ template <typename T> static inline T * ExpressionClone(T * expr) {
 
     return c;
 }
+
+/* ============================================================================
+ *
+ *                               ExprBlockYield
+ *
+ * ===========================================================================*/
+
 
 /* ============================================================================
  *
@@ -1663,9 +1675,54 @@ struct TupleLiteral : Expression {
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
-    // virtual ~NothingLiteral();
+    // virtual ~TupleLiteral();
     //
 };
+
+
+/* ============================================================================
+ *
+ *                              ExprBlock
+ *  A block of statements that acts as an expression.
+ *  Uses ExprBlockYield statements to set the value of the block.
+ *  Each ExprBlockYield within a block must yield expressions of
+ *  compatible types. Serves as a more powerful and generic version
+ *  of C's ternary operator. Example:
+ *
+ *  C:    'T val = condition ? value1 : value2;'
+ *  bJou: 'val := << if condition <-value1 else <-value2 >>'
+ *
+ * ===========================================================================*/
+
+struct ExprBlockYield;
+typedef std::pair<ExprBlockYield*, const Type*> YieldType;
+
+struct ExprBlock : Expression {
+    ExprBlock();
+
+    std::vector<ASTNode *> statements;
+
+    // filled by children
+    std::vector<YieldType> yieldTypes;
+
+    std::vector<ASTNode *> & getStatements();
+    void setStatements(std::vector<ASTNode *> _statements);
+    void addStatement(ASTNode * _statement);
+
+    bool isConstant();
+
+    // Node interface
+    virtual void addSymbols(Scope * _scope);
+    virtual void analyze(bool force = false);
+    ASTNode * clone();
+    void desugar();
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+    // virtual ~ExprBlock();
+    //
+};
+
 
 /* ============================================================================
  *
@@ -2697,6 +2754,40 @@ struct Continue : ASTNode {
 
 /* ============================================================================
  *
+ *                              ExprBlockYield
+ *  Sets the value of the containing ExprBlock.
+ *
+ * ===========================================================================*/
+
+struct ExprBlockYield : ASTNode {
+    ExprBlockYield();
+
+    ASTNode * expression;
+
+    enum eBitFlags E_BIT_FLAGS();
+
+    ASTNode * getExpression() const;
+    void setExpression(ASTNode * _expression);
+
+    // Node interface
+    void unwrap(std::vector<ASTNode *> & terminals);
+    bool isStatement() const;
+    ASTNode * clone();
+    void desugar();
+    virtual void analyze(bool force = false);
+    virtual void addSymbols(Scope * _scope);
+
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+
+    virtual ~ExprBlockYield();
+    //
+};
+
+
+/* ============================================================================
+ *
  *                              If
  *  Conditional statement that executes statements if the conditional expression
  *  evaluates to true.
@@ -3306,6 +3397,7 @@ struct MacroUse : ASTNode {
 
     std::string macroName;
     std::vector<ASTNode *> args;
+    std::set<ASTNode*> leaveMeAloneArgs;
 
     const Type * result_t = nullptr;
 

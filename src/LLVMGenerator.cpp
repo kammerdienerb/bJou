@@ -83,16 +83,23 @@ void LLVMGenerator::generate() {
     std::error_code EC;
 
     if (!(compilation->args.c_arg && compilation->args.emitllvm_arg)) {
-        dest = new llvm::raw_fd_ostream(
-            (compilation->outputpath + compilation->outputbasefilename + ".o"),
-            EC, llvm::sys::fs::F_None);
+        std::string output;
+        if (!compilation->args.output_arg.empty()) {
+            output = compilation->args.output_arg;
+            if (!compilation->args.c_arg)
+                output += ".o";
+        } else {
+            output = compilation->outputpath + compilation->outputbasefilename + ".o";
+        }
+
+        dest = new llvm::raw_fd_ostream(output, EC, llvm::sys::fs::F_None);
 
         if (EC)
             error(Context(),
-                  "Could not open output file for object code emission.");
+                    "Could not open output file for object code emission.");
 
         if (backEnd.defaultTargetMachine->addPassesToEmitFile(pass, *dest,
-                                                              ftype))
+                    ftype))
             error(Context(), "TargetMachine can't emit a file of this type");
     }
 
@@ -104,9 +111,16 @@ void LLVMGenerator::generate() {
     }
 
     if (compilation->args.emitllvm_arg) {
-        llvm::raw_fd_ostream ll_dest(
-            (compilation->outputpath + compilation->outputbasefilename + ".ll"),
-            EC, llvm::sys::fs::F_None);
+        std::string output;
+        if (!compilation->args.output_arg.empty()) {
+            output = compilation->args.output_arg;
+            if (!compilation->args.c_arg)
+                output += ".ll";
+        } else {
+            output = compilation->outputpath + compilation->outputbasefilename + ".ll";
+        }
+
+        llvm::raw_fd_ostream ll_dest(output, EC, llvm::sys::fs::F_None);
 
         backEnd.llModule->print(ll_dest, nullptr, true);
     }

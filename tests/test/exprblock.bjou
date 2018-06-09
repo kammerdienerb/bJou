@@ -1,0 +1,44 @@
+# eb.bjou
+# test expression blocks
+
+main()
+
+type Point {
+    x : float
+    y : float
+}
+
+proc main() {
+    str := << if -100 < -1 <-"blocks" else <-":(" >>
+    print "%", str
+
+    i := 1.23
+    j := 4.56
+    print "%", i
+    r : f32 ref = << if j > 0 <-getref(i) else <-j >>
+    r = 0.0
+    print "%", i
+
+    origin := { Point: }
+    p      := { Point: .x = 7.89, .y = 3.14159 }
+
+    print "origin = %", origin
+    print "p      = %", p
+
+    << if r > 0.0 <-getref(origin) else <-getref(p) >>
+        .x *= 2
+    print "p      = %", p
+
+    print "%", <<
+        if true
+            <- <<
+                k := 0
+                while k < 10
+                    k += 1
+                <-k
+            >>
+        else <- <<
+            <- -1
+        >>
+    >>
+}
