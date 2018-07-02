@@ -45,7 +45,7 @@ D_CFLAGS 	= -I$(INCLUDE) -I$(TCLAP_INCLUDE) -DBJOU_USE_COLOR -DBJOU_DEBUG_BUILD 
 LLVM_LIBS	= $(shell $(LLVM_CFG) --libs all --system-libs)
 TCMLC_PATH  = /usr/local/lib/libtcmalloc.a
 JEMLC_PATH  = /usr/local/lib/libjemalloc.a
-R_LFLAGS	= $(shell $(LLVM_CFG) --ldflags) $(LLVM_LIBS) -lffi
+R_LFLAGS	= $(shell $(LLVM_CFG) --ldflags) $(LLVM_LIBS) -lffi -lpthread
 ifneq ("$(wildcard $(TCMLC_PATH))","")
 	R_LFLAGS += -ltcmalloc
 else ifneq ("$(wildcard $(JEMLC_PATH))", "")

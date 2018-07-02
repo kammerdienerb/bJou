@@ -1,0 +1,5 @@
+bJou
+    filter remove_inline #.*$
+    extension bjou
+    3rd_gen_scale 1.25
+

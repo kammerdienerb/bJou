@@ -38,6 +38,7 @@
 #include "LLVMGenerator.hpp"
 #include "Misc.hpp"
 #include "Type.hpp"
+#include "CompilerAPI.hpp"
 
 #ifdef BJOU_DEBUG_BUILD
 #define SAVE_BJOU_DEBUG_BUILD
@@ -203,6 +204,92 @@ void LLVMBackEnd::jit_reset() {
         error(COMPILER_SRC_CONTEXT(), "LLVM:", true, err_str);
         internalError("There was an llvm error.");
     }
+
+    // add mappings to bJou compiler API functions
+    ee->addGlobalMapping("StartDefaultCompilation", (uint64_t)&bjou_StartDefaultCompilation);
+    ee->addGlobalMapping("dump", (uint64_t)&bjou_dump);
+    ee->addGlobalMapping("makeUID", (uint64_t)&bjou_makeUID);
+    ee->addGlobalMapping("createContext", (uint64_t)&bjou_createContext);
+    ee->addGlobalMapping("getContext", (uint64_t)&bjou_getContext);
+    ee->addGlobalMapping("setContext", (uint64_t)&bjou_setContext);
+    ee->addGlobalMapping("setProcNameContext", (uint64_t)&bjou_setProcNameContext);
+    ee->addGlobalMapping("setVarDeclNameContext", (uint64_t)&bjou_setVarDeclNameContext);
+    ee->addGlobalMapping("setStructNameContext", (uint64_t)&bjou_setStructNameContext);
+    ee->addGlobalMapping("setAliasNameContext", (uint64_t)&bjou_setAliasNameContext);
+    ee->addGlobalMapping("freeContext", (uint64_t)&bjou_freeContext);
+    ee->addGlobalMapping("error", (uint64_t)&bjou_error);
+    ee->addGlobalMapping("getVersionString", (uint64_t)&bjou_getVersionString);
+    ee->addGlobalMapping("parseToMultiNode", (uint64_t)&bjou_parseToMultiNode);
+    ee->addGlobalMapping("parseAndAppend", (uint64_t)&bjou_parseAndAppend);
+    ee->addGlobalMapping("appendNode", (uint64_t)&bjou_appendNode);
+    ee->addGlobalMapping("runTypeCompletion", (uint64_t)&bjou_runTypeCompletion);
+    ee->addGlobalMapping("setGlobalNodeRP", (uint64_t)&bjou_setGlobalNodeRP);
+    ee->addGlobalMapping("getGlobalScope", (uint64_t)&bjou_getGlobalScope);
+    ee->addGlobalMapping("clone", (uint64_t)&bjou_clone);
+    ee->addGlobalMapping("preDeclare", (uint64_t)&bjou_preDeclare);
+    ee->addGlobalMapping("addSymbols", (uint64_t)&bjou_addSymbols);
+    ee->addGlobalMapping("analyze", (uint64_t)&bjou_analyze);
+    ee->addGlobalMapping("forceAnalyze", (uint64_t)&bjou_forceAnalyze);
+    ee->addGlobalMapping("getStructName", (uint64_t)&bjou_getStructName);
+    ee->addGlobalMapping("setVarDeclName", (uint64_t)&bjou_setVarDeclName);
+    ee->addGlobalMapping("createAddExpression", (uint64_t)&bjou_createAddExpression);
+    ee->addGlobalMapping("createSubExpression", (uint64_t)&bjou_createSubExpression);
+    ee->addGlobalMapping("createMultExpression", (uint64_t)&bjou_createMultExpression);
+    ee->addGlobalMapping("createDivExpression", (uint64_t)&bjou_createDivExpression);
+    ee->addGlobalMapping("createModExpression", (uint64_t)&bjou_createModExpression);
+    ee->addGlobalMapping("createAssignmentExpression", (uint64_t)&bjou_createAssignmentExpression);
+    ee->addGlobalMapping("createAddAssignExpression", (uint64_t)&bjou_createAddAssignExpression);
+    ee->addGlobalMapping("createSubAssignExpression", (uint64_t)&bjou_createSubAssignExpression);
+    ee->addGlobalMapping("createMultAssignExpression", (uint64_t)&bjou_createMultAssignExpression);
+    ee->addGlobalMapping("createDivAssignExpression", (uint64_t)&bjou_createDivAssignExpression);
+    ee->addGlobalMapping("createModAssignExpression", (uint64_t)&bjou_createModAssignExpression);
+    ee->addGlobalMapping("createLssExpression", (uint64_t)&bjou_createLssExpression);
+    ee->addGlobalMapping("createLeqExpression", (uint64_t)&bjou_createLeqExpression);
+    ee->addGlobalMapping("createLeqExpression", (uint64_t)&bjou_createLeqExpression);
+    ee->addGlobalMapping("createGtrExpression", (uint64_t)&bjou_createGtrExpression);
+    ee->addGlobalMapping("createGeqExpression", (uint64_t)&bjou_createGeqExpression);
+    ee->addGlobalMapping("createEquExpression", (uint64_t)&bjou_createEquExpression);
+    ee->addGlobalMapping("createNeqExpression", (uint64_t)&bjou_createNeqExpression);
+    ee->addGlobalMapping("createLogAndExpression", (uint64_t)&bjou_createLogAndExpression);
+    ee->addGlobalMapping("createLogOrExpression", (uint64_t)&bjou_createLogOrExpression);
+    ee->addGlobalMapping("createCallExpression", (uint64_t)&bjou_createCallExpression);
+    ee->addGlobalMapping("createSubscriptExpression", (uint64_t)&bjou_createSubscriptExpression);
+    ee->addGlobalMapping("createAccessExpression", (uint64_t)&bjou_createAccessExpression);
+    ee->addGlobalMapping("createInjectExpression", (uint64_t)&bjou_createInjectExpression);
+    ee->addGlobalMapping("createNewExpression", (uint64_t)&bjou_createNewExpression);
+    ee->addGlobalMapping("createDeleteExpression", (uint64_t)&bjou_createDeleteExpression);
+    ee->addGlobalMapping("createSizeofExpression", (uint64_t)&bjou_createSizeofExpression);
+    ee->addGlobalMapping("createNotExpression", (uint64_t)&bjou_createNotExpression);
+    ee->addGlobalMapping("createDerefExpression", (uint64_t)&bjou_createDerefExpression);
+    ee->addGlobalMapping("createAddressExpression", (uint64_t)&bjou_createAddressExpression);
+    ee->addGlobalMapping("createRefExpression", (uint64_t)&bjou_createRefExpression);
+    ee->addGlobalMapping("createAsExpression", (uint64_t)&bjou_createAsExpression);
+    ee->addGlobalMapping("createIdentifier", (uint64_t)&bjou_createIdentifier);
+    ee->addGlobalMapping("createBooleanLiteral", (uint64_t)&bjou_createBooleanLiteral);
+    ee->addGlobalMapping("createIntegerLiteral", (uint64_t)&bjou_createIntegerLiteral);
+    ee->addGlobalMapping("createFloatLiteral", (uint64_t)&bjou_createFloatLiteral);
+    ee->addGlobalMapping("createStringLiteral", (uint64_t)&bjou_createStringLiteral);
+    ee->addGlobalMapping("createCharLiteral", (uint64_t)&bjou_createCharLiteral);
+    ee->addGlobalMapping("createDeclarator", (uint64_t)&bjou_createDeclarator);
+    ee->addGlobalMapping("createArrayDeclarator", (uint64_t)&bjou_createArrayDeclarator);
+    ee->addGlobalMapping("createPointerDeclarator", (uint64_t)&bjou_createPointerDeclarator);
+    ee->addGlobalMapping("createVariableDeclaration", (uint64_t)&bjou_createVariableDeclaration);
+    ee->addGlobalMapping("createFieldDeclaration", (uint64_t)&bjou_createFieldDeclaration);
+    ee->addGlobalMapping("createParamDeclaration", (uint64_t)&bjou_createParamDeclaration);
+    ee->addGlobalMapping("createAlias", (uint64_t)&bjou_createAlias);
+    ee->addGlobalMapping("createStruct", (uint64_t)&bjou_createStruct);
+    ee->addGlobalMapping("createArgList", (uint64_t)&bjou_createArgList);
+    ee->addGlobalMapping("createExternProcedure", (uint64_t)&bjou_createExternProcedure);
+    ee->addGlobalMapping("createReturn", (uint64_t)&bjou_createReturn);
+    ee->addGlobalMapping("createBreak", (uint64_t)&bjou_createBreak);
+    ee->addGlobalMapping("createContinue", (uint64_t)&bjou_createContinue);
+    ee->addGlobalMapping("createIf", (uint64_t)&bjou_createIf);
+    ee->addGlobalMapping("createElse", (uint64_t)&bjou_createElse);
+    ee->addGlobalMapping("createFor", (uint64_t)&bjou_createFor);
+    ee->addGlobalMapping("createWhile", (uint64_t)&bjou_createWhile);
+    ee->addGlobalMapping("createDoWhile", (uint64_t)&bjou_createDoWhile);
+    ee->addGlobalMapping("createMacroUse", (uint64_t)&bjou_createMacroUse);
+
 }
 
 LLVMBackEnd::~LLVMBackEnd() {

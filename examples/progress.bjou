@@ -1,4 +1,4 @@
-# progressbar.bjou
+# progress.bjou
 
 import "cli.bjou"
 import "progressbar.bjou"
@@ -8,7 +8,8 @@ import "c/time.bjou"
 import "c/sleep.bjou"
 
 \run{ main() }
-main()
+\front{ true }
+# main()
 
 proc main() {
     seedrand(time())
