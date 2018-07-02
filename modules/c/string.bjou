@@ -1,0 +1,9 @@
+# c/string.bjou
+
+module c_string
+
+extern strchr(char*, char) : char*
+extern strtol(char*, char**, int) : i64
+extern sscanf(char*, char*, ...) : int
+extern sprintf(char*, char*, ...) : int
+extern strcpy(char*, char*) : char*

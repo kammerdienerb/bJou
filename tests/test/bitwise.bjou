@@ -1,0 +1,16 @@
+# bitwise.bjou
+
+main()
+
+proc main() {
+    a : u32 = 1431655765
+    b := bneg a
+    print "%", b
+    print "%", a band b
+    print "%", a bor b
+    print "%", a bxor 253
+    print "%", a bshr 3
+    print "%", b bshl 5
+    print "%", (b as u64) bshl 5
+    print "%", bneg (b as u64) bshl 5
+}

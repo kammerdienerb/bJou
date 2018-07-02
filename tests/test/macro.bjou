@@ -7,7 +7,8 @@ type T$(U, V) {
         \static_if{not \same_type{U V}
             print "U != V"}
         \static_if{\same_type{U float}
-            panic(0, "panic: U was float!")}
+            print "panic: U was float!"
+            exit(0)}
     }
 }
 

@@ -1,0 +1,71 @@
+# progressbar.bjou
+
+module progressbar
+
+import "cli.bjou"
+
+import "c/io.bjou"
+
+extern strdup(char*) : char*
+
+type ProgressBar {
+    total    : u32
+    width    : u32
+    fill     : char*
+    cli_attr : char*
+
+    proc create(total    : u32,
+                width    : u32,
+                fill     : char*,
+                cli_attr : char*) : ProgressBar {
+        f := fill
+        if not f.isnull()
+            f = f.strdup()
+
+        attr := cli_attr 
+        if not attr.isnull()
+            attr = attr.strdup()
+
+        return { ProgressBar:
+            .total    = total,
+            .width    = width,
+            .fill     = f,
+            .cli_attr = attr 
+        }
+    }
+
+    proc free(this) {
+        if not this.cli_attr.isnull()
+            delete this.cli_attr
+        if not this.fill.isnull()
+            delete this.fill
+    }
+
+    proc progress(this, n : u32) {
+        blocks := { "▏","▎","▍","▌","▋","▊","▉","█" }
+
+        perc := (n as f32) / (this.total as f32)
+
+        fill := this.fill
+        if fill.isnull()
+            fill = blocks[(perc * (|blocks| - 1)) as u32]
+
+        attr := this.cli_attr
+        if attr.isnull()
+            attr = ""
+
+        w : u32 = perc * (this.width as f32)
+
+        printf("::█")
+        for i := 0; i < w; i += 1
+            printf("%s%s%s", attr, fill, cli.RESET)
+        for i := 0; i < this.width - w; i += 1
+            printf(" ")
+        printf("█ %u%% (%u/%u)      \r", ((perc * 100) as u32), n, this.total)
+
+        if n == this.total
+            printf("\n")
+ 
+        stdout().fflush()
+    }
+}

@@ -16,6 +16,8 @@ proc p(arg : int ref)
     print "%", stack_array[0]
 
     heap_array := new int[16]
+    for i := 0; i < 16; i += 1
+        heap_array[i] = -1 * i
     slice := [ stack_array, 0:16 ]
     slice = [ heap_array, 0:16 ]
     print "%", slice[5]

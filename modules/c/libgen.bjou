@@ -1,0 +1,16 @@
+# c/libgen.bjou
+
+module c_libgen
+
+import "os.bjou"
+
+\static_if{ os.OS == os.WINDOWS
+    \error { "c/libgen.bjou is not available for Windows." } }
+
+extern basename(char*)          : char*
+extern dirname(char*)           : char*
+
+############################## deprecated
+
+# extern regcmp(char*, ...)       : char*
+# extern regex(char*, char*, ...) : char*

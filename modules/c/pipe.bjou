@@ -1,0 +1,13 @@
+# c/pipe.bjou
+
+module c_pipe
+
+extern pipe(int[2]) : int
+
+type Pipe = (int, int)
+
+proc pipe() : Pipe {
+    fds := { 0, 0 }
+    pipe(fds)
+    return (fds[0], fds[1])
+}

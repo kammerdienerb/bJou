@@ -39,7 +39,14 @@ static void AddOptimizationPasses(llvm::legacy::PassManagerBase & MPM,
 
     if (OptLevel > 1) {
         Builder.Inliner =
-            llvm::createFunctionInliningPass(OptLevel, SizeLevel, false);
+            // llvm::createFunctionInliningPass(OptLevel, SizeLevel, false);
+            llvm::createFunctionInliningPass(
+                OptLevel, SizeLevel
+#if LLVM_VERSION_MAJOR > 4
+                ,
+                false /* DisableInlineHotCallSite */
+#endif
+            );
     } else {
         Builder.Inliner = llvm::createAlwaysInlinerLegacyPass();
     }
@@ -49,11 +56,19 @@ static void AddOptimizationPasses(llvm::legacy::PassManagerBase & MPM,
     Builder.LoopVectorize = OptLevel > 1 && SizeLevel < 2;
     Builder.SLPVectorize = OptLevel > 1 && SizeLevel < 2;
 
-    if (TM)
+    if (TM) {
+#if LLVM_VERSION_MAJOR > 4
         TM->adjustPassManager(Builder);
+#endif
+    }
 
     Builder.populateFunctionPassManager(FPM);
     Builder.populateModulePassManager(MPM);
+
+#if !LLVM_VERSION_MAJOR > 4
+    TM->addEarlyAsPossiblePasses(FPM);
+    TM->addEarlyAsPossiblePasses(MPM);
+#endif
 }
 
 namespace bjou {
@@ -89,17 +104,18 @@ void LLVMGenerator::generate() {
             if (!compilation->args.c_arg)
                 output += ".o";
         } else {
-            output = compilation->outputpath + compilation->outputbasefilename + ".o";
+            output = compilation->outputpath + compilation->outputbasefilename +
+                     ".o";
         }
 
         dest = new llvm::raw_fd_ostream(output, EC, llvm::sys::fs::F_None);
 
         if (EC)
             error(Context(),
-                    "Could not open output file for object code emission.");
+                  "Could not open output file for object code emission.");
 
         if (backEnd.defaultTargetMachine->addPassesToEmitFile(pass, *dest,
-                    ftype))
+                                                              ftype))
             error(Context(), "TargetMachine can't emit a file of this type");
     }
 
@@ -117,7 +133,8 @@ void LLVMGenerator::generate() {
             if (!compilation->args.c_arg)
                 output += ".ll";
         } else {
-            output = compilation->outputpath + compilation->outputbasefilename + ".ll";
+            output = compilation->outputpath + compilation->outputbasefilename +
+                     ".ll";
         }
 
         llvm::raw_fd_ostream ll_dest(output, EC, llvm::sys::fs::F_None);

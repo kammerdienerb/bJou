@@ -28,6 +28,11 @@
 namespace bjou {
 namespace Macros {
 static ASTNode * hello(MacroUse * use) {
+    if (!use->replace->block)
+        errorl(use->getNameContext(),
+               "hello: replaced by nothing -- the code will be missing "
+               "something it depends on.");
+
     printf("compile time hello!\n");
     return nullptr;
 }
@@ -53,6 +58,11 @@ static ASTNode * rand(MacroUse * use) {
 }
 
 static ASTNode * static_if(MacroUse * use) {
+    if (!use->replace->block)
+        errorl(use->getNameContext(),
+               "static_if: If the condition is false, the code will be missing "
+               "something it depends on.");
+
     use->setFlag(ASTNode::CT, true);
 
     // static_if is marked as 'no add symbols' below.
@@ -94,6 +104,10 @@ static ASTNode * same_type(MacroUse * use) {
 }
 
 static ASTNode * run(MacroUse * use) {
+    // @incomplete:
+    // We should be replacing with return values, or raising errors
+    // if there is no value. See the error in static_if
+
     use->setFlag(ASTNode::CT, true);
 
     CallExpression * call = (CallExpression *)use->getArgs()[0];
@@ -152,6 +166,11 @@ static ASTNode * run(MacroUse * use) {
 }
 
 static ASTNode * static_do(MacroUse * use) {
+    if (!use->replace->block)
+        errorl(use->getNameContext(),
+               "static_do: replaced by nothing -- the code will be missing "
+               "something it depends on.");
+
     use->setFlag(ASTNode::CT, true);
 
     Procedure * proc = new Procedure;
@@ -181,6 +200,11 @@ static ASTNode * static_do(MacroUse * use) {
 }
 
 static ASTNode * add_llvm_pass(MacroUse * use) {
+    if (!use->replace->block)
+        errorl(use->getNameContext(),
+               "add_llvm_pass: replaced by nothing -- the code will be missing "
+               "something it depends on.");
+
     ASTNode * p = use->parent;
     while (p && p->nodeKind == ASTNode::MULTINODE)
         p = p->parent;
@@ -206,6 +230,11 @@ static ASTNode * add_llvm_pass(MacroUse * use) {
 }
 
 static ASTNode * add_llvm_passes(MacroUse * use) {
+    if (!use->replace->block)
+        errorl(use->getNameContext(),
+               "add_llvm_passes: replaced by nothing -- the code will be "
+               "missing something it depends on.");
+
     ASTNode * p = use->parent;
     while (p && p->nodeKind == ASTNode::MULTINODE)
         p = p->parent;
@@ -249,6 +278,11 @@ static ASTNode * ct(MacroUse * use) {
 }
 
 static ASTNode * op(MacroUse * use) {
+    if (!use->replace->block)
+        errorl(use->getNameContext(),
+               "op: replaced by nothing -- the code will be missing something "
+               "it depends on.");
+
     const char * overloadable[]{"+", "<", ">", "[]", "==", "!="};
 
     ASTNode * op_arg = use->getArgs()[0];
@@ -568,6 +602,11 @@ static ASTNode * typeisfloat(MacroUse * use) {
 }
 
 static ASTNode * front(MacroUse * use) {
+    if (!use->replace->block)
+        errorl(use->getNameContext(),
+               "front: replaced by nothing -- the code will be missing "
+               "something it depends on.");
+
     use->getArgs()[0]->analyze();
 
     bool f = ((Expression *)use->getArgs()[0])->eval().as_i64;
@@ -596,6 +635,69 @@ static ASTNode * canfindmodule(MacroUse * use) {
     in.close();
 
     return result;
+}
+
+static ASTNode * die(MacroUse * use) {
+    Expression * expr = (Expression *)use->getArgs()[0];
+    expr->analyze();
+
+    const Type * t = expr->getType()->unRef();
+
+    if (!t->isInt() &&
+        !((t->isPointer() || t->isArray()) && t->under()->isChar())) {
+        errorl(expr->getContext(),
+               "die: Expression is not an errcode (int) or a message (char*).",
+               true, "got '" + t->getDemangledName() + "'");
+    }
+
+    CallExpression * call = new CallExpression;
+    call->setScope(use->getScope());
+    call->setContext(use->getContext());
+
+    Identifier * ident = new Identifier;
+    ident->setScope(use->getScope());
+    ident->setContext(use->getContext());
+    ident->setUnqualified("__die");
+
+    ArgList * args = new ArgList;
+    args->setScope(use->getScope());
+    args->setContext(use->getContext());
+
+    StringLiteral * fl = new StringLiteral;
+    fl->setScope(use->getScope());
+    fl->setContext(use->getContext());
+    fl->setContents(use->getContext().filename);
+
+    StringLiteral * pn = new StringLiteral;
+    pn->setScope(use->getScope());
+    pn->setContext(use->getContext());
+    ASTNode * p = use->getParent();
+    while (p && p->nodeKind != ASTNode::PROCEDURE)
+        p = p->getParent();
+    if (p) {
+        pn->setContents(((Procedure *)p)->getName());
+    } else {
+        pn->setContents("global statement");
+    }
+
+    IntegerLiteral * ln = new IntegerLiteral;
+    ln->setScope(use->getScope());
+    ln->setContext(use->getContext());
+    ln->setContents(std::to_string(use->getContext().begin.line));
+
+    fl->analyze();
+    pn->analyze();
+    ln->analyze();
+
+    args->addExpression(expr->clone());
+    args->addExpression(fl);
+    args->addExpression(pn);
+    args->addExpression(ln);
+
+    call->setLeft(ident);
+    call->setRight(args);
+
+    return call;
 }
 
 } // namespace Macros
@@ -675,6 +777,7 @@ MacroManager::MacroManager() {
     macros["canfindmodule"] = {"canfindmodule",
                                Macros::canfindmodule,
                                {{ASTNode::NodeKind::STRING_LITERAL}}};
+    macros["die"] = {"die", Macros::die, {{ANY_EXPRESSION}}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {

@@ -1,0 +1,33 @@
+# __errcode.bjou
+
+module __errcode
+
+extern memset(void*, int, u64) : void*
+
+type errcode = int
+
+const NO_ERR            := 0
+const ERR_BAD_ARG       := 22
+const ERR_NAME_TOO_LONG := 63
+const ERR_BAD_INPUT     := 111
+
+proc errstr(err : errcode) : char* {
+    if err <= NO_ERR
+    or err >= 128
+        return ""
+    
+    strs : char*[128]
+    memset(strs as void*, 0, 128)
+
+    strs[22]  = "Invalid argument"
+    strs[63]  = "Filename too long"
+    strs[111] = "Bad input"
+
+
+    s := strs[err]
+
+    if (@((&s) as u64*)) == 0
+        return ""
+
+    return s
+}

@@ -69,7 +69,7 @@ void FrontEnd::fix_typeinfo_v_table_size() {
 FrontEnd::FrontEnd()
     : typeinfo_struct(nullptr), printf_decl(nullptr), malloc_decl(nullptr),
       free_decl(nullptr), memset_decl(nullptr), memcpy_decl(nullptr),
-      n_nodes(0), n_primatives(0) {
+      __bjou_rt_init_def(nullptr), n_nodes(0), n_primatives(0) {
 
     ctruntime = milliseconds::zero();
 

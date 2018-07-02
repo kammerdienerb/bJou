@@ -108,17 +108,23 @@ MaybeString parser_kwd_new(StringViewableBuffer & buff);
 MaybeString parser_kwd_proc(StringViewableBuffer & buff);
 MaybeString parser_kwd_extern(StringViewableBuffer & buff);
 MaybeString parser_kwd_some(StringViewableBuffer & buff);
+MaybeString parser_kwd_bneg(StringViewableBuffer & buff);
 MaybeString parser_mult(StringViewableBuffer & buff);
 MaybeString parser_div(StringViewableBuffer & buff);
 MaybeString parser_mod(StringViewableBuffer & buff);
 MaybeString parser_plus(StringViewableBuffer & buff);
 MaybeString parser_minus(StringViewableBuffer & buff);
+MaybeString parser_kwd_bshl(StringViewableBuffer & buff);
+MaybeString parser_kwd_bshr(StringViewableBuffer & buff);
 MaybeString parser_lss(StringViewableBuffer & buff);
 MaybeString parser_leq(StringViewableBuffer & buff);
 MaybeString parser_gtr(StringViewableBuffer & buff);
 MaybeString parser_geq(StringViewableBuffer & buff);
 MaybeString parser_equ(StringViewableBuffer & buff);
 MaybeString parser_neq(StringViewableBuffer & buff);
+MaybeString parser_kwd_band(StringViewableBuffer & buff);
+MaybeString parser_kwd_bxor(StringViewableBuffer & buff);
+MaybeString parser_kwd_bor(StringViewableBuffer & buff);
 MaybeString parser_and(StringViewableBuffer & buff);
 MaybeString parser_kwd_and(StringViewableBuffer & buff);
 MaybeString parser_or(StringViewableBuffer & buff);
@@ -218,17 +224,23 @@ enum TokenKind {
     KWD_PROC,
     KWD_EXTERN,
     KWD_SOME,
+    KWD_BNEG,
     MULT,
     DIV,
     MOD,
     PLUS,
     MINUS,
+    KWD_BSHL,
+    KWD_BSHR,
     LSS,
     LEQ,
     GTR,
     GEQ,
     EQU,
     NEQ,
+    KWD_BAND,
+    KWD_BXOR,
+    KWD_BOR,
     AND,
     KWD_AND,
     OR,

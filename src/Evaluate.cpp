@@ -72,6 +72,30 @@ Val evalSub(Val & a, Val & b, const Type * t) {
     return result;
 }
 
+Val evalBSHL(Val & a, Val & b, const Type * t) {
+    Val result;
+    result.t = t;
+
+    if (t->isInt())
+        result.as_i64 = _evalBSHL<int64_t>(a, b);
+    else
+        internalError("Could not evaluate BSHL expression.");
+
+    return result;
+}
+
+Val evalBSHR(Val & a, Val & b, const Type * t) {
+    Val result;
+    result.t = t;
+
+    if (t->isInt())
+        result.as_i64 = _evalBSHR<int64_t>(a, b);
+    else
+        internalError("Could not evaluate BSHR expression.");
+
+    return result;
+}
+
 Val evalMult(Val & a, Val & b, const Type * t) {
     Val result;
     result.t = t;
@@ -122,6 +146,18 @@ Val evalNot(Val & a, const Type * t) {
         result.as_f64 = _evalNot<double>(a);
     } else
         internalError("Could not evaluate not expression.");
+
+    return result;
+}
+
+Val evalBNEG(Val & a, const Type * t) {
+    Val result;
+    result.t = t;
+
+    if (t->isInt())
+        result.as_i64 = _evalBNEG<int64_t>(a);
+    else
+        internalError("Could not evaluate bneg expression.");
 
     return result;
 }
@@ -181,4 +217,41 @@ Val evalLogOr(Val & a, Val & b, const Type * t) {
 
     return result;
 }
+
+Val evalBAND(Val & a, Val & b, const Type * t) {
+    Val result;
+    result.t = t;
+
+    if (t->isInt())
+        result.as_i64 = _evalBAND<int64_t>(a, b);
+    else
+        internalError("Could not evaluate band expression.");
+
+    return result;
+}
+
+Val evalBOR(Val & a, Val & b, const Type * t) {
+    Val result;
+    result.t = t;
+
+    if (t->isInt())
+        result.as_i64 = _evalBOR<int64_t>(a, b);
+    else
+        internalError("Could not evaluate bor expression.");
+
+    return result;
+}
+
+Val evalBXOR(Val & a, Val & b, const Type * t) {
+    Val result;
+    result.t = t;
+
+    if (t->isInt())
+        result.as_i64 = _evalBXOR<int64_t>(a, b);
+    else
+        internalError("Could not evaluate bxor expression.");
+
+    return result;
+}
+
 } // namespace bjou

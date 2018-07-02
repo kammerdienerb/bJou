@@ -10,7 +10,9 @@
 
 #include <algorithm>
 #include <future>
+#include <sys/wait.h>
 #include <unordered_map>
+#include <vector>
 
 // #include <llvm/CodeGen/CommandFlags.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
@@ -24,6 +26,8 @@
 #include <llvm/Transforms/IPO/AlwaysInliner.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Scalar.h>
+
+#include <llvm/Config/llvm-config.h>
 
 #include "ASTNode.hpp"
 #include "CLI.hpp"
@@ -87,20 +91,21 @@ void LLVMBackEnd::init() {
     llvm::initializeInstCombine(Registry);
     llvm::initializeInstrumentation(Registry);
     llvm::initializeTarget(Registry);
+    llvm::initializeCodeGen(Registry);
     // For codegen passes, only passes that do IR to IR transformation are
     // supported.
-    llvm::initializeCodeGenPreparePass(Registry);
-    llvm::initializeAtomicExpandPass(Registry);
-    llvm::initializeRewriteSymbolsLegacyPassPass(Registry);
-    llvm::initializeWinEHPreparePass(Registry);
-    llvm::initializeDwarfEHPreparePass(Registry);
-    llvm::initializeSafeStackLegacyPassPass(Registry);
-    llvm::initializeSjLjEHPreparePass(Registry);
-    llvm::initializePreISelIntrinsicLoweringLegacyPassPass(Registry);
-    llvm::initializeGlobalMergePass(Registry);
-    llvm::initializeInterleavedAccessPass(Registry);
-    // llvm::initializeCountingFunctionInserterPass(Registry);
-    llvm::initializeUnreachableBlockElimLegacyPassPass(Registry);
+    /* llvm::initializeCodeGenPreparePass(Registry); */
+    /* llvm::initializeAtomicExpandPass(Registry); */
+    /* llvm::initializeRewriteSymbolsLegacyPassPass(Registry); */
+    /* llvm::initializeWinEHPreparePass(Registry); */
+    /* llvm::initializeDwarfEHPreparePass(Registry); */
+    /* llvm::initializeSafeStackLegacyPassPass(Registry); */
+    /* llvm::initializeSjLjEHPreparePass(Registry); */
+    /* llvm::initializePreISelIntrinsicLoweringLegacyPassPass(Registry); */
+    /* llvm::initializeGlobalMergePass(Registry); */
+    /* llvm::initializeInterleavedAccessPass(Registry); */
+    /* // llvm::initializeCountingFunctionInserterPass(Registry); */
+    /* llvm::initializeUnreachableBlockElimLegacyPassPass(Registry); */
 
     // set up target and triple
     defaultTriple = llvm::sys::getDefaultTargetTriple();
@@ -245,6 +250,7 @@ void * LLVMBackEnd::run(Procedure * proc, void * _val_args) {
     getOrGenNode(compilation->frontEnd.free_decl);
     getOrGenNode(compilation->frontEnd.memset_decl);
     getOrGenNode(compilation->frontEnd.memcpy_decl);
+    getOrGenNode(compilation->frontEnd.__bjou_rt_init_def);
 
     llvm::Function * fn = (llvm::Function *)getOrGenNode(proc);
     std::string name = fn->getName().str();
@@ -524,8 +530,15 @@ void LLVMBackEnd::addProcedurePass(Procedure * proc, std::string pass_name) {
         fpass->add(createTargetTransformInfoWrapperPass(
             defaultTargetMachine->getTargetIRAnalysis()));
 
+#if LLVM_VERSION_MAJOR > 4
         defaultTargetMachine->adjustPassManager(Builder);
+#endif
+
         Builder.populateFunctionPassManager(*fpass);
+
+#if !LLVM_VERSION_MAJOR > 4
+        defaultTargetMachine->addEarlyAsPossiblePasses(*fpass);
+#endif
 
         fpass->add(pass_create_by_name["earlycse"]());
 
@@ -741,9 +754,7 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
 
         return gvar;
     } else {
-        size_t align = llbe->layout->getTypeAllocSize(ll_t);
-        // nearest power of 2
-        align = pow(2, ceil(log(align) / log(2)));
+        auto align = llbe->layout->getABITypeAlignment(ll_t);
 
         if (t->isArray()) {
             PointerType * ptr_t = (PointerType *)t->under()->getPointer();
@@ -810,6 +821,7 @@ milliseconds LLVMBackEnd::CodeGenStage() {
     getOrGenNode(compilation->frontEnd.free_decl);
     getOrGenNode(compilation->frontEnd.memset_decl);
     getOrGenNode(compilation->frontEnd.memcpy_decl);
+    getOrGenNode(compilation->frontEnd.__bjou_rt_init_def);
 
     // global variables and constants may reference procs
     // or types that have not been declared yet
@@ -1305,9 +1317,9 @@ llvm::Function * LLVMBackEnd::createMainEntryPoint() {
         if (node->isStatement()) {
             genDeps(node, *this);
         } else if (node->nodeKind == ASTNode::MULTINODE) {
-            std::vector<ASTNode*> subNodes;
+            std::vector<ASTNode *> subNodes;
 
-            ((MultiNode*)node)->flatten(subNodes);
+            ((MultiNode *)node)->flatten(subNodes);
 
             for (ASTNode * sub : subNodes)
                 if (sub->isStatement())
@@ -1323,13 +1335,21 @@ void LLVMBackEnd::completeMainEntryPoint(llvm::Function * func) {
 
     builder.SetInsertPoint(&func->back());
 
+    llvm::Function * rt_init_fn = llModule->getFunction(
+        compilation->frontEnd.__bjou_rt_init_def->getMangledName());
+    BJOU_DEBUG_ASSERT(rt_init_fn);
+    std::vector<llvm::Value *> args;
+    args.push_back(getNamedVal("__bjou_main_arg0"));
+    args.push_back(getNamedVal("__bjou_main_arg1"));
+    builder.CreateCall(rt_init_fn, args);
+
     for (ASTNode * node : compilation->frontEnd.AST) {
         if (node->isStatement()) {
             getOrGenNode(node);
         } else if (node->nodeKind == ASTNode::MULTINODE) {
-            std::vector<ASTNode*> subNodes;
+            std::vector<ASTNode *> subNodes;
 
-            ((MultiNode*)node)->flatten(subNodes);
+            ((MultiNode *)node)->flatten(subNodes);
 
             for (ASTNode * sub : subNodes)
                 if (sub->isStatement())
@@ -1646,6 +1666,24 @@ void * SubExpression::generate(BackEnd & backEnd, bool flag) {
     return nullptr;
 }
 
+void * BSHLExpression::generate(BackEnd & backEnd, bool flag) {
+    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
+
+    return llbe->builder.CreateShl(lv, rv);
+}
+
+void * BSHRExpression::generate(BackEnd & backEnd, bool flag) {
+    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
+
+    return llbe->builder.CreateLShr(lv, rv);
+}
+
 void * MultExpression::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
@@ -1714,7 +1752,13 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
     llvm::Value *lv = (llvm::Value *)getLeft()->generate(backEnd, true),
                 *rv = nullptr;
 
-    if (getLeft()->getType()->isStruct()) { // do memcpy
+    const Type * lt = getLeft()->getType()->unRef();
+    if (lt->isDynamicArray())
+        lt = ((DynamicArrayType *)lt)->getRealType();
+    else if (lt->isSlice())
+        lt = ((SliceType *)lt)->getRealType();
+
+    if (lt->isStruct()) { // do memcpy
         rv = (llvm::Value *)getRight()->generate(backEnd, true);
 
         static bool checked_memcpy = false;
@@ -1754,7 +1798,7 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
             store->setAlignment(sizeof(void *));
     }
 
-    if (getAddr)
+    if (getAddr || lt->isStruct())
         return lv;
 
     return llbe->builder.CreateLoad(lv, "assign_load");
@@ -2087,6 +2131,33 @@ void * LogOrExpression::generate(BackEnd & backEnd, bool flag) {
     return phi;
 }
 
+void * BANDExpression::generate(BackEnd & backEnd, bool flag) {
+    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
+
+    return llbe->builder.CreateAnd(lv, rv);
+}
+
+void * BORExpression::generate(BackEnd & backEnd, bool flag) {
+    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
+
+    return llbe->builder.CreateOr(lv, rv);
+}
+
+void * BXORExpression::generate(BackEnd & backEnd, bool flag) {
+    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+    llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
+
+    return llbe->builder.CreateXor(lv, rv);
+}
+
 static llvm::Value * generateInterfaceFn(BackEnd & backEnd,
                                          CallExpression * call_expr,
                                          llvm::Value * obj_ptr) {
@@ -2273,16 +2344,32 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
         }
     }
 
-    for (int ibyval : byvals)
+    for (int ibyval : byvals) {
+#if LLVM_VERSION_MAJOR > 4
         callinst->addParamAttr(ibyval, llvm::Attribute::ByVal);
+#else
+        auto attrs = callinst->getAttributes();
+        attrs = attrs.addAttribute(llbe->llContext, ibyval + 1,
+                                   llvm::Attribute::ByVal);
+        callinst->setAttributes(attrs);
+#endif
+    }
     for (int ibyref : byrefs) {
         const Type * param_t = payload->t->getParamTypes()[ibyref]->unRef();
         unsigned int size = simpleSizer(param_t);
         if (!size)
             size = 1;
-        callinst->addParamAttr(ibyref,
-                               llvm::Attribute::getWithDereferenceableBytes(
-                                   llbe->llContext, size));
+
+        llvm::Attribute attr =
+            llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size);
+
+#if LLVM_VERSION_MAJOR > 4
+        callinst->addParamAttr(ibyref, attr);
+#else
+        auto attrs = callinst->getAttributes();
+        attrs = attrs.addAttribute(llbe->llContext, ibyref + 1, attr);
+        callinst->setAttributes(attrs);
+#endif
     }
     for (int al : ptralign) {
         // callinst->addParamAttr(al, llvm::Attribute::getWithAlignment(
@@ -2630,6 +2717,14 @@ void * NotExpression::generate(BackEnd & backEnd, bool flag) {
         (llvm::Value *)llbe->getOrGenNode(getRight()));
 }
 
+void * BNEGExpression::generate(BackEnd & backEnd, bool flag) {
+    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+    llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
+
+    return llbe->builder.CreateNot(rv);
+}
+
 void * DerefExpression::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
@@ -2752,8 +2847,23 @@ void * BooleanLiteral::generate(BackEnd & backEnd, bool flag) {
 
 void * IntegerLiteral::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
-    return llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext),
-                                  getContents(), 10); // base 10
+
+    const Type * t = getType();
+    llvm::Type * ll_t = llbe->getOrGenType(t);
+
+    std::stringstream ss(getContents());
+    uint64_t V;
+    int64_t Vi;
+    ss >> V;
+    if (!ss) {
+        ss.clear();
+        ss.str(getContents());
+        ss >> Vi;
+        V = Vi;
+    }
+
+    return llvm::ConstantInt::get(ll_t, V,
+                                  ((IntType *)t)->sign == Type::Sign::SIGNED);
 }
 
 void * FloatLiteral::generate(BackEnd & backEnd, bool flag) {
@@ -2927,6 +3037,11 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
     const Type * myt = getType();
+    if (myt->isDynamicArray())
+        myt = ((DynamicArrayType *)myt)->getRealType();
+    if (myt->isSlice())
+        myt = ((SliceType *)myt)->getRealType();
+
     std::vector<ASTNode *> & expressions = getExpressions();
     llvm::Type * ll_t = (llvm::Type *)llbe->getOrGenType(myt);
     llvm::AllocaInst * alloca = nullptr;
@@ -3086,7 +3201,7 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
             llbe->builder.CreateCall(func, args);
         }
 
-        if (getAddr)
+        if (getAddr || x86::ABIClassForType(*llbe, myt) == x86::MEMORY)
             return ptr;
 
         ldptr = llbe->builder.CreateLoad(alloca, "structinitializer_ld");
@@ -3261,8 +3376,13 @@ static void gen_printf_fmt(BackEnd & backEnd, llvm::Value * val, const Type * t,
             const Type * mem_t = s_t->memberTypes[i];
             llvm::Value * mem_val = gep_by_index(
                 backEnd, llbe->getOrGenType(s_t), val, i + typeinfo_offset);
-            if (!mem_t->isStruct())
+            if (mem_t->isArray()) {
+                mem_val = gep_by_index(
+                    backEnd, mem_val->getType()->getPointerElementType(),
+                    mem_val, 0);
+            } else if (!mem_t->isStruct()) {
                 mem_val = llbe->builder.CreateLoad(mem_val);
+            }
             gen_printf_fmt(backEnd, mem_val, s_t->memberTypes[i], fmt, vals);
             if (i < (int)s_t->memberTypes.size() - 1)
                 fmt += ", ";
@@ -3338,10 +3458,11 @@ void * Print::generate(BackEnd & backEnd, bool flag) {
                     val = llbe->builder.CreateLoad(val, "loadRef");
                 }
                 t = t->unRef();
-            } else
-                val = t->isStruct()
-                          ? (llvm::Value *)llbe->getOrGenNode(expr, true)
-                          : (llvm::Value *)llbe->getOrGenNode(expr);
+            } else if (t->isStruct()) {
+                val = (llvm::Value *)llbe->getOrGenNode(expr, true);
+            } else {
+                val = (llvm::Value *)llbe->getOrGenNode(expr);
+            }
 
             gen_printf_fmt(backEnd, val, t, fmt, vals);
 
@@ -3383,12 +3504,22 @@ void * If::generate(BackEnd & backEnd, bool flag) {
     llvm::BasicBlock * _else = nullptr;
     if (hasElse)
         _else = llvm::BasicBlock::Create(llbe->llContext, "else");
-    llvm::BasicBlock * merge =
-        llvm::BasicBlock::Create(llbe->llContext, "merge");
 
-    if (hasElse)
+    bool shouldEmitMerge = true;
+    if (getParent()->nodeKind == ASTNode::PROCEDURE) {
+        if (((Procedure *)getParent())->getStatements().back() == this) {
+            if (alwaysReturns())
+                shouldEmitMerge = false;
+        }
+    }
+
+    llvm::BasicBlock * merge = nullptr;
+    if (shouldEmitMerge)
+        merge = llvm::BasicBlock::Create(llbe->llContext, "merge");
+
+    if (hasElse) {
         llbe->builder.CreateCondBr(cond, then, _else);
-    else {
+    } else if (shouldEmitMerge) {
         llbe->builder.CreateCondBr(cond, then, merge);
     }
 
@@ -3398,7 +3529,7 @@ void * If::generate(BackEnd & backEnd, bool flag) {
     for (ASTNode * statement : getStatements())
         llbe->getOrGenNode(statement);
 
-    if (!getFlag(HAS_TOP_LEVEL_RETURN)) {
+    if (!getFlag(HAS_TOP_LEVEL_RETURN) && shouldEmitMerge) {
         generateFramePreExit(llbe);
         llbe->builder.CreateBr(merge);
     }
@@ -3416,7 +3547,7 @@ void * If::generate(BackEnd & backEnd, bool flag) {
         for (ASTNode * statement : _Else->getStatements())
             llbe->getOrGenNode(statement);
 
-        if (!_Else->getFlag(HAS_TOP_LEVEL_RETURN)) {
+        if (!_Else->getFlag(HAS_TOP_LEVEL_RETURN) && shouldEmitMerge) {
             generateFramePreExit(llbe);
             llbe->builder.CreateBr(merge);
         }
@@ -3430,11 +3561,13 @@ void * If::generate(BackEnd & backEnd, bool flag) {
     // PHI.
     then = llbe->builder.GetInsertBlock();
 
-    // Emit merge block.
-    func->getBasicBlockList().push_back(merge);
-    llbe->builder.SetInsertPoint(merge);
+    if (shouldEmitMerge) {
+        // Emit merge block.
+        func->getBasicBlockList().push_back(merge);
+        llbe->builder.SetInsertPoint(merge);
+    }
 
-    return merge; // what does this accomplish?
+    return nullptr; // what does this accomplish?
 }
 
 void * For::generate(BackEnd & backEnd, bool flag) {
@@ -3633,8 +3766,19 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                 unsigned int size = simpleSizer(param_t);
                 if (!size)
                     size = 1;
-                arg.addAttr(llvm::Attribute::getWithDereferenceableBytes(
-                    llbe->llContext, size));
+
+                llvm::Attribute attr =
+                    llvm::Attribute::getWithDereferenceableBytes(
+                        llbe->llContext, size);
+#if LLVM_VERSION_MAJOR > 4
+                arg.addAttr(attr);
+#else
+                llvm::AttrBuilder ab;
+                ab.addAttribute(attr);
+                llvm::AttributeSet as =
+                    llvm::AttributeSet::get(llbe->llContext, i + 1, ab);
+                arg.addAttr(as);
+#endif
             } else if (arg.getType()->isPointerTy()) {
                 // arg.addAttr(llvm::Attribute::getWithAlignment(llbe->llContext,
                 //                                               sizeof(void
@@ -3705,8 +3849,10 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         int j = 0;
         for (auto & Arg : func->args()) {
             const Type * t = nullptr;
-            if (j - payload->sret >= 0)
+            if (j - payload->sret >= 0) {
                 t = getParamVarDeclarations()[j - payload->sret]->getType();
+            }
+
             if (t && t->isRef()) {
                 llbe->addNamedVal(Arg.getName(), &Arg, t);
             } else {
@@ -3725,10 +3871,18 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                 llvm::Value * val = &Arg;
 
                 // Store the initial value into the alloca.
-                if (payload->byval & (1 << j))
-                    val = llbe->builder.CreateLoad(val, "byval");
 
-                llbe->builder.CreateStore(val, alloca);
+                // If this is byval, we need to do memcpy because the value is
+                // big.
+                if (payload->byval & (1 << j)) {
+                    auto size = llbe->layout->getTypeAllocSize(
+                        alloca->getType()->getPointerElementType());
+                    auto align = llbe->layout->getABITypeAlignment(
+                        alloca->getType()->getPointerElementType());
+                    llbe->builder.CreateMemCpy(alloca, val, size, align);
+                } else {
+                    llbe->builder.CreateStore(val, alloca);
+                }
             }
             j += 1;
         }
@@ -3908,7 +4062,7 @@ void * ExprBlock::generate(BackEnd & backEnd, bool getAddr) {
 
     const Type * t = getType();
 
-    llvm::Value * alloca = llbe->allocUnnamedVal(t); 
+    llvm::Value * alloca = llbe->allocUnnamedVal(t);
 
     llbe->expr_block_yield_stack.push(alloca);
 
@@ -3933,11 +4087,12 @@ void * ExprBlockYield::generate(BackEnd & backEnd, bool flag) {
         p = p->getParent();
     }
 
-    ExprBlock * block = (ExprBlock*)p;
+    ExprBlock * block = (ExprBlock *)p;
 
     const Type * block_t = block->getType();
 
-    llvm::Value * val = (llvm::Value*)llbe->getOrGenNode(getExpression(), block_t->isRef());
+    llvm::Value * val =
+        (llvm::Value *)llbe->getOrGenNode(getExpression(), block_t->isRef());
 
     BJOU_DEBUG_ASSERT(val);
 

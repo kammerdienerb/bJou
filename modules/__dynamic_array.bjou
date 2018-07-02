@@ -46,9 +46,9 @@ proc free$T(da : T[...] ref) {
 
         if _i >= |_s| {
             buff : char[1024]
-            buff.sprintf("panic: dynamic array index out of bounds (index = %d, length = %d)\n    at %s :: %d :: %d",
+            buff.sprintf("dynamic array index out of bounds (index = %d, length = %d)\n    at %s :: %d :: %d",
                          _i, |_s|, _loc_f, _loc_l, _loc_c)
-            panic(buff)
+            \die{ buff }
         }
 
         return \__da_data{_s}[_i]
@@ -161,7 +161,7 @@ proc pop$T(da : T[...] ref) {
 
 proc back$T(da : T[...] ref) : T ref {
     if |da| == 0
-        panic("panic: called back() on an empty dynamic array")
+        \die{ "called back() on an empty dynamic array" }
     return da[|da| - 1]    
 }
 
@@ -190,5 +190,19 @@ proc set$T(da : T[...] ref, data : T[]) {
 
     # copy
     memcpy((_d as void*), (\__slice_data{data} as void*), (_u) * sizeof T)
+}
+
+proc copy$T(da : T[...] ref) : T[...] {
+    c : T[...] = da
+
+    _d := getref(\__da_data{c})
+    _c := getref(\__da_capacity{c})
+    _u := getref(\__da_used{c})
+    
+    _d = new T[_c]
+
+    memcpy((_d as void*), (\__da_data{da} as void*), (_u) * sizeof T)
+
+    return c
 }
 

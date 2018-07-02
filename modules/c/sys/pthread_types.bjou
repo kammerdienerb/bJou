@@ -1,0 +1,28 @@
+# pthread_types.bjou
+
+module c_sys_pthread_types
+
+const __PTHREAD_SIZE__            := 8176
+const __PTHREAD_ATTR_SIZE__       := 56
+const __PTHREAD_MUTEXATTR_SIZE__  := 8
+const __PTHREAD_MUTEX_SIZE__      := 56
+const __PTHREAD_CONDATTR_SIZE__   := 8
+const __PTHREAD_COND_SIZE__       := 40
+const __PTHREAD_ONCE_SIZE__       := 8
+const __PTHREAD_RWLOCK_SIZE__     := 192
+const __PTHREAD_RWLOCKATTR_SIZE__ := 16
+const __PTHREAD_SIZE__            := 4088
+const __PTHREAD_ATTR_SIZE__       := 36
+const __PTHREAD_MUTEXATTR_SIZE__  := 8
+const __PTHREAD_MUTEX_SIZE__      := 40
+const __PTHREAD_CONDATTR_SIZE__   := 4
+const __PTHREAD_COND_SIZE__       := 24
+const __PTHREAD_ONCE_SIZE__       := 4
+const __PTHREAD_RWLOCK_SIZE__     := 124
+
+
+type _opaque_pthread_mutex_t {
+    __sig    : i64
+    __opaque : char[__PTHREAD_MUTEX_SIZE__]
+}
+type pthread_mutex_t = _opaque_pthread_mutex_t

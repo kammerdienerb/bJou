@@ -120,7 +120,7 @@ struct LLVMBackEnd : BackEnd {
     std::stack<LoopFrameInfo> loop_continue_stack;
     std::stack<Procedure *> proc_stack;
     std::stack<llvm::BasicBlock *> local_alloc_stack;
-    std::stack<llvm::Value*> expr_block_yield_stack;
+    std::stack<llvm::Value *> expr_block_yield_stack;
 
     milliseconds go();
     void completeTypes();

@@ -2,10 +2,14 @@
 
 module __preload
 
+import "__rt_init.bjou"
+import "__env.bjou"
 import "__zinit.bjou"
 import "__ref.bjou"
 import "__c_support.bjou"
+import "__errcode.bjou"
 import "__panic.bjou"
+import "__die.bjou"
 import "__typeinfo.bjou"
 import "__destroy.bjou"
 import "__array.bjou"

@@ -13,6 +13,7 @@
 #include "Misc.hpp"
 #include "Operator.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 
@@ -38,14 +39,16 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_kwd_foreach, parser_kwd_in, parser_kwd_match, parser_kwd_with,
     parser_kwd_break, parser_kwd_continue, parser_l_curly_brace,
     parser_r_curly_brace, parser_l_sqr_bracket, parser_r_sqr_bracket,
-    parser_l_paren, parser_r_paren, parser_dbl_lt, parser_dbl_gt, parser_integer, parser_floating_pt,
-    parser_char_literal, parser_string_literal, parser_kwd_true,
-    parser_kwd_false, parser_kwd_nothing, parser_kwd_as, parser_dot,
-    parser_arrow, parser_l_arrow, parser_exclam, parser_kwd_sizeof, parser_amp, parser_tilde,
-    parser_at, parser_kwd_not, parser_kwd_new, parser_kwd_proc,
-    parser_kwd_extern, parser_kwd_some, parser_mult, parser_div, parser_mod,
-    parser_plus, parser_minus, parser_lss, parser_leq, parser_gtr, parser_geq,
-    parser_equ, parser_neq, parser_and, parser_kwd_and, parser_or,
+    parser_l_paren, parser_r_paren, parser_dbl_lt, parser_dbl_gt,
+    parser_integer, parser_floating_pt, parser_char_literal,
+    parser_string_literal, parser_kwd_true, parser_kwd_false,
+    parser_kwd_nothing, parser_kwd_as, parser_dot, parser_arrow, parser_l_arrow,
+    parser_exclam, parser_kwd_sizeof, parser_amp, parser_tilde, parser_at,
+    parser_kwd_not, parser_kwd_new, parser_kwd_proc, parser_kwd_extern,
+    parser_kwd_some, parser_kwd_bneg, parser_mult, parser_div, parser_mod,
+    parser_plus, parser_minus, parser_kwd_bshl, parser_kwd_bshr, parser_lss,
+    parser_leq, parser_gtr, parser_geq, parser_equ, parser_neq, parser_kwd_band,
+    parser_kwd_bxor, parser_kwd_bor, parser_and, parser_kwd_and, parser_or,
     parser_kwd_or, parser_assign, parser_plus_eq, parser_min_eq, parser_mult_eq,
     parser_div_eq, parser_mod_eq, parser_var_decl_beg,
     // parser_constant_decl_beg, // @const
@@ -85,7 +88,8 @@ const char * kwds[] = {
     "true",    "false",    "nothing",
 
     "as",      "sizeof",   "not",       "new",        "proc",    "extern",
-    "some",    "and",      "or"};
+    "some",    "bneg",     "and",       "or",         "bshl",    "bshr",
+    "band",    "bxor",     "bor"};
 
 MaybeString parse_kwd(StringViewableBuffer & buff, const char * kwd) {
     char * c = (char *)kwd;
@@ -359,6 +363,29 @@ MaybeString parser_integer(StringViewableBuffer & buff) {
     }
     while (IS_09(buff, p))
         p += 1;
+    if (p > 0) {
+        if (IS_C(buff, p, 'u') || IS_C(buff, p, 'i')) {
+            p += 1;
+            if (IS_C(buff, p, '8')) {
+                // all good
+            } else if (IS_C(buff, p, '1')) {
+                p += 1;
+                if (!IS_C(buff, p, '6'))
+                    p -= 1;
+            } else if (IS_C(buff, p, '3')) {
+                p += 1;
+                if (!IS_C(buff, p, '2'))
+                    return MaybeString();
+            } else if (IS_C(buff, p, '6')) {
+                p += 1;
+                if (!IS_C(buff, p, '4'))
+                    return MaybeString();
+            } else {
+                return MaybeString();
+            }
+            p += 1;
+        }
+    }
     if (p == 0)
         return MaybeString();
     return MaybeString(buff.substr(0, p));
@@ -466,6 +493,9 @@ MaybeString parser_kwd_extern(StringViewableBuffer & buff) {
 MaybeString parser_kwd_some(StringViewableBuffer & buff) {
     return parse_kwd(buff, "some");
 }
+MaybeString parser_kwd_bneg(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "bneg");
+}
 MaybeString parser_mult(StringViewableBuffer & buff) {
     return parse_punc(buff, "*");
 }
@@ -480,6 +510,12 @@ MaybeString parser_plus(StringViewableBuffer & buff) {
 }
 MaybeString parser_minus(StringViewableBuffer & buff) {
     return parse_punc(buff, "-");
+}
+MaybeString parser_kwd_bshl(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "bshl");
+}
+MaybeString parser_kwd_bshr(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "bshr");
 }
 MaybeString parser_lss(StringViewableBuffer & buff) {
     return parse_punc(buff, "<");
@@ -498,6 +534,15 @@ MaybeString parser_equ(StringViewableBuffer & buff) {
 }
 MaybeString parser_neq(StringViewableBuffer & buff) {
     return parse_punc(buff, "!=");
+}
+MaybeString parser_kwd_band(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "band");
+}
+MaybeString parser_kwd_bxor(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "bxor");
+}
+MaybeString parser_kwd_bor(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "bor");
 }
 MaybeString parser_and(StringViewableBuffer & buff) {
     return parse_punc(buff, "&&");
@@ -730,6 +775,15 @@ bjou::Maybe<std::string> Parser::optional(TokenKind tok, bool skipEat,
     auto m_match = tokenParsers[tok](buff);
     std::string match;
     if (m_match.assignTo(match)) {
+        if (tok == STRING_LITERAL) {
+            size_t n_nl = std::count(match.begin(), match.end(), '\n');
+            if (n_nl) {
+                currentContext.end.line += n_nl;
+                size_t pos = match.find_last_of("\n");
+                currentContext.end.character = match.size() - pos;
+            }
+        }
+
         if (!skipEat)
             eat(match, skipClean);
         else if (!skipClean)
@@ -741,6 +795,7 @@ bjou::Maybe<std::string> Parser::optional(TokenKind tok, bool skipEat,
             currentContext.end.character = 1;
         }
     }
+
     return m_match;
 }
 
@@ -1157,6 +1212,10 @@ static BinaryExpression * newBinaryExpressionFromOp(std::string & op) {
         return new AddExpression;
     else if (op == "-")
         return new SubExpression;
+    else if (op == "bshl")
+        return new BSHLExpression;
+    else if (op == "bshr")
+        return new BSHRExpression;
     else if (op == "<")
         return new LssExpression;
     else if (op == "<=")
@@ -1169,6 +1228,12 @@ static BinaryExpression * newBinaryExpressionFromOp(std::string & op) {
         return new EquExpression;
     else if (op == "!=")
         return new NeqExpression;
+    else if (op == "band")
+        return new BANDExpression;
+    else if (op == "bxor")
+        return new BXORExpression;
+    else if (op == "bor")
+        return new BORExpression;
     else if (op == "&&" || op == "and")
         return new LogAndExpression;
     else if (op == "||" || op == "or")
@@ -1207,6 +1272,8 @@ static UnaryPreExpression * newUnaryPreExpressionFromOp(std::string & op) {
         return new ExternLiteral;
     else if (op == "some")
         return new SomeLiteral;
+    else if (op == "bneg")
+        return new BNEGExpression;
     else if (op == "@")
         return new DerefExpression;
     else if (op == "&")
@@ -1362,19 +1429,19 @@ MaybeASTNode Parser::parseExpression_r(ASTNode * left, int minPrecedence) {
 
 MaybeString Parser::parseBinaryOperator(bool skipEat) {
     const TokenKind opOrder[] = {
-        DOT,     ARROW,       L_SQR_BRACKET, L_PAREN, PLUS_EQ, MIN_EQ,
-        MULT_EQ, DIV_EQ,      MOD_EQ,        MULT,    DIV,     MOD,
-        PLUS,    MINUS,       LEQ,           LSS,     GEQ,     GTR,
-        EQU,     NEQ,         ASSIGN,        AND,     KWD_AND, OR,
-        KWD_OR,  DBL_QUESTION};
+        DOT,     ARROW,        L_SQR_BRACKET, L_PAREN,  PLUS_EQ,  MIN_EQ,
+        MULT_EQ, DIV_EQ,       MOD_EQ,        MULT,     DIV,      MOD,
+        PLUS,    MINUS,        LEQ,           LSS,      GEQ,      GTR,
+        EQU,     NEQ,          ASSIGN,        AND,      KWD_AND,  OR,
+        KWD_OR,  DBL_QUESTION, KWD_BSHL,      KWD_BSHR, KWD_BAND, KWD_BXOR,
+        KWD_BOR};
 
     int line = currentContext.begin.line;
 
     MaybeString m_op;
 
     // special case for expression block syntax '<< ... >>'
-    if (optional(DBL_LT, true) ||
-        optional(DBL_GT, true) ||
+    if (optional(DBL_LT, true) || optional(DBL_GT, true) ||
         optional(L_ARROW, true))
         return MaybeString();
 
@@ -1403,7 +1470,7 @@ MaybeString Parser::parseBinaryOperator(bool skipEat) {
 MaybeString Parser::parseUnaryPrefixOperator(bool skipEat) {
     const TokenKind opOrder[] = {EXCLAM,     KWD_NOT,  KWD_NEW,    KWD_DELETE,
                                  KWD_SIZEOF, KWD_PROC, KWD_EXTERN, KWD_SOME,
-                                 AT,         AMP,      TILDE};
+                                 AT,         AMP,      TILDE,      KWD_BNEG};
 
     for (TokenKind tok : opOrder) {
         MaybeString m_result = optional(tok, skipEat);
@@ -1451,7 +1518,8 @@ ASTNode * Parser::applyPostfixOp(std::string & postfixOp, Expression * expr,
                           : nullptr; // new UnaryPostExpression(); // @expr
     postfix->setContents(postfixOp);
 
-    if (!m_binOp || (minPrecedence == 0 && precedence(binOp.c_str()) > 7)) {
+    if (!m_binOp ||
+        (minPrecedence == 0 && precedence(binOp.c_str()) > OP_PREC_UN_PRE)) {
         postfix->setLeft(expr);
         postfix->getContext().start(&expr->getContext());
         postfix->getContext().begin = expr->getContext().begin;
@@ -1465,7 +1533,7 @@ ASTNode * Parser::applyPostfixOp(std::string & postfixOp, Expression * expr,
         }
         postfix->getContext().finish(&currentContext, &justCleanedContext);
         result = postfix;
-    } else if (m_binOp && precedence(binOp.c_str()) < 8) {
+    } else if (m_binOp && precedence(binOp.c_str()) <= OP_PREC_UN_PRE) {
         postfix->setLeft(right);
         postfix->getContext().start(&right->getContext());
         postfix->getContext().begin = right->getContext().begin;
@@ -1557,8 +1625,7 @@ MaybeASTNode Parser::parseTerminatingExpression() {
     } else if ((m_node = parseInitializerList()) ||
                (m_node = parseParentheticalExpressionOrTuple()) ||
                (m_node = parseSliceOrDynamicArrayExpression()) ||
-               (m_node = parseLenExpression()) || 
-               (m_node = parseExprBlock())) {
+               (m_node = parseLenExpression()) || (m_node = parseExprBlock())) {
         m_node.assignTo(node);
         BJOU_DEBUG_ASSERT(node);
     } else
@@ -1763,7 +1830,7 @@ MaybeASTNode Parser::parseLenExpression() {
 
 MaybeASTNode Parser::parseExprBlock() {
     if (optional(DBL_LT, true)) {
-        ExprBlock * result = new ExprBlock(); 
+        ExprBlock * result = new ExprBlock();
         result->getContext().start(&currentContext);
 
         eat("<<");
@@ -1777,11 +1844,12 @@ MaybeASTNode Parser::parseExprBlock() {
         }
 
         expect(DBL_GT, "'>>'");
-    
+
         result->getContext().finish(&currentContext, &justCleanedContext);
 
         if (result->getStatements().empty()) {
-            errorl(result->getContext(), "Empty expression blocks are not allowed.");
+            errorl(result->getContext(),
+                   "Empty expression blocks are not allowed.");
         }
 
         return MaybeASTNode(result);
@@ -1808,7 +1876,8 @@ MaybeASTNode Parser::parseOperand() {
                 errornext(*this, "Expected type declarator.", true,
                           "after '" + op + "'");
             result->setRight(decl);
-            MaybeASTNode m_more_expr = parseExpression_r(result, 9);
+            MaybeASTNode m_more_expr =
+                parseExpression_r(result, OP_PREC_BIN_HIGH);
             m_more_expr.assignTo(result);
             BJOU_DEBUG_ASSERT(result);
         } else if (op == "delete") {
@@ -1820,7 +1889,8 @@ MaybeASTNode Parser::parseOperand() {
                 errornext(*this, "Expected expression.", true,
                           "after '" + op + "'");
             result->setRight(expression);
-            MaybeASTNode m_more_expr = parseExpression_r(result, 9);
+            MaybeASTNode m_more_expr =
+                parseExpression_r(result, OP_PREC_BIN_HIGH);
             m_more_expr.assignTo(result);
             BJOU_DEBUG_ASSERT(result);
         } else if (op == "sizeof") {
@@ -1832,7 +1902,8 @@ MaybeASTNode Parser::parseOperand() {
                 errornext(*this, "Expected type declarator.", true,
                           "after '" + op + "'");
             result->setRight(decl);
-            MaybeASTNode m_more_expr = parseExpression_r(result, 9);
+            MaybeASTNode m_more_expr =
+                parseExpression_r(result, OP_PREC_BIN_HIGH);
             m_more_expr.assignTo(result);
             BJOU_DEBUG_ASSERT(result);
         } else if (op == "proc") {
@@ -1848,7 +1919,8 @@ MaybeASTNode Parser::parseOperand() {
                        "expression.");
             }
             result->setRight(proc);
-            MaybeASTNode m_more_expr = parseExpression_r(result, 9);
+            MaybeASTNode m_more_expr =
+                parseExpression_r(result, OP_PREC_BIN_HIGH);
             m_more_expr.assignTo(result);
             BJOU_DEBUG_ASSERT(result);
         } else if (op == "extern") {
@@ -1859,7 +1931,8 @@ MaybeASTNode Parser::parseOperand() {
                 errornext(*this,
                           "Expected procedure signature after 'extern'.");
             result->setRight(externSig);
-            MaybeASTNode m_more_expr = parseExpression_r(result, 9);
+            MaybeASTNode m_more_expr =
+                parseExpression_r(result, OP_PREC_BIN_HIGH);
             m_more_expr.assignTo(result);
             BJOU_DEBUG_ASSERT(result);
         } else if (op == "some") {
@@ -1870,7 +1943,8 @@ MaybeASTNode Parser::parseOperand() {
             if (!m_expression.assignTo(expression))
                 errornext(*this, "Expected expression after 'some'.");
             result->setRight(expression);
-            MaybeASTNode m_more_expr = parseExpression_r(result, 9);
+            MaybeASTNode m_more_expr =
+                parseExpression_r(result, OP_PREC_BIN_HIGH);
             m_more_expr.assignTo(result);
             BJOU_DEBUG_ASSERT(result);
         } else {
@@ -1882,7 +1956,8 @@ MaybeASTNode Parser::parseOperand() {
             result = newUnaryPreExpressionFromOp(op);
             // result = new UnaryPreExpression(); // @expr
             result->setRight(operand);
-            MaybeASTNode m_more_expr = parseExpression_r(result->getRight(), 9);
+            MaybeASTNode m_more_expr =
+                parseExpression_r(result->getRight(), OP_PREC_BIN_HIGH);
             ASTNode * more_expr = nullptr;
             m_more_expr.assignTo(more_expr);
             BJOU_DEBUG_ASSERT(more_expr);
@@ -2624,8 +2699,7 @@ MaybeASTNode Parser::parseExternSig() {
 MaybeASTNode Parser::parseStatement() {
     MaybeASTNode m_statement;
 
-    (m_statement = parseExprBlockYield()) ||
-        (m_statement = parseConstant()) ||
+    (m_statement = parseExprBlockYield()) || (m_statement = parseConstant()) ||
         (m_statement = parseVariableDeclaration()) ||
         (m_statement = parseExpression()) || (m_statement = parseBreak()) ||
         (m_statement = parseContinue()) || (m_statement = parseReturn()) ||
@@ -3095,7 +3169,8 @@ MaybeASTNode Parser::parseExprBlockYield() {
         MaybeASTNode m_expr = parseExpression();
 
         if (!m_expr.assignTo(expr)) {
-            errornext(*this, "Expected expression.", true, "to yield in expression block");
+            errornext(*this, "Expected expression.", true,
+                      "to yield in expression block");
         }
 
         result->setExpression(expr);
@@ -3115,7 +3190,9 @@ MaybeASTNode Parser::parseMacroUse() {
 
         eat("\\");
 
+        result->getNameContext().start(&currentContext);
         result->setMacroName(expect(IDENTIFIER, "macro name"));
+        result->getNameContext().finish(&currentContext, &justCleanedContext);
 
         expect(L_CURLY_BRACE, "'{'");
         while (true) {

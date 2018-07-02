@@ -1,0 +1,17 @@
+# c/time.bjou
+
+module c_time
+
+import "os.bjou"
+import "null.bjou"
+
+type time_t = i64
+
+type timespec {
+    tv_sec  : time_t
+    tv_nsec : i64
+}
+
+extern time(time_t*) : time_t
+proc time() : time_t
+    return time(nullptr$time_t())

@@ -12,8 +12,8 @@
 #include "ASTNode.hpp"
 #include "Serialization.hpp"
 
-#include <vector>
 #include <map>
+#include <vector>
 
 namespace bjou {
 /*
@@ -36,21 +36,19 @@ boost::archive::text_iarchive * _ar);
 struct FrontEnd;
 
 struct Module {
-    bool activated,
-         activatedAsCT,
-         filled;
+    bool activated, activatedAsCT, filled;
 
     unsigned int n_lines;
 
-    std::vector<ASTNode*> nodes,
-                          structs,
-                          ifaceDefs;
+    std::vector<ASTNode *> nodes, structs, ifaceDefs;
 
     MultiNode * multi;
 
     Module();
 
-    void fill(std::vector<ASTNode*>& _nodes, std::vector<ASTNode*>& _structs, std::vector<ASTNode*>& _ifaceDefs);
+    void fill(std::vector<ASTNode *> & _nodes,
+              std::vector<ASTNode *> & _structs,
+              std::vector<ASTNode *> & _ifaceDefs);
     void activate(Import * source, bool ct);
 };
 

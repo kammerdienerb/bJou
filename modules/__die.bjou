@@ -1,0 +1,86 @@
+# __die.bjou
+
+module __die
+
+import "__errcode.bjou"
+
+extern sprintf(char*, char*, ...) : int
+extern strlen(char*) : u64
+extern isatty(int) : int
+extern exit(i32)
+extern backtrace(void**, int) : int
+extern backtrace_symbols_fd(void**, int, int)
+
+proc __bjou_pr_bt() {
+    buff : void*[10]
+    size := backtrace(buff, 10)
+    backtrace_symbols_fd(buff, size, 2)
+}
+
+proc __die(err : errcode, fl : char*, pn : char*, ln : u32) {
+    buff : char[4096]
+
+    do_color := isatty(2) == 1
+    
+    blue  := << if do_color <-"\e[34m" else <-"" >>
+    red   := << if do_color <-"\e[31m" else <-"" >>
+    bold  := << if do_color <-"\e[1m" else <-"" >>
+    reset := << if do_color <-"\e[0m" else <-"" >>
+
+    es := errstr(err)
+
+    const fmt1 :=
+"%s%s%s%s :: %s%s%s%s :: %s%s%u%s -- exiting due to an error
+    Exiting with error code %s%s%d (%s)%s.
+"
+    const fmt2 :=
+"%s%s%s%s :: %s%s%s%s :: %s%s%u%s -- exiting due to an error
+    Exiting with error code %s%s%d%s.
+"
+    if es[0] != '\0' {
+        buff.sprintf(fmt1,
+            bold, blue, fl, reset,
+            bold, blue, pn, reset,
+            bold, blue, ln, reset,
+            bold, red, err, es, reset)
+    } else {
+        buff.sprintf(fmt2,
+            bold, blue, fl, reset,
+            bold, blue, pn, reset,
+            bold, blue, ln, reset,
+            bold, red, err, reset)
+    }
+
+    write(2, buff as void*, strlen(buff))
+
+    __bjou_pr_bt()
+
+    exit(err)
+}
+
+proc __die(msg : char*, fl : char*, pn : char*, ln : u32) {
+    buff : char[4096]
+
+    do_color := isatty(2) == 1
+    
+    blue  := << if do_color <-"\e[34m" else <-"" >>
+    red   := << if do_color <-"\e[31m" else <-"" >>
+    bold  := << if do_color <-"\e[1m" else <-"" >>
+    reset := << if do_color <-"\e[0m" else <-"" >>
+
+    const fmt :=
+"%s%s%s%s :: %s%s%s%s :: %s%s%u%s -- exiting due to an error
+    %s%s%s%s
+"
+    buff.sprintf(fmt,
+        bold, blue, fl, reset,
+        bold, blue, pn, reset,
+        bold, blue, ln, reset,
+        bold, red, msg, reset)
+    
+    write(2, buff as void*, strlen(buff))
+
+    __bjou_pr_bt()
+
+    exit(1)
+}

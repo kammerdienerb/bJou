@@ -1,0 +1,19 @@
+# files.bjou
+
+import "fs.bjou"
+
+import "input.bjou"
+
+\run{ main() }
+\front{ true }
+
+proc main() {
+    path := str("/usr/local/bin/")
+    dir := fs.open(path)
+    print "%", dir 
+    files := fs.files(dir)
+    foreach ref fsf in files
+        print "a file" 
+    fs.close(dir)
+    path.free()
+}

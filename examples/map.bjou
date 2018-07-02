@@ -3,7 +3,7 @@
 import "dict.bjou"
 import "input.bjou"
 
-\run{ main() }
+# \run{ main() }
 main()
 
 extern strcmp(char*, char*) : int

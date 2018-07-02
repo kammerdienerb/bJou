@@ -21,6 +21,7 @@
 #include <iostream>
 #include <iterator>
 #include <mutex>
+#include <sstream>
 #include <string.h> // bzero
 
 namespace bjou {
@@ -113,11 +114,10 @@ bool ASTNode::isStatement() const { return false; }
     if (getFlag(ANALYZED) && !force)                                           \
     return
 
-MultiNode::MultiNode() : isModuleContainer(false) {
-    nodeKind = MULTINODE;
-}
+MultiNode::MultiNode() : isModuleContainer(false) { nodeKind = MULTINODE; }
 
-MultiNode::MultiNode(std::vector<ASTNode *> & _nodes) : isModuleContainer(false), nodes(_nodes) {
+MultiNode::MultiNode(std::vector<ASTNode *> & _nodes)
+    : isModuleContainer(false), nodes(_nodes) {
     nodeKind = MULTINODE;
     for (ASTNode * node : nodes) {
         node->parent = this;
@@ -125,7 +125,7 @@ MultiNode::MultiNode(std::vector<ASTNode *> & _nodes) : isModuleContainer(false)
     }
 }
 
-void MultiNode::take(std::vector<ASTNode*> & _nodes) {
+void MultiNode::take(std::vector<ASTNode *> & _nodes) {
     nodes = std::move(_nodes);
 
     for (ASTNode * node : nodes) {
@@ -155,10 +155,10 @@ void MultiNode::unwrap(std::vector<ASTNode *> & terminals) {
         node->unwrap(terminals);
 }
 
-void MultiNode::flatten(std::vector<ASTNode*>& out) {
+void MultiNode::flatten(std::vector<ASTNode *> & out) {
     for (ASTNode * node : nodes) {
         if (node->nodeKind == MULTINODE) {
-            MultiNode * multi = (MultiNode*)node;
+            MultiNode * multi = (MultiNode *)node;
             multi->flatten(out);
         } else {
             out.push_back(node);
@@ -630,6 +630,140 @@ void SubExpression::dump(std::ostream & stream, unsigned int level,
     stream << "(";
     getLeft()->dump(stream, level, dumpCT);
     stream << " - ";
+    getRight()->dump(stream, level, dumpCT);
+    stream << ")";
+}
+//
+
+// ~~~~~ BSHLExpression ~~~~~
+
+BSHLExpression::BSHLExpression() {
+    contents = "bshl";
+
+    nodeKind = BSHL_EXPRESSION;
+}
+
+bool BSHLExpression::isConstant() { return BinaryExpression::isConstant(); }
+
+Val BSHLExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a, b;
+    a = ((Expression *)getLeft())->eval();
+    b = ((Expression *)getRight())->eval();
+    return evalBSHL(a, b, getType());
+}
+
+// Node interface
+void BSHLExpression::analyze(bool force) {
+    HANDLE_FORCE();
+
+    getLeft()->analyze(force);
+    getRight()->analyze(force);
+
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
+
+    if (!lt->isInt() || !rt->isInt()) {
+        errorl(getContext(),
+               "Could not match '" + lt->getDemangledName() + "' with '" +
+                   rt->getDemangledName() + "' using the operator '" +
+                   contents + "'.",
+               true, "operands of bitwise operations must be integer types");
+    }
+
+    const Type * t = conv(lt, rt);
+    BJOU_DEBUG_ASSERT(t && t->isInt());
+
+    t = IntType::get(Type::Sign::UNSIGNED, ((IntType *)t)->width);
+
+    convertOperands(this, t);
+
+    setType(t);
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * BSHLExpression::clone() { return ExpressionClone(this); }
+
+void BSHLExpression::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << "(";
+    getLeft()->dump(stream, level, dumpCT);
+    stream << " bshl ";
+    getRight()->dump(stream, level, dumpCT);
+    stream << ")";
+}
+//
+
+// ~~~~~ BSHRExpression ~~~~~
+
+BSHRExpression::BSHRExpression() {
+    contents = "bshr";
+
+    nodeKind = BSHR_EXPRESSION;
+}
+
+bool BSHRExpression::isConstant() { return BinaryExpression::isConstant(); }
+
+Val BSHRExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a, b;
+    a = ((Expression *)getLeft())->eval();
+    b = ((Expression *)getRight())->eval();
+    return evalBSHR(a, b, getType());
+}
+
+// Node interface
+void BSHRExpression::analyze(bool force) {
+    HANDLE_FORCE();
+
+    getLeft()->analyze(force);
+    getRight()->analyze(force);
+
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
+
+    if (!lt->isInt() || !rt->isInt()) {
+        errorl(getContext(),
+               "Could not match '" + lt->getDemangledName() + "' with '" +
+                   rt->getDemangledName() + "' using the operator '" +
+                   contents + "'.",
+               true, "operands of bitwise operations must be integer types");
+    }
+
+    const Type * t = conv(lt, rt);
+    BJOU_DEBUG_ASSERT(t && t->isInt());
+
+    t = IntType::get(Type::Sign::UNSIGNED, ((IntType *)t)->width);
+
+    convertOperands(this, t);
+
+    setType(t);
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * BSHRExpression::clone() { return ExpressionClone(this); }
+
+void BSHRExpression::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << "(";
+    getLeft()->dump(stream, level, dumpCT);
+    stream << " bshr ";
     getRight()->dump(stream, level, dumpCT);
     stream << ")";
 }
@@ -1558,6 +1692,207 @@ void LogOrExpression::dump(std::ostream & stream, unsigned int level,
 }
 //
 
+// ~~~~~ BANDExpression ~~~~~
+
+BANDExpression::BANDExpression() {
+    contents = "band";
+
+    nodeKind = BAND_EXPRESSION;
+}
+
+bool BANDExpression::isConstant() { return BinaryExpression::isConstant(); }
+
+Val BANDExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a, b;
+    a = ((Expression *)getLeft())->eval();
+    b = ((Expression *)getRight())->eval();
+    return evalBAND(a, b, getType());
+}
+
+// Node interface
+void BANDExpression::analyze(bool force) {
+    HANDLE_FORCE();
+
+    getLeft()->analyze(force);
+    getRight()->analyze(force);
+
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
+
+    if (!lt->isInt() || !rt->isInt()) {
+        errorl(getContext(),
+               "Could not match '" + lt->getDemangledName() + "' with '" +
+                   rt->getDemangledName() + "' using the operator '" +
+                   contents + "'.",
+               true, "operands of bitwise operations must be integer types");
+    }
+
+    const Type * t = conv(lt, rt);
+    BJOU_DEBUG_ASSERT(t && t->isInt());
+
+    t = IntType::get(Type::Sign::UNSIGNED, ((IntType *)t)->width);
+
+    convertOperands(this, t);
+
+    setType(t);
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * BANDExpression::clone() { return ExpressionClone(this); }
+
+void BANDExpression::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << "(";
+    getLeft()->dump(stream, level, dumpCT);
+    stream << " band ";
+    getRight()->dump(stream, level, dumpCT);
+    stream << ")";
+}
+//
+
+// ~~~~~ BORExpression ~~~~~
+
+BORExpression::BORExpression() {
+    contents = "bor";
+
+    nodeKind = BOR_EXPRESSION;
+}
+
+bool BORExpression::isConstant() { return BinaryExpression::isConstant(); }
+
+Val BORExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a, b;
+    a = ((Expression *)getLeft())->eval();
+    b = ((Expression *)getRight())->eval();
+    return evalBOR(a, b, getType());
+}
+
+// Node interface
+void BORExpression::analyze(bool force) {
+    HANDLE_FORCE();
+
+    getLeft()->analyze(force);
+    getRight()->analyze(force);
+
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
+
+    if (!lt->isInt() || !rt->isInt()) {
+        errorl(getContext(),
+               "Could not match '" + lt->getDemangledName() + "' with '" +
+                   rt->getDemangledName() + "' using the operator '" +
+                   contents + "'.",
+               true, "operands of bitwise operations must be integer types");
+    }
+
+    const Type * t = conv(lt, rt);
+    BJOU_DEBUG_ASSERT(t && t->isInt());
+
+    t = IntType::get(Type::Sign::UNSIGNED, ((IntType *)t)->width);
+
+    convertOperands(this, t);
+
+    setType(t);
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * BORExpression::clone() { return ExpressionClone(this); }
+
+void BORExpression::dump(std::ostream & stream, unsigned int level,
+                         bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << "(";
+    getLeft()->dump(stream, level, dumpCT);
+    stream << " bor ";
+    getRight()->dump(stream, level, dumpCT);
+    stream << ")";
+}
+//
+
+// ~~~~~ BXORExpression ~~~~~
+
+BXORExpression::BXORExpression() {
+    contents = "bxor";
+
+    nodeKind = BXOR_EXPRESSION;
+}
+
+bool BXORExpression::isConstant() { return BinaryExpression::isConstant(); }
+
+Val BXORExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a, b;
+    a = ((Expression *)getLeft())->eval();
+    b = ((Expression *)getRight())->eval();
+    return evalBXOR(a, b, getType());
+}
+
+// Node interface
+void BXORExpression::analyze(bool force) {
+    HANDLE_FORCE();
+
+    getLeft()->analyze(force);
+    getRight()->analyze(force);
+
+    const Type * lt = getLeft()->getType()->unRef();
+    const Type * rt = getRight()->getType()->unRef();
+
+    if (!lt->isInt() || !rt->isInt()) {
+        errorl(getContext(),
+               "Could not match '" + lt->getDemangledName() + "' with '" +
+                   rt->getDemangledName() + "' using the operator '" +
+                   contents + "'.",
+               true, "operands of bitwise operations must be integer types");
+    }
+
+    const Type * t = conv(lt, rt);
+    BJOU_DEBUG_ASSERT(t && t->isInt());
+
+    t = IntType::get(Type::Sign::UNSIGNED, ((IntType *)t)->width);
+
+    convertOperands(this, t);
+
+    setType(t);
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * BXORExpression::clone() { return ExpressionClone(this); }
+
+void BXORExpression::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << "(";
+    getLeft()->dump(stream, level, dumpCT);
+    stream << " bxor ";
+    getRight()->dump(stream, level, dumpCT);
+    stream << ")";
+}
+//
+
 // ~~~~~ SubscriptExpression ~~~~~
 
 SubscriptExpression::SubscriptExpression() {
@@ -2275,8 +2610,9 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
                     if (!type && !nextCall())
                         proc_ident->getType(); // identifier error
                     return -1;
-                } else if ((m_interface_sym =
-                                getScope()->getSymbol(getScope(), r_id)) &&
+                } else if ((m_interface_sym = getScope()->getSymbol(
+                                getScope(), r_id, &r_id->getContext(), true,
+                                false, false, false)) &&
                            m_interface_sym.assignTo(interface_sym) &&
                            interface_sym->isInterface()) {
 
@@ -2290,7 +2626,8 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
                         0)
                         errorl(getRight()->getContext(),
                                "Type '" + lt->getDemangledName() +
-                                   "' does not define a constant named '" +
+                                   "' does not define a constant or procedure "
+                                   "member named '" +
                                    r_id->getUnqualified() + "'.",
                                true,
                                "'" + r_id->getUnqualified() +
@@ -2300,7 +2637,8 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
                     else
                         errorl(getRight()->getContext(),
                                "Type '" + lt->getDemangledName() +
-                                   "' does not define a constant named '" +
+                                   "' does not define a constant or procedure "
+                                   "named '" +
                                    r_id->getUnqualified() + "'.");
                 }
             } else
@@ -2837,6 +3175,63 @@ void NotExpression::dump(std::ostream & stream, unsigned int level,
         return;
     stream << "(";
     stream << "not ";
+    getRight()->dump(stream, level, dumpCT);
+    stream << ")";
+}
+//
+
+// ~~~~~ BNEGExpression ~~~~~
+
+BNEGExpression::BNEGExpression() {
+    contents = "bneg";
+
+    nodeKind = BNEG_EXPRESSION;
+}
+
+bool BNEGExpression::isConstant() { return UnaryPreExpression::isConstant(); }
+
+Val BNEGExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a;
+    a = ((Expression *)getRight())->eval();
+    return evalBNEG(a, getType());
+}
+
+// Node interface
+void BNEGExpression::analyze(bool force) {
+    HANDLE_FORCE();
+
+    getRight()->analyze(force);
+
+    const Type * rt = getRight()->getType()->unRef();
+
+    if (!rt->isInt()) {
+        errorl(getContext(),
+               "Could not match '" + rt->getDemangledName() +
+                   "' with the operator '" + contents + "'.",
+               true, "operands of bitwise operations must be integer types");
+    }
+
+    const Type * t = IntType::get(Type::Sign::UNSIGNED, ((IntType *)rt)->width);
+
+    setType(t);
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * BNEGExpression::clone() { return ExpressionClone(this); }
+
+void BNEGExpression::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << "(";
+    stream << "bneg ";
     getRight()->dump(stream, level, dumpCT);
     stream << ")";
 }
@@ -3985,7 +4380,94 @@ Val IntegerLiteral::eval() {
 void IntegerLiteral::analyze(bool force) {
     HANDLE_FORCE();
 
-    setType(IntType::get(Type::SIGNED, 32));
+    auto pos = getContents().find("i");
+    if (pos == std::string::npos)
+        pos = getContents().find("u");
+    if (pos != std::string::npos) {
+        suffix = getContents().substr(pos, getContents().size() - pos);
+        setContents(getContents().substr(0, pos));
+    }
+
+    // @incomplete
+    // What about literals that are bigger than their suffix spec?
+    //      '1024i8'
+    // Or negative literals with unsigned suffix spec?
+    //      '-1u32'
+
+    Type::Sign sign = Type::Sign::SIGNED;
+    unsigned int width = 32;
+
+    if (!suffix.empty()) {
+        if (suffix[0] == 'u')
+            sign = Type::Sign::UNSIGNED;
+        std::string w = suffix.c_str() + 1;
+        std::stringstream ss(w);
+        ss >> width;
+
+        if (sign == Type::Sign::UNSIGNED && getContents()[0] == '-')
+            errorl(getContext(),
+                   "Literal is negative, but type suffix specifies unsigned.");
+
+        ss.clear();
+
+        if (sign == Type::Sign::UNSIGNED) {
+            uint64_t u64;
+            ss.str(getContents());
+
+            ss >> u64;
+
+            switch (width) {
+            case 8:
+                if (u64 > UINT8_MAX)
+                    goto erru;
+                break;
+            case 16:
+                if (u64 > UINT16_MAX)
+                    goto erru;
+                break;
+            case 32:
+                if (u64 > UINT32_MAX)
+                    goto erru;
+                break;
+            case 64:
+                if (u64 > UINT64_MAX)
+                    goto erru;
+                break;
+            erru:
+                errorl(getContext(), "Literal value is invalid for type "
+                                     "specified in its suffix.");
+            }
+        } else {
+            int64_t i64;
+            ss.str(getContents());
+
+            ss >> i64;
+
+            switch (width) {
+            case 8:
+                if (i64 > INT8_MAX || i64 < INT8_MIN)
+                    goto erri;
+                break;
+            case 16:
+                if (i64 > INT16_MAX || i64 < INT16_MIN)
+                    goto erri;
+                break;
+            case 32:
+                if (i64 > INT32_MAX || i64 < INT32_MIN)
+                    goto erri;
+                break;
+            case 64:
+                if (i64 > INT64_MAX || i64 < INT64_MIN)
+                    goto erri;
+                break;
+            erri:
+                errorl(getContext(), "Literal value is invalid for type "
+                                     "specified in its suffix.");
+            }
+        }
+    }
+
+    setType(IntType::get(sign, width));
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -4337,23 +4819,19 @@ void TupleLiteral::desugar() {
 }
 //
 
-
 // ~~~~~ ExprBlock ~~~~~
 
 ExprBlock::ExprBlock() { nodeKind = EXPR_BLOCK; }
 
 bool ExprBlock::isConstant() { return false; }
 
-std::vector<ASTNode *> & ExprBlock::getStatements() {
-    return statements;
-}
+std::vector<ASTNode *> & ExprBlock::getStatements() { return statements; }
 void ExprBlock::setStatements(std::vector<ASTNode *> _statements) {
     statements = _statements;
 }
 void ExprBlock::addStatement(ASTNode * _statement) {
     _statement->parent = this;
-    _statement->replace =
-        rpget<replacementPolicy_ExprBlock_Statement>();
+    _statement->replace = rpget<replacementPolicy_ExprBlock_Statement>();
     statements.push_back(_statement);
 }
 
@@ -4372,38 +4850,50 @@ void ExprBlock::analyze(bool force) {
 
     if (yieldTypes.empty()) {
         errorl(getContext(), "Expression block does not yield any value.", true,
-                             "to yield a value: '<-the_value' in the expression block");
+               "to yield a value: '<-the_value' in the expression block");
     }
 
     const Type * first_t = nullptr;
 
-    for (auto& yt : yieldTypes) {
+    for (auto & yt : yieldTypes) {
         if (!first_t) {
             first_t = yt.second;
         } else {
             if (first_t->isRef()) {
-                Expression * expr = (Expression*)yt.first->getExpression();
+                Expression * expr = (Expression *)yt.first->getExpression();
                 if (!expr->canBeLVal()) {
                     errorl(yt.first->getExpression()->getContext(),
-                       "Type of expression block yield does not match previous yields.", false,
-                       "expected '" + first_t->getDemangledName() + "'",
-                       "got '" + yt.second->getDemangledName() + "'",
-                       "value can't be used as a reference",
-                       "Note: All expression yielded from an expression block must be of compatible types.");
-                    errorl(yieldTypes[0].first->getContext(), "Expected yield type of '" + first_t->getDemangledName() + "' established by this yield:");
+                           "Type of expression block yield does not match "
+                           "previous yields.",
+                           false,
+                           "expected '" + first_t->getDemangledName() + "'",
+                           "got '" + yt.second->getDemangledName() + "'",
+                           "value can't be used as a reference",
+                           "Note: All expression yielded from an expression "
+                           "block must be of compatible types.");
+                    errorl(yieldTypes[0].first->getContext(),
+                           "Expected yield type of '" +
+                               first_t->getDemangledName() +
+                               "' established by this yield:");
                 }
             }
             if (!conv(first_t, yt.second)) {
                 errorl(yt.first->getExpression()->getContext(),
-                       "Type of expression block yield does not match previous yields.", false,
-                       "expected '" + first_t->getDemangledName() + "'",
+                       "Type of expression block yield does not match previous "
+                       "yields.",
+                       false, "expected '" + first_t->getDemangledName() + "'",
                        "got '" + yt.second->getDemangledName() + "'",
-                       "Note: All expression yielded from an expression block must be of compatible types.");
-                errorl(yieldTypes[0].first->getContext(), "Expected yield type of '" + first_t->getDemangledName() + "' established by this yield:");
+                       "Note: All expression yielded from an expression block "
+                       "must be of compatible types.");
+                errorl(yieldTypes[0].first->getContext(),
+                       "Expected yield type of '" +
+                           first_t->getDemangledName() +
+                           "' established by this yield:");
             }
 
             if (!equal(first_t, yt.second))
-                emplaceConversion((Expression *)yt.first->getExpression(), first_t);
+                emplaceConversion((Expression *)yt.first->getExpression(),
+                                  first_t);
         }
     }
 
@@ -4421,8 +4911,7 @@ ASTNode * ExprBlock::clone() {
     return t;
 }
 
-void ExprBlock::dump(std::ostream & stream, unsigned int level,
-                        bool dumpCT) {
+void ExprBlock::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
         return;
     stream << "<<\n";
@@ -4439,7 +4928,6 @@ void ExprBlock::desugar() {
         statement->desugar();
 }
 //
-
 
 // ~~~~~ Declarator ~~~~~
 
@@ -5623,11 +6111,21 @@ void Constant::setInitialization(ASTNode * _initialization) {
 void Constant::analyze(bool force) {
     HANDLE_FORCE();
 
+    BJOU_DEBUG_ASSERT(getInitialization());
+
     if (getTypeDeclarator()) {
+
         std::stack<const Type *> & lValStack = compilation->frontEnd.lValStack;
 
         const Type * t = getTypeDeclarator()->getType(); // @leak
         lValStack.push(t);
+
+        if (t->isVoid()) {
+            errorl(getTypeDeclarator()->getContext(),
+                   "Cannot declare constant '" + getName() +
+                       "' with type 'void'.");
+        }
+
         if (!conv(t, getInitialization()->getType()))
             errorl(
                 getInitialization()->getContext(),
@@ -5636,10 +6134,21 @@ void Constant::analyze(bool force) {
                     getInitialization()->getType()->getDemangledName() + "'.");
         lValStack.pop();
     } else {
-        setTypeDeclarator(
-            getInitialization()->getType()->getGenericDeclarator());
+        const Type * t = getInitialization()->getType();
+
+        if (t->isVoid()) {
+            errorl(getInitialization()->getContext(),
+                   "Cannot initialize constant '" + getName() +
+                       "' with expression resulting in type 'void'.");
+        }
+
+        setTypeDeclarator(t->getGenericDeclarator());
         getTypeDeclarator()->addSymbols(getScope());
     }
+
+    if (getTypeDeclarator()->getType()->isVoid())
+        errorl(getInitialization()->getContext(),
+               "Contant '" + getName() + "' cannot be void.");
 
     if (!((Expression *)getInitialization())->isConstant())
         errorl(getInitialization()->getContext(),
@@ -5779,8 +6288,6 @@ void VariableDeclaration::analyze(bool force) {
     if (getInitialization()) {
         const Type * init_t = nullptr;
 
-        sym->initializedInScopes.insert(getScope());
-
         if (getFlag(IS_TYPE_MEMBER))
             errorl(getInitialization()->getContext(),
                    "Type member variables cannot be initialized.", true,
@@ -5820,6 +6327,9 @@ void VariableDeclaration::analyze(bool force) {
             setTypeDeclarator(init_t->getGenericDeclarator());
             getTypeDeclarator()->addSymbols(getScope());
         }
+
+        sym->initializedInScopes.insert(getScope());
+
         if ((getScope()->nspace || !getScope()->parent) &&
             !((Expression *)getInitialization())->isConstant())
             errorl(getInitialization()->getContext(),
@@ -5839,6 +6349,19 @@ void VariableDeclaration::analyze(bool force) {
 
     BJOU_DEBUG_ASSERT(getTypeDeclarator() &&
                       "No typeDeclarator in VariableDeclaration");
+
+    if (my_t->isVoid()) {
+        if (getInitialization()) {
+            errorl(getInitialization()->getContext(),
+                   "Cannot initialize variable '" + getName() +
+                       "' with expression resulting in type 'void'.");
+        } else {
+            BJOU_DEBUG_ASSERT(getTypeDeclarator());
+            errorl(getTypeDeclarator()->getContext(),
+                   "Cannot declare variable '" + getName() +
+                       "' with type 'void'.");
+        }
+    }
 
     if (getTypeDeclarator()->nodeKind == ARRAY_DECLARATOR) {
         if (sym) {
@@ -7106,6 +7629,10 @@ static void handleTerminators(ASTNode * statement,
             }
         }
     }
+
+    if (node->nodeKind == ASTNode::IF)
+        if (((If *)node)->alwaysReturns())
+            statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
 }
 
 // ~~~~~ This ~~~~~
@@ -7283,8 +7810,10 @@ void Procedure::analyze(bool force) {
                 returnInIf = true;
     }
 
+    setFlag(HAS_TOP_LEVEL_RETURN, getFlag(HAS_TOP_LEVEL_RETURN) || returnInIf);
+
     if (!getFlag(HAS_TOP_LEVEL_RETURN) && !getFlag(IS_EXTERN) &&
-        !conv(getRetDeclarator()->getType(), VoidType::get()) && !returnInIf) {
+        !conv(getRetDeclarator()->getType(), VoidType::get())) {
 
         errorl(getContext().lastchar(),
                "'" + getName() + "' must explicitly return a value of type '" +
@@ -7343,14 +7872,16 @@ void Procedure::addSymbols(Scope * _scope) {
 
     if (getMangledName() == "printf" && getFlag(IS_EXTERN))
         compilation->frontEnd.printf_decl = this;
-    if (getMangledName() == "malloc" && getFlag(IS_EXTERN))
+    else if (getMangledName() == "malloc" && getFlag(IS_EXTERN))
         compilation->frontEnd.malloc_decl = this;
-    if (getMangledName() == "free" && getFlag(IS_EXTERN))
+    else if (getMangledName() == "free" && getFlag(IS_EXTERN))
         compilation->frontEnd.free_decl = this;
-    if (getMangledName() == "memset" && getFlag(IS_EXTERN))
+    else if (getMangledName() == "memset" && getFlag(IS_EXTERN))
         compilation->frontEnd.memset_decl = this;
-    if (getMangledName() == "memcpy" && getFlag(IS_EXTERN))
+    else if (getMangledName() == "memcpy" && getFlag(IS_EXTERN))
         compilation->frontEnd.memcpy_decl = this;
+    else if (getName() == "__bjou_rt_init")
+        compilation->frontEnd.__bjou_rt_init_def = this;
 }
 
 void Procedure::unwrap(std::vector<ASTNode *> & terminals) {
@@ -7605,7 +8136,10 @@ Namespace::~Namespace() {
 
 // ~~~~~ Import ~~~~~
 
-Import::Import() : fileError(false), notModuleError(false), module({}), theModule(nullptr) { nodeKind = IMPORT; }
+Import::Import()
+    : fileError(false), notModuleError(false), module({}), theModule(nullptr) {
+    nodeKind = IMPORT;
+}
 
 std::string & Import::getModule() { return module; }
 void Import::setModule(std::string _module) { module = _module; }
@@ -7627,21 +8161,22 @@ void Import::addSymbols(Scope * _scope) {
     setScope(_scope);
 
     if (fileError) {
-        errorl(getContext(),
-            "Unable to read file '" + de_quote(module) + "'.");
+        errorl(getContext(), "Unable to read file '" + de_quote(module) + "'.");
     }
 
     if (notModuleError) {
         error(getContext(),
-              "File '" + de_quote(module) +
-                  "' does not declare a module.", false);
-        errorl(getContext(),
-              "Attempted import from this location.");
+              "File '" + de_quote(module) + "' does not declare a module.",
+              false);
+        errorl(getContext(), "Attempted import from this location.");
     }
 
     if (getScope()->parent && !getScope()->parent->nspace) {
-        errorl(getContext(), "Module imports must be made at global scope.", false);
-        errorl(getContext(), "Attempting to import " + getModule() + " in scope with description '" + getScope()->description + "'.");
+        errorl(getContext(), "Module imports must be made at global scope.",
+               false);
+        errorl(getContext(), "Attempting to import " + getModule() +
+                                 " in scope with description '" +
+                                 getScope()->description + "'.");
     }
 
     BJOU_DEBUG_ASSERT(theModule);
@@ -7651,7 +8186,7 @@ void Import::addSymbols(Scope * _scope) {
     ASTNode * p = getParent();
     while (p) {
         if (p->nodeKind == MACRO_USE) {
-            MacroUse * use = (MacroUse*)p;
+            MacroUse * use = (MacroUse *)p;
             if (use->getMacroName() == "ct") {
                 ct = true;
                 break;
@@ -7949,7 +8484,6 @@ bool Continue::isStatement() const { return true; }
 Continue::~Continue() {}
 //
 
-
 // ~~~~~ If ~~~~~
 
 If::If() : conditional(nullptr), statements({}), _else(nullptr) {
@@ -7981,19 +8515,18 @@ void If::setElse(ASTNode * __else) {
 }
 
 bool If::alwaysReturns() const {
-    if (!getFlag(ASTNode::HAS_TOP_LEVEL_RETURN))
-        return false;
     if (getElse()) {
         Else * _else = (Else *)getElse();
-        if (_else->getFlag(ASTNode::HAS_TOP_LEVEL_RETURN))
-            return true;
+        bool me = getFlag(ASTNode::HAS_TOP_LEVEL_RETURN);
 
-        if (_else->getStatements().size() > 0) {
-            if (_else->getStatements()[0]->nodeKind == ASTNode::IF)
-                return ((If *)_else->getStatements()[0])->alwaysReturns();
+        if (_else->getFlag(ASTNode::HAS_TOP_LEVEL_RETURN) && me) {
+            return true;
+        } else if (_else->getStatements()[0]->nodeKind == ASTNode::IF) {
+            if (((If *)_else->getStatements()[0])->alwaysReturns() && me)
+                return true;
         }
     }
-    return true;
+    return false;
 }
 
 // Node interface
@@ -9548,7 +10081,9 @@ ModuleDeclaration::~ModuleDeclaration() {}
 
 // ~~~~~ ExprBlockYield ~~~~~
 
-ExprBlockYield::ExprBlockYield() : expression(nullptr) { nodeKind = EXPR_BLOCK_YIELD; }
+ExprBlockYield::ExprBlockYield() : expression(nullptr) {
+    nodeKind = EXPR_BLOCK_YIELD;
+}
 
 ASTNode * ExprBlockYield::getExpression() const { return expression; }
 void ExprBlockYield::setExpression(ASTNode * _expression) {
@@ -9568,7 +10103,7 @@ void ExprBlockYield::analyze(bool force) {
         p = p->getParent();
     }
 
-    ExprBlock * block = (ExprBlock*)p;
+    ExprBlock * block = (ExprBlock *)p;
 
     if (block) {
         BJOU_DEBUG_ASSERT(getExpression());
@@ -9602,7 +10137,8 @@ ASTNode * ExprBlockYield::clone() {
     return c;
 }
 
-void ExprBlockYield::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
+void ExprBlockYield::dump(std::ostream & stream, unsigned int level,
+                          bool dumpCT) {
     if (!dumpCT && isCT(this))
         return;
     stream << std::string(4 * level, ' ');
@@ -9625,7 +10161,6 @@ ExprBlockYield::~ExprBlockYield() {
         delete expression;
 }
 //
-
 
 // ~~~~~ IgnoreNode ~~~~~
 

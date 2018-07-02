@@ -4,23 +4,13 @@
 module input
 
 import "null.bjou"
-
-type FILE { }
-extern fdopen(int, char*) : FILE*
-extern fgets(char*, int, FILE*) : char*
-extern strchr(char*, char) : char*
-extern strtol(char*, char**, int) : i64
-extern sscanf(char*, char*, ...) : int
-
-proc stdin() : FILE*
-    return fdopen(0, "r")    
-proc stdout() : FILE*
-    return fdopen(1, "w")    
+import "c/io.bjou"
+import "c/string.bjou"
 
 proc getstring() : char* { # allocates -- caller must manage mem
     buff := new char[128]
     if fgets(buff, 128, stdin()).isnull()
-        panic("getstring(): input error")
+        \die{ ERR_BAD_INPUT }
     pos := buff.strchr('\n')
     if not pos.isnull()
         @pos = '\0'
@@ -36,7 +26,7 @@ proc getlong() : i64 {
     s := getstring()
     l : i64 = 0
     if sscanf(s, "%ld", &l) != 1
-        panic("getlong(): input error")
+        \die{ ERR_BAD_INPUT }
     delete s
     return l
 }

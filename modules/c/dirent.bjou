@@ -1,0 +1,29 @@
+# c/dirent.bjou
+
+module c_dirent
+
+import "c/sys/pthread_types.bjou"
+import "c/sys/dirent.bjou"
+
+abstract type _telldir { }
+
+type DIR {
+    __dd_fd    : int
+    __dd_loc   : i64
+    __dd_sizse : i64
+    __dd_buf   : char*
+    __dd_len   : int
+    __dd_seek  : i64
+    __padding  : i64
+    __dd_flags : int
+    __dd_lock  : pthread_mutex_t
+    __dd_td    : _telldir*
+}
+
+extern closedir(DIR*) : int
+extern opendir(char*) : DIR*
+extern readdir(DIR*) : dirent*
+extern readdir_r(DIR*, dirent*, dirent**) : int
+extern rewinddir(DIR*)
+extern seekdir(DIR*, i64)
+extern telldir(DIR*) : i64

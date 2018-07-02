@@ -1,0 +1,66 @@
+# c/io.bjou
+
+module c_io
+
+import "c/dlfcn.bjou"
+
+abstract type FILE { }
+extern fdopen(int, char*) : FILE*
+extern fopen(char*, char*) : FILE*
+extern popen(char*, char*) : FILE*
+extern fclose(FILE*) : int
+extern pclose(FILE*) : int
+extern fcloseall()
+extern fflush(FILE*) : int
+extern fprintf(FILE*, char*, ...) : int
+extern fscanf(FILE*, char*, ...) : int
+extern fgets(char*, int, FILE*) : char*
+extern fgetc(FILE*) : int
+
+extern feof(FILE*) : int
+
+extern printf(char*, ...) : int
+extern scanf(char*, ...) : int
+
+__c_io_stdin  : FILE*
+__c_io_stdout : FILE*
+__c_io_stderr : FILE*
+
+proc stdin() : FILE* {
+    p := (&__c_io_stdin) as FILE**
+    if (@p).isnull() {
+        handle := dlopen(nullptr$char(), RTLD_NOW)
+        if handle.isnull()
+            \die{ dlerror() }
+        @p = @(dlsym(handle, "__stdinp") as FILE**)
+        if (@p).isnull()
+            \die{ dlerror() }
+    }
+    return @p
+}
+
+proc stdout() : FILE* {
+    p := (&__c_io_stdout) as FILE**
+    if (@p).isnull() {
+        handle := dlopen(nullptr$char(), RTLD_NOW)
+        if handle.isnull()
+            \die{ dlerror() }
+        @p = @(dlsym(handle, "__stdoutp") as FILE**)
+        if (@p).isnull()
+            \die{ dlerror() }
+    }
+    return @p
+}
+
+proc stderr() : FILE* {
+    p := (&__c_io_stderr) as FILE**
+    if (@p).isnull() {
+        handle := dlopen(nullptr$char(), RTLD_NOW)
+        if handle.isnull()
+            \die{ dlerror() }
+        @p = @(dlsym(handle, "__stderrp") as FILE**)
+        if (@p).isnull()
+            \die{ dlerror() }
+    }
+    return @p
+}

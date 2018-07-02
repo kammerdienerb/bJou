@@ -25,7 +25,7 @@ type ClangWrapper {
             0) # CXTranslationUnit_DetailedPreprocessingRecord)
 
         if this.tu.isnull()
-            panic("c2bjou: bad translation unit")
+            \die{ "c2bjou: bad translation unit" }
         
         ndiags := clang.getNumDiagnostics(this.tu) as int
         errors := false
@@ -38,7 +38,7 @@ type ClangWrapper {
             print "%", str
             clang.disposeString(cxstr)
         }
-        if errors panic("c2bjou: there were libclang errors")
+        if errors \die{ "c2bjou: there were libclang errors" }
     }
 
     proc traverse(this,

@@ -12,10 +12,10 @@
 #include "Compile.hpp"
 #include "Context.hpp"
 #include "Macro.hpp"
+#include "Module.hpp"
 #include "Scope.hpp"
 #include "Symbol.hpp"
 #include "Type.hpp"
-#include "Module.hpp"
 
 #include <map>
 #include <set>
@@ -46,13 +46,15 @@ struct FrontEnd {
     Procedure * memset_decl;
     Procedure * memcpy_decl;
 
+    Procedure * __bjou_rt_init_def;
+
     bool abc = true;
 
     std::stack<ASTNode *> procStack;
     std::stack<const Type *> lValStack;
     std::set<std::string> modulesImported;
-    std::map<std::string, Module*> modulesByID;
-    std::map<std::string, Module*> modulesByPath;
+    std::map<std::string, Module *> modulesByID;
+    std::map<std::string, Module *> modulesByPath;
     std::map<ASTNode::NodeKind, std::string> kind2string;
     MacroManager macroManager;
 

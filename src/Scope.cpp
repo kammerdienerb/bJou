@@ -43,6 +43,11 @@ NamespaceScope::~NamespaceScope() {}
 static void checkUninitialized(Scope * startingScope, Symbol * sym,
                                Context & context) {
     if (sym->isVar()) {
+        // global vars are zero-initialized, so they
+        // can be left uninitialized
+        if (!sym->node()->getScope()->parent)
+            return;
+
         if (sym->referenced) {
             Scope * s = startingScope;
             while (s) {
@@ -165,7 +170,7 @@ void Scope::addSymbol(Symbol * symbol, Context * context) {
                                          "' defined here.");
                 }
             }
-        } else {
+        } else if (existing->node()->getScope()->parent) {
             errorl(*context,
                    "Redefinition of '" + mangled->demangledString() + "'.",
                    false);
@@ -203,7 +208,9 @@ void Scope::addSymbol(_Symbol<Procedure> * symbol, Context * context) {
     Maybe<Symbol *> m_existing = getSymbol(this, name, nullptr, false, false);
     Symbol * existing = nullptr;
     if (m_existing.assignTo(existing) &&
-        existing->node()->nodeKind != ASTNode::PROC_SET) {
+        existing->node()->nodeKind != ASTNode::PROC_SET &&
+        (existing->node()->getScope()->parent ||
+         !existing->node()->getScope()->nspace)) {
         if (existing->node()->getFlag(ASTNode::SYMBOL_OVERWRITE)) {
             existing->node()->setFlag(ASTNode::IGNORE_GEN, true);
         } else {
@@ -364,7 +371,8 @@ void Scope::addSymbol(_Symbol<TemplateProc> * symbol, Context * context) {
     Maybe<Symbol *> m_existing = getSymbol(this, name, nullptr, false, false);
     Symbol * existing = nullptr;
     if (m_existing.assignTo(existing) &&
-        existing->node()->nodeKind != ASTNode::PROC_SET) {
+        existing->node()->nodeKind != ASTNode::PROC_SET &&
+        existing->node()->getScope()->parent) {
         if (existing->node()->getFlag(ASTNode::SYMBOL_OVERWRITE)) {
             existing->node()->setFlag(ASTNode::IGNORE_GEN, true);
         } else {

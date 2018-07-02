@@ -1,0 +1,14 @@
+# c/sys/dirent.bjou
+
+module c_sys_dirent
+
+import "c/sys/types.bjou"
+
+type dirent {
+    d_ino     : ino_t
+    d_seekoff : u64
+    d_reclen  : u16
+    d_namelen : u16
+    d_type    : u8
+    d_name    : char[1024]
+}

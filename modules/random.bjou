@@ -1,0 +1,29 @@
+# random.bjou
+# PRNG
+
+module random
+
+__random_state : u64
+
+proc seedrand(seed : u64)
+    __random_state = seed
+
+# xorshift64star
+proc getrand() : u64 {
+    x := __random_state
+
+    x = x bxor (x bshr 12)
+    x = x bxor (x bshl 25)
+    x = x bxor (x bshr 27)
+
+    __random_state = x
+
+    # return x * 0x2545f4914f6cdd1d
+    return x * 2685821657736338717u64
+}
+
+proc getrand(limit : u64) : u64
+    return getrand() % (limit + 1u64)
+
+proc getrand(start : u64, limit : u64) : u64
+    return start + getrand(limit - start)

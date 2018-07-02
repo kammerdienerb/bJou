@@ -3,7 +3,7 @@
 import "c2bjou.bjou"
 \run{ include("/usr/include/stdio.h") }
 
-# \run{ main() }
+main()
 
 proc main() {
     f := fopen("out.txt", "w")

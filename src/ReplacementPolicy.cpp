@@ -162,8 +162,7 @@ void init_replacementPolicies() {
         ->allowed_nodeKinds = {};
     rpget<replacementPolicy_TemplateProc_Template>()->allowed_nodeKinds = {};
     rpget<replacementPolicy_TemplateProc_TemplateDef>()->allowed_nodeKinds = {};
-    rpget<replacementPolicy_MacroUse_Arg>()->allowed_nodeKinds = {
-        ANY_NODE};
+    rpget<replacementPolicy_MacroUse_Arg>()->allowed_nodeKinds = {ANY_NODE};
 }
 
 bool replacementPolicy::canReplace(ASTNode * node) const {
@@ -281,8 +280,7 @@ RP_FUNCTOR_IMPL(
 
     return new_node;);
 RP_FUNCTOR_IMPL(
-    ExprBlock_Statement,
-    ExprBlock * parent_expr_block = (ExprBlock *)parent;
+    ExprBlock_Statement, ExprBlock * parent_expr_block = (ExprBlock *)parent;
     auto found_node = std::find(parent_expr_block->getStatements().begin(),
                                 parent_expr_block->getStatements().end(),
                                 old_node);
@@ -571,7 +569,8 @@ RP_FUNCTOR_IMPL(Return_Expression,
 RP_FUNCTOR_IMPL(ExprBlockYield_Expression,
                 BJOU_DEBUG_ASSERT(((ExprBlockYield *)parent)->getExpression() ==
                                   old_node);
-                ((ExprBlockYield *)parent)->setExpression(new_node); return new_node;);
+                ((ExprBlockYield *)parent)->setExpression(new_node);
+                return new_node;);
 RP_FUNCTOR_IMPL(If_Conditional,
                 BJOU_DEBUG_ASSERT(((If *)parent)->getConditional() == old_node);
                 ((If *)parent)->setConditional(new_node); return new_node;);

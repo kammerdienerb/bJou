@@ -7,8 +7,8 @@ cd "$parent_path"
 mkdir -p bin
 mkdir -p out
 
-rm bin/*
-rm out/*
+rm bin/* 2> /dev/null
+rm out/* 2> /dev/null
 
 function run_test {
 	COLOR=`tput setaf 2`
@@ -56,7 +56,7 @@ then
 		run_test $f
 	done
 else
-	run_test $1
+	run_test test/$1.bjou
 fi
 
 

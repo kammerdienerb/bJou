@@ -1,0 +1,53 @@
+# norm.bjou
+# similar to vim normal mode commands in a stream editor
+
+import "c/io.bjou"
+
+main()
+
+proc getline() : string {
+    line := str()
+    c := 0
+    while (c = stdin().fgetc()) >= 0 {
+        line.append(c as char)
+        if c == '\n'
+            return line
+    }
+    return line
+}
+
+proc process(line : string ref, commands: string ref) {
+    line_cursor := 0 
+    cmd_cursor  := 0
+    last_f      := -1
+
+    while cmd_cursor < commands.len() {
+        cmd := commands[cmd_cursor]
+
+        if cmd == 'h' {
+            if line_cursor > 0
+                line_cursor -= 1
+        } else if cmd == 'l' {
+            if line_cursor < (line.len() - 1)
+                line_cursor += 1
+        } else if cmd == 'D' {
+            \__da_used{line.__data} = line_cursor
+            line.append('\n')
+        }
+
+        cmd_cursor += 1
+    }
+}
+
+proc main() {
+    args := env.args()
+    if |args| < 2
+        panic("usage: norm <commands>")
+    commands := getref(args[1])
+    
+    while stdin().feof() == 0 {
+        line := getline()
+        line.process(commands)
+        printf("%s", line.c_str()) 
+    }
+}

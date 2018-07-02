@@ -1,0 +1,8 @@
+# c/sleep.bjou
+
+module c_sleep
+
+type useconds_t = u32
+
+extern sleep(u32)  : u32
+extern usleep(useconds_t) : int

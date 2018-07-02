@@ -71,6 +71,8 @@ struct ASTNode {
         BINARY_EXPRESSION,
         ADD_EXPRESSION,
         SUB_EXPRESSION,
+        BSHL_EXPRESSION,
+        BSHR_EXPRESSION,
         MULT_EXPRESSION,
         DIV_EXPRESSION,
         MOD_EXPRESSION,
@@ -89,12 +91,16 @@ struct ASTNode {
         NEQ_EXPRESSION,
         LOG_AND_EXPRESSION,
         LOG_OR_EXPRESSION,
+        BAND_EXPRESSION,
+        BOR_EXPRESSION,
+        BXOR_EXPRESSION,
         SUBSCRIPT_EXPRESSION,
         CALL_EXPRESSION,
         ACCESS_EXPRESSION,
         INJECT_EXPRESSION,
         UNARY_PRE_EXPRESSION,
         NOT_EXPRESSION,
+        BNEG_EXPRESSION,
         DEREF_EXPRESSION,
         ADDRESS_EXPRESSION,
         REF_EXPRESSION,
@@ -176,6 +182,8 @@ struct ASTNode {
     ASTNode::NodeKind::PROC_SET, ASTNode::NodeKind::EXPRESSION,                \
         ASTNode::NodeKind::BINARY_EXPRESSION,                                  \
         ASTNode::NodeKind::ADD_EXPRESSION, ASTNode::NodeKind::SUB_EXPRESSION,  \
+        ASTNode::NodeKind::BSHL_EXPRESSION,                                    \
+        ASTNode::NodeKind::BSHR_EXPRESSION,                                    \
         ASTNode::NodeKind::MULT_EXPRESSION, ASTNode::NodeKind::DIV_EXPRESSION, \
         ASTNode::NodeKind::MOD_EXPRESSION,                                     \
         ASTNode::NodeKind::ASSIGNMENT_EXPRESSION,                              \
@@ -190,12 +198,14 @@ struct ASTNode {
         ASTNode::NodeKind::EQU_EXPRESSION, ASTNode::NodeKind::NEQ_EXPRESSION,  \
         ASTNode::NodeKind::LOG_AND_EXPRESSION,                                 \
         ASTNode::NodeKind::LOG_OR_EXPRESSION,                                  \
+        ASTNode::NodeKind::BAND_EXPRESSION, ASTNode::NodeKind::BOR_EXPRESSION, \
+        ASTNode::NodeKind::BXOR_EXPRESSION,                                    \
         ASTNode::NodeKind::SUBSCRIPT_EXPRESSION,                               \
         ASTNode::NodeKind::CALL_EXPRESSION,                                    \
         ASTNode::NodeKind::ACCESS_EXPRESSION,                                  \
         ASTNode::NodeKind::INJECT_EXPRESSION,                                  \
         ASTNode::NodeKind::UNARY_PRE_EXPRESSION,                               \
-        ASTNode::NodeKind::NOT_EXPRESSION,                                     \
+        ASTNode::NodeKind::NOT_EXPRESSION, ASTNode::NodeKind::BNEG_EXPRESSION, \
         ASTNode::NodeKind::DEREF_EXPRESSION,                                   \
         ASTNode::NodeKind::ADDRESS_EXPRESSION,                                 \
         ASTNode::NodeKind::REF_EXPRESSION, ASTNode::NodeKind::NEW_EXPRESSION,  \
@@ -211,8 +221,9 @@ struct ASTNode {
         ASTNode::NodeKind::STRING_LITERAL, ASTNode::NodeKind::CHAR_LITERAL,    \
         ASTNode::NodeKind::PROC_LITERAL, ASTNode::NodeKind::EXTERN_LITERAL,    \
         ASTNode::NodeKind::SOME_LITERAL, ASTNode::NodeKind::NOTHING_LITERAL,   \
-        ASTNode::NodeKind::TUPLE_LITERAL, ASTNode::NodeKind::EXPR_BLOCK, ASTNode::NodeKind::_END_EXPRESSIONS, \
-        ASTNode::NodeKind::DECLARATOR, ASTNode::NodeKind::ARRAY_DECLARATOR,    \
+        ASTNode::NodeKind::TUPLE_LITERAL, ASTNode::NodeKind::EXPR_BLOCK,       \
+        ASTNode::NodeKind::_END_EXPRESSIONS, ASTNode::NodeKind::DECLARATOR,    \
+        ASTNode::NodeKind::ARRAY_DECLARATOR,                                   \
         ASTNode::NodeKind::SLICE_DECLARATOR,                                   \
         ASTNode::NodeKind::DYNAMIC_ARRAY_DECLARATOR,                           \
         ASTNode::NodeKind::POINTER_DECLARATOR,                                 \
@@ -229,8 +240,7 @@ struct ASTNode {
         ASTNode::NodeKind::PROCEDURE, ASTNode::NodeKind::NAMESPACE,            \
         ASTNode::NodeKind::IMPORT, ASTNode::NodeKind::PRINT,                   \
         ASTNode::NodeKind::RETURN, ASTNode::NodeKind::BREAK,                   \
-        ASTNode::NodeKind::CONTINUE, \
-        ASTNode::NodeKind::IF,                    \
+        ASTNode::NodeKind::CONTINUE, ASTNode::NodeKind::IF,                    \
         ASTNode::NodeKind::ELSE, ASTNode::NodeKind::FOR,                       \
         ASTNode::NodeKind::FOREACH, ASTNode::NodeKind::WHILE,                  \
         ASTNode::NodeKind::DO_WHILE, ASTNode::NodeKind::MATCH,                 \
@@ -242,12 +252,15 @@ struct ASTNode {
         ASTNode::NodeKind::TEMPLATE_INSTANTIATION,                             \
         ASTNode::NodeKind::TEMPLATE_ALIAS, ASTNode::NodeKind::TEMPLATE_STRUCT, \
         ASTNode::NodeKind::TEMPLATE_PROC, ASTNode::NodeKind::SL_COMMENT,       \
-        ASTNode::NodeKind::MODULE_DECL, ASTNode::NodeKind::EXPR_BLOCK_YIELD, ASTNode::NodeKind::IGNORE,             \
-        ASTNode::NodeKind::MULTINODE, ASTNode::NodeKind::MACRO_USE
+        ASTNode::NodeKind::MODULE_DECL, ASTNode::NodeKind::EXPR_BLOCK_YIELD,   \
+        ASTNode::NodeKind::IGNORE, ASTNode::NodeKind::MULTINODE,               \
+        ASTNode::NodeKind::MACRO_USE
 
 #define ANY_EXPRESSION                                                         \
     ASTNode::NodeKind::EXPRESSION, ASTNode::NodeKind::BINARY_EXPRESSION,       \
         ASTNode::NodeKind::ADD_EXPRESSION, ASTNode::NodeKind::SUB_EXPRESSION,  \
+        ASTNode::NodeKind::BSHL_EXPRESSION,                                    \
+        ASTNode::NodeKind::BSHR_EXPRESSION,                                    \
         ASTNode::NodeKind::MULT_EXPRESSION, ASTNode::NodeKind::DIV_EXPRESSION, \
         ASTNode::NodeKind::MOD_EXPRESSION,                                     \
         ASTNode::NodeKind::ASSIGNMENT_EXPRESSION,                              \
@@ -262,12 +275,14 @@ struct ASTNode {
         ASTNode::NodeKind::EQU_EXPRESSION, ASTNode::NodeKind::NEQ_EXPRESSION,  \
         ASTNode::NodeKind::LOG_AND_EXPRESSION,                                 \
         ASTNode::NodeKind::LOG_OR_EXPRESSION,                                  \
+        ASTNode::NodeKind::BAND_EXPRESSION, ASTNode::NodeKind::BOR_EXPRESSION, \
+        ASTNode::NodeKind::BXOR_EXPRESSION,                                    \
         ASTNode::NodeKind::SUBSCRIPT_EXPRESSION,                               \
         ASTNode::NodeKind::CALL_EXPRESSION,                                    \
         ASTNode::NodeKind::ACCESS_EXPRESSION,                                  \
         ASTNode::NodeKind::INJECT_EXPRESSION,                                  \
         ASTNode::NodeKind::UNARY_PRE_EXPRESSION,                               \
-        ASTNode::NodeKind::NOT_EXPRESSION,                                     \
+        ASTNode::NodeKind::NOT_EXPRESSION, ASTNode::NodeKind::BNEG_EXPRESSION, \
         ASTNode::NodeKind::DEREF_EXPRESSION,                                   \
         ASTNode::NodeKind::ADDRESS_EXPRESSION,                                 \
         ASTNode::NodeKind::REF_EXPRESSION, ASTNode::NodeKind::NEW_EXPRESSION,  \
@@ -283,8 +298,7 @@ struct ASTNode {
         ASTNode::NodeKind::STRING_LITERAL, ASTNode::NodeKind::CHAR_LITERAL,    \
         ASTNode::NodeKind::PROC_LITERAL, ASTNode::NodeKind::EXTERN_LITERAL,    \
         ASTNode::NodeKind::SOME_LITERAL, ASTNode::NodeKind::NOTHING_LITERAL,   \
-        ASTNode::NodeKind::TUPLE_LITERAL,\
-        ASTNode::NodeKind::EXPR_BLOCK
+        ASTNode::NodeKind::TUPLE_LITERAL, ASTNode::NodeKind::EXPR_BLOCK
 
 #define ANY_DECLARATOR                                                         \
     ASTNode::NodeKind::DECLARATOR, ASTNode::NodeKind::ARRAY_DECLARATOR,        \
@@ -301,11 +315,11 @@ struct ASTNode {
     ASTNode::NodeKind::IGNORE, ANY_EXPRESSION, ASTNode::NodeKind::CONSTANT,    \
         ASTNode::NodeKind::VARIABLE_DECLARATION, ASTNode::NodeKind::IMPORT,    \
         ASTNode::NodeKind::PRINT, ASTNode::NodeKind::RETURN,                   \
-        ASTNode::NodeKind::BREAK, ASTNode::NodeKind::CONTINUE,                  \
+        ASTNode::NodeKind::BREAK, ASTNode::NodeKind::CONTINUE,                 \
         ASTNode::NodeKind::IF, ASTNode::NodeKind::ELSE,                        \
         ASTNode::NodeKind::FOR, ASTNode::NodeKind::FOREACH,                    \
         ASTNode::NodeKind::WHILE, ASTNode::NodeKind::DO_WHILE,                 \
-        ASTNode::NodeKind::MATCH, ASTNode::NodeKind::MODULE_DECL,\
+        ASTNode::NodeKind::MATCH, ASTNode::NodeKind::MODULE_DECL,              \
         ASTNode::NodeKind::EXPR_BLOCK_YIELD
 
 #define IS_DECLARATOR(node)                                                    \
@@ -373,7 +387,7 @@ struct MultiNode : ASTNode {
     MultiNode();
     MultiNode(std::vector<ASTNode *> & _nodes);
 
-    void take(std::vector<ASTNode *>& _nodes);
+    void take(std::vector<ASTNode *> & _nodes);
 
     void analyze(bool force = false);
     void addSymbols(Scope * _scope);
@@ -383,7 +397,7 @@ struct MultiNode : ASTNode {
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
 
-    void flatten(std::vector<ASTNode*>& out);
+    void flatten(std::vector<ASTNode *> & out);
 
     ASTNode * clone();
     ~MultiNode();
@@ -452,7 +466,6 @@ template <typename T> static inline T * ExpressionClone(T * expr) {
  *
  * ===========================================================================*/
 
-
 /* ============================================================================
  *
  *                               BinaryExpression
@@ -515,6 +528,52 @@ struct SubExpression : BinaryExpression {
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     // virtual ~SubExpression();
+    //
+};
+
+/* ============================================================================
+ *
+ *                               BSHLExpression
+ *  Expression trees made from the binary call operator bshl.
+ *
+ * ===========================================================================*/
+
+struct BSHLExpression : BinaryExpression {
+    BSHLExpression();
+
+    bool isConstant();
+    Val eval();
+
+    // Node interface
+    virtual void analyze(bool force = false);
+    virtual ASTNode * clone();
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+    // virtual ~BSHLExpression();
+    //
+};
+
+/* ============================================================================
+ *
+ *                               BSHRExpression
+ *  Expression trees made from the binary call operator bshr.
+ *
+ * ===========================================================================*/
+
+struct BSHRExpression : BinaryExpression {
+    BSHRExpression();
+
+    bool isConstant();
+    Val eval();
+
+    // Node interface
+    virtual void analyze(bool force = false);
+    virtual ASTNode * clone();
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+    // virtual ~BSHRExpression();
     //
 };
 
@@ -923,6 +982,75 @@ struct LogOrExpression : BinaryExpression {
 
 /* ============================================================================
  *
+ *                               BANDExpression
+ *  Expression trees made from the binary call operator bshr.
+ *
+ * ===========================================================================*/
+
+struct BANDExpression : BinaryExpression {
+    BANDExpression();
+
+    bool isConstant();
+    Val eval();
+
+    // Node interface
+    virtual void analyze(bool force = false);
+    virtual ASTNode * clone();
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+    // virtual ~BANDExpression();
+    //
+};
+
+/* ============================================================================
+ *
+ *                               BORExpression
+ *  Expression trees made from the binary call operator bshr.
+ *
+ * ===========================================================================*/
+
+struct BORExpression : BinaryExpression {
+    BORExpression();
+
+    bool isConstant();
+    Val eval();
+
+    // Node interface
+    virtual void analyze(bool force = false);
+    virtual ASTNode * clone();
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+    // virtual ~BORExpression();
+    //
+};
+
+/* ============================================================================
+ *
+ *                               BXORExpression
+ *  Expression trees made from the binary call operator bshr.
+ *
+ * ===========================================================================*/
+
+struct BXORExpression : BinaryExpression {
+    BXORExpression();
+
+    bool isConstant();
+    Val eval();
+
+    // Node interface
+    virtual void analyze(bool force = false);
+    virtual ASTNode * clone();
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+    // virtual ~BXORExpression();
+    //
+};
+
+/* ============================================================================
+ *
  *                               CallExpression
  *  Expression trees made from the binary call operator ().
  *
@@ -1131,6 +1259,29 @@ struct NotExpression : UnaryPreExpression {
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     // virtual ~NotExpression();
+    //
+};
+
+/* ============================================================================
+ *
+ *                               BNEGExpression
+ *  Expression trees made from the binary call operator bshr.
+ *
+ * ===========================================================================*/
+
+struct BNEGExpression : UnaryPreExpression {
+    BNEGExpression();
+
+    bool isConstant();
+    Val eval();
+
+    // Node interface
+    virtual void analyze(bool force = false);
+    virtual ASTNode * clone();
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+    // virtual ~BNEGExpression();
     //
 };
 
@@ -1465,6 +1616,8 @@ struct IntegerLiteral : Expression {
     bool isConstant();
     Val eval();
 
+    std::string suffix;
+
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
@@ -1679,7 +1832,6 @@ struct TupleLiteral : Expression {
     //
 };
 
-
 /* ============================================================================
  *
  *                              ExprBlock
@@ -1695,7 +1847,7 @@ struct TupleLiteral : Expression {
  * ===========================================================================*/
 
 struct ExprBlockYield;
-typedef std::pair<ExprBlockYield*, const Type*> YieldType;
+typedef std::pair<ExprBlockYield *, const Type *> YieldType;
 
 struct ExprBlock : Expression {
     ExprBlock();
@@ -1722,7 +1874,6 @@ struct ExprBlock : Expression {
     // virtual ~ExprBlock();
     //
 };
-
 
 /* ============================================================================
  *
@@ -2615,8 +2766,7 @@ struct Module;
 struct Import : ASTNode {
     Import();
 
-    bool fileError,
-         notModuleError;
+    bool fileError, notModuleError;
     std::string module;
     Module * theModule;
 
@@ -2784,7 +2934,6 @@ struct ExprBlockYield : ASTNode {
     virtual ~ExprBlockYield();
     //
 };
-
 
 /* ============================================================================
  *
@@ -3397,7 +3546,7 @@ struct MacroUse : ASTNode {
 
     std::string macroName;
     std::vector<ASTNode *> args;
-    std::set<ASTNode*> leaveMeAloneArgs;
+    std::set<ASTNode *> leaveMeAloneArgs;
 
     const Type * result_t = nullptr;
 

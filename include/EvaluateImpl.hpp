@@ -47,6 +47,14 @@ template <typename rT> rT _evalSub(Val & a, Val & b) {
     return {};
 }
 
+template <typename rT> rT _evalBSHL(Val & a, Val & b) {
+    return a.as_i64 << b.as_i64;
+}
+
+template <typename rT> rT _evalBSHR(Val & a, Val & b) {
+    return a.as_i64 >> b.as_i64;
+}
+
 template <typename rT> rT _evalMult(Val & a, Val & b) {
     if (a.t->isInt() || a.t->isBool()) {
         if (b.t->isInt() || b.t->isBool())
@@ -100,6 +108,8 @@ template <typename rT> rT _evalNot(Val & a) {
     internalError("Bad types in evaluation of add expression.");
     return {};
 }
+
+template <typename rT> rT _evalBNEG(Val & a) { return ~(a.as_i64); }
 
 template <typename rT> rT _evalEqu(Val & a, Val & b) {
     if (a.t->isInt() || a.t->isBool()) {
@@ -167,6 +177,18 @@ template <typename rT> rT _evalLogOr(Val & a, Val & b) {
 
     internalError("Bad types in evaluation of log or expression.");
     return {};
+}
+
+template <typename rT> rT _evalBAND(Val & a, Val & b) {
+    return a.as_i64 & b.as_i64;
+}
+
+template <typename rT> rT _evalBOR(Val & a, Val & b) {
+    return a.as_i64 | b.as_i64;
+}
+
+template <typename rT> rT _evalBXOR(Val & a, Val & b) {
+    return a.as_i64 | b.as_i64;
 }
 
 } // namespace bjou

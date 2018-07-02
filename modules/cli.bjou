@@ -1,0 +1,59 @@
+# cli.bjou
+# command line utilities
+
+module cli
+
+__cli_fg_buff : char[64]
+__cli_bg_buff : char[64]
+
+extern printf(char* , ...) : int
+extern sprintf(char*, char* , ...) : int
+extern strlen(char*) : u64
+
+abstract type cli {
+    const RESET         := "\e[0m"
+    const BOLD          := "\e[1m"
+    const UNDERLINE     := "\e[4m"
+    const BLINK         := "\e[5m"
+    const INVERT        := "\e[7m"
+    const BOLD_OFF      := "\e[22m"
+    const UNDERLINE_OFF := "\e[24m"
+    const BLINK_OFF     := "\e[25m"
+    const INVERT_OFF    := "\e[27m"
+    const BLACK         := "\e[30m"
+    const RED           := "\e[31m"
+    const GREEN         := "\e[32m"
+    const YELLOW        := "\e[33m"
+    const BLUE          := "\e[34m"
+    const MAGENTA       := "\e[35m"
+    const CYAN          := "\e[36m"
+    const WHITE         := "\e[37m"
+    const BG_BLACK      := "\e[40m"
+    const BG_RED        := "\e[41m"
+    const BG_GREEN      := "\e[42m"
+    const BG_YELLOW     := "\e[43m"
+    const BG_BLUE       := "\e[44m"
+    const BG_MAGENTA    := "\e[45m"
+    const BG_CYAN       := "\e[46m"
+    const BG_WHITE      := "\e[47m"
+
+    proc fg256(val : u8) : char* {
+        __cli_fg_buff.sprintf("\e[38;5;%dm", val)
+        return __cli_fg_buff
+    }
+
+    proc bg256(val : u8) : char* {
+        __cli_bg_buff.sprintf("\e[48;5;%dm", val)
+        return __cli_bg_buff
+    }
+
+    proc fgRGB(r : u8, g : u8, b : u8) : char* {
+        __cli_fg_buff.sprintf("\e[38;2;%d;%d;%dm", r, g, b)
+        return __cli_fg_buff
+    }
+
+    proc bgRGB(r : u8, g : u8, b : u8) : char* {
+        __cli_bg_buff.sprintf("\e[48;2;%d;%d;%dm", r, g, b)
+        return __cli_bg_buff
+    }
+}

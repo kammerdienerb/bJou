@@ -3,32 +3,161 @@
 module __string
 
 extern strlen(char*) : u64
+extern sprintf(char*, char*, ...) : int
 
-type __bjou_string {
+type string {
     __data : char[...]
 
-    proc create() : __bjou_string {
-        return { __bjou_string:
+    proc create() : string {
+        return { string:
             .__data = [...char] 
         }     
     }
     
-    proc create(c_str : char*) : __bjou_string {
-        s := { __bjou_string:
+    proc create(c_str : char*) : string {
+        s := { string:
             .__data = [...char] 
         }
         s.__data.set([c_str, 0:strlen(c_str)])
         return s
     }
 
-    # destroy
+    proc copy(this) : string {
+        c : string = this
+        c.__data = this.__data.copy()
+        return c
+    }
+
+    proc free(this) {
+        this.__data.free()
+    }
+
+    proc len(this) : u64
+        return |this.__data|
+
+    proc c_str(this) : char* {
+        this.__data.push(0 as char)
+        # @hack
+        # Maybe it would be better if we didn't have to go beyond
+        # the interface provided for dynamic arrays..
+        getref(\__da_used{this.__data}) -= 1
+        return this.__data.data()
+    }
+
+    proc append(this, ch : char) {
+        this.__data.push(ch)
+    }
+
+    proc append(this, s : string) {
+        foreach ch in s.__data
+            this.__data.push(ch)
+    }
+
+    proc append(this, s : char*) {
+        s_slice := [s, 0:strlen(s)]
+        foreach ch in s_slice
+            this.__data.push(ch)
+    }
+
+    proc clear(this) {
+        this.__data.clear()
+    }
 }
 
-# proc len(s : __bjou_string ref) : u64
-#     return |s.__data|
+\op { "[]" proc __string_subscript(s : string, index : u64) : char {
+    return s.__data[index]
+}}
 
-proc c_str(s : __bjou_string ref) : char* {
-    s.__data.push(0)
-    s.__data.pop()
-    return s.__data.data()
+proc str() : string
+    return string.create()
+
+proc str(c_str : char*) : string
+    return string.create(c_str)
+
+proc str(i : i64) : string {
+    buff : char[128]
+    sprintf(buff, "%lld", i)
+    return string.create(buff)
+}
+
+proc str(f : f64) : string {
+    buff : char[128]
+    sprintf(buff, "%f", f)
+    return string.create(buff)
+}
+
+# @note: These concat() functions are inefficient.
+
+proc concat(s1 : string, s2 : char*) : string {
+    out := str()
+
+    foreach ch in s1.__data
+        out.__data.push(ch)
+
+    s2_slice := [s2, 0:strlen(s2)]
+    foreach ch in s2_slice
+        out.__data.push(ch)
+
+    return out
+}
+
+\op { "+" proc __string_plus(s1 : string, s2 : string) : string {
+    return concat(s1, s2)
+}}
+
+proc concat(s1 : string, s2 : string) : string {
+    out := str()
+    foreach ch in s1.__data
+        out.__data.push(ch)
+    foreach ch in s2.__data
+        out.__data.push(ch)
+    s1.free()
+    s2.free()
+    return out
+}
+
+proc concat(s1 : string,
+            s2 : string,
+            s3 : string) : string {
+    out := str()
+    foreach ch in s1.__data
+        out.__data.push(ch)
+    foreach ch in s2.__data
+        out.__data.push(ch)
+    foreach ch in s3.__data
+        out.__data.push(ch)
+    s1.free()
+    s2.free()
+    s3.free()
+    return out
+}
+
+proc concat(s1 : string,
+            s2 : string,
+            s3 : string,
+            s4 : string) : string {
+    out := str()
+    foreach ch in s1.__data
+        out.__data.push(ch)
+    foreach ch in s2.__data
+        out.__data.push(ch)
+    foreach ch in s3.__data
+        out.__data.push(ch)
+    foreach ch in s4.__data
+        out.__data.push(ch)
+    s1.free()
+    s2.free()
+    s3.free()
+    s4.free()
+    return out
+}
+
+proc concat(strs : string[...] ref) : string {
+    out := str()
+    foreach ref s in strs {
+        foreach ch in s.__data
+            out.__data.push(ch)
+        s.free()
+    }
+    return out
 }

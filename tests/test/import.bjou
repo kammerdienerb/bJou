@@ -1,4 +1,4 @@
 # import.bjou
 
-# pass 0 exit code so that runtests.sh doesn't report a failure from panic()
-panic(0, "oh, no!")
+import "c/io.bjou"
+fprintf(stdout(), "oh, no!")

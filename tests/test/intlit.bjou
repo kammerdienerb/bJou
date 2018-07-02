@@ -1,0 +1,33 @@
+# intlit.bjou
+
+main()
+
+proc p(arg : i32)
+    print "i32 %", arg
+
+proc p(arg : u32)
+    print "u32 %", arg
+
+proc p(arg : u8)
+    print "u8 %", arg
+
+proc p(arg : i64)
+    print "i64 %", arg
+
+proc main() {
+    i : i32 = 0
+    u : u32 = 0
+    b : u8  = 0
+    l : i64 = 0
+
+    i.p()
+    u.p()
+    b.p()
+    l.p()
+
+    p(127i64)
+    p(-123i32)
+    p(0)
+    p(16u8)
+    p(19384u32)
+}

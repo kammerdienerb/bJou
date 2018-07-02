@@ -1,0 +1,35 @@
+# progressbar.bjou
+
+import "cli.bjou"
+import "progressbar.bjou"
+import "random.bjou"
+
+import "c/time.bjou"
+import "c/sleep.bjou"
+
+\run{ main() }
+main()
+
+proc main() {
+    seedrand(time())
+
+    print "processing things..."
+
+    pb := ProgressBar.create(12345, 45, nullptr$char(), cli.fgRGB(90, 150, 130))
+
+    i := 1
+
+    while true {
+        if i >= 12345 {
+            pb.progress(12345)
+            break
+        }
+        pb.progress(i)
+        i += getrand(100) 
+        usleep(20000)
+    }
+
+    pb.free()
+
+    print "done."
+}

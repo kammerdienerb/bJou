@@ -5,7 +5,7 @@ type hasarray {
 }
 
 proc main() {
-    # h := { hasarray: .array = { 123, 456 } } # FIX
+    # h := { hasarray: .array = { 123, 456 } } #@fix @bad @temporary doesn't work
     h := { hasarray: }
     h.array[0] = 123
     h.array[1] = 456

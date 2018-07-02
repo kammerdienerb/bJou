@@ -1,0 +1,148 @@
+macro hello{ name }{
+    if not bNodeIsStrLit()
+        \die{ "macro hello: argument is not a string literal!" }
+
+    return bStrLit(concat(str("Hello, "),
+                          strofnode(name),
+                          str("!")))
+}
+
+print "%", \hello{ "creator" }
+
+###################################################################
+
+macro dyn{ args... }{
+    if args.empty()
+        \die{ "macro dyn: empty args!" }
+
+    uid   := bUnqIdent()
+    decl  := bFmt("% := %", uid, bDynArrayLit(typeofnode(args[0])))
+    calls := [...<>]
+    foreach arg in args {
+        # check more errors
+        calls.push(bFmt("%.push(%)", uid, arg))
+    }
+    yld   := bFmt("<-%", uid)
+
+    return bFmt(
+        "<<
+            %
+            %...
+            %
+        >>",
+        decl,
+        calls,
+        yld)
+}
+
+da := \dyn{ 1, 2, 3 }
+
+###################################################################
+
+macro eh{ p }{
+    if not bNodeIsProc(p)
+        \die{ "macro eh: argument is not a procedure!" }
+    if bProcIsExtern(p)
+        \die{ "macro eh: procedure argument can't be extern!" }
+
+    clone := bClone(p)
+    bClearStatements(clone)
+
+    err_uid := bUnqIdent()
+    proc_id := bNameIdent(clone)
+     
+    params := bGetParams(clone)
+    
+    if params.empty()
+    or not bSameType(bGetType(params.back()), bRefType(bType("errcode")))
+        \die{ "macro eh: procedure argument must take an errcode ref as its last parameter!" }
+
+    params.pop()
+
+    param_names := [...<>]
+    foreach param in params
+        param_names.push(bNameIdent(param))
+
+    if bSameType(bRetType(clone), bVoidType()) {
+        bAddStatement(
+            clone,
+            bFmt(
+                "% := NO_ERR
+                 %(%..., %)
+                 if % != NO_ERR
+                    \die{ % }",
+                 err_uid,
+                 proc_id, param_names, err_uid,
+                 err_uid,
+                 err_uid))
+    } else {
+        ret_uid := bUnqIdent()
+        
+        bAddStatement(
+            clone,
+            bFmt(
+                "% := NO_ERR
+                 % := %(%..., %)
+                 if % != NO_ERR
+                    \die{ % }
+                 return %",
+                 err_uid,
+                 ret_uid, proc_id, param_names, err_uid,
+                 err_uid,
+                 err_uid,
+                 ret_uid))
+    }
+}
+
+###################################################################
+
+macro forcomp{ f, cond }{
+    uid       := bUnqIdent()
+    var_id    := bForeachGetIdent(f)
+    expr      := bForeachGetExpr(f)
+    is_by_ref := bForeachGetIsByRef(f)
+
+    for_fmt := <<
+        if is_by_ref
+          <-"foreach ref % in % {
+                 if (%) {
+                     %.push(%) 
+                 }
+             }"
+        else
+          <-"foreach % in % {
+                 if (%) {
+                     %.push(%) 
+                 }
+             }" >>
+
+    expr_block_fmt :=
+        "<<
+             % := [... %]
+             %
+             <-%
+         >>"
+    
+    return bFmt(expr_block_fmt,
+            uid, bTypeUnder(typeofnode()),
+            bFmt(for_fmt,
+                var_id, expr, 
+                cond,
+                uid, var_id),
+            uid)
+}
+
+###################################################################
+
+macro dbg{ args... }{
+    fmt := "print \"%%%: %%%\", %, %"
+    out := \forcomp{ foreach arg in args {} bNodeIsExpr(arg)
+                        bFmt(bToks(arg)) }
+    out := [...<>]
+    foreach arg in args {
+        if not bNodeIsExpr(arg)
+            \die{ "macro dbg: argument is not an expression!" }
+        out.push(bFmt(bToks(arg), arg))
+    }
+    return bMulti(out)
+}

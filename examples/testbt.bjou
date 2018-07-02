@@ -1,0 +1,15 @@
+# testbt.bjou
+
+# \run{ main() }
+# \front{ true }
+
+main()
+
+proc a() {
+    a := [...int]
+    b := a[1000000000]
+}
+
+proc main() {
+    a()
+}

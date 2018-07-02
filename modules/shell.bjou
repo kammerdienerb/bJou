@@ -1,0 +1,51 @@
+# shell.bjou
+# use bJou as a shell scripting language
+
+module shell
+
+import "c/io.bjou"
+
+# @bug
+# Why doesn't this work?
+# type ShellCommand = <(string) : string[...]>
+
+abstract type sh {
+    proc __exec(cmd : char*, args : char*) : string[...] {
+        full_cmd := str(cmd)
+        full_cmd.append(" ")
+        full_cmd.append(args)
+
+        stream := popen(full_cmd.c_str(), "r")
+        
+        full_cmd.free()
+
+        output := [...string]
+
+        c := 0
+        line := str() 
+        while (c = stream.fgetc()) >= 0 {
+            if c == '\n' {
+                output.push(line.copy())
+                line.clear()
+            } else {
+                line.append(c as char)
+            }
+        } 
+
+        return output
+    }
+
+    proc ls() : string[...]
+        return sh.__exec("ls", "")
+    proc ls(args : string) : string[...]
+        return sh.__exec("ls", args.c_str())
+
+    proc seq(last : i64) : string [...] {
+        arg := str(last)
+        output := sh.__exec("seq", arg.c_str())
+        arg.free()
+        return output
+    }
+    proc seq(args : string) : string [...]
+        return sh.__exec("seq", args.c_str())
+}

@@ -863,14 +863,14 @@ type libclang {
     proc _load(this, path : char*) {
         handle := dlopen(libclang_path, RTLD_LAZY)
         if handle.isnull()
-            panic(dlerror())
+            \die{ dlerror() }
         this._lib_handle = handle 
     }
 
     proc _handleGetSymbol(this, sym : char*) : void* {
         ptr := this._lib_handle.dlsym(sym)
         if ptr.isnull()
-            panic(dlerror())
+            \die{ dlerror() }
         return ptr
     }
 

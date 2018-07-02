@@ -34,6 +34,10 @@ std::string str_escape(std::string & str) {
                 r.replace(pos, 2, "\t");
             else if (r[pos + 1] == '\\')
                 r.replace(pos, 2, "\\");
+            else if (r[pos + 1] == 'r')
+                r.replace(pos, 2, "\r");
+            else if (r[pos + 1] == 'e')
+                r.replace(pos, 2, "\033");
             // @incomplete
         }
         pos++;

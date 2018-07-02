@@ -1,0 +1,19 @@
+# __env.bjou
+# command line arguments
+
+module __env
+
+__bjou_args : string[...]
+
+proc __bjou_fill_args(argc : int, argv : char**) {
+    __bjou_args = [...string]
+
+    for i := 0; i < argc; i += 1
+        __bjou_args.push(str(argv[i]))
+}
+
+abstract type env {
+    proc args() : string[...] ref
+        return __bjou_args
+}
+

@@ -7,10 +7,10 @@
 //
 
 #include "Module.hpp"
+#include "CLI.hpp"
 #include "FrontEnd.hpp"
 #include "Misc.hpp"
 #include "Parser.hpp"
-#include "CLI.hpp"
 
 #ifdef BJOU_DEBUG_BUILD
 #define SAVE_BJOU_DEBUG_BUILD
@@ -30,30 +30,34 @@
 
 namespace bjou {
 
-Module::Module() : activated(false), activatedAsCT(false), filled(false), n_lines(0), multi(nullptr) {  }
+Module::Module()
+    : activated(false), activatedAsCT(false), filled(false), n_lines(0),
+      multi(nullptr) {}
 
-void Module::fill(std::vector<ASTNode*>& _nodes, std::vector<ASTNode*>& _structs, std::vector<ASTNode*>& _ifaceDefs) {
+void Module::fill(std::vector<ASTNode *> & _nodes,
+                  std::vector<ASTNode *> & _structs,
+                  std::vector<ASTNode *> & _ifaceDefs) {
     if (filled)
         return;
 
     multi = new MultiNode;
     multi->isModuleContainer = true;
 
-    nodes     = std::move(_nodes);
-    structs   = std::move(_structs);
+    nodes = std::move(_nodes);
+    structs = std::move(_structs);
     ifaceDefs = std::move(_ifaceDefs);
 }
 
 void Module::activate(Import * source, bool ct) {
     if (activated) {
         if (activatedAsCT && !ct) {
-            // We need to tell the CT that encapsulates the 
+            // We need to tell the CT that encapsulates the
             // activated module import to ignore the multinode.
             MacroUse * encaps_ct = nullptr;
             ASTNode * p = multi->getParent();
             while (p) {
                 if (p->nodeKind == ASTNode::MACRO_USE) {
-                    MacroUse * use = (MacroUse*)p;
+                    MacroUse * use = (MacroUse *)p;
                     if (use->getMacroName() == "ct") {
                         encaps_ct = use;
                         break;
@@ -69,7 +73,7 @@ void Module::activate(Import * source, bool ct) {
         return;
     }
 
-    activated     = true;
+    activated = true;
     activatedAsCT = ct;
 
     BJOU_DEBUG_ASSERT(multi && multi->isModuleContainer);
@@ -86,7 +90,7 @@ void Module::activate(Import * source, bool ct) {
     for (ASTNode * i : ifaceDefs)
         ((InterfaceDef *)i)->addSymbols(source->getScope());
     for (ASTNode * s : structs)
-        ((Struct*)s)->addSymbols(source->getScope());
+        ((Struct *)s)->addSymbols(source->getScope());
 
     for (ASTNode * node : multi->nodes) {
         if (node->nodeKind != ASTNode::STRUCT &&
@@ -161,15 +165,20 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                                     parser->mod_decl->getIdentifier());
 
                                 module = new Module;
-                                compilation->frontEnd.modulesByID[parser->mod_decl->getIdentifier()] = module;
-                                compilation->frontEnd.modulesByPath[fname] = module;
+                                compilation->frontEnd.modulesByID
+                                    [parser->mod_decl->getIdentifier()] =
+                                    module;
+                                compilation->frontEnd.modulesByPath[fname] =
+                                    module;
 
                                 parserContainer.push_back(parser);
-                                futureTimes[fname] =
-                                    std::async(std::launch::async,
-                                               std::ref(*parserContainer.back()));
+                                futureTimes[fname] = std::async(
+                                    std::launch::async,
+                                    std::ref(*parserContainer.back()));
                             } else {
-                                module = compilation->frontEnd.modulesByID[parser->mod_decl->getIdentifier()];
+                                module =
+                                    compilation->frontEnd.modulesByID
+                                        [parser->mod_decl->getIdentifier()];
 
                                 parser->Dispose();
                                 delete parser;
@@ -182,7 +191,8 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                             import->notModuleError = true;
                         }
                     } else {
-                        import->theModule = compilation->frontEnd.modulesByPath[fname];
+                        import->theModule =
+                            compilation->frontEnd.modulesByPath[fname];
                     }
                 } else {
                     import->fileError = true;
@@ -237,27 +247,34 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
 
                     if (parser.mod_decl) {
                         Module * module = nullptr;
-                        if (modulesImported.find(parser.mod_decl->getIdentifier()) ==
+                        if (modulesImported.find(
+                                parser.mod_decl->getIdentifier()) ==
                             modulesImported.end()) {
-                            modulesImported.insert(parser.mod_decl->getIdentifier());
-                            times[fname] = peektimes[fname] + parser(); // continue
+                            modulesImported.insert(
+                                parser.mod_decl->getIdentifier());
+                            times[fname] =
+                                peektimes[fname] + parser(); // continue
 
-                            module = new Module; 
+                            module = new Module;
 
-                            compilation->frontEnd.modulesByID[parser.mod_decl->getIdentifier()] = module;
+                            compilation->frontEnd
+                                .modulesByID[parser.mod_decl->getIdentifier()] =
+                                module;
                             compilation->frontEnd.modulesByPath[fname] = module;
 
                             pushImportsFromAST(parser.nodes, imports);
 
-                            module->fill(parser.nodes, parser.structs, parser.ifaceDefs);
+                            module->fill(parser.nodes, parser.structs,
+                                         parser.ifaceDefs);
 
                             module->n_lines = parser.n_lines;
                         } else {
-                            module = compilation->frontEnd.modulesByID[parser.mod_decl->getIdentifier()];
+                            module = compilation->frontEnd.modulesByID
+                                         [parser.mod_decl->getIdentifier()];
 
                             parser.Dispose();
                         }
-                            
+
                         BJOU_DEBUG_ASSERT(module);
 
                         import->theModule = module;

@@ -12,24 +12,6 @@
 
 namespace bjou {
 namespace x86 {
-enum ParamClass {
-    POINTER, // This class consists of pointer types.
-    INTEGER, // This class consists of integral types (except pointer types)
-             // that fit into one of the general purpose registers.
-    SSE,     // The class consists of types that fit into a vector register.
-    SSEUP,   // The class consists of types that fit into a vector register and
-             // can be passed and returned in the upper bytes of it.
-    X87,
-    X87UP, // These classes consists of types that will be returned via the x87
-           // FPU.
-    COMPLEX_X87, // This class consists of types that will be returned via the
-                 // x87 FPU.
-    NO_CLASS, // This class is used as initializer in the algorithms. It will be
-              // used for padding and empty structures and unions.
-    MEMORY // This class consists of types that will be passed and returned in
-           // memory via the stack.
-};
-
 static ParamClass ABIClassForField(ParamClass c, ParamClass _8b) {
     if (_8b == NO_CLASS)
         return c;
@@ -48,7 +30,7 @@ static ParamClass ABIClassForField(ParamClass c, ParamClass _8b) {
 
 #define MEM_THRESH 16
 
-static ParamClass ABIClassForType(LLVMBackEnd & backEnd, const Type * t) {
+ParamClass ABIClassForType(LLVMBackEnd & backEnd, const Type * t) {
     unsigned int size = simpleSizer(t);
 
     if (t->isVoid())
