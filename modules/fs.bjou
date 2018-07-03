@@ -5,7 +5,6 @@ module fs
 
 import "os.bjou"
 
-import "errcode.bjou"
 import "null.bjou"
 
 import "c/io.bjou"

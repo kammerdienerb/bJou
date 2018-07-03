@@ -276,9 +276,11 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createVariableDeclaration", (uint64_t)&bjou_createVariableDeclaration);
     ee->addGlobalMapping("bjou_createFieldDeclaration", (uint64_t)&bjou_createFieldDeclaration);
     ee->addGlobalMapping("bjou_createParamDeclaration", (uint64_t)&bjou_createParamDeclaration);
+    ee->addGlobalMapping("bjou_createProcedureDeclarator", (uint64_t)&bjou_createProcedureDeclarator);
     ee->addGlobalMapping("bjou_createAlias", (uint64_t)&bjou_createAlias);
     ee->addGlobalMapping("bjou_createStruct", (uint64_t)&bjou_createStruct);
     ee->addGlobalMapping("bjou_createArgList", (uint64_t)&bjou_createArgList);
+    ee->addGlobalMapping("bjou_createProcedure", (uint64_t)&bjou_createProcedure);
     ee->addGlobalMapping("bjou_createExternProcedure", (uint64_t)&bjou_createExternProcedure);
     ee->addGlobalMapping("bjou_createReturn", (uint64_t)&bjou_createReturn);
     ee->addGlobalMapping("bjou_createBreak", (uint64_t)&bjou_createBreak);
@@ -289,7 +291,7 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createWhile", (uint64_t)&bjou_createWhile);
     ee->addGlobalMapping("bjou_createDoWhile", (uint64_t)&bjou_createDoWhile);
     ee->addGlobalMapping("bjou_createMacroUse", (uint64_t)&bjou_createMacroUse);
-
+    
 }
 
 LLVMBackEnd::~LLVMBackEnd() {
@@ -984,6 +986,9 @@ milliseconds LLVMBackEnd::LinkingStage() {
         link_args.push_back("-l");
         link_args.push_back(l.c_str());
     }
+
+    link_args.push_back("-ldl");
+    link_args.push_back("-lm");
 
     bool use_system_linker = true;
 

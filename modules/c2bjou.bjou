@@ -7,9 +7,11 @@ module c2bjou
 # @hack -- where is this supposed to come from?
 abstract type __va_list_tag { }
 
+extern sscanf(char*, char*, ...) : int
 extern sprintf(char*, char*, ...) : int
 extern strcmp(char*, char*) : int
 extern strlen(char*) : u64
+extern dirname(char*) : char*
 
 \ct {
 const PRINT_AST := true
@@ -19,7 +21,7 @@ import "null.bjou"
 import "dict.bjou"
 
 # must be defined for clang.bjou to compile
-const libclang_path := "/usr/local/Cellar/llvm/6.0.0/lib/libclang.dylib"
+const libclang_path := "/usr/lib/llvm-4.0/lib/libclang.so.1"
 import "clang.bjou"
 import "c2bjou/ClangWrapper.bjou"
 import "c2bjou/visitors.bjou"
@@ -29,10 +31,34 @@ import "compiler.bjou"
 proc include(fname : char*) {
     init_clang()
 
+    v_str := clang.getCString(clang.getClangVersion())
+
+    maj := 0
+    med := 0
+    min := 0
+
+    v_str.sscanf("clang version %d.%d.%d", &maj, &med, &min)
+
+    inc_buff : char[128]
+
+    # dirname() is weird.. can't take a global string as an argument
+    # because it modifies its argument. We do it this way.
+    _path := str(clang._path)
+    path  := str(dirname(_path.c_str()))
+    _path.free()
+
+    inc_buff.sprintf("-I%s/clang/%d.%d.%d/include", path.c_str(), maj, med, min)
+    path.free()
+
+    cmd_line_args := [...char*]
+    cmd_line_args.push(inc_buff)
+
     cw := ClangWrapper.create()
     translator := c2bJou.create(cw)
 
-    translator.cw.parseTU(fname)
+    translator.cw.parseTU(fname, cmd_line_args)
+
+    cmd_line_args.free()
 
     translator.cw.traverseTU(dispatch, (&translator) as CXClientData*)
 

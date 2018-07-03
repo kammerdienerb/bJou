@@ -32,9 +32,12 @@ proc stdin() : FILE* {
         handle := dlopen(nullptr$char(), RTLD_NOW)
         if handle.isnull()
             \die{ dlerror() }
-        @p = @(dlsym(handle, "__stdinp") as FILE**)
-        if (@p).isnull()
+        _p := dlsym(handle, "stdin")
+        if (_p).isnull()
+            _p = dlsym(handle, "__stdinp")
+        if (_p).isnull()
             \die{ dlerror() }
+        @p = @(_p as FILE**)
     }
     return @p
 }
@@ -45,9 +48,12 @@ proc stdout() : FILE* {
         handle := dlopen(nullptr$char(), RTLD_NOW)
         if handle.isnull()
             \die{ dlerror() }
-        @p = @(dlsym(handle, "__stdoutp") as FILE**)
-        if (@p).isnull()
+        _p := dlsym(handle, "stdout")
+        if (_p).isnull()
+            _p = dlsym(handle, "__stdoutp")
+        if (_p).isnull()
             \die{ dlerror() }
+        @p = @(_p as FILE**)
     }
     return @p
 }
@@ -58,9 +64,12 @@ proc stderr() : FILE* {
         handle := dlopen(nullptr$char(), RTLD_NOW)
         if handle.isnull()
             \die{ dlerror() }
-        @p = @(dlsym(handle, "__stderrp") as FILE**)
-        if (@p).isnull()
+        _p := dlsym(handle, "stderr")
+        if (_p).isnull()
+            _p = dlsym(handle, "__stderrp")
+        if (_p).isnull()
             \die{ dlerror() }
+        @p = @(_p as FILE**)
     }
     return @p
 }

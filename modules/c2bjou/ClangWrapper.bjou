@@ -16,11 +16,11 @@ type ClangWrapper {
         }
     }
 
-    proc parseTU(this, fname : char*) {
+    proc parseTU(this, fname : char*, cmd_line_args : char*[...] ref) {
         this.tu = clang.parseTranslationUnit(
             this.index,
             fname,
-            _nullptr() as char**, 0,
+            cmd_line_args.data(), |cmd_line_args|,
             _nullptr() as CXUnsavedFile*, 0,
             0) # CXTranslationUnit_DetailedPreprocessingRecord)
 
