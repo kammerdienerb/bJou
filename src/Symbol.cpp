@@ -244,7 +244,7 @@ bool ProcSet::resolve(std::vector<Symbol *> & candidates,
                 ProcedureType * candidate_type =
                     (ProcedureType *)sym->node()->getType();
                 _concrete.insert(std::make_pair(
-                    countConversions(compare_type, candidate_type), sym));
+                    countConversions(candidate_type, compare_type), sym));
             }
         }
 

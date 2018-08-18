@@ -22,12 +22,15 @@ struct ASTNode;
 struct Procedure;
 struct Constant;
 struct Struct;
+struct Enum;
 struct Alias;
 struct Expression;
+struct IntegerLiteral;
 struct Identifier;
 struct Declarator;
 struct TemplateInstantiation;
 struct Symbol;
+struct Scope;
 struct ProcSet;
 
 struct Type {
@@ -44,6 +47,7 @@ struct Type {
         SLICE,
         DYNAMIC_ARRAY,
         STRUCT,
+        ENUM,
         TUPLE,
         PROCEDURE
     };
@@ -70,6 +74,7 @@ struct Type {
     bool isSlice() const;
     bool isDynamicArray() const;
     bool isStruct() const;
+    bool isEnum() const;
     bool isTuple() const;
     bool isProcedure() const;
 
@@ -279,6 +284,22 @@ struct StructType : Type {
     void complete();
 
     bool implementsInterfaces() const;
+};
+
+struct EnumType : Type {
+    Enum * _enum;
+    std::vector<std::string> identifiers;
+
+    EnumType(std::string & name, Enum * _enum = nullptr);
+
+    static const Type * get(std::string name);
+    static const Type * get(std::string name, Enum * __enum);
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+
+    IntegerLiteral * getValueLiteral(std::string& identifier, Context & context, Scope * scope) const;
 };
 
 struct TupleType : Type {

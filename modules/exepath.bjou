@@ -1,0 +1,34 @@
+# exepath.bjou
+
+module exepath
+
+import "c/string.bjou"
+
+\ct{ import "os.bjou" }
+
+\static_if{ os.OS == os.MACOS
+    extern _NSGetExecutablePath(char*, u32*) : int }
+
+proc exepath() : string {
+
+# MACOS
+\static_if{ os.OS == os.MACOS
+    _buff : char[512] 
+    buff  : char* = _buff
+    s     := str()
+    len   : u32 = 512
+
+    if _NSGetExecutablePath(buff, &len) == 0 {
+        s.__data.set([buff, 0:strlen(buff)])
+    } else {
+        buff = new char[len]
+        _NSGetExecutablePath(buff, &len)
+        s.__data.set([buff, 0:strlen(buff)])
+        delete buff
+    }
+    return s }
+
+\static_if{ os.OS != os.MACOS
+    \error{ "exepath is not implemented for this system yet." } }
+
+}

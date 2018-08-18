@@ -257,7 +257,7 @@ bool Expression::opOverload() {
             const Type * compare_type =
                 ProcedureType::get(arg_types, VoidType::get());
 
-            if (argMatch(compare_type, proc->getType())) {
+            if (argMatch(proc->getType(), compare_type)) {
                 CallExpression * call = new CallExpression;
 
                 call->setContext(getContext());
@@ -2643,6 +2643,23 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
                 }
             } else
                 errorl(getRight()->getContext(), "Expected identifier.");
+        } else if (lt->isEnum()) {
+            if (getRight()->nodeKind == ASTNode::IDENTIFIER) {
+                EnumType * e_t = (EnumType*)lt;
+                IntegerLiteral * lit = e_t->getValueLiteral(r_id->getUnqualified(), getContext(), getScope());
+                
+                if (!lit) {
+                    errorl(getRight()->getContext(), "'" + r_id->getUnqualified() + "' is not named in enum '" + e_t->getDemangledName() + "'.");
+                }
+
+                lit->analyze();
+                lit->setType(e_t);
+
+                (*this->replace)(parent, this, lit);
+                setType(e_t);
+                return -1;
+            } else
+                errorl(getRight()->getContext(), "Expected identifier.");
         } else
             errorl(getLeft()->getContext(),
                    "'" + lt->getDemangledName() + "' does not have members.");
@@ -2840,13 +2857,11 @@ void AccessExpression::analyze(bool force) {
         if (handleInjection()) {
             setFlag(ANALYZED, true);
             return;
-        } else
+        } else {
             errorl(getContext(),
-                   "Access using the '.' operator only applies to struct types "
-                   "and pointers to them.",
-                   true,
-                   "attempting to use '.' on '" +
-                       getLeft()->getType()->getDemangledName() + "'");
+                   "Access using the '.' operator does not apply to type '" + 
+                    getLeft()->getType()->getDemangledName() + "'.");
+        }
     }
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
@@ -3455,7 +3470,7 @@ void AsExpression::analyze(bool force) {
 
     if (!(
             // @incomplete
-            (conv(lt, rt) ||
+            (conv(rt, lt) ||
              // (lt->isInt() && rt->isPointer()) || // for a NULL
              (lt->isPointer() && rt->isPointer()) ||
              (lt->isArray() && rt->isPointer() &&
@@ -4983,7 +4998,7 @@ void Declarator::analyze(bool force) {
 
             type = t;
 
-            if (t->isStruct()) {
+            if (t->isStruct() || t->isEnum()) {
                 if (getTemplateInst())
                     errorl(getTemplateInst()->getContext(),
                            "'" + sym->demangledString() +
@@ -7456,6 +7471,8 @@ void Enum::addSymbols(Scope * _scope) {
     _Symbol<Enum> * symbol = new _Symbol<Enum>(getName(), this);
     setMangledName(symbol->mangledString(_scope));
     _scope->addSymbol(symbol, &getNameContext());
+
+    EnumType::get(getMangledName(), this);
 }
 
 void Enum::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
@@ -7483,10 +7500,9 @@ Enum::~Enum() {}
 
 const Type * Enum::getType() {
     analyze();
-    std::string mangled = getMangledName();
 
-    BJOU_DEBUG_ASSERT(false);
-    return nullptr;
+    std::string mangled = getMangledName();
+    return EnumType::get(mangled);
 }
 
 // ~~~~~ ArgList ~~~~~

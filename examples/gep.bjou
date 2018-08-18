@@ -1,0 +1,11 @@
+# gep.bjou
+
+import "exepath.bjou"
+
+\run{ main() }
+main()
+
+proc main() {
+    path := exepath()
+    print "%", path.c_str()
+}

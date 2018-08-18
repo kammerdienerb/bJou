@@ -414,7 +414,7 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
         ProcedureType * compare_type =
             (ProcedureType *)ProcedureType::get(arg_types, VoidType::get());
 
-        nconv = countConversions(compare_type, candidate_type);
+        nconv = countConversions(candidate_type, compare_type);
 
         /*
         for (int i = 0; i < (int)arg_types.size(); i += 1) {

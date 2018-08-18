@@ -35,11 +35,11 @@ endif
 ###############
 
 TARGET		= bjou
-CC 			= clang++-4.0
+CC 			= clang++
 INCLUDE		= include
 TCLAP_INCLUDE = . 
 # LLVM_CFG	= ~/Documents/Programming/llvm-4.0.1/bin/llvm-config
-LLVM_CFG	= llvm-config-4.0
+LLVM_CFG	= llvm-config
 R_CFLAGS 	= -I$(INCLUDE) -I$(TCLAP_INCLUDE) -DBJOU_USE_COLOR $(shell $(LLVM_CFG) --cxxflags) -fno-rtti -fno-exceptions -O3
 D_CFLAGS 	= -I$(INCLUDE) -I$(TCLAP_INCLUDE) -DBJOU_USE_COLOR -DBJOU_DEBUG_BUILD $(shell $(LLVM_CFG) --cxxflags) -fno-rtti -w -g -O0
 LLVM_LIBS	= $(shell $(LLVM_CFG) --libs all --system-libs)

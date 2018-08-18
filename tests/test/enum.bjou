@@ -1,0 +1,31 @@
+# enum.bjou
+
+main()
+
+enum E {
+    A,
+    B,
+    C
+}
+
+proc eprinter(e : E) {
+    print "%", e
+}
+
+proc iprinter(i : i64) {
+    print "%", i
+}
+
+proc main() {
+    e : E = E.A
+    print "%", e
+
+    # e = 5 # incorrect
+
+    i := e
+    print "%", i
+
+    eprinter(E.C)
+    iprinter(E.B)
+    # eprinter(1) # incorrect
+}

@@ -1279,6 +1279,8 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
         return llvm::IntegerType::get(llContext, 1);
     case Type::INT:
         return llvm::IntegerType::get(llContext, ((IntType *)t)->width);
+    case Type::ENUM:
+        return llvm::IntegerType::get(llContext, 64);
     case Type::FLOAT: {
         return llvm::Type::getDoubleTy(llContext);
         /*if (t->size == 32)
@@ -2875,6 +2877,11 @@ void * AsExpression::generate(BackEnd & backEnd, bool flag) {
     const Type * lt = getLeft()->getType()->unRef();
     const Type * rt = getRight()->getType();
 
+    if (lt->isEnum())
+        lt = IntType::get(Type::Sign::UNSIGNED, 64);
+    if (rt->isEnum())
+        rt = IntType::get(Type::Sign::UNSIGNED, 64);
+
     llvm::Value * val = (llvm::Value *)llbe->getOrGenNode(getLeft());
     llvm::Type * ll_rt = llbe->getOrGenType(rt);
 
@@ -3496,6 +3503,8 @@ static void gen_printf_fmt(BackEnd & backEnd, llvm::Value * val, const Type * t,
                 else
                     fmt += "%lld";
             }
+        } else if (t->isEnum()) {
+            fmt += "%llu";
         } else if (t->isFloat()) {
             if (((FloatType *)t)->width == 32)
                 fmt += "%f";

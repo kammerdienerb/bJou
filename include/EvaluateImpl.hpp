@@ -188,7 +188,7 @@ template <typename rT> rT _evalBOR(Val & a, Val & b) {
 }
 
 template <typename rT> rT _evalBXOR(Val & a, Val & b) {
-    return a.as_i64 | b.as_i64;
+    return a.as_i64 ^ b.as_i64;
 }
 
 } // namespace bjou

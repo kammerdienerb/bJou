@@ -43,6 +43,7 @@ bool Type::isArray() const { return kind == ARRAY; }
 bool Type::isSlice() const { return kind == SLICE; }
 bool Type::isDynamicArray() const { return kind == DYNAMIC_ARRAY; }
 bool Type::isStruct() const { return kind == STRUCT; }
+bool Type::isEnum() const { return kind == ENUM; }
 bool Type::isTuple() const { return kind == TUPLE; }
 bool Type::isProcedure() const { return kind == PROCEDURE; }
 
@@ -547,6 +548,53 @@ std::string StructType::getDemangledName() const {
     return demangledString(key);
 }
 
+EnumType::EnumType(std::string & name, Enum * __enum)
+    : Type(ENUM, name),
+      _enum(__enum) {
+
+    if (_enum) {
+        identifiers.insert(
+                           identifiers.begin(),
+                           _enum->identifiers.begin(),
+                           _enum->identifiers.end());    
+    }
+}
+
+const Type * EnumType::get(std::string name) {
+    return getOrAddType<EnumType>(name, name);
+}
+
+const Type * EnumType::get(std::string name, Enum * __enum) {
+    return getOrAddType<EnumType>(name, name, __enum);
+}
+
+Declarator * EnumType::getGenericDeclarator() const {
+    return basicDeclarator(this);
+}
+
+std::string EnumType::getDemangledName() const {
+    return demangledString(key);
+}
+
+IntegerLiteral * EnumType::getValueLiteral(std::string& identifier, Context & context, Scope * scope) const {
+    int i = 0;
+    for (const std::string& id : identifiers) {
+        if (id == identifier)
+            break;
+        i += 1;
+    }
+
+    if (i == identifiers.size())
+        return nullptr;
+
+    IntegerLiteral * lit = new IntegerLiteral;
+    lit->setContents(std::to_string(i) + "u64");
+    lit->setContext(context);
+    lit->setScope(scope);
+
+    return lit;
+}
+
 TupleType::TupleType(const std::vector<const Type *> & _types)
     : Type(TUPLE, tkey(_types)), types(_types) {
     BJOU_DEBUG_ASSERT(!types.empty());
@@ -651,6 +699,8 @@ bool equal(const Type * t1, const Type * t2) {
 
         return (i1->sign == i2->sign) && (i1->width == i2->width);
     }
+    case Type::ENUM:
+        return t1 == t2;
     case Type::FLOAT: {
         const FloatType * f1 = (const FloatType *)t1;
         const FloatType * f2 = (const FloatType *)t2;
@@ -735,6 +785,9 @@ const Type * conv(const Type * t1, const Type * t2) {
     if (equal(t1, t2))
         return t1;
 
+    if (t2->isEnum())
+        t2 = IntType::get(Type::Sign::UNSIGNED, 64);
+
     if (t2->isRef()) {
         const Type * r = conv(t1, t2->unRef());
         if (r)
@@ -782,7 +835,7 @@ const Type * conv(const Type * t1, const Type * t2) {
     case Type::REF: {
         const Type * un = conv(t1->unRef(), t2->unRef());
         if (un)
-            return un;
+            return t1;
 
         const Type * r1 = t1->unRef();
         const Type * r2 = t2->unRef();
@@ -800,7 +853,7 @@ const Type * conv(const Type * t1, const Type * t2) {
                     break;
                 }
             }
-            return extends;
+            return t1;
         }
         break;
     }
@@ -822,7 +875,7 @@ const Type * conv(const Type * t1, const Type * t2) {
                     break;
                 }
             }
-            return extends;
+            return t1;
         }
         break;
     }
@@ -1106,10 +1159,14 @@ unsigned int simpleSizer(const Type * t) {
             size += simpleSizer(m_t);
         if (s_t->implementsInterfaces())
             size += sizeof(void *);
+    } else if (t->isEnum()) {
+        size = 8;
     } else if (t->isTuple()) {
         TupleType * t_t = (TupleType *)t;
         for (const Type * s_t : t_t->getTypes())
             size += simpleSizer(s_t);
+    } else {
+        BJOU_DEBUG_ASSERT(false && "type not handled in simpleSizer()");
     }
 
     return size;
@@ -1119,8 +1176,8 @@ int countConversions(ProcedureType * compare_type,
                      ProcedureType * candidate_type) {
     int nconv = 0;
     for (int i = 0; i < (int)candidate_type->paramTypes.size(); i += 1) {
-        const Type * t1 = candidate_type->paramTypes[i];
-        const Type * t2 = compare_type->paramTypes[i];
+        const Type * t1 = compare_type->paramTypes[i];
+        const Type * t2 = candidate_type->paramTypes[i];
         if (!conv(t1, t2))
             return -1;
         if (!equal(t1, t2)) {
