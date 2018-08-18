@@ -8,6 +8,10 @@ enum E {
     C
 }
 
+type S {
+    e : E
+}
+
 proc eprinter(e : E) {
     print "%", e
 }
@@ -28,4 +32,7 @@ proc main() {
     eprinter(E.C)
     iprinter(E.B)
     # eprinter(1) # incorrect
+    
+    s := { S: .e = E.B }
+    print "%", s
 }
