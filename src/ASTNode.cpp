@@ -2387,6 +2387,8 @@ int AccessExpression::handleInterfaceSpecificCall() {
             } else if (t->isPointer()) {
                 if (t->under()->isStruct())
                     struct_t = (StructType *)t->under();
+            } else {
+                return 0;
             }
 
             BJOU_DEBUG_ASSERT(struct_t);
@@ -3585,6 +3587,13 @@ const Type * Identifier::getType() {
             qualified = proc->getMangledName();
             setType(proc->getType());
         } else {
+            if (sym->isType() && getParent() && getParent()->getParent() && (IS_EXPRESSION(getParent()->getParent()) || getParent()->getParent()->nodeKind == ARG_LIST)) {
+                if (getParent()->getParent()->nodeKind == ASTNode::ACCESS_EXPRESSION) {
+                    setType(sym->node()->getType());
+                    return type;
+                }
+            }
+
             std::string sym_kind = "???";
 
             if (sym->isType() || sym->isTemplateType())
@@ -3648,7 +3657,7 @@ void Identifier::analyze(bool force) {
         else internalError("Identifier error."); // @bad!
          */
 
-        if (parent && IS_EXPRESSION(parent) || parent->nodeKind == ARG_LIST) {
+        if (parent && (IS_EXPRESSION(parent) || parent->nodeKind == ARG_LIST)) {
             if (parent->nodeKind != ASTNode::ACCESS_EXPRESSION)
                 errorl(getContext(), "Can't use type name '" + unqualified +
                                          "' as expression.");
