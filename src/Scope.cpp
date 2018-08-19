@@ -317,29 +317,27 @@ void Scope::addSymbol(_Symbol<Procedure> * symbol, Context * context) {
     }
 
     // local
-    if (nspace) {
+    if (symbols.count(name) == 0)
+        symbols[name] = new _Symbol<ProcSet>(name, new ProcSet(name));
+    if (symbols[name]->node()->nodeKind == ASTNode::PROC_SET) {
+        ProcSet * set = (ProcSet *)symbols[name]->node();
+        set->procs[mangled->name] = mangled;
+    }
+
+    // also create another proc set unique to the type/interface combo
+    if (proc->getFlag(Procedure::IS_INTERFACE_IMPL)) {
+        std::string iname = proc->getParentStruct()->getMangledName() + ".";
+        Identifier * ident =
+            (Identifier *)((InterfaceImplementation *)proc->parent)
+                ->getIdentifier();
+        iname += mangledIdentifier(ident) + "." + proc->getName();
+
         if (symbols.count(name) == 0)
-            symbols[name] = new _Symbol<ProcSet>(name, new ProcSet(name));
-        if (symbols[name]->node()->nodeKind == ASTNode::PROC_SET) {
-            ProcSet * set = (ProcSet *)symbols[name]->node();
+            symbols[iname] =
+                new _Symbol<ProcSet>(iname, new ProcSet(iname));
+        if (symbols[iname]->node()->nodeKind == ASTNode::PROC_SET) {
+            ProcSet * set = (ProcSet *)symbols[iname]->node();
             set->procs[mangled->name] = mangled;
-        }
-
-        // also create another proc set unique to the type/interface combo
-        if (proc->getFlag(Procedure::IS_INTERFACE_IMPL)) {
-            std::string iname = proc->getParentStruct()->getMangledName() + ".";
-            Identifier * ident =
-                (Identifier *)((InterfaceImplementation *)proc->parent)
-                    ->getIdentifier();
-            iname += mangledIdentifier(ident) + "." + proc->getName();
-
-            if (symbols.count(name) == 0)
-                symbols[iname] =
-                    new _Symbol<ProcSet>(iname, new ProcSet(iname));
-            if (symbols[iname]->node()->nodeKind == ASTNode::PROC_SET) {
-                ProcSet * set = (ProcSet *)symbols[iname]->node();
-                set->procs[mangled->name] = mangled;
-            }
         }
     }
 
@@ -421,13 +419,11 @@ void Scope::addSymbol(_Symbol<TemplateProc> * symbol, Context * context) {
     }
 
     // local
-    if (nspace) {
-        if (symbols.count(name) == 0)
-            symbols[name] = new _Symbol<ProcSet>(name, new ProcSet(name));
-        if (symbols[name]->node()->nodeKind == ASTNode::PROC_SET) {
-            ProcSet * set = (ProcSet *)symbols[name]->node();
-            set->procs[mangled->name] = mangled;
-        }
+    if (symbols.count(name) == 0)
+        symbols[name] = new _Symbol<ProcSet>(name, new ProcSet(name));
+    if (symbols[name]->node()->nodeKind == ASTNode::PROC_SET) {
+        ProcSet * set = (ProcSet *)symbols[name]->node();
+        set->procs[mangled->name] = mangled;
     }
 
     symbols[mangled->name] = mangled;

@@ -6,13 +6,12 @@ import "c/string.bjou"
 
 \ct{ import "os.bjou" }
 
-\static_if{ os.OS == os.MACOS
-    extern _NSGetExecutablePath(char*, u32*) : int }
-
 proc exepath() : string {
 
 # MACOS
 \static_if{ os.OS == os.MACOS
+    extern _NSGetExecutablePath(char*, u32*) : int
+
     _buff : char[512] 
     buff  : char* = _buff
     s     := str()
