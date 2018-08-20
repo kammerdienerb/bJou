@@ -2359,8 +2359,8 @@ static Identifier * createIdentifierFromAccess(AccessExpression * access,
 }
 
 CallExpression * AccessExpression::nextCall() {
-    if (parent && parent->nodeKind == CALL_EXPRESSION)
-        return (CallExpression *)parent;
+    if (getParent() && getParent()->nodeKind == CALL_EXPRESSION)
+        return (CallExpression *)getParent();
     return nullptr;
 }
 
@@ -2691,7 +2691,9 @@ int AccessExpression::handleContainerAccess() {
                                          "instead of '->'.");
                 setType(struct_t->memberTypes
                             [struct_t->memberIndices[r_id->getUnqualified()]]);
-                return 1;
+                if (nextCall())
+                    return -1;
+                else return 1;
             } else if (struct_t->constantMap.count(r_id->getUnqualified()) >
                        0) {
                 if (nodeKind == INJECT_EXPRESSION)
@@ -2706,6 +2708,8 @@ int AccessExpression::handleContainerAccess() {
                     this, (Declarator *)getLeft(), r_id);
                 (*getRight()->replace)(this, getRight(),
                                        proc_ident); // @lol this works
+                if (!nextCall())
+                    setType(proc_ident->getType());
                 // don't return.. fall to check handleInjection()
                 return 1;
             } else if (!next_call)
@@ -2855,18 +2859,29 @@ void AccessExpression::analyze(bool force) {
         }
     }
 
-    if (!type) {
+    /* if (!type) { */
+    /*     if (handleInjection()) { */
+    /*         setFlag(ANALYZED, true); */
+    /*         return; */
+    /*     } */
+    /*     else if (i == 0) { */
+    /*         errorl(getContext(), */
+    /*                "Access using the '.' operator does not apply to type '" + */ 
+    /*                 getLeft()->getType()->getDemangledName() + "'."); */
+    /*     } */
+    /* } */
+
+    if (i == 0 || i == 1) {
         if (handleInjection()) {
             setFlag(ANALYZED, true);
             return;
-        } else {
-            errorl(getContext(),
-                   "Access using the '.' operator does not apply to type '" + 
-                    getLeft()->getType()->getDemangledName() + "'.");
         }
+    } else if (i == 0) {
+        errorl(getContext(),
+               "Access using the '.' operator does not apply to type '" + 
+                getLeft()->getType()->getDemangledName() + "'.");
     }
 
-    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
 }
 
