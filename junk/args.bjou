@@ -1,0 +1,30 @@
+# args.bjou
+
+import "cli.bjou"
+
+\run{ main() }
+\front{ true }
+
+# main()
+
+proc main() {
+    arg_parser := ArgParser.create("args")
+
+    a := arg_parser.addSwitch('a')
+            .withDesc("this is the 'a' arg")
+    b := arg_parser.addSwitch('b', "basic")
+            .withDesc("this is the 'b' arg")
+    c := arg_parser.addSwitch('c', "complicated")
+            .withDesc("this is the 'c' arg")
+    d := arg_parser.addSwitch("doodle")
+            .withDesc("this is the 'd' arg")
+
+    v := arg_parser.addValue$int('v')
+            .withDesc("give me an int")
+
+    help := arg_parser.help()
+    print "%", help.c_str()
+    help.free()
+
+    arg_parser.free()
+}

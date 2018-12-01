@@ -40,6 +40,8 @@
 #include "Type.hpp"
 #include "CompilerAPI.hpp"
 
+#include "nolibc_syscall.h"
+
 #ifdef BJOU_DEBUG_BUILD
 #define SAVE_BJOU_DEBUG_BUILD
 #endif
@@ -133,7 +135,7 @@ void LLVMBackEnd::init() {
     std::string CPU = "generic";
     std::string Features = "";
     llvm::TargetOptions opt;
-    auto RM = llvm::Optional<llvm::Reloc::Model>();
+    auto RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::PIC_);
     defaultTargetMachine = defaultTarget->createTargetMachine(
         defaultTriple, CPU, Features, opt, RM);
 
@@ -291,7 +293,8 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createWhile", (uint64_t)&bjou_createWhile);
     ee->addGlobalMapping("bjou_createDoWhile", (uint64_t)&bjou_createDoWhile);
     ee->addGlobalMapping("bjou_createMacroUse", (uint64_t)&bjou_createMacroUse);
-    
+
+    ee->addGlobalMapping("nolibc_syscall", (uint64_t)&nolibc_syscall);
 }
 
 LLVMBackEnd::~LLVMBackEnd() {
@@ -358,7 +361,7 @@ void * LLVMBackEnd::run(Procedure * proc, void * _val_args) {
     std::string errstr;
     llvm::raw_string_ostream errstream(errstr);
     if (llvm::verifyModule(*llModule, &errstream)) {
-        llModule->dump();
+        llModule->print(llvm::errs(), nullptr);
         error(COMPILER_SRC_CONTEXT(), "LLVM:", true, errstream.str());
         internalError("There was an llvm error.");
     }
@@ -945,7 +948,7 @@ milliseconds LLVMBackEnd::CodeGenStage() {
     std::string errstr;
     llvm::raw_string_ostream errstream(errstr);
     if (llvm::verifyModule(*llModule, &errstream)) {
-        llModule->dump();
+        llModule->print(llvm::errs(), nullptr);
         error(COMPILER_SRC_CONTEXT(), "LLVM:", true, errstream.str());
         internalError("There was an llvm error.");
     }
@@ -953,7 +956,7 @@ milliseconds LLVMBackEnd::CodeGenStage() {
     generator.generate();
 
     if (compilation->args.verbose_arg)
-        llModule->dump();
+        llModule->print(llvm::errs(), nullptr);
 
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
@@ -1282,7 +1285,14 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
     case Type::ENUM:
         return llvm::IntegerType::get(llContext, 64);
     case Type::FLOAT: {
-        return llvm::Type::getDoubleTy(llContext);
+        unsigned int width = ((FloatType*)t)->width;
+        if (width == 32)
+            return llvm::Type::getFloatTy(llContext);
+        else if (width == 64)
+            return llvm::Type::getDoubleTy(llContext);
+        else if (width == 128)
+            return llvm::Type::getFP128Ty(llContext);
+        // return llvm::Type::getDoubleTy(llContext);
         /*if (t->size == 32)
             return llvm::Type::getFloatTy(llContext);
         else if (t->size == 64)
@@ -1332,13 +1342,15 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
         case Type::DYNAMIC_ARRAY:
             BJOU_DEBUG_ASSERT(false && "Dynamic arrays not implemented yet.");
         */
-        case Type::POINTER: {
-        case Type::REF:
+        case Type::POINTER:
             if (t->under() == VoidType::get())
                 return getOrGenType(
                     IntType::get(Type::UNSIGNED, 8)->getPointer());
             return getOrGenType(t->under())->getPointerTo();
-        }
+        case Type::REF:
+            if (t->under()->isArray())
+                return getOrGenType(t->under()->under())->getPointerTo()->getPointerTo();
+            return getOrGenType(t->under())->getPointerTo();
         /*
         case Type::MAYBE:
             // @incomplete
@@ -1396,7 +1408,7 @@ llvm::Function * LLVMBackEnd::createMainEntryPoint() {
         llvm::Type::getInt32Ty(llContext), main_arg_types, false);
     llvm::Function * func = llvm::Function::Create(
         main_t, llvm::Function::ExternalLinkage, "main", llModule);
-
+    
     llvm::BasicBlock * bblock =
         llvm::BasicBlock::Create(llContext, "entry", func);
     builder.SetInsertPoint(bblock);
@@ -1457,7 +1469,7 @@ void LLVMBackEnd::completeMainEntryPoint(llvm::Function * func) {
     std::string errstr;
     llvm::raw_string_ostream errstream(errstr);
     if (llvm::verifyFunction(*func, &errstream)) {
-        func->dump();
+        func->print(llvm::errs(), nullptr);
         error(COMPILER_SRC_CONTEXT(), "LLVM:", true, errstream.str());
         internalError("There was an llvm error.");
     }
@@ -1477,7 +1489,7 @@ void LLVMBackEnd::createPrintfProto() {
     std::string errstr;
     llvm::raw_string_ostream errstream(errstr);
     if (llvm::verifyFunction(*func, &errstream)) {
-        func->dump();
+        func->print(llvm::errs(), nullptr);
         error(COMPILER_SRC_CONTEXT(), "LLVM:", true, errstream.str());
         internalError("There was an llvm error.");
     }
@@ -1710,7 +1722,7 @@ void * AddExpression::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
     const Type * myt = getType();
-    const Type * lt = getLeft()->getType();
+    const Type * lt = getLeft()->getType()->unRef();
 
     llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
     llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
@@ -1739,11 +1751,14 @@ void * SubExpression::generate(BackEnd & backEnd, bool flag) {
 
     const Type * myt = getType();
     const Type * lt = getLeft()->getType();
+    const Type * rt = getRight()->getType();
 
     llvm::Value * lv = (llvm::Value *)getLeft()->generate(backEnd);
     llvm::Value * rv = (llvm::Value *)getRight()->generate(backEnd);
 
-    if (myt->isPointer()) {
+    if (lt->isPointer() && rt->isPointer()) {
+        return llbe->builder.CreatePtrDiff(lv, rv);
+    } else if (myt->isPointer()) {
         if (lt->isPointer()) {
             std::vector<llvm::Value *> indices;
             indices.push_back(llbe->builder.CreateNeg(rv));
@@ -1877,8 +1892,7 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
         llvm::Value * src = llbe->builder.CreateBitCast(rv, ll_byte_ptr_t);
         llvm::Value * size = llvm::ConstantInt::get(
             llvm::Type::getInt64Ty(llbe->llContext),
-            llbe->layout->getTypeAllocSize(
-                llbe->getOrGenType(getLeft()->getType())));
+            llbe->layout->getTypeAllocSize(llbe->getOrGenType(lt)));
 
         std::vector<llvm::Value *> args = {dest, src, size};
 
@@ -2088,7 +2102,7 @@ void * EquExpression::generate(BackEnd & backEnd, bool flag) {
     llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
     llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
 
-    if (lt->isInt() || lt->isChar()) {
+    if (lt->isInt() || lt->isChar() || lt->isEnum()) {
         return llbe->builder.CreateICmpEQ(lv, rv);
     } else if (lt->isFloat()) {
         return llbe->builder.CreateFCmpUEQ(lv, rv);
@@ -2109,7 +2123,7 @@ void * NeqExpression::generate(BackEnd & backEnd, bool flag) {
     llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
     llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
 
-    if (lt->isInt() || lt->isChar()) {
+    if (lt->isInt() || lt->isChar() || lt->isEnum()) {
         return llbe->builder.CreateICmpNE(lv, rv);
     } else if (lt->isFloat()) {
         return llbe->builder.CreateFCmpUNE(lv, rv);
@@ -2402,6 +2416,32 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
         callee = (llvm::Value *)llbe->getOrGenNode(getLeft());
 
     BJOU_DEBUG_ASSERT(callee);
+
+    /*
+     * variadic functions have promotion rules:
+     * int types smaller than int -> int
+     * float -> double
+     */
+    llvm::FunctionType * f_t = (llvm::FunctionType*)callee->getType()->getPointerElementType();
+    if (f_t->isVarArg()) {
+        for (int i = f_t->getNumParams(); i < args.size(); i += 1) {
+            llvm::Value * arg = args[i];
+            llvm::Type * arg_t = arg->getType();
+            if (arg_t->isFloatTy()) {
+                args[i] = llbe->builder.CreateFPExt(arg, llvm::Type::getDoubleTy(llbe->llContext));
+            } else if (arg_t->isIntegerTy()) {
+                llvm::IntegerType * int_t  = (llvm::IntegerType*)llvm::Type::getInt32Ty(llbe->llContext);
+                llvm::IntegerType * this_t = (llvm::IntegerType*)arg_t;
+                if (this_t->getIntegerBitWidth() < int_t->getIntegerBitWidth()) {
+                    if (((IntType*)arglist->getExpressions()[i]->getType())->sign == Type::Sign::SIGNED) {
+                        args[i] = llbe->builder.CreateSExt(arg, int_t);
+                    } else {
+                        args[i] = llbe->builder.CreateZExt(arg, int_t);
+                    }
+                }
+            }
+        }
+    }
 
     llvm::CallInst * callinst = llbe->builder.CreateCall(callee, args);
 
@@ -2885,9 +2925,12 @@ void * AsExpression::generate(BackEnd & backEnd, bool flag) {
     llvm::Value * val = (llvm::Value *)llbe->getOrGenNode(getLeft());
     llvm::Type * ll_rt = llbe->getOrGenType(rt);
 
-    if (lt->isInt() && rt->isInt()) {
+    if ((lt->isInt()  && rt->isInt())
+    ||  (lt->isBool() && (rt->isInt()))) {
         return llbe->builder.CreateIntCast(
             val, ll_rt, ((const IntType *)rt)->sign == Type::SIGNED);
+    } else if ((lt->isInt() || lt->isChar()) && rt->isBool()) {
+        return llbe->builder.CreateICmpNE(val, llvm::ConstantInt::get(llbe->getOrGenType(lt), 0, ((IntType*)lt)->sign == Type::SIGNED));
     } else if (lt->isInt() && rt->isChar()) {
         return llbe->builder.CreateIntCast(val, ll_rt, false);
     } else if (lt->isChar() && rt->isInt()) {
@@ -2909,6 +2952,10 @@ void * AsExpression::generate(BackEnd & backEnd, bool flag) {
             return llbe->builder.CreateFPExt(val, ll_rt);
         else
             return llbe->builder.CreateFPTrunc(val, ll_rt);
+    } else if (lt->isInt() && rt->isPointer() && rt->under()->isVoid()) {
+        return llbe->builder.CreateIntToPtr(val, ll_rt);
+    } else if (lt->isPointer() && lt->under()->isVoid() && rt->isInt()) {
+        return llbe->builder.CreatePtrToInt(val, ll_rt);
     }
 
     // @incomplete
@@ -2929,7 +2976,7 @@ void * AsExpression::generate(BackEnd & backEnd, bool flag) {
             return llbe->builder.CreateBitCast(val, ll_rt);
     }
 
-    BJOU_DEBUG_ASSERT(false);
+    BJOU_DEBUG_ASSERT(false && "Did not create cast for AsExpression");
 
     return nullptr;
 }
@@ -2967,8 +3014,7 @@ void * IntegerLiteral::generate(BackEnd & backEnd, bool flag) {
 
 void * FloatLiteral::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
-    return llvm::ConstantFP::get(llvm::Type::getDoubleTy(llbe->llContext),
-                                 getContents());
+    return llvm::ConstantFP::get(llbe->getOrGenType(getType()), getContents());
 }
 
 void * CharLiteral::generate(BackEnd & backEnd, bool flag) {
@@ -2997,8 +3043,9 @@ void * TupleLiteral::generate(BackEnd & backEnd, bool flag) {
             {llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0),
              llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext),
                                     i)});
+
         llbe->builder.CreateStore(
-            (llvm::Value *)llbe->getOrGenNode(subExpressions[i]), elem);
+            (llvm::Value *)llbe->getOrGenNode(subExpressions[i], ((TupleType*)my_t)->getTypes()[i]->isRef()), elem);
     }
 
     return llbe->builder.CreateLoad(alloca, "tupleliteral");
@@ -3524,6 +3571,21 @@ static void gen_printf_fmt(BackEnd & backEnd, llvm::Value * val, const Type * t,
         } else {
             internalError("Can't print type '" + t->key + "'."); // @temporary
         }
+        
+        /* printf is vararg -- do promotion */
+        if (val->getType()->isFloatTy()) {
+            val = llbe->builder.CreateFPExt(val, llvm::Type::getDoubleTy(llbe->llContext));
+        } else if (val->getType()->isIntegerTy()) {
+            llvm::IntegerType * this_t = (llvm::IntegerType*)val->getType();
+            llvm::IntegerType * int_t  = (llvm::IntegerType*)llvm::Type::getInt32Ty(llbe->llContext);
+            if (this_t->getIntegerBitWidth() < int_t->getIntegerBitWidth()) {
+                if (((IntType*)t)->sign == Type::Sign::SIGNED) {
+                    val = llbe->builder.CreateSExt(val, int_t);
+                } else {
+                    val = llbe->builder.CreateZExt(val, int_t);
+                }
+            }
+        }
 
         vals.push_back(val);
     }
@@ -3801,6 +3863,65 @@ void * While::generate(BackEnd & backEnd, bool flag) {
     return merge; // what does this accomplish?
 }
 
+void * DoWhile::generate(BackEnd & backEnd, bool flag) {
+    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+    llvm::Function * func = llbe->builder.GetInsertBlock()->getParent();
+
+    llvm::BasicBlock * top =
+        llvm::BasicBlock::Create(llbe->llContext, "dowhiletop", func);
+    llvm::BasicBlock * check =
+        llvm::BasicBlock::Create(llbe->llContext, "dowhilecheckcond", func);
+
+    llbe->loop_continue_stack.push({llbe->curFrame(), check});
+
+    llbe->builder.CreateBr(top);
+
+    llbe->builder.SetInsertPoint(check);
+
+    llvm::Value * cond = (llvm::Value *)llbe->getOrGenNode(getConditional());
+    // Convert condition to a bool by comparing equal to 1.
+    cond = llbe->builder.CreateICmpEQ(
+        cond, llvm::ConstantInt::get(llbe->llContext, llvm::APInt(1, 1, true)),
+        "dowhilecond");
+
+    llbe->pushFrame();
+
+    llvm::BasicBlock * merge =
+        llvm::BasicBlock::Create(llbe->llContext, "merge");
+
+    llbe->loop_break_stack.push({llbe->curFrame(), merge});
+
+    llbe->builder.CreateCondBr(cond, top, merge);
+
+    // Emit top block.
+    llbe->builder.SetInsertPoint(top);
+
+    for (ASTNode * statement : getStatements())
+        llbe->getOrGenNode(statement);
+
+    if (!getFlag(HAS_TOP_LEVEL_RETURN)) {
+        generateFramePreExit(llbe);
+        llbe->builder.CreateBr(check);
+    }
+
+    // Codegen of 'Then' can change the current block, update ThenBB for the
+    // PHI.
+    top = llbe->builder.GetInsertBlock();
+
+    // Emit merge block.
+    func->getBasicBlockList().push_back(merge);
+    llbe->builder.SetInsertPoint(merge);
+
+    llbe->loop_continue_stack.pop();
+    llbe->loop_break_stack.pop();
+
+    llbe->popFrame();
+
+    return merge; // what does this accomplish?
+}
+
+
 void * Procedure::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
@@ -3917,6 +4038,10 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
 
         llbe->proc_stack.push(this);
 
+        // keep around the frame pointers so that we can backtrace
+        func->addFnAttr("no-frame-pointer-elim", "true");
+        func->addFnAttr("no-frame-pointer-elim-non-leaf", "true");
+
         // @abi
         ABILowerProcedureTypeData * payload =
             (ABILowerProcedureTypeData *)llbe->proc_abi_info[this];
@@ -4013,7 +4138,7 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         std::string errstr;
         llvm::raw_string_ostream errstream(errstr);
         if (llvm::verifyFunction(*func, &errstream)) {
-            func->dump();
+            func->print(llvm::errs(), nullptr);
             error(COMPILER_SRC_CONTEXT(), "LLVM:", false, errstream.str());
             internalError("There was an llvm error.");
         }
@@ -4071,9 +4196,13 @@ void * Return::generate(BackEnd & backEnd, bool flag) {
         return llbe->builder.CreateRetVoid();
     }
     if (getExpression()) {
-        llvm::Value * v = nullptr;
-        if (pt->getRetType()->isRef()) {
+        llvm::Value * v    = nullptr;
+        const Type * rt    = pt->getRetType();
+        llvm::Type * ll_rt = llbe->getOrGenType(rt);
+        if (rt->isRef()) {
             v = (llvm::Value *)llbe->getOrGenNode(getExpression(), true);
+            if (v->getType() != ll_rt)
+                v = llbe->builder.CreateBitCast(v, ll_rt);
         } else {
             v = (llvm::Value *)llbe->getOrGenNode(getExpression());
         }

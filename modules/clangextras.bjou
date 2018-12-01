@@ -1,0 +1,60 @@
+# clangextras.bjou
+
+# bindings to additional functionality over for libclang
+# for use with libclangextras.so
+
+module clangextras
+
+import "clang.bjou"
+
+clangextras := { libclangextras: }
+
+proc init_clangextras()
+    clangextras = libclangextras.create()
+
+type libclangextras {
+    _lib_handle : void*
+
+    getOperatorString  : <(CXCursor) : char*>
+    getLiteralString   : <(CXCursor) : char*>
+    isFunctionInline   : <(CXCursor) : bool>
+    isVarInitialized   : <(CXCursor) : bool>
+    atomicGetValueType : <(CXType, CXTranslationUnit*) : CXType>
+    typeIsUnion        : <(CXType) : bool>
+
+    proc create() : libclangextras {
+        lib := { libclangextras: }
+
+        lib._load()
+
+        lib.getOperatorString = (lib._handleGetSymbol("clangextras_getOperatorString"))
+            as <(CXCursor) : char*>
+        lib.getLiteralString = (lib._handleGetSymbol("clangextras_getLiteralString"))
+            as <(CXCursor) : char*>
+        lib.isFunctionInline = (lib._handleGetSymbol("clangextras_isFunctionInline"))
+            as <(CXCursor) : bool>
+        lib.isVarInitialized = (lib._handleGetSymbol("clangextras_isVarInitialized"))
+            as <(CXCursor) : bool>
+        lib.atomicGetValueType = (lib._handleGetSymbol("clangextras_atomicGetValueType"))
+            as <(CXType, CXTranslationUnit*) : CXType>
+        lib.typeIsUnion = (lib._handleGetSymbol("clangextras_typeIsUnion"))
+            as <(CXType) : bool>
+
+        return lib
+    }
+
+    proc _load(this) {
+        handle := dlopen("libclangextras.so", RTLD_LAZY)
+        if handle.isnull()
+            \die{ dlerror() }
+        this._lib_handle = handle 
+    }
+
+    proc _handleGetSymbol(this, sym : char*) : void* {
+        ptr := this._lib_handle.dlsym(sym)
+        if ptr.isnull()
+            \die{ dlerror() }
+        return ptr
+    }
+}
+

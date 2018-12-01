@@ -1,0 +1,27 @@
+# thread.bjou
+
+module thread
+
+import "pthread.bjou"
+
+type routine_t = <(void*) : void*>
+
+type Thread {
+    tid : pthread_t
+
+    proc create(routine : routine_t, arg : void*) : Thread {
+        tid := NULL as pthread_t
+        err := pthread_create(&tid, NULL as pthread_attr_t*, routine, arg)
+        if err != 0
+            \die{ err }
+        return { Thread: .tid = tid }
+    }
+
+    proc join(this) : void* {
+        ret := NULL
+        err := pthread_join(this.tid, &ret)
+        if err != 0
+            \die{ err }
+        return ret 
+    }
+}

@@ -1,0 +1,8 @@
+# vargs.bjou
+# variadic runtime arguments
+
+module vargs
+
+import "any.bjou"
+
+type vargs_t = any[]

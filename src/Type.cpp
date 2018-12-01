@@ -21,7 +21,7 @@ namespace bjou {
 
 const char * signLtr = "ui";
 #define VALID_IWIDTH(w) ((w) == 8 || (w) == 16 || (w) == 32 || (w) == 64)
-#define VALID_FWIDTH(w) ((w) == 32 || (w) == 64)
+#define VALID_FWIDTH(w) ((w) == 32 || (w) == 64 || (w) == 128)
 
 Type::Type(Kind _kind, const std::string _key) : kind(_kind), key(_key) {}
 
@@ -807,6 +807,12 @@ const Type * conv(const Type * t1, const Type * t2) {
         else
             return t2;
     }
+
+    if (t1->isInt() && t2->isBool())
+        return t1;
+    if (t1->isBool() && (t2->isInt() || t2->isChar()))
+        return t1;
+
     // both are ints
     if (t1->isInt() && t2->isInt()) {
         // unless both are unsigned, we go signed
@@ -853,7 +859,8 @@ const Type * conv(const Type * t1, const Type * t2) {
                     break;
                 }
             }
-            return t1;
+            if (extends)
+                return t1;
         }
         break;
     }
@@ -861,7 +868,10 @@ const Type * conv(const Type * t1, const Type * t2) {
         const Type * p1 = t1->under();
         const Type * p2 = t2->under();
 
-        if (t2->isArray() && equal(p1, p2))
+        if (t2->isArray() && (p1->isVoid() || equal(p1, p2)))
+            return t1;
+
+        if (p1->isVoid() && t2->isPointer())
             return t1;
 
         if (p1->isStruct() && t2->isPointer() && p2->isStruct()) {
@@ -875,7 +885,8 @@ const Type * conv(const Type * t1, const Type * t2) {
                     break;
                 }
             }
-            return t1;
+            if (extends)
+                return t1;
         }
         break;
     }
@@ -1118,6 +1129,7 @@ void compilationAddPrimativeTypes() {
                                  IntType::get(Type::SIGNED, 64),
                                  FloatType::get(32),
                                  FloatType::get(64),
+                                 FloatType::get(128),
                                  CharType::get()};
 
     for (const Type * p : primatives) {

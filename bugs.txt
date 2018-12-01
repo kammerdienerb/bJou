@@ -7,4 +7,105 @@
        Leave readablity of the generated binary to debug information.
        Would be simpler, faster, and less error prone (I think).
 
+    -- Related problems with tuple arguments
+
 -- seems like re-assigning to slices causes the an LLVM error where one of the slices is casted from its slice value to a pointer to be sent to memcpy when it should be the address which is casted
+
+-- multiple \static_do directives don't work.. symbols blah blah
+
+-- logical operators in loop conditions cause terminator errors when 'break' or 'continue' statements are present
+    -- see 'junk/branchbug.bjou'
+    -- apparently just 'for' loops. look at code gen for 'while' loops to fix
+
+-- LLVM BB terminator bug
+[
+    if cond1
+        if cond2
+            return x
+        else return y
+]
+
+-- bool implicit conversion in 'not' expressions
+[
+    if not some_int ...
+]
+
+-- Not getting redefinition error for constants???
+[
+    const A := 123
+    const A := 124
+]
+
+-- Should emit warning if variable initializer for integers doesn't fit in given type.
+[
+    x : u8 = 12345
+]
+
+-- When constant integers are folded, the resulting expressions should fully represent the type of the constant if it was specified
+    -- currently, doing dumb folding
+[
+    const C : u8 = 123
+    var := C # folds to '123'; should fold to '123u8'
+]
+
+-- Access expressions into a dynamic array type (probably slices too) cause an assertion failure, when they should throw an error
+[
+    a := [...int]
+    print "%", a.__data
+]
+
+-- Missing implicit conversion in comparison of pointer types.
+[
+    a : int
+    if &a == NULL
+]
+
+-- Why does [ @NULL ] compile?
+
+-- 'run' macro should call __bjou_rt_init or at least complete the same tasks before executing code
+
+-- member procs don't work through extended types... more name mangling problems
+[
+    type A {
+        proc p() {}
+    }
+
+    type B extends A {}
+
+    b := { B: }
+    b.p()
+]
+
+-- symbol resolution in interfaces is broken
+[
+    interface I { proc(this) : string }
+]
+
+-- missing interface symbol lacks context
+[
+    type T {
+        implements missing
+    }
+]
+
+-- bool to int conversion incorrect for true
+    -- sign issue... casting to u8 works
+[
+    print "%", (true as int)
+]
+
+-- missing error for use of typename within template code
+[
+    proc p$T(arg : T) {
+        if arg == T ...
+    }
+]
+
+-- weird parsing bug: no error for something like:
+[
+    if true {
+        bad_symbol(
+    }
+]
+
+-- On import errors, we should indicate the resolved path to avoid confusion.

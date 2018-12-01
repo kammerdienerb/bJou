@@ -1,0 +1,36 @@
+# any.bjou
+# "dynamic" typing
+
+module any
+
+type any {
+    _tag  : u64
+    _data : void*
+
+    proc create$T(x : T) : any {
+        r := { any:
+            ._tag  = \typetag{ T },
+            ._data = new T
+        }
+
+        mcopy(r._data, &x, sizeof T)
+        
+        return r
+    }
+
+    proc free(this) {
+        delete this._data
+    }
+}
+
+# when you fix the name mangler, move these back into the type
+proc get$T(this : any ref) : T* {
+    if this._tag == \typetag{ T }
+        return (this._data as T*)
+
+    return (NULL as T*)
+}
+
+proc is$T(this : any ref) : bool {
+    return this._tag == \typetag{ T }
+}

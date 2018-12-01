@@ -28,6 +28,7 @@ struct Val {
     union {
         int64_t as_i64;
         double as_f64;
+        void * as_ptr;
     };
 
     std::string as_string;

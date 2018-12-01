@@ -109,24 +109,30 @@ proc init_visitor_table(table : visitor_t[CXCursor_END_]) {
     table[CXCursor_BinaryOperator]         = v_BinaryOperator
     table[CXCursor_UnaryOperator]          = v_UnaryOperator
     table[CXCursor_MemberRefExpr]          = v_MemberRefExpr
+    table[CXCursor_ArraySubscriptExpr]     = v_ArraySubscriptExpr
     table[CXCursor_CompoundAssignOperator] = v_BinaryOperator
+    table[CXCursor_ConditionalOperator]    = v_ConditionalOperator
     table[CXCursor_UnexposedExpr]          = v_under
     table[CXCursor_CStyleCastExpr]         = v_CStyleCastExpr
     table[CXCursor_DeclRefExpr]            = v_DeclRefExpr
     table[CXCursor_TypeRef]                = v_TypeRef
     table[CXCursor_IntegerLiteral]         = v_IntegerLiteral
+    table[CXCursor_FloatingLiteral]        = v_FloatingLiteral
     table[CXCursor_CharacterLiteral]       = v_CharacterLiteral
     table[CXCursor_StringLiteral]          = v_StringLiteral
     table[CXCursor_ReturnStmt]             = v_ReturnStmt
     table[CXCursor_CallExpr]               = v_CallExpr
     table[CXCursor_StructDecl]             = v_StructDecl
     table[CXCursor_UnionDecl]              = v_UnionDecl
+    table[CXCursor_EnumDecl]               = v_EnumDecl
     table[CXCursor_FieldDecl]              = v_FieldDecl
 }
 
 proc clangASTNodePrint(cursor : CXCursor, translator : c2bJou*) {
     if not PRINT_AST return
     name_str := ClangWrapper.getCursorName(cursor)
+    if strlen(name_str) == 0
+        name_str = clang.getCString(clang.getCursorSpelling(cursor))
     kind_cxstr := clang.getCursorKindSpelling(cursor.kind)
     kind_str := clang.getCString(kind_cxstr)
 
@@ -146,6 +152,8 @@ proc v_unimplemented(cursor      : CXCursor,
     ctx := getCursorContext(cursor)
     
     buff.sprintf("c2bjou: missing visitor for CXCursor kind %d -- %s", cursor.kind, kind_str)
+
+    translator := client_data as c2bJou*
 
     bjou_error(ctx, buff)
 
@@ -214,9 +222,17 @@ proc v_TypedefDecl(cursor      : CXCursor,
     if cx_t.kind == CXType_Record
     and |children| == 1
     and (children[0].kind == CXCursor_StructDecl
-      or children[0].kind == CXCursor_UnionDecl) {
+      or children[0].kind == CXCursor_UnionDecl
+      or children[0].kind == CXCursor_EnumDecl) {
         rec := translator.created.back()
-        rec_name := bjou_getStructName(rec)
+
+        rec_name := <<
+            if children[0].kind == CXCursor_EnumDecl
+                <-bjou_getEnumName(rec)
+            else
+                <-bjou_getStructName(rec)
+        >>
+
         decl = bjou_createDeclarator(
                     bjou_createIdentifier(rec_name),
                     (_nullptr() as ASTNode*),
@@ -241,13 +257,34 @@ proc v_CompoundStmt(cursor      : CXCursor,
     return CXVisit_Continue
 }
 
+proc cursorIsStatement(cursor : CXCursor) : bool {
+    return  cursor.kind > CXCursor_FirstStmt
+        and cursor.kind < CXCursor_LastStmt
+}
+
+proc cursorIsExpression(cursor : CXCursor) : bool {
+    return  cursor.kind > CXCursor_FirstExpr
+        and cursor.kind < CXCursor_LastExpr
+}
+
 proc v_FunctionDecl(cursor      : CXCursor,
                     parent      : CXCursor,
                     client_data : CXClientData*) : u32 {
 
     translator := client_data as c2bJou*
 
-    name       := ClangWrapper.getCursorName(cursor)
+    # someone decided it was a good idea to add overloading to C...
+    # so we have to get the mangled name for our bJou decls
+    name          := nullptr$char()
+    _name         := ClangWrapper.getCursorName(cursor)
+    _mangled_name := clang.getCString(clang.Cursor_getMangling(cursor))
+
+    if _mangled_name.c_str_startswith("__Z")
+        name = _mangled_name + 1
+    else
+        name = _name
+
+    p          := (_nullptr() as ASTNode*)
     params     := [...ASTNode*]
     isVararg   := clang.Cursor_isVariadic(cursor) == 1
     retDecl    := (_nullptr() as ASTNode*)
@@ -255,6 +292,13 @@ proc v_FunctionDecl(cursor      : CXCursor,
 
     cx_t := clang.getResultType(clang.getCursorType(cursor))
     retDecl = tyToDecl(@translator, &cx_t, cursor)
+
+    if  clangextras.isFunctionInline(cursor)
+    and clang.isCursorDefinition(cursor) == 0 {
+        delete _mangled_name
+        delete _name
+        return CXVisit_Continue
+    }
 
     # visit children
     translator.indent += 1
@@ -264,49 +308,64 @@ proc v_FunctionDecl(cursor      : CXCursor,
 
     n_params := clang.Cursor_getNumArguments(cursor)
 
-    c := 0
     n := 0
-    while n < n_params {
-        if children[c].kind == CXCursor_ParmDecl {
-            dispatch(children[c], cursor, client_data)
-            params.push(translator.created.back())
-            translator.created.pop()
-            n += 1
-        }
-        c += 1
+    for ; n < n_params; n += 1 {
+        parm := clang.Cursor_getArgument(cursor, n)
+        dispatch(parm, cursor, client_data)
+        params.push(translator.created.back())
+        translator.created.pop()
+    }
+    
+    c := 0
+   
+    seen_parm := false
+
+    for ; c < |children|; c += 1 {
+        if children[c].kind == CXCursor_ParmDecl
+            seen_parm = true
+        else if seen_parm and children[c].kind != CXCursor_ParmDecl
+            break
     }
 
     if clang.isCursorDefinition(cursor) == 1 {
         for ; c < |children|; c += 1 {
-            dispatch(children[c], cursor, client_data)
-            statements.push(translator.created.back())
-            translator.created.pop()    
+            if cursorIsStatement(children[c])
+            or cursorIsExpression(children[c]) {
+                dispatch(children[c], cursor, client_data)
+                statements.push(translator.created.back())
+                translator.created.pop()
+            }
         }
 
         translator.indent -= 1
 
         # create result
-        p := bjou_createProcedure(
+        p = bjou_createProcedure(
                  name,
                  params.data(), |params|,
                  isVararg,
                  retDecl,
                  statements.data(), |statements|)
-
-        translator.created.push(p)
     } else {
         translator.indent -= 1
 
         foreach param in params
             param.bjou_setVarDeclName(bjou_makeUID("param"))        
 
-        p := bjou_createExternProcedure(
+        p = bjou_createExternProcedure(
                  name, params.data(), |params|,
                  isVararg,
                  retDecl)
-
-        translator.created.push(p)
     }
+
+    foreach decl in translator.inlineTypeDecls
+        translator.created.push(decl)
+    translator.inlineTypeDecls.clear()
+
+    translator.created.push(p)
+
+    delete _mangled_name
+    delete _name
 
     return CXVisit_Continue
 }
@@ -358,17 +417,20 @@ proc v_DeclStmt(cursor      : CXCursor,
     children := [...CXCursor]
     translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
 
-    dispatch(children[0], cursor, client_data) 
+    foreach ref child in children {
+        if child.kind == CXCursor_StructDecl
+        or child.kind == CXCursor_UnionDecl {
+            dispatch(child, cursor, client_data)
+            rec := translator.created.back()
+            translator.created.pop()
+            translator.inlineTypeDecls.push(rec)
+        } else if child.kind == CXCursor_VarDecl {
+            dispatch(child, cursor, client_data)
+        }
+    }
 
     translator.indent -= 1
    
-    # create result
-    # this what we are doing, but we get the same result if we do nothing
-
-    # d := translator.created.back()
-    # translator.created.pop()
-    # translator.created.push(d)
-
     return CXVisit_Continue  
 }
 
@@ -388,16 +450,20 @@ proc v_VarDecl(cursor      : CXCursor,
     children := [...CXCursor]
     translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
 
-    foreach child in children if child.kind != CXCursor_TypeRef {
-        dispatch(child, cursor, client_data)
-        initialization = translator.created.back()
-        translator.created.pop()
+    cx_t := clang.getCursorType(cursor)
+    typeDeclarator = tyToDecl(@translator, &cx_t, cursor)
+
+    if clangextras.isVarInitialized(cursor) {
+        foreach child in children if child.kind != CXCursor_TypeRef {
+            dispatch(child, cursor, client_data)
+            initialization = translator.created.back()
+            translator.created.pop()
+        }
+    } else if cx_t.kind != CXType_ConstantArray {
+        initialization = makeZeroInitExpr(@translator, &cx_t, cursor)
     }
 
     translator.indent -= 1
-   
-    cx_t := clang.getCursorType(cursor)
-    typeDeclarator = tyToDecl(@translator, &cx_t, cursor)
 
     v := bjou_createVariableDeclaration(
             name,
@@ -577,23 +643,42 @@ proc getBinOp(translator : c2bJou ref,
               r          : CXCursor)
               : char* {
 
-    range_l := clang.getCursorExtent(l)
-    range_r := clang.getCursorExtent(r)
+    op := clangextras.getOperatorString(cursor)
 
-    l_end := clang.getRangeEnd(range_l)
-    r_beg := clang.getRangeStart(range_r)
+    if op.isnull()
+        \die{ "could not extract binary operator" }
 
-    range := clang.getRange(l_end, r_beg)
+    return op
 
-    tokens := (_nullptr() as CXToken*)
-    n_tokens : u32 = 0
+    # range_l := clang.getCursorExtent(l)
+    # range_r := clang.getCursorExtent(r)
 
-    clang.tokenize(translator.cw.tu, range, &tokens, &n_tokens)
+    # l_end := clang.getRangeEnd(range_l)
+    # r_beg := clang.getRangeStart(range_r)
 
-    cxs := clang.getTokenSpelling(translator.cw.tu, tokens[0])
-    spl := clang.getCString(cxs)
+    # range := clang.getRange(l_end, r_beg)
 
-    return spl
+    # tokens := (_nullptr() as CXToken*)
+    # n_tokens : u32 = 0
+
+    # clang.tokenize(translator.cw.tu, range, &tokens, &n_tokens)
+
+    # if n_tokens > 0 {
+    #     cxs := clang.getTokenSpelling(translator.cw.tu, tokens[0])
+    #     spl := clang.getCString(cxs)
+    #     return spl
+    # }
+
+    # slice := translator.cw.getCursorTokens(cursor)
+    # if |slice| == 3 {
+    #     cxs := clang.getTokenSpelling(translator.cw.tu, slice[1])
+    #     spl := clang.getCString(cxs)
+    #     return spl
+    # }
+
+    # \die{ "could not extract binary operator" }
+
+    # return nullptr$char()
 }
 
 proc getUnOp(translator : c2bJou ref,
@@ -659,6 +744,10 @@ proc v_BinaryOperator(cursor      : CXCursor,
         e = bjou_createAddExpression(left, right)
     else if strcmp(op, "-") == 0
         e = bjou_createSubExpression(left, right)
+    else if strcmp(op, "<<") == 0
+        e = bjou_createBSHLExpression(left, right)
+    else if strcmp(op, ">>") == 0
+        e = bjou_createBSHRExpression(left, right)
     else if strcmp(op, "*") == 0
         e = bjou_createMultExpression(left, right)
     else if strcmp(op, "/") == 0
@@ -692,7 +781,13 @@ proc v_BinaryOperator(cursor      : CXCursor,
     else if strcmp(op, "&&") == 0
         e = bjou_createLogAndExpression(left, right)
     else if strcmp(op, "||") == 0
-        e = bjou_createLogOrExpression(left, right)
+        e = bjou_createLogAndExpression(left, right)
+    else if strcmp(op, "&") == 0
+        e = bjou_createBANDExpression(left, right)
+    else if strcmp(op, "|") == 0
+        e = bjou_createBORExpression(left, right)
+    else if strcmp(op, "^") == 0
+        e = bjou_createBXORExpression(left, right)
     else if strcmp(op, "[]") == 0
         e = bjou_createSubscriptExpression(left, right)
     else if strcmp(op, ".") == 0
@@ -700,6 +795,7 @@ proc v_BinaryOperator(cursor      : CXCursor,
     else \die{ "c2bjou: unrecognized operator" }
 
     translator.created.push(e)
+
     return CXVisit_Continue  
 }
 
@@ -735,10 +831,62 @@ proc v_UnaryOperator(cursor      : CXCursor,
         e = bjou_createSubAssignExpression(expr, bjou_createIntegerLiteral("1"))
     else if strcmp(op, "*") == 0
         e = bjou_createDerefExpression(expr)
-    else \die{ "c2bjou: unrecognized operator" }
+    else if strcmp(op, "!") == 0
+        e = bjou_createNotExpression(expr)
+    else if strcmp(op, "~") == 0
+        e = bjou_createBNEGExpression(expr)
+    else if strcmp(op, "-") == 0 {
+        e = bjou_createMultExpression(expr, bjou_createIntegerLiteral("-1")) 
+    } else \die{ "c2bjou: unrecognized operator" }
 
     translator.created.push(e)
     return CXVisit_Continue  
+}
+
+proc v_ConditionalOperator(cursor      : CXCursor,
+                           parent      : CXCursor,
+                           client_data : CXClientData*) : u32 {
+
+    translator := client_data as c2bJou*
+
+    blk  := (_nullptr() as ASTNode*)
+    _if  := (_nullptr() as ASTNode*)
+    yldt := (_nullptr() as ASTNode*)
+    _els := (_nullptr() as ASTNode*)
+    yldf := (_nullptr() as ASTNode*)
+    cond := (_nullptr() as ASTNode*)
+    tru  := (_nullptr() as ASTNode*)
+    fal  := (_nullptr() as ASTNode*)
+    
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    dispatch(children[0], cursor, client_data)
+    cond = translator.created.back()
+    translator.created.pop()
+    
+    dispatch(children[1], cursor, client_data)
+    tru = translator.created.back()
+    translator.created.pop()
+
+    dispatch(children[2], cursor, client_data)
+    fal = translator.created.back()
+    translator.created.pop()
+
+    translator.indent -= 1
+
+    yldt = bjou_createExprBlockYield(tru)
+    yldf = bjou_createExprBlockYield(fal)
+    _els = bjou_createElse(&yldf, 1) 
+    _if  = bjou_createIf(cond, &yldt, 1, _els)
+    blk  = bjou_createExprBlock(&_if, 1)
+
+    translator.created.push(blk)
+
+    return CXVisit_Continue
 }
 
 proc v_MemberRefExpr(cursor      : CXCursor,
@@ -751,6 +899,62 @@ proc v_MemberRefExpr(cursor      : CXCursor,
 
     left  := (_nullptr() as ASTNode*)
 
+    cx_t := clang.getCursorType(cursor)
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    dispatch(children[0], cursor, client_data)
+
+    l_cx_t := clang.getCursorType(children[0])
+
+    left = translator.created.back()
+    translator.created.pop()
+    
+    translator.indent -= 1
+   
+    # create result
+    l_cx_t = clang.getCanonicalType(l_cx_t)
+
+    result := nullptr$ASTNode()
+
+    if clangextras.typeIsUnion(l_cx_t) {
+        decl_elems : ASTNode*[2]
+        decl_elems[0] = tyToDecl(@translator, &l_cx_t, cursor)
+        decl_elems[1] = tyToDecl(@translator, &cx_t, cursor)
+
+        call := bjou_createCallExpression(
+                    bjou_createIdentifierWithInst(
+                        "__union_mem",
+                        bjou_createTemplateInst(
+                            decl_elems,
+                            |decl_elems|)),
+                    bjou_createArgList(&left, 1))
+
+        result = call
+    } else {
+        a := bjou_createAccessExpression(left, bjou_createIdentifier(member_name))
+
+        result = a
+    }
+
+    translator.created.push(result)
+
+    return CXVisit_Continue  
+}
+
+proc v_ArraySubscriptExpr(cursor      : CXCursor,
+                          parent      : CXCursor,
+                          client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    left  := (_nullptr() as ASTNode*)
+    right := (_nullptr() as ASTNode*)
+
     # visit children
     translator.indent += 1
 
@@ -761,13 +965,16 @@ proc v_MemberRefExpr(cursor      : CXCursor,
     left = translator.created.back()
     translator.created.pop()
     
+    dispatch(children[1], cursor, client_data)
+    right = translator.created.back()
+    translator.created.pop()
+
     translator.indent -= 1
    
     # create result
-    
-    a := bjou_createAccessExpression(left, bjou_createIdentifier(member_name))
+    s := bjou_createSubscriptExpression(left, right)
 
-    translator.created.push(a)
+    translator.created.push(s)
 
     return CXVisit_Continue  
 }
@@ -843,7 +1050,21 @@ proc v_DeclRefExpr(cursor      : CXCursor,
     
     translator := client_data as c2bJou*
 
-    spl := ClangWrapper.getCursorName(cursor)
+    spl := nullptr$char()
+
+    r   := clang.getCursorReferenced(cursor)
+
+    if r.kind == CXCursor_FunctionDecl {
+        _name         := ClangWrapper.getCursorName(r)
+        _mangled_name := clang.getCString(clang.Cursor_getMangling(r))
+
+        if _mangled_name.c_str_startswith("__Z")
+            spl = _mangled_name + 1
+        else
+            spl = _name
+    } else {
+        spl = ClangWrapper.getCursorName(r)
+    }
 
     # create result
     i := bjou_createIdentifier(spl)
@@ -903,22 +1124,29 @@ proc v_CStyleCastExpr(cursor      : CXCursor,
         multi := bjou_parseToMultiNode(code'.data())
         translator.created.push(multi)
     } else {
+        child_idx := |children| - 1
+
         translator.indent += 1
 
-        dispatch(children[0], cursor, client_data)
+        dispatch(children[child_idx], cursor, client_data)
         expr = translator.created.back()
         translator.created.pop()
     
         translator.indent -= 1
 
-        t := clang.getCursorType(cursor)
+        t   := clang.getCursorType(cursor)
+        l_t := clang.getCursorType(children[child_idx]) 
 
-        # create result
-        decl = tyToDecl(@translator, &t, cursor)
+        if clang.equalTypes(t, l_t) != 0 {
+            # create result
+            decl = tyToDecl(@translator, &t, cursor)
 
-        a := bjou_createAsExpression(expr, decl)
+            a := bjou_createAsExpression(expr, decl)
 
-        translator.created.push(a)
+            translator.created.push(a)
+        } else {
+            translator.created.push(expr)
+        }
     }
 
     return CXVisit_Continue  
@@ -929,18 +1157,39 @@ proc v_IntegerLiteral(cursor      : CXCursor,
                       client_data : CXClientData*) : u32 {
     
     translator := client_data as c2bJou*
+    
+    s := clangextras.getLiteralString(cursor)
 
-    # Use eval instead of tokens so that integer literals
-    # that came from macro instantiations work.
-    val := clang.EvalResult_getAsLongLong(clang.Cursor_Evaluate(cursor))
-
-    buff : char[32]
-    sprintf(buff, "%lld", val)
+    if s.isnull()
+        \die{ "could not get integer literal" }
 
     # create result
-    i := bjou_createIntegerLiteral(buff)
+    i := bjou_createIntegerLiteral(s)
+
+    delete s
 
     translator.created.push(i)
+
+    return CXVisit_Continue  
+}
+
+proc v_FloatingLiteral(cursor      : CXCursor,
+                       parent      : CXCursor,
+                       client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+    
+    s := clangextras.getLiteralString(cursor)
+
+    if s.isnull()
+        \die{ "could not get float literal" }
+
+    # create result
+    f := bjou_createFloatLiteral(s)
+
+    delete s
+
+    translator.created.push(f)
 
     return CXVisit_Continue  
 }
@@ -1012,6 +1261,28 @@ proc v_ReturnStmt(cursor      : CXCursor,
     return CXVisit_Continue  
 }
 
+proc c_str_startswith(s1 : char*, s2 : char*) : bool {
+    if strlen(s2) > strlen(s1)
+        return false
+
+    for i := 0; i < strlen(s2); i += 1
+        if s1[i] != s2[i]
+            return false
+
+    return true
+}
+
+proc unifyElaboratedName(ename : char*) : char* {
+    if ename.c_str_startswith("struct ")
+        ename[strlen("struct ") - 1] = '_'
+    else if ename.c_str_startswith("union ")
+        ename[strlen("union ") - 1] = '_'
+    else if ename.c_str_startswith("enum ")
+        ename[strlen("enum ") - 1] = '_'
+
+    return ename
+}
+
 proc v_StructDecl(cursor      : CXCursor,
                   parent      : CXCursor,
                   client_data : CXClientData*) : u32 {
@@ -1026,20 +1297,36 @@ proc v_StructDecl(cursor      : CXCursor,
     children := [...CXCursor]
     translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
 
+    bit_field_counter := 0
     foreach child in children {
         dispatch(child, cursor, client_data)
-        memberVarDecls.push(translator.created.back())
+        field := translator.created.back()
+        bw := clang.getFieldDeclBitWidth(child)
+        if bw != -1 {
+            if bit_field_counter == 0 {
+                bit_field_counter = clang.Type_getSizeOf(clang.getCursorType(child)) * 8
+                memberVarDecls.push(field)
+            } else {
+                bit_field_counter -= bw
+            }
+        } else {
+            memberVarDecls.push(field)
+        }
         translator.created.pop()
     }
 
     translator.indent -= 1
    
     # create result
-
     name := clang.getCString(clang.getCursorSpelling(cursor))
-    if strlen(name) == 0
+    if strlen(name) == 0 {
         name = bjou_makeUID("C_struct")
-   
+        (@translator).getOrAddAnonTyDecl(clang.getCursorType(cursor), name)
+    } else {
+        delete name
+        name = unifyElaboratedName(clang.getCString(clang.getTypeSpelling(clang.getCursorType(cursor))))
+    }
+
     s := bjou_createStruct(
             name,
             (_nullptr() as ASTNode*),
@@ -1085,14 +1372,21 @@ proc v_UnionDecl(cursor      : CXCursor,
 
     foreach child in children {
         dispatch(child, cursor, client_data)
+        if child.kind == CXCursor_FieldDecl
+            translator.created.pop()
     }
 
     translator.indent -= 1
    
     # create result
     name := clang.getCString(clang.getCursorSpelling(cursor))
-    if strlen(name) == 0
+    if strlen(name) == 0 {
         name = bjou_makeUID("C_union")
+        (@translator).getOrAddAnonTyDecl(clang.getCursorType(cursor), name)
+    } else {
+        delete name
+        name = unifyElaboratedName(clang.getCString(clang.getTypeSpelling(clang.getCursorType(cursor))))
+    }
 
     s := bjou_createStruct(
             name,
@@ -1110,6 +1404,47 @@ proc v_UnionDecl(cursor      : CXCursor,
     return CXVisit_Continue  
 }
 
+proc v_EnumDecl(cursor      : CXCursor,
+                parent      : CXCursor,
+                client_data : CXClientData*) : u32 {
+    
+    translator := client_data as c2bJou*
+
+    identifiers := [...char*]
+
+    # visit children
+    translator.indent += 1
+
+    children := [...CXCursor]
+    translator.cw.traverse(cursor, child_collector, (&children) as CXClientData*)
+
+    foreach child in children {
+        ident := ClangWrapper.getCursorName(child)
+        identifiers.push(ident)
+    }
+
+    translator.indent -= 1
+
+    _name := clang.getCString(clang.getTypeSpelling(clang.getCursorType(cursor)))
+    name := { string: }
+
+    if _name.c_str_startswith("enum ")
+        name = str(unifyElaboratedName(_name))
+    else
+        name = concat(str("enum_"), str(_name))
+
+    delete _name
+
+    e := bjou_createEnum(name.c_str(), identifiers.data(), |identifiers|)
+
+    name.free()
+
+    translator.created.push(e)
+
+    return CXVisit_Continue  
+}
+
+
 proc v_FieldDecl(cursor      : CXCursor,
                  parent      : CXCursor,
                  client_data : CXClientData*) : u32 {
@@ -1117,6 +1452,13 @@ proc v_FieldDecl(cursor      : CXCursor,
     translator := client_data as c2bJou*
 
     name := ClangWrapper.getCursorName(cursor)
+
+    if bjou_isKeyword(name) {
+        s := concat(str("kwd_"), str(name))
+        name = bjou_makeUID(s.c_str())
+        s.free()
+    }
+
     cx_t := clang.getCanonicalType(clang.getCursorType(cursor))
     decl := tyToDecl(@translator, &cx_t, cursor)
 
@@ -1140,6 +1482,90 @@ proc v_FieldDecl(cursor      : CXCursor,
     return CXVisit_Continue  
 }
 
+proc makeZeroInitExpr(translator : c2bJou ref, t : CXType*, cursor : CXCursor) : ASTNode* {
+    k := TypeKind.PLACEHOLDER
+
+    if t.kind == CXType_Void {
+        k = TypeKind.VOID
+    } else if t.kind == CXType_Bool {
+        k = TypeKind.BOOL
+    } else if t.kind == CXType_Char_U
+      or      t.kind == CXType_UChar
+      or      t.kind == CXType_UShort
+      or      t.kind == CXType_UInt
+      or      t.kind == CXType_ULong
+      or      t.kind == CXType_ULongLong
+      or      t.kind == CXType_Short
+      or      t.kind == CXType_Int
+      or      t.kind == CXType_Long
+      or      t.kind == CXType_LongLong {
+        k = TypeKind.INT
+    } else if t.kind == CXType_Char_S
+      or      t.kind == CXType_SChar {
+        k = TypeKind.CHAR 
+    } else if t.kind == CXType_Float
+      or      t.kind == CXType_Double
+      or      t.kind == CXType_LongDouble {
+        k = TypeKind.FLOAT
+    } else if t.kind == CXType_Complex {
+        k = TypeKind.ARRAY 
+    } else if t.kind == CXType_Record
+      or      t.kind == CXType_Elaborated {
+        name := clang.getCString(clang.getTypeSpelling(@t))
+        decl := nullptr$ASTNode()
+        if name.c_str_startswith("union (anonymous")
+        or name.c_str_startswith("struct (anonymous") {
+            delete name
+            decl = translator.getOrAddAnonTyDecl(@t, NULL as char*)
+        } else {
+            if name.c_str_startswith("const ")
+                name += strlen("const ")
+            if name.c_str_startswith("volatile ")
+                name += strlen("volatile ")
+            if name.c_str_startswith("restrict ")
+                name += strlen("restrict ")
+
+            name = unifyElaboratedName(name)
+            decl = declFromName(name)
+        }
+
+        return bjou_makeZeroInitExpr(TypeKind.STRUCT, decl)
+    } else if t.kind == CXType_Enum {
+        k = TypeKind.ENUM
+    } else if t.kind == CXType_ConstantArray {
+        k = TypeKind.ARRAY
+    } else if t.kind == CXType_BlockPointer
+      or      t.kind == CXType_Pointer
+      or      t.kind == CXType_IncompleteArray {
+        decl := makeDeclFromTy(translator, t, cursor)
+        return bjou_makeZeroInitExpr(TypeKind.POINTER, decl)
+    } else if t.kind == CXType_FunctionProto
+           or (t.kind == CXType_Unexposed and clang.getNumArgTypes(@t) != -1) {
+        decl := makeDeclFromTy(translator, t, cursor)
+        return bjou_makeZeroInitExpr(TypeKind.PROCEDURE, decl)
+    } else if t.kind == CXType_Typedef {
+        canon := clang.getCanonicalType(@t)
+        return makeZeroInitExpr(translator, &canon, cursor)
+    } else if t.kind == CXType_Unexposed {
+        canon := clang.getCanonicalType(@t)
+        spl   := clang.getCString(clang.getTypeSpelling(canon))
+        if spl.c_str_startswith("_Atomic(") {
+            val_t := clangextras.atomicGetValueType(@t, translator.cw.tu)
+            return makeZeroInitExpr(translator, &val_t, cursor)
+        } else if strcmp(spl, "_Bool") == 0 {
+            k = TypeKind.BOOL
+        } else if clang.equalTypes(@t, canon) == 0 {
+            return makeZeroInitExpr(translator, &canon, cursor)
+        } else {
+            \die{ "could not resolve type" }
+        }
+    } else {
+        print "bad type: %", t.kind
+        \die{ "c2bjou: unable to translate type" }
+    }
+
+    return bjou_makeZeroInitExpr(k, nullptr$ASTNode()) 
+}
 
 proc tyToDecl(translator : c2bJou ref, t : CXType*, cursor : CXCursor) : ASTNode* {
     # if translator.types.find(t).isnull()
@@ -1157,6 +1583,7 @@ proc declFromName(name : char*) : ASTNode* {
 }
 
 proc makeDeclFromTy(translator : c2bJou ref, t : CXType*, cursor : CXCursor) : ASTNode* {
+    
     decl := (_nullptr() as ASTNode*)
 
     if        t.kind == CXType_Void {
@@ -1185,20 +1612,44 @@ proc makeDeclFromTy(translator : c2bJou ref, t : CXType*, cursor : CXCursor) : A
         decl = declFromName("f32")
     } else if t.kind == CXType_Double {
         decl = declFromName("f64")
+    } else if t.kind == CXType_LongDouble {
+        decl = declFromName("f128")
+    } else if t.kind == CXType_Complex {
+        elem_t := clang.getElementType(@t)
+        elem_decl := makeDeclFromTy(translator, &elem_t, cursor)
+        decl = bjou_createArrayDeclarator(elem_decl, bjou_createIntegerLiteral("2"))
     } else if t.kind == CXType_Record
            or t.kind == CXType_Elaborated {
         name := clang.getCString(clang.getTypeSpelling(@t))
-        str  := "struct "
-        if strlen(name) > strlen(str) {
-            i := 0
-            for ; i < strlen(str); i += 1 {
-                if str[i] != name[i]
-                    break
-            }
-            if i == strlen(str)
-                name += i 
+        if name.c_str_startswith("union (anonymous")
+        or name.c_str_startswith("struct (anonymous") {
+            delete name
+            decl = translator.getOrAddAnonTyDecl(@t, NULL as char*)
+        } else {
+            if name.c_str_startswith("const ")
+                name += strlen("const ")
+            if name.c_str_startswith("volatile ")
+                name += strlen("volatile ")
+            if name.c_str_startswith("restrict ")
+                name += strlen("restrict ")
+
+            name = unifyElaboratedName(name)
+            decl = declFromName(name)
         }
-        decl = declFromName(name)
+    } else if t.kind == CXType_Enum {
+        _name := clang.getCString(clang.getTypeSpelling(@t))
+        name := { string: }
+
+        if _name.c_str_startswith("enum ")
+            name = str(unifyElaboratedName(_name))
+        else
+            name = concat(str("enum_"), str(_name))
+
+        delete _name
+
+        decl = declFromName(name.c_str())
+        
+        name.free()
     } else if t.kind == CXType_ConstantArray {
         elem_t := clang.getElementType(@t)
         elem_decl := makeDeclFromTy(translator, &elem_t, cursor)
@@ -1206,9 +1657,17 @@ proc makeDeclFromTy(translator : c2bJou ref, t : CXType*, cursor : CXCursor) : A
         buff : char[32]
         sprintf(buff, "%d", size)
         decl = bjou_createArrayDeclarator(elem_decl, bjou_createIntegerLiteral(buff))
+    } else if t.kind == CXType_BlockPointer {
+        decl = bjou_createPointerDeclarator(declFromName("void"))
     } else if t.kind == CXType_Pointer {
         elem_t := clang.getPointeeType(@t)
-        decl = bjou_createPointerDeclarator(makeDeclFromTy(translator, &elem_t, cursor))
+
+        if elem_t.kind == CXType_FunctionProto
+        or (elem_t.kind == CXType_Unexposed and clang.getNumArgTypes(elem_t) != -1) {
+            decl = makeDeclFromTy(translator, &elem_t, cursor)
+        } else {
+            decl = bjou_createPointerDeclarator(makeDeclFromTy(translator, &elem_t, cursor))
+        }
     } else if t.kind == CXType_IncompleteArray {
         elem_t := clang.getElementType(@t)
         elem_decl := makeDeclFromTy(translator, &elem_t, cursor)
@@ -1229,9 +1688,25 @@ proc makeDeclFromTy(translator : c2bJou ref, t : CXType*, cursor : CXCursor) : A
         retDecl := makeDeclFromTy(translator, &ret_t, cursor)
        
         decl = bjou_createProcedureDeclarator(paramDecls.data(), |paramDecls|, retDecl, isVararg)
+
+        paramDecls.free()
     } else if t.kind == CXType_Typedef {
         canon := clang.getCanonicalType(@t)
         decl = makeDeclFromTy(translator, &canon, cursor)
+    } else if t.kind == CXType_Unexposed {
+        canon := clang.getCanonicalType(@t)
+        spl   := clang.getCString(clang.getTypeSpelling(canon))
+        if spl.c_str_startswith("_Atomic(") {
+            val_t := clangextras.atomicGetValueType(@t, translator.cw.tu)
+            decl   = makeDeclFromTy(translator, &val_t, cursor)
+        } else if strcmp(spl, "_Bool") == 0 {
+            decl = declFromName("bool")
+        } else if clang.equalTypes(@t, canon) == 0 {
+            decl = makeDeclFromTy(translator, &canon, cursor)
+        } else {
+            \die{ "could not resolve type" }
+        }
+        delete spl
     } else {
         print "bad type: %", t.kind
         \die{ "c2bjou: unable to translate type" }

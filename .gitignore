@@ -14,5 +14,6 @@ docs/_minted-bJou/
 *.out
 tests/out
 .vscode/
+.idea/
 berg
 .DS_Store

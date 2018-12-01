@@ -35,21 +35,21 @@ struct ProcSet;
 
 struct Type {
     enum Kind {
-        PLACEHOLDER,
-        VOID,
-        BOOL,
-        INT,
-        FLOAT,
-        CHAR,
-        POINTER,
-        REF,
-        ARRAY,
-        SLICE,
-        DYNAMIC_ARRAY,
-        STRUCT,
-        ENUM,
-        TUPLE,
-        PROCEDURE
+        PLACEHOLDER   = 0,
+        VOID          = 1,
+        BOOL          = 2,
+        INT           = 3,
+        FLOAT         = 4,
+        CHAR          = 5,
+        POINTER       = 6,
+        REF           = 7,
+        ARRAY         = 8,
+        SLICE         = 9,
+        DYNAMIC_ARRAY = 10,
+        STRUCT        = 11,
+        ENUM          = 12,
+        TUPLE         = 13,
+        PROCEDURE     = 14
     };
 
     enum Sign { UNSIGNED = 0, SIGNED = 1 };

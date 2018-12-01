@@ -269,6 +269,8 @@ static ASTNode * add_llvm_passes(MacroUse * use) {
 static ASTNode * ct(MacroUse * use) {
     MultiNode * multi = new MultiNode(use->getArgs());
 
+    printf("!!! CT\n");
+
     for (ASTNode * node : multi->nodes) {
         if (use->leaveMeAloneArgs.find(node) == use->leaveMeAloneArgs.end())
             node->setFlag(ASTNode::CT, true);
@@ -700,6 +702,32 @@ static ASTNode * die(MacroUse * use) {
     return call;
 }
 
+static ASTNode * isbigendian(MacroUse * use) {
+    BooleanLiteral * lit = new BooleanLiteral;
+#if BYTE_ORDER == BIG_ENDIAN
+    lit->setContents("true");
+#else
+    lit->setContents("false");
+#endif
+
+    lit->addSymbols(use->getScope());
+    lit->analyze();
+
+    return lit;
+}
+
+static ASTNode * typetag(MacroUse * use) {
+    IntegerLiteral * lit = new IntegerLiteral;
+    
+    const Type * t = use->getArgs()[0]->getType();
+    lit->setContents(std::to_string(std::hash<std::string>{}(t->key)) + "u64");
+
+    lit->addSymbols(use->getScope());
+    lit->analyze();
+
+    return lit;
+}
+
 } // namespace Macros
 
 Macro::Macro() : name(""), dispatch(nullptr), arg_kinds({}), isVararg(false) {}
@@ -778,6 +806,10 @@ MacroManager::MacroManager() {
                                Macros::canfindmodule,
                                {{ASTNode::NodeKind::STRING_LITERAL}}};
     macros["die"] = {"die", Macros::die, {{ANY_EXPRESSION}}};
+    macros["isbigendian"] = {"isbigendian", Macros::isbigendian, {}};
+    macros["typetag"] = {"typetag",
+                             Macros::typetag,
+                             {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {

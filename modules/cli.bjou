@@ -10,6 +10,192 @@ extern printf(char* , ...) : int
 extern sprintf(char*, char* , ...) : int
 extern strlen(char*) : u64
 
+enum ArgKind {
+    BASE,
+    SWITCH,
+    VAL
+}
+
+abstract type Arg {
+    short   : char
+    long    : char*
+    req     : bool
+    set     : bool
+    desc    : char*
+    kind    : ArgKind
+
+    parser  : ArgParser*
+
+    proc free(this) {
+        if this.long == NULL as char*
+            delete this.long
+        if this.desc == NULL as char*
+            delete this.desc
+    }
+
+    proc isSet(this) : bool
+        return this.set
+
+    proc required(this) : Arg ref {
+        if this.kind == ArgKind.SWITCH
+            \die{ "Switch args can't be required." }
+        this.req = true
+        return this
+    }
+       
+    proc withDesc(this, desc : char*) : Arg ref {
+        this.desc = cstrdup(desc)
+        return this
+    }
+
+    proc help(this) : string {
+        if this.kind == ArgKind.SWITCH {
+            has_short := this.short != '\0'
+            has_long  := this.long != NULL as char*
+
+            s := str()
+            if has_short {
+                s = concat(s, str("-"), str(this.short))
+                if has_long
+                    s = concat(s, str(", --"), str(this.long))
+            } else {
+                s = concat(s, str("--"), str(this.long))
+            }
+
+            if this.desc != NULL as char*
+                s = concat(s, str("\n    "), str(this.desc))
+
+            return s
+        }
+
+        \die{ "incomplete" }
+
+        return str()
+    }
+}
+
+type ArgSwitch extends Arg {
+    proc create(parser : ArgParser ref) : ArgSwitch
+        return { ArgSwitch:
+            .kind   = ArgKind.SWITCH,
+            .parser = &parser
+        }
+}
+
+type ArgValue$T extends Arg {
+    val : T
+
+    proc create(parser : ArgParser ref) : ArgValue$T
+        return { ArgValue:
+            .kind   = ArgKind.VAL,
+            .parser = &parser
+        }
+}
+
+type ArgParser {
+    prg      : char*
+    all      : Arg*[...]
+    switches : ArgSwitch*[...]
+
+    proc create(prg : char*) : ArgParser {
+        return { ArgParser:
+            .prg      = cstrdup(prg),
+            .all      = [...Arg*],
+            .switches = [...ArgSwitch*] 
+        }
+    }
+
+    proc free(this) {
+        foreach arg in this.all
+            delete arg
+
+        delete this.prg
+
+        this.switches.free()
+        this.all.free()
+    }
+
+    proc _addSwitch(this, short : char, long : char*) : Arg ref {
+        switch := new ArgSwitch
+        @switch = ArgSwitch.create(this)
+
+        switch.short = short
+        has_long    := long != NULL as char*
+        switch.long  = << if has_long
+                            <-cstrdup(long)
+                          else <-NULL as char* >>
+        
+        this.all.push(switch)
+        this.switches.push(switch)
+        return @switch
+    }
+
+    proc addSwitch(this, short : char) : Arg ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for switch argument." }
+
+        return this._addSwitch(short, NULL as char*)
+    }
+
+    proc addSwitch(this, long : char*) : Arg ref
+        return this._addSwitch('\0', long)
+    
+    proc addSwitch(this, short : char, long : char*) : Arg ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for switch argument." }
+
+        return this._addSwitch(short, long)
+    }
+
+    proc _addValue$T(this, short : char, long : char*) : Arg ref {
+        arg := new ArgValue$T
+        @arg = ArgValue$T.create(this)
+
+        arg.short = short
+        has_long := long != NULL as char*
+        arg.long  = << if has_long
+                            <-cstrdup(long)
+                       else <-NULL as char* >>
+        
+        this.all.push(arg)
+        this.val_args.push(arg)
+        return @arg
+    }
+    
+    proc addValueInt(this, short : char) : Arg ref
+        return this._addValue$int(short, NULL as char*)
+
+    proc addValueFloat(this, long : char*) : Arg ref
+        return this._addValue$float('\0', long)
+
+    proc addValueString(this, short : char, long : char*) : Arg ref
+        return this._addValue$string(short, long)
+
+    proc usage(this) : string {
+        u := concat(str("usage: "), str(this.prg), str(" "))
+
+        if |this.switches| > 0
+            u.append("[-")
+        foreach sw in this.switches if sw.short
+            u.append(sw.short)
+        if |this.switches| > 0
+            u.append(']')
+        foreach sw in this.switches if sw.short == '\0'
+            u.append(concat(str(" [--"), str(sw.long), str("]")))
+
+        return u 
+    }
+
+    proc help(this) : string {
+        h := str("Options:\n\n")
+
+        foreach arg in this.all
+            h = concat(h, (@arg).help(), str("\n"))
+
+        return concat(this.usage(), str("\n\n"), h)
+    }
+}
+
 abstract type cli {
     const RESET         := "\e[0m"
     const BOLD          := "\e[1m"
@@ -56,4 +242,10 @@ abstract type cli {
         __cli_bg_buff.sprintf("\e[48;2;%d;%d;%dm", r, g, b)
         return __cli_bg_buff
     }
+
+    proc sattr(s : string ref, attr : char*) : string ref
+        return (s = concat(str(attr), s, str(cli.RESET)))
+    
+    proc sattr(s : string ref, attr1 : char*, attr2 : char*) : string ref
+        return (s = concat(str(attr1), str(attr2), s, str(cli.RESET)))
 }

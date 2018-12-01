@@ -613,7 +613,9 @@ std::string mangledParams(Procedure * proc, TemplateDefineList * def) {
         // @incomplete
         // What about tuples??
 
-        if (posmap.count(
+        if (paramDecl_base->nodeKind == ASTNode::TUPLE_DECLARATOR) {
+            // @here
+        } else if (posmap.count(
                 ((Identifier *)paramDecl_base->identifier)->getUnqualified())) {
             clone = (Declarator *)paramDecl->clone();
             Declarator * clone_base = (Declarator *)clone->getBase();

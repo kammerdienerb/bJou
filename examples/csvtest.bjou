@@ -1,0 +1,26 @@
+#!/usr/bin/env bjou
+
+\run{ main() }
+\front{ true }
+
+import "io.bjou"
+import "csv.bjou"
+
+proc main() {
+    table := csv.create(file.stdin())
+    table.has_h_header = true
+
+    total    := table.csum(table.maxcols() - 1)
+    perc_col := table.maxcols()
+    table.set(0, perc_col, "perc")
+    for r := 1; r < table.maxrows(); r += 1 {
+        perc := table.get(r, perc_col - 1).to$f64()
+        perc /= total
+        perc *= 100.0
+        table.set(r, perc_col, perc)
+    }
+    table.rfilter(perc_col, csv.pred_nonzero)
+
+    table.write(file.stdout())
+    table.free()
+}

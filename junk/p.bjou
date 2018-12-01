@@ -1,0 +1,48 @@
+import "thread.bjou"
+import "io.bjou"
+import "random.bjou"
+import "c/time.bjou"
+
+\run{ main() }
+\front{ true }
+
+# main()
+
+extern sleep(int)
+
+type args_t = (int, char*)
+
+proc p(arg : void*) : void* {
+    args := arg as args_t*
+    print "Thread %", args.0
+
+    # f := file.open(args.1, file.WRITE)
+    f := file.stdout()
+
+    for i := 0; i < args.0; i += 1 {
+        s := concat(str("Message from thread "), str(args.0 as i64), str("\n"))
+        f.write(s)
+        s.free()
+        sleep(getrand(1, 3)) 
+    }
+
+    delete arg
+    return NULL
+}
+
+const N := 5
+
+proc main() {
+    seedrand(time(NULL as i64*))
+
+    threads := [...Thread]
+
+    for i := 0; i < N; i += 1 {
+        args := new args_t
+        args.0 = i  args.1 = "out.txt"
+        threads.push(Thread.create(p, args as void*))
+    }
+
+    foreach ref t in threads
+        t.join()
+}

@@ -1,0 +1,188 @@
+# io.bjou
+# basic input/output
+
+module io
+
+const IO_BUFF_SIZE := 1024u64
+
+__bjou_io_stdfiles     : file[3]
+__bjou_io_stdfileptrs  : file*[3]
+
+type file {
+    const READ   := O_RDONLY
+    const WRITE  := O_WRONLY bxor O_CREAT
+    const APPEND := O_WRONLY bxor O_CREAT bxor O_APPEND
+
+    fd       : fd_t
+    eof      : bool
+    can_seek : bool
+    path     : char*
+
+    proc _file_can_seek(fd : int) : bool
+        return sys.lseek(fd, 0, SEEK_CUR) == -1
+
+    proc _getstdfile(fd : int) : file ref {
+        if fd < 0
+        or fd > 2
+            \die{ "_getstdfile: invalid fd" }
+
+        paths : char*[3] = {
+            "<stdin>",
+            "<stdout>",
+            "<stderr>"
+        }
+
+        if __bjou_io_stdfileptrs[fd] == NULL as file* {
+            f := getref(__bjou_io_stdfiles[fd])
+
+            f = { file:
+                .fd       = fd,
+                .eof      = false,
+                .can_seek = file._file_can_seek(fd),
+                .path     = paths[fd]
+            }
+
+            __bjou_io_stdfileptrs[fd] = &f
+        }
+
+        return __bjou_io_stdfiles[fd]
+    }
+
+    proc stdin() : file ref
+        return file._getstdfile(0)
+
+    proc stdout() : file ref
+        return file._getstdfile(1)
+    
+    proc stderr() : file ref
+        return file._getstdfile(2)
+
+    proc open(path : char*, mode : int) : file {
+        const DEFAULT_PERM :
+            mode_t = S_IRUSR bxor S_IWUSR bxor S_IRGRP
+                bxor S_IWGRP bxor S_IROTH bxor S_IWOTH
+
+        fd    := sys.open(path, mode, DEFAULT_PERM)
+        path' := << if fd >= 0 <- cstrdup(path) else <- NULL as char* >>
+
+        return { file:
+            .fd       = fd,
+            .eof      = false,
+            .can_seek = file._file_can_seek(fd),
+            .path     = path'
+        }
+    }
+
+    proc good(this) : bool {
+        if this.fd < 0
+            return false
+
+        # @bad and probably wrong
+        if not this.can_seek
+            return not this.eof 
+
+        cur := sys.lseek(this.fd, 0, SEEK_CUR)
+        end := sys.lseek(this.fd, 0, SEEK_END)
+        # restore
+        sys.lseek(this.fd, cur, SEEK_SET)
+
+        return cur != end and not this.eof
+    }
+
+    proc close(this) {
+        if &this == __bjou_io_stdfileptrs[0]
+        or &this == __bjou_io_stdfileptrs[1]
+        or &this == __bjou_io_stdfileptrs[2]
+            return
+
+        if this.good() {
+            delete this.path
+            sys.close(this.fd)
+        }
+    }
+
+    proc size(this) : i64 {
+        if not this.can_seek
+            return -1
+
+        save := sys.lseek(this.fd, 0, SEEK_CUR)
+        s    := sys.lseek(this.fd, 0, SEEK_END)
+        # restore
+        sys.lseek(this.fd, save, SEEK_SET)
+
+        return s
+    }
+
+    proc write(this, data : char*, nbytes : u64) : u64 {
+        return sys.write(this.fd, data, nbytes)
+    }
+
+    proc write(this, s : string ref) : u64 {
+        return this.write(s.__data.data(), s.len())
+    }
+
+    proc read(this, dst : char*, nbytes : u64) : u64 {
+        r := sys.read(this.fd, dst, nbytes)
+        this.eof = (r == 0)
+        return r
+    }
+
+    proc read(this) : char[] {
+        s    := this.size()
+        data := NULL as char*
+        buff : char[IO_BUFF_SIZE]
+        r    := 0
+        
+        if s == -1 {
+            s    = 0
+            while r = this.read(buff, IO_BUFF_SIZE) {
+                if data != NULL as char* {
+                    data = new char[r]
+                    mcopy(data, buff, r)
+                } else {
+                    tmp := new char[s + r]
+                    mcopy(tmp, data, s)
+                    mcopy(tmp + s, buff, r)
+                    delete data
+                    data = tmp
+                }
+                s += r
+            }
+        } else {
+            data  = new char[s]
+            p    := data
+
+            while r = this.read(buff, IO_BUFF_SIZE) {
+                mcopy(p, buff, r)
+                p += r
+            }
+        }
+
+        return [data, 0:s]
+    }
+
+    proc readline(this) : string {
+        s := str()
+
+        c := '\0'
+
+        while this.read(&c, 1) {
+            s.append(c)
+            if c == '\n'
+                break
+        }
+
+        return s
+    }
+
+    proc lines(this) : string[...] {
+        ret := [...string]
+
+        while this.good() {
+            l := this.readline()
+            ret.push(l)
+        }
+
+        return ret
+    }
+}

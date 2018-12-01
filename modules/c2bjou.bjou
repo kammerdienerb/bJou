@@ -4,32 +4,34 @@
 
 module c2bjou
 
-# @hack -- where is this supposed to come from?
-abstract type __va_list_tag { }
-
 extern sscanf(char*, char*, ...) : int
 extern sprintf(char*, char*, ...) : int
 extern strcmp(char*, char*) : int
 extern strlen(char*) : u64
+extern strstr(char*, char*) : char*
 extern dirname(char*) : char*
 
 \ct {
-const PRINT_AST := true
+const PRINT_AST := false
 
 import "null.bjou"
 
 import "dict.bjou"
 
 # must be defined for clang.bjou to compile
-const libclang_path := "/usr/local/Cellar/llvm/6.0.0/lib/libclang.dylib"
+const libclang_path := "/usr/local/Cellar/llvm/6.0.1/lib/libclang.dylib"
 import "clang.bjou"
+import "clangextras.bjou"
 import "c2bjou/ClangWrapper.bjou"
 import "c2bjou/visitors.bjou"
 
 import "compiler.bjou"
 
-proc include(fname : char*) {
+import "c/io.bjou"
+
+proc include(fname : char*) : c2bJou {
     init_clang()
+    init_clangextras()
 
     v_str := clang.getCString(clang.getClangVersion())
 
@@ -62,42 +64,104 @@ proc include(fname : char*) {
 
     translator.cw.traverseTU(dispatch, (&translator) as CXClientData*)
 
-    # run passes on translated nodes
-    gs := bjou_getGlobalScope()
+    # bjou_dump(translator.created.data(), |translator.created|, "out.bjou", false)
 
-    foreach node in translator.created {
-        bjou_appendNode(node)
-        bjou_setGlobalNodeRP(node)
+    # run passes on translated nodes
+    # gs := bjou_getGlobalScope()
+
+    # foreach node in translator.created {
+    #     bjou_appendNode(node)
+    #     bjou_setGlobalNodeRP(node)
+        
+    #     cxt   := bjou_getContext(node)
+    #     fpath := str(bjou_contextGetFileName(cxt))
+
+    #     inc_idx := fpath.find("include")
+    #     if inc_idx != -1 {
+    #         fpath' := str(fpath.c_str() + inc_idx)
+    #         fpath.free()
+    #         fpath = fpath'
+    #     }
+
+    #     slash_idx := fpath.find('/') 
+
+    #     # print "%", fpath.c_str() + slash_idx + 1
+
+    #     fpath.free()
+    # }
+    # foreach node in translator.structs
+    #     bjou_preDeclare(node, gs)
+    # foreach node in translator.created
+    #     bjou_addSymbols(node, gs)
+    # bjou_runTypeCompletion()
+    # foreach node in translator.created
+    #     bjou_analyze(node)
+
+    return translator
+}
+
+type AnonDecl {
+    addr : void*
+    decl : ASTNode*
+
+    proc create(addr : void*, decl : ASTNode*) : AnonDecl {
+        return { AnonDecl:
+            .addr = addr,
+            .decl = decl
+        }
     }
-    foreach node in translator.structs
-        bjou_preDeclare(node, gs)
-    foreach node in translator.created
-        bjou_addSymbols(node, gs)
-    bjou_runTypeCompletion()
-    foreach node in translator.created
-        bjou_analyze(node)
 }
 
 type c2bJou {
-    cw            : ClangWrapper ref
-    visitor_table : visitor_t[CXCursor_END_]
-    indent        : int
-    types         : dict$(CXType*, ASTNode*)
-    created       : ASTNode*[...]
-    structs       : ASTNode*[...]
+    cw              : ClangWrapper ref
+    visitor_table   : visitor_t[CXCursor_END_]
+    indent          : int
+    types           : dict$(CXType*, ASTNode*)
+    created         : ASTNode*[...]
+    inlineTypeDecls : ASTNode*[...]
+    last_anon_decl  : string
+    anon_decls      : AnonDecl[...]
+    structs         : ASTNode*[...]
 
     proc create(cw : ClangWrapper ref) : c2bJou {
         c := { c2bJou:
-            .cw            = cw,
-            .indent        = 0,
-            .types         = dict$(CXType*, ASTNode*).create(),
-            .created       = [...ASTNode*],
-            .structs       = [...ASTNode*]
+            .cw              = cw,
+            .indent          = 0,
+            .types           = dict$(CXType*, ASTNode*).create(),
+            .created         = [...ASTNode*],
+            .inlineTypeDecls = [...ASTNode*],
+            .last_anon_decl  = str(), 
+            .anon_decls      = [...AnonDecl],
+            .structs         = [...ASTNode*]
         }
 
         init_visitor_table(c.visitor_table)
 
         return c
+    }
+
+    proc findAnonTyDecl(this, addr : void*) : ASTNode* {
+        foreach ref d in this.anon_decls
+            if addr == d.addr
+                return d.decl
+        return nullptr$ASTNode()
+    }
+
+    proc getOrAddAnonTyDecl(this, cx_t : CXType, name : char*) : ASTNode* {
+        cursor := clang.getTypeDeclaration(cx_t)
+        addr   := cursor.data[0]
+
+        search := this.findAnonTyDecl(addr)
+        if not search.isnull()
+            return search
+
+        if name.isnull()
+            \die{ "anon decl not found, but no name provided" }
+
+        decl := declFromName(name)
+        this.anon_decls.push(AnonDecl.create(addr, decl))
+
+        return decl
     }
 }
 }

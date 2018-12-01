@@ -14,7 +14,8 @@ extern sprintf(char*, char*, ...) : int
             _loc_c : int)   # call site character
             : T ref {
 
-        if _i >= _l {
+        if _i >= _l
+        or _i < 0 {
             buff : char[1024]
             buff.sprintf("array index out of bounds (index = %d, length = %d)\n    at %s :: %d :: %d",
                          _i, _l, _loc_f, _loc_l, _loc_c)

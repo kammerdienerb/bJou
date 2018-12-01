@@ -1,0 +1,22 @@
+# hex.bjou
+
+main()
+
+proc main() {
+    b1 := 0x000000FF
+    b2 := 0x0000FF00
+    b3 := 0x00FF0000
+    b4 := 0xFF000000
+
+    one := 0x3FF0000000000000
+
+    f := @((&one) as f64*)
+    printf("%f\n", f)
+
+    print "%", b1
+    print "%", b2
+    print "%", b3
+    print "%", b4
+
+    print "%", b1 bor b2 bor b3 bor b4
+}

@@ -3,6 +3,8 @@
 module __preload
 
 import "__rt_init.bjou"
+import "__sys.bjou"
+import "__mem.bjou"
 import "__env.bjou"
 import "__zinit.bjou"
 import "__ref.bjou"

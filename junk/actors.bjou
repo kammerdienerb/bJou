@@ -1,0 +1,54 @@
+# actors.bjou
+
+import "actor.bjou"
+
+\actor{ type A {
+    count : int
+
+    proc create() : A
+        return { A: }
+
+    \actor_receive{ proc (this, message : int) {
+        this.count += amt
+    } }
+
+    \actor_on_kill{ proc (this) : int {
+        return this.count
+    } }
+} }
+
+\actor{ type B {
+    val : int
+    rc  : A
+
+    proc create(val : int, rc : A) : B {
+        return { B:
+            .val = val,
+            .rc = rc
+        }
+    }
+
+    \actor_receive{ proc (this) {
+        while true {
+            \actor_send{ rc, val }
+            \actor_sleep{ 1 }
+        }
+    } }
+} }
+
+proc main() {
+    a  := \actor_spawn{ A }
+    bs := [...B]
+
+    for i := 0; i < 10; i += 1 {
+        bs.push(\actor_spawn{ B })
+        \actor_send{ bs.back() }
+    }
+
+    sleep(10)
+
+    foreach b in bs
+        \actor_kill{ b }
+
+    print "%", \actor_kill{ a }
+}

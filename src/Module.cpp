@@ -43,13 +43,15 @@ void Module::fill(std::vector<ASTNode *> & _nodes,
     multi = new MultiNode;
     multi->isModuleContainer = true;
 
-    nodes = std::move(_nodes);
-    structs = std::move(_structs);
+    nodes     = std::move(_nodes);
+    structs   = std::move(_structs);
     ifaceDefs = std::move(_ifaceDefs);
 }
 
 void Module::activate(Import * source, bool ct) {
     if (activated) {
+        // printf("!!! R %d %s\n", ct, source->module.c_str());
+
         if (activatedAsCT && !ct) {
             // We need to tell the CT that encapsulates the
             // activated module import to ignore the multinode.
@@ -68,37 +70,51 @@ void Module::activate(Import * source, bool ct) {
 
             BJOU_DEBUG_ASSERT(encaps_ct);
             encaps_ct->leaveMeAloneArgs.insert(multi);
+            multi->setFlag(ASTNode::CT, false);
+            activatedAsCT = false;
+            
+            std::vector<ASTNode*> sub_imports;
+            multi->unwrap(sub_imports);
+            for (ASTNode * node : sub_imports) {
+                    // printf("HERE\n");
+                if (node->nodeKind == ASTNode::IMPORT) {
+                    Import * i = (Import*)node;
+                    i->activate(false);
+                    i->theModule->multi->setFlag(ASTNode::CT, false);
+                }
+            }
+        }
+    } else {
+        // printf("!!!   %d %s\n", ct, source->module.c_str());
+
+        activated = true;
+        activatedAsCT = ct;
+
+        BJOU_DEBUG_ASSERT(multi && multi->isModuleContainer);
+
+        (*source->replace)(source->parent, source, multi);
+
+        multi->take(nodes);
+        multi->nodes.insert(multi->nodes.begin(), source);
+
+        for (ASTNode * i : ifaceDefs)
+            ((InterfaceDef *)i)->preDeclare(source->getScope());
+        for (ASTNode * s : structs)
+            ((Struct *)s)->preDeclare(source->getScope());
+
+        for (ASTNode * i : ifaceDefs)
+            ((InterfaceDef *)i)->addSymbols(source->getScope());
+        for (ASTNode * s : structs)
+            ((Struct *)s)->addSymbols(source->getScope());
+
+        for (ASTNode * node : multi->nodes) {
+            if (node->nodeKind != ASTNode::STRUCT &&
+                node->nodeKind != ASTNode::INTERFACE_DEF)
+                node->addSymbols(source->getScope());
         }
 
-        return;
+        compilation->frontEnd.n_lines += n_lines;
     }
-
-    activated = true;
-    activatedAsCT = ct;
-
-    BJOU_DEBUG_ASSERT(multi && multi->isModuleContainer);
-
-    (*source->replace)(source->parent, source, multi);
-
-    multi->take(nodes);
-
-    for (ASTNode * i : ifaceDefs)
-        ((InterfaceDef *)i)->preDeclare(source->getScope());
-    for (ASTNode * s : structs)
-        ((Struct *)s)->preDeclare(source->getScope());
-
-    for (ASTNode * i : ifaceDefs)
-        ((InterfaceDef *)i)->addSymbols(source->getScope());
-    for (ASTNode * s : structs)
-        ((Struct *)s)->addSymbols(source->getScope());
-
-    for (ASTNode * node : multi->nodes) {
-        if (node->nodeKind != ASTNode::STRUCT &&
-            node->nodeKind != ASTNode::INTERFACE_DEF)
-            node->addSymbols(source->getScope());
-    }
-
-    compilation->frontEnd.n_lines += n_lines;
 }
 
 static void pushImportsFromAST(std::vector<ASTNode *> & AST,
@@ -308,7 +324,8 @@ void importModuleFromFile(FrontEnd & frontEnd, const char * _fname) {
 
     import->replace = rpget<replacementPolicy_Global_Node>();
 
-    compilation->frontEnd.AST.push_back(import);
+    std::vector<ASTNode*> & AST = compilation->frontEnd.AST;
+    AST.push_back(import);
 
     // std::deque<Import *> imports{import};
 

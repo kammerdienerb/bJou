@@ -1,0 +1,279 @@
+# csv.bjou
+
+module csv
+
+import "io.bjou"
+
+type csv {
+    has_h_header : bool
+    has_v_header : bool
+    name         : string
+    data         : string[...][...]
+
+    proc create() : csv {
+        return { csv:
+            .has_h_header = false,
+            .has_v_header = false,
+            .name         = str(),
+            .data         = [...string[...]]
+        }
+    }
+
+    proc create(f : file ref) : csv {
+        r := { csv:
+            .has_h_header = false,
+            .has_v_header = false,
+            .name = str()
+        }
+        r.data = [...string[...]]
+
+        mr := 0
+        mc := 0
+
+        while f.good() {
+            col := 0
+            l := f.readline()
+
+            if  l.len() == 0
+            or (l.len() == 1 and l.back() == '\n') {
+                l.free()
+                continue
+            }
+
+            mr += 1
+
+            r.data.push([...string])
+
+            item := str()
+            foreach ref c in l.__data {
+                if c == ',' {
+                    item.trim()
+                    r.data.back().push(item)
+                    col += 1
+                    item = str()
+                } else if &c == &l.__data.back() {
+                    item.append(c)
+                    item.trim()
+                    r.data.back().push(item)
+                    col += 1
+                    item = str()
+                } else {
+                    item.append(c)
+                }
+            }
+           
+            if col > mc    mc = col
+
+            item.free()
+            l.free()
+        }
+
+        if mr != 0 and mc != 0
+            r._grow(mr - 1, mc - 1)
+
+        return r
+    }
+
+    proc create(path : char*) : csv {
+        f := file.open(path, file.READ)
+        if not f.good()
+            \die{ "csv: bad file" }
+        table := csv.create(f)
+        f.close()
+        return table
+    }
+
+    proc free(this) {
+        foreach ref row in this.data {
+            foreach ref s in row    s.free()
+            row.free()
+        }
+        this.data.free()
+    }
+
+    proc maxrows(this) : u64 { return |this.data| }
+    proc maxcols(this) : u64 {
+        max := 0u64
+        foreach ref row in this.data {
+            if |row| > max
+                max = |row|
+        }
+        return max
+    }
+
+    proc write(this, f : file ref) {
+        foreach ref row in this.data {
+            lazycomma := ""
+            foreach ref item in row {
+                s := concat(str(lazycomma), item.copy())
+                f.write(s)
+                s.free()
+                lazycomma = ", "
+            }
+            f.write("\n", 1)
+        }
+    }
+
+    proc get(this, r : u64, c : u64) : string ref {
+        return this.data[r][c]
+    }
+
+    proc _grow(this, r : u64, c : u64) {
+        mr  := this.maxrows() - 1
+        mr' := mr
+        mc  := this.maxcols() - 1
+        mc' := mc
+        if r > mr    mr' = r
+        if c > mc    mc' = c
+
+        for i := mr; i < mr'; i += 1 {
+            this.data.push([...string])
+            for j := 0; j < mc'; j += 1
+                this.data.back().push(str())
+        }
+
+        foreach ref row in this.data {
+            for i := |row|; i <= mc'; i += 1
+                row.push(str())
+        }
+    }
+
+    proc set(this, r : u64, c : u64, s : string) {
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = s.copy()
+    }
+    
+    proc set(this, r : u64, c : u64, s : char*) {
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = str(s)
+    }
+
+    proc set(this, r : u64, c : u64, f : f64) {
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = str(f)
+    }
+
+    proc rnamed(this, name : string) : i64 {
+        for r := 0; r < this.maxrows(); r += 1 {
+            if this.data[r][0] == name
+                return r
+        }
+
+        return -1
+    }
+    
+    proc rnamed(this, name : char*) : i64 {
+        s := str(name)
+        r := this.rnamed(s)
+        s.free()
+        return r
+    }
+
+    proc cnamed(this, name : string) : i64 {
+        for c := 0; c < this.maxcols(); c += 1 {
+            if this.data[0][c] == name {
+                return c
+            }
+        }
+
+        return -1
+    }
+    
+    proc cnamed(this, name : char*) : i64 {
+        s := str(name)
+        r := this.cnamed(s)
+        s.free()
+        return r
+    }
+
+    proc rfilter(this, c : u64, pred : <(u64, string ref) : bool>) {
+        to_erase := [...u64]
+
+        for r := 0 + (this.has_h_header as u8); r < this.maxrows(); r += 1
+            if not pred(c, this.data[r][c])
+                to_erase.push(r)
+
+        to_erase.sort()
+        for i := 0; i < |to_erase|; i += 1 {
+            r   := to_erase[i] - i
+            row := getref(this.data[r])
+            foreach ref item in row
+                item.free()
+            row.free()
+            this.data.erase(r)
+        }
+    }
+
+    proc cfilter(this, r : u64, pred : <(u64, string ref) : bool>) {
+        to_erase := [...u64]
+
+        for c := 0 + (this.has_v_header as u8); c < this.maxcols(); c += 1 {
+            if not pred(r, this.data[r][c])
+                to_erase.push(c)
+        }
+
+        to_erase.sort()
+        foreach ref row in this.data {
+            for i := 0; i < |to_erase|; i += 1 {
+                c := to_erase[i] - i
+                row[c].free()
+                row.erase(c)
+            }
+        }
+    }
+
+    proc rsum(this, r : u64) : f64 {
+        sum := 0.0
+
+        for c := 0 + (this.has_v_header as u8); c < this.maxcols(); c += 1 {
+            sum += this.data[r][c].to$f64()
+        }
+
+        return sum
+    }
+    
+    proc csum(this, c : u64) : f64 {
+        sum := 0.0
+
+        for r := 0 + (this.has_h_header as u8); r < this.maxrows(); r += 1 {
+            sum += this.data[r][c].to$f64()
+        }
+
+        return sum
+    }
+
+    proc rmax(this, r : u64) : f64 {
+        max := 0.0
+
+        for c := 0 + (this.has_v_header as u8); c < this.maxcols(); c += 1 {
+            val := this.data[r][c].to$f64()
+            if val > max
+                max = val
+        }
+
+        return max
+    }
+
+    proc cmax(this, c : u64) : f64 {
+        max := 0.0
+
+        for r := 0 + (this.has_h_header as u8); r < this.maxrows(); r += 1 {
+            val := this.data[r][c].to$f64()
+            if val > max
+                max = val
+        }
+
+        return max 
+    }
+
+    # common predicates
+    proc pred_nonzero(idx : u64, item : string ref) : bool {
+        return item.to$f64() != 0.0
+    }
+}

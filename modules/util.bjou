@@ -1,0 +1,9 @@
+# util.bjou
+
+module util
+
+proc swap$T(a : T ref, b : T ref) {
+    tmp := unref(a)
+    a    = unref(b)
+    b    = tmp
+}

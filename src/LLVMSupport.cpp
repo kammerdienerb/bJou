@@ -1,4 +1,4 @@
-#if NDEBUG
+#ifdef NDEBUG && NDEBUG
 
 #include <algorithm>
 #include <cassert>

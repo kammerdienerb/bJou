@@ -1,0 +1,38 @@
+# __mem.bjou
+# basic memory utilities
+
+module __mem
+
+proc mcopy(dst : void*, src : void*, nbytes : u64) : void* {
+    ncopied := 0u64
+    ldp     := dst as u64*
+    lsp     := src as u64*
+
+    while nbytes - ncopied > sizeof u64 {
+        @ldp = @lsp
+
+        ldp     += 1 
+        lsp     += 1 
+        ncopied += sizeof u64
+    }
+    
+    bdp := ldp as u8*
+    bsp := lsp as u8*
+
+    for ; ncopied < nbytes; ncopied += 1 {
+        @bdp = @bsp 
+
+        bdp += 1 
+        bsp += 1 
+    }
+
+    return dst
+}
+
+# naive and slow
+proc mmove(dst : void*, src : void*, nbytes : u64) : void* {
+    buff := new u8[nbytes]
+    mcopy(buff, src, nbytes)
+    mcopy(dst, buff, nbytes)
+    return dst
+}

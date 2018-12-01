@@ -15,14 +15,36 @@ type Loc {
     line      : int
     character : int
 }
-type Context { } # opaque -- bjou::Context
-type ASTNode { } # opaque -- bjou::ASTNode
-type Scope   { } # opaque -- bjou::Scope
+abstract type Context { } # opaque -- bjou::Context
+abstract type ASTNode { } # opaque -- bjou::ASTNode
+abstract type Scope   { } # opaque -- bjou::Scope
+abstract type Type    { } # opaque -- bjou::Type
+
+enum TypeKind {
+    PLACEHOLDER,
+    VOID,
+    BOOL,
+    INT,
+    FLOAT,
+    CHAR,
+    POINTER,
+    REF,
+    ARRAY,
+    SLICE,
+    DYNAMIC_ARRAY,
+    STRUCT,
+    ENUM,
+    TUPLE,
+    PROCEDURE
+}
 
 extern bjou_makeUID(char*) : char*
 
+extern bjou_isKeyword(char*) : bool
+
 extern bjou_createContext(Loc*, Loc*, char*) : Context*
 extern bjou_getContext(ASTNode*) : Context*
+extern bjou_contextGetFileName(Context*) : char*
 extern bjou_setContext(ASTNode*, Context*)
 extern bjou_setProcNameContext(ASTNode*, Context*)
 extern bjou_setVarDeclNameContext(ASTNode*, Context*)
@@ -49,15 +71,21 @@ extern bjou_preDeclare(ASTNode*, Scope*)
 extern bjou_addSymbols(ASTNode*, Scope*)
 extern bjou_analyze(ASTNode*)
 extern bjou_forceAnalyze(ASTNode*)
+extern bjou_getType(ASTNode*) : Type*
 
 extern bjou_getStructName(ASTNode*) : char*
+extern bjou_getEnumName(ASTNode*) : char*
 
 extern bjou_setVarDeclName(ASTNode*, char*)
+
+extern bjou_makeZeroInitExpr(u32, ASTNode*) : ASTNode*
 
 ################################################## Binary Expressions
 #####################################################################
 extern bjou_createAddExpression(ASTNode*, ASTNode*)  : ASTNode*
 extern bjou_createSubExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createBSHLExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createBSHRExpression(ASTNode*, ASTNode*)  : ASTNode*
 extern bjou_createMultExpression(ASTNode*, ASTNode*) : ASTNode*
 extern bjou_createDivExpression(ASTNode*, ASTNode*)  : ASTNode*
 extern bjou_createModExpression(ASTNode*, ASTNode*)  : ASTNode*
@@ -78,6 +106,9 @@ extern bjou_createNeqExpression(ASTNode*, ASTNode*) : ASTNode*
 
 extern bjou_createLogAndExpression(ASTNode*, ASTNode*) : ASTNode*
 extern bjou_createLogOrExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createBANDExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createBORExpression(ASTNode*, ASTNode*)  : ASTNode*
+extern bjou_createBXORExpression(ASTNode*, ASTNode*)  : ASTNode*
 
 extern bjou_createCallExpression(ASTNode*, ASTNode*)  : ASTNode*
 
@@ -94,6 +125,7 @@ extern bjou_createDeleteExpression(ASTNode*) : ASTNode*
 extern bjou_createSizeofExpression(ASTNode*) : ASTNode*
 
 extern bjou_createNotExpression(ASTNode*) : ASTNode*
+extern bjou_createBNEGExpression(ASTNode*) : ASTNode*
 
 extern bjou_createDerefExpression(ASTNode*)   : ASTNode*
 extern bjou_createAddressExpression(ASTNode*) : ASTNode*
@@ -106,6 +138,7 @@ extern bjou_createAsExpression(ASTNode*, ASTNode*) : ASTNode*
 ################################################ Terminal Expressions
 #####################################################################
 extern bjou_createIdentifier(char*) : ASTNode*
+extern bjou_createIdentifierWithInst(char*, ASTNode*) : ASTNode*
 
 extern bjou_createInitializerList(ASTNode*, char**, int, ASTNode**, int) : ASTNode*
 
@@ -117,6 +150,8 @@ extern bjou_createIntegerLiteral(char*) : ASTNode*
 extern bjou_createFloatLiteral(char*) : ASTNode*
 extern bjou_createStringLiteral(char*) : ASTNode*
 extern bjou_createCharLiteral(char*) : ASTNode*
+
+extern bjou_createExprBlock(ASTNode**, int) : ASTNode*
 
 # ProcLiteral
 # ExternLiteral
@@ -159,7 +194,8 @@ extern bjou_createStruct(
 
 # InterfaceDef
 # InterfaceImplementation
-# Enum
+
+extern bjou_createEnum(char*, char**, int) : ASTNode*
 
 extern bjou_createArgList(ASTNode**, int) : ASTNode*
 
@@ -176,6 +212,8 @@ extern bjou_createReturn(ASTNode*) : ASTNode*
 extern bjou_createBreak() : ASTNode*
 extern bjou_createContinue() : ASTNode*
 
+extern bjou_createExprBlockYield(ASTNode*) : ASTNode*
+
 extern bjou_createIf(ASTNode*, ASTNode**, int, ASTNode*) : ASTNode*
 extern bjou_createElse(ASTNode**, int) : ASTNode*
 extern bjou_createFor(ASTNode**, int, ASTNode*, ASTNode**, int, ASTNode**, int) : ASTNode*
@@ -185,6 +223,7 @@ extern bjou_createDoWhile(ASTNode*, ASTNode**, int) : ASTNode*
 # With
 
 # Template Stuff
+extern bjou_createTemplateInst(ASTNode**, int) : ASTNode*
 
 extern bjou_createMacroUse(char*, ASTNode**, int) : ASTNode*
 

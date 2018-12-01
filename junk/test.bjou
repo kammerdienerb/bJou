@@ -1,0 +1,17 @@
+# test.bjou
+
+\ct{ import "n.bjou" }
+import "n.bjou"
+\ct{ import "n.bjou" }
+\ct{ import "n.bjou" }
+\ct{ import "n.bjou" }
+
+import "n.bjou"
+
+\ct{ import "n.bjou" }
+import "n.bjou"
+main()
+
+proc main() {
+    print "%", THINGY 
+}

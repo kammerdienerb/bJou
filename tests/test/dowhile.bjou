@@ -1,0 +1,15 @@
+# dowhile.bjou
+
+main()
+
+proc main() {
+    counter := 5
+    fact    := 1
+
+    do {
+        fact *= counter
+        counter -= 1
+    } while counter > 0
+
+    print "%", fact
+}

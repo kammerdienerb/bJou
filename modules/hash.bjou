@@ -1,0 +1,23 @@
+# hash.bjou
+# hashing functions
+
+module hash
+
+# modified djb2a
+proc hash(s : char*) : u64 {
+    h1 := 5381u64
+    # h2 := 52711u64 
+    c  :  char
+
+    while c = @s {
+        h1 = h1 * 33 bxor (c as u64)
+        # h2 = h2 * 33 bxor (c as u64)
+        s += 1
+    }
+
+    # return h1 * 4096 + h2
+    return h1
+}
+
+proc hash(s : string) : u64
+    return hash(s.c_str())

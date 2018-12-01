@@ -31,8 +31,12 @@ proc process(line : string ref, commands: string ref) {
             if line_cursor < (line.len() - 1)
                 line_cursor += 1
         } else if cmd == 'D' {
-            \__da_used{line.__data} = line_cursor
-            line.append('\n')
+            has_nl := line.back() == '\n'
+            n_del := line.len() - line_cursor
+            for i := 0; i < n_del; i += 1
+                line.pop()
+            if has_nl
+                line.append('\n')
         }
 
         cmd_cursor += 1
@@ -47,6 +51,7 @@ proc main() {
     
     while stdin().feof() == 0 {
         line := getline()
+        if line.len() == 0    continue
         line.process(commands)
         printf("%s", line.c_str()) 
     }

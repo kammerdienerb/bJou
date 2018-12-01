@@ -440,8 +440,8 @@ void BinaryExpression::analyze(bool force) {
 //
 
 static void emplaceConversion(Expression * expr, const Type * dest_t) {
-    if ((dest_t->isRef() && conv(dest_t, expr->getType())) ||
-        (expr->getType()->isRef() && conv(dest_t, expr->getType()->unRef())))
+    if ((dest_t->isRef() && conv(dest_t, expr->getType()))
+    ||  (expr->getType()->isRef() && equal(dest_t, expr->getType()->unRef())))
         return;
 
     ASTNode * p = expr->getParent();
@@ -606,6 +606,8 @@ void SubExpression::analyze(bool force) {
     } else if (lt->isPointer()) {
         if (rt->isInt()) {
             setType(lt);
+        } else if (rt->isPointer() && equal(lt, rt)) {
+            setType(IntType::get(Type::Sign::SIGNED, 64));
         } else
             goto err;
     } else
@@ -1019,7 +1021,13 @@ static void AssignmentCommon(BinaryExpression * expr,
             &expr->getLeft()->getContext(), true, true, false);
         Symbol * sym = nullptr;
         m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym && sym->isVar());
+        BJOU_DEBUG_ASSERT(sym);
+
+        if (!sym->isVar()) {
+            errorl(expr->getLeft()->getContext(),
+                   "Operand left of '" + contents +
+                       "' operator must be assignable.");
+        }
 
         sym->initializedInScopes.insert(expr->getScope());
     }
@@ -1348,6 +1356,8 @@ void LssExpression::analyze(bool force) {
     } else if (lt->isPointer()) {
         if (!rt->isPointer())
             goto err;
+    } else if (lt->isEnum() && lt == rt) {
+        /* good */
     } else
         goto err;
     goto out;
@@ -1615,10 +1625,15 @@ void LogAndExpression::analyze(bool force) {
 
     ASTNode * badop = nullptr;
 
-    if (!equal(lt, _bool))
+    if (!conv(_bool, lt))
         badop = getLeft();
-    if (!equal(rt, _bool))
+    if (!conv(_bool, rt))
         badop = getRight();
+
+    if (!equal(_bool, lt))
+        emplaceConversion((Expression *)getLeft(), _bool);
+    if (!equal(_bool, rt))
+        emplaceConversion((Expression *)getRight(), _bool);
 
     if (badop)
         errorl(badop->getContext(),
@@ -2676,7 +2691,8 @@ int AccessExpression::handleContainerAccess() {
     Expression * next_call = nextCall();
 
     // check for regular access
-    if (lt->isStruct() || (lt->isPointer() && lt->under()->isStruct())) {
+    if (lt->isStruct()
+    || (lt->isPointer() && lt->under()->isStruct())) {
 
         StructType * struct_t = (StructType *)lt; // can't have constness here
         if (lt->isPointer())
@@ -3187,11 +3203,14 @@ void NotExpression::analyze(bool force) {
     const Type * rt = getRight()->getType()->unRef();
     const Type * _bool = BoolType::get();
 
-    if (!equal(rt, _bool))
+    if (!conv(_bool, rt))
         errorl(getRight()->getContext(),
                "Operand right operator '" + getContents() +
                    "' must be convertible to type 'bool'.",
                true, "got '" + rt->getDemangledName() + "'");
+
+    if (!equal(_bool, rt))
+        emplaceConversion((Expression*)getRight(), _bool);
 
     setType(_bool);
 
@@ -3469,6 +3488,18 @@ bool AsExpression::isConstant() {
     return ((Expression *)getLeft())->isConstant();
 }
 
+Val AsExpression::eval() {
+    if (!isConstant()) {
+        errorl(getContext(), "Cannot evaluate non-constant expression.", false);
+        internalError("There was an expression evaluation error.");
+    }
+    analyze();
+    Val a;
+    a = ((Expression *)getLeft())->eval();
+    a.t = getType();
+    return a;
+}
+
 void AsExpression::analyze(bool force) {
     HANDLE_FORCE();
 
@@ -3495,7 +3526,7 @@ void AsExpression::analyze(bool force) {
                rt->under() == VoidType::get())) ||
              (lt->isPointer() && rt->isProcedure()) || // @temporary
              (lt->isProcedure() && rt->isPointer())    // @temporary
-             ))) {
+             ||(lt->isInt() && rt->isPointer() && rt->under()->isVoid()) || (lt->isPointer() && lt->under()->isVoid() && rt->isInt())))) {
         errorl(getContext(), "Invalid cast: '" + lt->getDemangledName() +
                                  "' to '" + rt->getDemangledName() + "'.");
     }
@@ -3710,6 +3741,8 @@ void Identifier::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
         return;
     stream << (qualified.empty() ? unqualified : qualified);
+    if (getRight())
+        getRight()->dump(stream, level, dumpCT);
 }
 
 Identifier::~Identifier() {}
@@ -3808,16 +3841,15 @@ void InitializerList::analyze(bool force) {
             compilation->frontEnd.lValStack.push(mt);
             const Type * expr_t = expressions[i]->getType();
             compilation->frontEnd.lValStack.pop();
-            if (!conv(expr_t, mt))
+            if (!conv(mt, expr_t))
                 errorl(expressions[i]->getContext(),
                        "Element for '" + name + "' in '" +
                            s_t->getDemangledName() +
                            "' literal differs from expected type '" +
                            mt->getDemangledName() + "'.",
                        true, "got '" + expr_t->getDemangledName() + "'");
-            if (expr_t->isPrimative() && mt->isPrimative())
-                if (!equal(expr_t, mt))
-                    emplaceConversion((Expression *)expressions[i], mt);
+            if (!equal(mt, expr_t))
+                emplaceConversion((Expression *)expressions[i], mt);
         }
 
         for (ASTNode * _mem : s_t->_struct->getMemberVarDecls()) {
@@ -4405,7 +4437,8 @@ void BooleanLiteral::dump(std::ostream & stream, unsigned int level,
 
 // ~~~~~ IntegerLiteral ~~~~~
 
-IntegerLiteral::IntegerLiteral() { nodeKind = INTEGER_LITERAL; }
+IntegerLiteral::IntegerLiteral()
+    : is_hex(false) { nodeKind = INTEGER_LITERAL; }
 
 bool IntegerLiteral::isConstant() { return true; }
 Val IntegerLiteral::eval() {
@@ -4419,6 +4452,14 @@ Val IntegerLiteral::eval() {
 void IntegerLiteral::analyze(bool force) {
     HANDLE_FORCE();
 
+    const std::string& con = getContents();
+    if (con.size() > 2 &&
+        con[0] == '0'  &&
+        con[1] == 'x') {
+
+        is_hex = true;
+    }
+
     auto pos = getContents().find("i");
     if (pos == std::string::npos)
         pos = getContents().find("u");
@@ -4427,18 +4468,44 @@ void IntegerLiteral::analyze(bool force) {
         setContents(getContents().substr(0, pos));
     }
 
-    // @incomplete
-    // What about literals that are bigger than their suffix spec?
-    //      '1024i8'
-    // Or negative literals with unsigned suffix spec?
-    //      '-1u32'
-
     Type::Sign sign = Type::Sign::SIGNED;
     unsigned int width = 32;
 
+    if (is_hex) {
+        std::stringstream ss;
+        std::string h = getContents();
+        ss << std::hex << getContents();
+        uint64_t val;
+        ss >> val;
+        setContents(std::to_string(val));
+
+        sign = Type::Sign::UNSIGNED;
+
+        unsigned int bytes = (h.size() - 2) / 2;
+        if (bytes == 0)
+            bytes = 1;
+        else if (bytes % 2 == 1)
+            bytes += 1;
+
+        width = bytes * 8;
+
+        // next power of 2
+        width--;
+        width |= width >> 1;
+        width |= width >> 2;
+        width |= width >> 4;
+        width |= width >> 8;
+        width |= width >> 16;
+        width++;
+    }
+    
     if (!suffix.empty()) {
-        if (suffix[0] == 'u')
+        if (suffix[0] == 'u') {
             sign = Type::Sign::UNSIGNED;
+        } else if (is_hex) {
+            warningl(getContext(), "Ignoring signed suffix specification.", "Hex literals are unsigned.");
+        }
+
         std::string w = suffix.c_str() + 1;
         std::stringstream ss(w);
         ss >> width;
@@ -4472,6 +4539,8 @@ void IntegerLiteral::analyze(bool force) {
                 if (u64 > UINT64_MAX)
                     goto erru;
                 break;
+            default:
+                BJOU_DEBUG_ASSERT(false && "invalid width");
             erru:
                 errorl(getContext(), "Literal value is invalid for type "
                                      "specified in its suffix.");
@@ -4499,6 +4568,8 @@ void IntegerLiteral::analyze(bool force) {
                 if (i64 > INT64_MAX || i64 < INT64_MIN)
                     goto erri;
                 break;
+            default:
+                BJOU_DEBUG_ASSERT(false && "invalid width");
             erri:
                 errorl(getContext(), "Literal value is invalid for type "
                                      "specified in its suffix.");
@@ -4537,6 +4608,14 @@ Val FloatLiteral::eval() {
 
 void FloatLiteral::analyze(bool force) {
     HANDLE_FORCE();
+
+    if (getContents().find('e') != std::string::npos
+    ||  getContents().find('E') != std::string::npos) {
+        std::stringstream ss(getContents());
+        double d; 
+        ss >> d;
+        setContents(std::to_string(d));
+    }
 
     setType(FloatType::get(32));
 
@@ -4818,9 +4897,9 @@ void TupleLiteral::analyze(bool force) {
     HANDLE_FORCE();
 
     std::vector<const Type *> types;
-    for (ASTNode * expr : getSubExpressions()) {
-        expr->analyze();
-        types.push_back(expr->getType());
+    for (int i = 0; i < getSubExpressions().size(); i += 1) {
+        getSubExpressions()[i]->analyze();
+        types.push_back(getSubExpressions()[i]->getType());
     }
 
     setType(TupleType::get(types));
@@ -4831,6 +4910,7 @@ void TupleLiteral::analyze(bool force) {
 
 ASTNode * TupleLiteral::clone() {
     TupleLiteral * t = ExpressionClone(this);
+    t->getSubExpressions().clear();
     std::vector<ASTNode *> & my_subExpressions = getSubExpressions();
     for (ASTNode * e : my_subExpressions)
         t->addSubExpression(e->clone());
@@ -5193,18 +5273,22 @@ void ArrayDeclarator::analyze(bool force) {
         errorl(getContext(), "Can't have an array of references because "
                              "references are not assignable.");
 
-    if (getExpression()) {
-        Expression * expr = (Expression *)getExpression();
-        expr->analyze();
-        expr = (Expression *)getExpression(); // refresh
-        if (expr->isConstant()) {
-            Val v = expr->eval();
-            size = (int)v.as_i64;
-        } else
-            size = -1;
-    } else if (size == -2)
+    Expression * expr = (Expression *)getExpression();
+    expr->analyze();
+    expr = (Expression *)getExpression(); // refresh
+    if (expr->isConstant()) {
+        Val v = expr->eval();
+        size = (int)v.as_i64;
+    } else {
         size = -1;
-    // more to be done here
+    }
+
+    if (size == -1 && (!getParent() || getParent()->nodeKind != ASTNode::NEW_EXPRESSION)) {
+        std::string errMsg = "Array lengths must be compile-time constants.";
+            errorl(getExpression()->getContext(), errMsg, true,
+                   "Note: For a dynamic array type, use '[...]'");
+    }
+
     setFlag(ANALYZED, true);
 }
 
@@ -6389,6 +6473,8 @@ void VariableDeclaration::analyze(bool force) {
     BJOU_DEBUG_ASSERT(getTypeDeclarator() &&
                       "No typeDeclarator in VariableDeclaration");
 
+    getTypeDeclarator()->analyze();
+
     if (my_t->isVoid()) {
         if (getInitialization()) {
             errorl(getInitialization()->getContext(),
@@ -6402,26 +6488,9 @@ void VariableDeclaration::analyze(bool force) {
         }
     }
 
-    if (getTypeDeclarator()->nodeKind == ARRAY_DECLARATOR) {
-        if (sym) {
-            // arrays don't require initialization before reference
-            sym->initializedInScopes.insert(getScope());
-        }
-
-        ArrayDeclarator * array_decl = (ArrayDeclarator *)getTypeDeclarator();
-        if (array_decl->size == -1) {
-            Context errContext;
-            std::string errMsg;
-            if (array_decl->getExpression()) {
-                errContext = array_decl->getExpression()->getContext();
-                errMsg = "Array lengths must be compile-time constants.";
-            } else {
-                errContext = array_decl->getContext();
-                errMsg = "Static array declarations must specify their length.";
-            }
-            errorl(errContext, errMsg, true,
-                   "Note: For a dynamic array type, use '[...]'");
-        }
+    if (getTypeDeclarator()->getType()->isArray() && sym) {
+        // arrays don't require initialization before reference
+        sym->initializedInScopes.insert(getScope());
     }
 
     BJOU_DEBUG_ASSERT(my_t);
@@ -6584,8 +6653,6 @@ void Alias::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     stream << std::string(4 * level, ' ');
     stream << "type " << getName() << " = ";
     getDeclarator()->dump(stream, level, dumpCT);
-
-    stream << "\n";
 }
 
 void Alias::desugar() { getDeclarator()->desugar(); }
@@ -6886,8 +6953,10 @@ void Struct::addSymbols(Scope * _scope) {
         constant->addSymbols(_scope);
     for (ASTNode * proc : getMemberProcs())
         proc->addSymbols(_scope);
-    for (ASTNode * tproc : getMemberTemplateProcs())
+    for (ASTNode * tproc : getMemberTemplateProcs()) {
+        ((Procedure*)((TemplateProc*)tproc)->_template)->desugarThis();
         tproc->addSymbols(_scope);
+    }
     for (ASTNode * _impl : getAllInterfaceImplsSorted()) {
         InterfaceImplementation * impl = (InterfaceImplementation *)_impl;
         if (impl->getParent() == this) {
@@ -6994,8 +7063,6 @@ void Struct::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
 
     stream << std::string(4 * level, ' ');
     stream << "}";
-
-    stream << "\n";
 }
 
 void Struct::desugar() {
@@ -8013,7 +8080,6 @@ void Procedure::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
         stream << std::string(4 * level, ' ');
         stream << "}";
     }
-    stream << "\n";
 }
 
 void Procedure::desugar() {
@@ -8184,6 +8250,12 @@ Import::Import()
 std::string & Import::getModule() { return module; }
 void Import::setModule(std::string _module) { module = _module; }
 
+void Import::activate(bool ct) {
+    BJOU_DEBUG_ASSERT(theModule);
+
+    theModule->activate(this, ct); // might replace 'this'
+}
+
 // Node interface
 void Import::unwrap(std::vector<ASTNode *> & terminals) {
     terminals.push_back(this);
@@ -8219,8 +8291,6 @@ void Import::addSymbols(Scope * _scope) {
                                  getScope()->description + "'.");
     }
 
-    BJOU_DEBUG_ASSERT(theModule);
-
     bool ct = false;
 
     ASTNode * p = getParent();
@@ -8235,7 +8305,8 @@ void Import::addSymbols(Scope * _scope) {
         p = p->getParent();
     }
 
-    theModule->activate(this, ct); // replaces 'this'
+
+    activate(ct);
 }
 
 void Import::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
@@ -8349,7 +8420,7 @@ void Return::analyze(bool force) {
     Procedure * proc = (Procedure *)p;
 
     if (proc) {
-        const Type * retLVal = proc->getRetDeclarator()->getType(); // @leak
+        const Type * retLVal = proc->getRetDeclarator()->getType();
         compilation->frontEnd.lValStack.push(retLVal);
 
         if (getExpression()) {
@@ -8360,7 +8431,7 @@ void Return::analyze(bool force) {
                        "'" + proc->getName() + "' does not return a value.");
             } else {
                 const Type * expr_t = getExpression()->getType();
-                if (!conv(expr_t, retLVal))
+                if (!conv(retLVal, expr_t))
                     errorl(getExpression()->getContext(),
                            "return statement does not match the return type "
                            "for procedure '" +
@@ -8368,10 +8439,9 @@ void Return::analyze(bool force) {
                            true,
                            "expected '" + retLVal->getDemangledName() + "'",
                            "got '" + expr_t->getDemangledName() + "'");
-                if (retLVal->isPrimative() && expr_t->isPrimative())
-                    if (!equal(expr_t, retLVal))
-                        emplaceConversion((Expression *)getExpression(),
-                                          retLVal);
+                if (!equal(retLVal, expr_t))
+                    emplaceConversion((Expression *)getExpression(),
+                                      retLVal);
             }
         } else if (retLVal != VoidType::get()) {
             errorl(getContext(), "'" + proc->getName() +
@@ -8575,13 +8645,17 @@ void If::analyze(bool force) {
 
     getConditional()->analyze(force);
 
-    if (!equal(getConditional()->getType(), BoolType::get()))
+    if (!conv(BoolType::get(), getConditional()->getType()))
         errorl(
             getConditional()->getContext(),
-            "Expression resulting in type 'bool' is required for conditionals.",
+            "Expression convertible to type 'bool' is required for conditionals.",
             true,
             "'" + getConditional()->getType()->getDemangledName() +
                 "' is invalid");
+
+    if (!equal(BoolType::get(), getConditional()->getType()))
+        emplaceConversion((Expression*)getConditional(), BoolType::get());
+
     for (ASTNode *& statement : getStatements()) {
         statement->analyze(force);
         handleTerminators(this, getStatements(), statement);
@@ -8813,13 +8887,16 @@ void For::analyze(bool force) {
 
     getConditional()->analyze(force);
 
-    if (!equal(getConditional()->getType(), BoolType::get()))
+    if (!conv(BoolType::get(), getConditional()->getType()))
         errorl(
             getConditional()->getContext(),
             "Expression resulting in type 'bool' is required for conditionals.",
             true,
             "'" + getConditional()->getType()->getDemangledName() +
                 "' is invalid");
+
+    if (!equal(BoolType::get(), getConditional()->getType()))
+        emplaceConversion((Expression*)getConditional(), BoolType::get());
 
     for (ASTNode * at : getAfterthoughts())
         at->analyze(force);
@@ -9155,13 +9232,16 @@ void While::analyze(bool force) {
 
     getConditional()->analyze(force);
 
-    if (!equal(getConditional()->getType(), BoolType::get()))
+    if (!conv(BoolType::get(), getConditional()->getType()))
         errorl(
             getConditional()->getContext(),
             "Expression resulting in type 'bool' is required for conditionals.",
             true,
             "'" + getConditional()->getType()->getDemangledName() +
                 "' is invalid");
+
+    if (!equal(BoolType::get(), getConditional()->getType()))
+        emplaceConversion((Expression*)getConditional(), BoolType::get());
 
     for (ASTNode *& statement : getStatements()) {
         statement->analyze(force);
@@ -9269,13 +9349,16 @@ void DoWhile::analyze(bool force) {
 
     getConditional()->analyze(force);
 
-    if (!equal(getConditional()->getType(), BoolType::get()))
+    if (!conv(BoolType::get(), getConditional()->getType()))
         errorl(
             getConditional()->getContext(),
             "Expression resulting in type 'bool' is required for conditionals.",
             true,
             "'" + getConditional()->getType()->getDemangledName() +
                 "' is invalid");
+
+    if (!equal(BoolType::get(), getConditional()->getType()))
+        emplaceConversion((Expression*)getConditional(), BoolType::get());
 
     for (ASTNode *& statement : getStatements()) {
         statement->analyze(force);
@@ -9823,12 +9906,11 @@ void TemplateInstantiation::dump(std::ostream & stream, unsigned int level,
     stream << "$";
     if (getElements().size() > 1) {
         stream << "(";
-        std::string comma = ", ";
+        std::string comma = "";
         for (ASTNode * elem : getElements()) {
-            if (&elem == &getElements().back())
-                comma = "";
-            elem->dump(stream, level, dumpCT);
             stream << comma;
+            elem->dump(stream, level, dumpCT);
+            comma = ", ";
         }
         stream << ")";
     } else {
@@ -10253,9 +10335,6 @@ const Type * MacroUse::getType() {
 
 void MacroUse::analyze(bool force) {
     HANDLE_FORCE();
-
-    if (getMacroName() == "ct")
-        BJOU_DEBUG_ASSERT(true);
 
     ASTNode * r = compilation->frontEnd.macroManager.invoke(this);
 

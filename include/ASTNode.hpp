@@ -1381,6 +1381,7 @@ struct AsExpression : UnaryPostExpression {
     AsExpression();
 
     bool isConstant();
+    Val eval();
 
     // Node interface
     virtual void analyze(bool force = false);
@@ -1616,6 +1617,7 @@ struct IntegerLiteral : Expression {
     bool isConstant();
     Val eval();
 
+    bool is_hex;
     std::string suffix;
 
     // Node interface
@@ -2775,6 +2777,8 @@ struct Import : ASTNode {
     std::string & getModule();
     void setModule(std::string _module);
 
+    void activate(bool ct);
+
     // Node interface
     void unwrap(std::vector<ASTNode *> & terminals);
     virtual void analyze(bool force = false);
@@ -3158,6 +3162,7 @@ struct DoWhile : ASTNode {
     bool isStatement() const;
     virtual void analyze(bool force = false);
     virtual void addSymbols(Scope * _scope);
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~DoWhile();

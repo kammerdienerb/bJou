@@ -13,6 +13,7 @@
 #include "FrontEnd.hpp"
 
 #include <string>
+#include <sstream>
 
 namespace bjou {
 ASTNode * Val::toExpr() {
@@ -31,12 +32,21 @@ ASTNode * Val::toExpr() {
     } else if (t->isPointer()) {
         PointerType * pt = (PointerType *)t;
         const Type * u = pt->under();
-        if (u == CharType::get()) {
+        if (u->isChar()) {
             StringLiteral * s = new StringLiteral;
             s->setContents(as_string);
             return s;
-        } else
-            internalError("Could not convert Val to Expression.");
+        } else {
+            std::stringstream ss;
+            ss << std::hex << *((uintptr_t*)&as_i64);
+            IntegerLiteral * i = new IntegerLiteral;
+            i->setContents(ss.str());
+            AsExpression * as = new AsExpression;
+            as->setContents("as");
+            as->setLeft(i);
+            as->setRight(t->getGenericDeclarator());
+            return as;
+        }
     } else if (t->isStruct()) {
         // @incomplete
     } else

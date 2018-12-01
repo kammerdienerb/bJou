@@ -25,7 +25,8 @@ type __bjou_slice$T {
             _loc_c : int)     # call site character
             : T {
 
-        if _i >= \__slice_len{_s} {
+        if _i >= \__slice_len{_s}
+        or _i < 0 {
             buff : char[1024]
             buff.sprintf("slice index out of bounds (index = %d, length = %d)\n    at %s :: %d :: %d",
                          _i, \__slice_len{_s}, _loc_f, _loc_l, _loc_c)
@@ -48,3 +49,14 @@ proc contains$T(slice : T[] ref, val : T) : bool {
     return false
 }
 
+proc free$T(slice : T[] ref) {
+    delete \__slice_data{slice}
+}
+
+# proc zip$(T, U)(a1 : T[], a2 : U[], out : (T, U)*) {
+#     if |a1| != |a2|
+#         \die{ "Can't zip containers of different lengths." }
+
+#     for i := 0; i < |a1|; i += 1
+#         out[i] = (unref(a1[i]), unref(a2[i]))
+# }

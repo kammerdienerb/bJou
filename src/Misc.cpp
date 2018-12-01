@@ -28,7 +28,9 @@ std::string str_escape(std::string & str) {
 
     while (pos < r.size()) {
         if (r[pos] == '\\') {
-            if (r[pos + 1] == 'n')
+            if (r[pos + 1] == '\"')
+                r.replace(pos, 2, "\"");
+            else if (r[pos + 1] == 'n')
                 r.replace(pos, 2, "\n");
             else if (r[pos + 1] == 't')
                 r.replace(pos, 2, "\t");

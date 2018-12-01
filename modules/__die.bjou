@@ -9,12 +9,13 @@ extern strlen(char*) : u64
 extern isatty(int) : int
 extern exit(i32)
 extern backtrace(void**, int) : int
-extern backtrace_symbols_fd(void**, int, int)
+extern backtrace_symbols_fd(void**, int, int) : char**
 
-proc __bjou_pr_bt() {
-    buff : void*[10]
-    size := backtrace(buff, 10)
-    backtrace_symbols_fd(buff, size, 2)
+proc __bjou_pr_bt(skip : int) {
+    const N := 128
+    buff : void*[N]
+    size := backtrace(buff, N)
+    backtrace_symbols_fd(&buff[skip], size - skip, 2)
 }
 
 proc __die(err : errcode, fl : char*, pn : char*, ln : u32) {
@@ -53,7 +54,7 @@ proc __die(err : errcode, fl : char*, pn : char*, ln : u32) {
 
     write(2, buff as void*, strlen(buff))
 
-    __bjou_pr_bt()
+    __bjou_pr_bt(2) # 2 for __bjou_pr_bt and __die
 
     exit(err)
 }
@@ -80,7 +81,7 @@ proc __die(msg : char*, fl : char*, pn : char*, ln : u32) {
     
     write(2, buff as void*, strlen(buff))
 
-    __bjou_pr_bt()
+    __bjou_pr_bt(2) # 2 for __bjou_pr_bt and __die
 
     exit(1)
 }

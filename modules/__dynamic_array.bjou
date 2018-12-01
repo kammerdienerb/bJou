@@ -17,6 +17,8 @@ type __bjou_dyn_array$T {
         }
     }
 
+    # ~ { free(this) }
+
 # @note @temporary
 # Taking this out until we figure out the best way to handle temporary values with destructors
 
@@ -27,6 +29,7 @@ type __bjou_dyn_array$T {
 #             this.__used = 0
 #         }     
 #     }
+
 }
 
 proc free$T(da : T[...] ref) {
@@ -44,7 +47,8 @@ proc free$T(da : T[...] ref) {
             _loc_c : int)        # call site character
             : T ref {
 
-        if _i >= |_s| {
+        if _i >= |_s|
+        or _i < 0 {
             buff : char[1024]
             buff.sprintf("dynamic array index out of bounds (index = %d, length = %d)\n    at %s :: %d :: %d",
                          _i, |_s|, _loc_f, _loc_l, _loc_c)
@@ -91,7 +95,7 @@ proc __bjou_dynamic_array_grow$T(da : T[...] ref) {
 
     _c *= 2
     new__data := new T[_c]
-    memcpy((new__data as void*), (_d as void*), (_u) * sizeof T)
+    mcopy(new__data, _d, _u * sizeof T)
     delete _d
     _d = new__data
 }
@@ -103,7 +107,7 @@ proc __bjou_dynamic_array_shrink$T(da : T[...] ref) {
 
     _c /= 2
     new__data := new T[_c]
-    memcpy((new__data as void*), (_d as void*), (_u) * sizeof T)
+    mcopy(new__data, _d, _u * sizeof T)
     delete _d
     _d = new__data
 }
@@ -169,6 +173,17 @@ proc clear$T(da : T[...] ref) {
     \__da_used{da} = 0    
 }
 
+proc erase$T(da : T[...] ref, idx : u64) {
+    if |da| == 0
+        \die{ "called erase() on an empty dynamic array" }
+    da[idx] # bounds check
+    _d := getref(\__da_data{da})
+    _u := getref(\__da_used{da})
+
+    mmove(_d + idx, _d + idx + 1, (_u - idx - 1) * sizeof T)
+    da.pop()
+}
+
 proc data$T(da : T[...] ref) : T* {
     return \__da_data{da}    
 }
@@ -189,7 +204,7 @@ proc set$T(da : T[...] ref, data : T[]) {
     _u = |data|
 
     # copy
-    memcpy((_d as void*), (\__slice_data{data} as void*), (_u) * sizeof T)
+    mcopy(_d, \__slice_data{data}, _u * sizeof T)
 }
 
 proc copy$T(da : T[...] ref) : T[...] {
@@ -201,8 +216,51 @@ proc copy$T(da : T[...] ref) : T[...] {
     
     _d = new T[_c]
 
-    memcpy((_d as void*), (\__da_data{da} as void*), (_u) * sizeof T)
+    mcopy(_d, \__da_data{da}, _u * sizeof T)
 
     return c
+}
+
+proc sort$T(da : T[...] ref) {
+    proc _swap(a : T ref, b : T ref) {
+        tmp := unref(a)
+        a    = unref(b)
+        b    = tmp
+    }
+
+    proc _sort(arr : T*, l : u64, r : u64) {
+        if l >= r    return
+
+        pivot := arr[l]
+
+        l' := l
+        r' := r
+
+        while l' < r' {
+            while arr[l'] < pivot    l' += 1
+            while pivot < arr[r']    r' -= 1
+            _swap(arr[l'], arr[r'])
+        }
+
+        _swap(pivot, arr[l'])
+
+        _sort(arr, l, l')
+        _sort(arr, l' + 1, r)
+    }
+
+    _d := \__da_data{da}
+    _u := \__da_used{da}
+
+    if _u == 0    return
+
+    _sort(_d, 0, _u - 1)
+}
+
+proc find$T(da : T[...] ref, val : T) : i64 {
+    for i := 0; i < |da|; i += 1 {
+        if da[i] == val
+            return i
+    }
+    return -1
 }
 

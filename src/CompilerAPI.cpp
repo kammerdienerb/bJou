@@ -69,8 +69,10 @@ extern "C" void bjou_dump(ASTNode ** nodes, int n_nodes, const char * fname,
               "' for bjou_dump().");
     }
 
-    for (int i = 0; i < n_nodes; i += 1)
+    for (int i = 0; i < n_nodes; i += 1) {
         nodes[i]->dump(of, 0, dumpCT);
+        of << "\n";
+    }
 
     of.close();
 }
@@ -78,6 +80,11 @@ extern "C" void bjou_dump(ASTNode ** nodes, int n_nodes, const char * fname,
 extern "C" const char * bjou_makeUID(const char * hint) {
     std::string uid = compilation->frontEnd.makeUID(hint);
     return strdup(uid.c_str());
+}
+
+extern "C" bool bjou_isKeyword(const char * str) {
+    std::string s(str);
+    return is_kwd(s);
 }
 
 extern "C" Context * bjou_createContext(Loc * beg, Loc * end,
@@ -92,6 +99,10 @@ extern "C" Context * bjou_createContext(Loc * beg, Loc * end,
 
 extern "C" Context * bjou_getContext(ASTNode * node) {
     return &node->getContext();
+}
+
+extern "C" const char * bjou_contextGetFileName(Context * c) {
+    return c->filename.c_str();
 }
 
 extern "C" void bjou_setContext(ASTNode * node, Context * c) {
@@ -181,14 +192,57 @@ extern "C" void bjou_analyze(ASTNode * node) { node->analyze(); }
 
 extern "C" void bjou_forceAnalyze(ASTNode * node) { node->analyze(true); }
 
+extern "C" const Type * bjou_getType(ASTNode * node) {
+    return node->getType();
+}
+
 extern "C" const char * bjou_getStructName(ASTNode * node) {
     BJOU_DEBUG_ASSERT(node->nodeKind == ASTNode::STRUCT);
     return strdup(((Struct *)node)->getName().c_str());
 }
 
+extern "C" const char * bjou_getEnumName(ASTNode * node) {
+    BJOU_DEBUG_ASSERT(node->nodeKind == ASTNode::ENUM);
+    return strdup(((Enum *)node)->getName().c_str());
+}
+
 extern "C" void bjou_setVarDeclName(ASTNode * node, const char * name) {
     BJOU_DEBUG_ASSERT(node->nodeKind == ASTNode::VARIABLE_DECLARATION);
     ((VariableDeclaration *)node)->setName(name);
+}
+
+extern "C" ASTNode * bjou_makeZeroInitExpr(unsigned int typeKind, ASTNode * decl) {
+    using Kind = bjou::Type::Kind;
+
+    Kind kind = (Kind)typeKind;
+
+    switch (kind) {
+        case Kind::INT:
+            return bjou_createIntegerLiteral("0");
+        case Kind::CHAR:
+            return bjou_createCharLiteral("'\0'");
+        case Kind::FLOAT:
+            return bjou_createFloatLiteral("0.0");
+        case Kind::POINTER:
+        case Kind::PROCEDURE: {
+            ASTNode * n =
+                bjou_createIdentifier("NULL");
+            ASTNode * as =
+                bjou_createAsExpression(
+                    n,
+                    decl);
+            
+            return as;
+        }
+        case Kind::STRUCT: {
+            return bjou_createInitializerList(
+                    decl,
+                    nullptr, 0,
+                    nullptr, 0);
+        }
+        default:
+            BJOU_DEBUG_ASSERT(false && "did not create zero initializer");
+    }
 }
 
 extern "C" ASTNode * bjou_createAddExpression(ASTNode * left, ASTNode * right) {
@@ -203,6 +257,24 @@ extern "C" ASTNode * bjou_createAddExpression(ASTNode * left, ASTNode * right) {
 extern "C" ASTNode * bjou_createSubExpression(ASTNode * left, ASTNode * right) {
     SubExpression * node = new SubExpression;
     node->setContents("-");
+    node->setLeft(left);
+    node->setRight(right);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createBSHLExpression(ASTNode * left, ASTNode * right) {
+    BSHLExpression * node = new BSHLExpression;
+    node->setContents("bshl");
+    node->setLeft(left);
+    node->setRight(right);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createBSHRExpression(ASTNode * left, ASTNode * right) {
+    BSHRExpression * node = new BSHRExpression;
+    node->setContents("bshr");
     node->setLeft(left);
     node->setRight(right);
 
@@ -370,6 +442,36 @@ extern "C" ASTNode * bjou_createLogOrExpression(ASTNode * left,
     return node;
 }
 
+extern "C" ASTNode * bjou_createBANDExpression(ASTNode * left,
+                                                ASTNode * right) {
+    BANDExpression * node = new BANDExpression;
+    node->setContents("band");
+    node->setLeft(left);
+    node->setRight(right);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createBORExpression(ASTNode * left,
+                                                ASTNode * right) {
+    BORExpression * node = new BORExpression;
+    node->setContents("bor");
+    node->setLeft(left);
+    node->setRight(right);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createBXORExpression(ASTNode * left,
+                                                ASTNode * right) {
+    BXORExpression * node = new BXORExpression;
+    node->setContents("bxor");
+    node->setLeft(left);
+    node->setRight(right);
+
+    return node;
+}
+
 extern "C" ASTNode * bjou_createCallExpression(ASTNode * left,
                                                ASTNode * right) {
     CallExpression * node = new CallExpression;
@@ -442,6 +544,14 @@ extern "C" ASTNode * bjou_createNotExpression(ASTNode * right) {
     return node;
 }
 
+extern "C" ASTNode * bjou_createBNEGExpression(ASTNode * right) {
+    BNEGExpression * node = new BNEGExpression;
+    node->setContents("bneg");
+    node->setRight(right);
+
+    return node;
+}
+
 extern "C" ASTNode * bjou_createDerefExpression(ASTNode * right) {
     DerefExpression * node = new DerefExpression;
     node->setContents("@");
@@ -478,6 +588,14 @@ extern "C" ASTNode * bjou_createAsExpression(ASTNode * left, ASTNode * right) {
 extern "C" ASTNode * bjou_createIdentifier(const char * unqualified) {
     Identifier * node = new Identifier;
     node->setUnqualified(unqualified);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createIdentifierWithInst(const char * unqualified, ASTNode * inst) {
+    Identifier * node = new Identifier;
+    node->setUnqualified(unqualified);
+    node->setRight(inst);
 
     return node;
 }
@@ -529,6 +647,16 @@ extern "C" ASTNode * bjou_createStringLiteral(const char * contents) {
 extern "C" ASTNode * bjou_createCharLiteral(const char * contents) {
     CharLiteral * node = new CharLiteral;
     node->setContents(contents);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createExprBlock(ASTNode ** statements, int n_statements) {
+    ExprBlock * node = new ExprBlock;
+
+    for (int i = 0; i < n_statements; i += 1) {
+        node->addStatement(statements[i]);
+    }
 
     return node;
 }
@@ -651,6 +779,17 @@ bjou_createStruct(const char * name, ASTNode * extends,
     return node;
 }
 
+extern "C" ASTNode * bjou_createEnum(const char * name, const char ** identifiers, int n_identifiers) {
+    Enum * node = new Enum;
+    node->setName(name);
+
+    for (int i = 0; i < n_identifiers; i += 1) {
+        node->addIdentifier(identifiers[i]);
+    }
+
+    return node;
+}
+
 extern "C" ASTNode * bjou_createArgList(ASTNode ** expressions,
                                         int n_expressions) {
     ArgList * node = new ArgList;
@@ -705,6 +844,14 @@ extern "C" ASTNode * bjou_createBreak() { return new Break; }
 
 extern "C" ASTNode * bjou_createContinue() { return new Continue; }
 
+extern "C" ASTNode * bjou_createExprBlockYield(ASTNode * expression) {
+    ExprBlockYield * node = new ExprBlockYield;
+
+    node->setExpression(expression);
+
+    return node;
+}
+
 extern "C" ASTNode * bjou_createIf(ASTNode * conditional, ASTNode ** statements,
                                    int n_statements, ASTNode * _else) {
     If * node = new If;
@@ -758,6 +905,14 @@ extern "C" ASTNode * bjou_createDoWhile(ASTNode * conditional,
     node->setConditional(conditional);
     for (int i = 0; i < n_statements; i += 1)
         node->addStatement(statements[i]);
+
+    return node;
+}
+
+extern "C" ASTNode * bjou_createTemplateInst(ASTNode ** elements, int n_elements) {
+    TemplateInstantiation * node = new TemplateInstantiation;
+    for (int i = 0; i < n_elements; i += 1)
+        node->addElement(elements[i]);
 
     return node;
 }

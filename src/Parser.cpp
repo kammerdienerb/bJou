@@ -355,14 +355,32 @@ MaybeString parser_dbl_gt(StringViewableBuffer & buff) {
 }
 MaybeString parser_integer(StringViewableBuffer & buff) {
     size_t p = 0;
-    if (IS_C(buff, p, '-')) {
-        p += 1;
-        if (!IS_09(buff, p))
-            return MaybeString();
-        p += 1;
+
+    if (IS_C(buff, p, '0') && IS_C(buff, p + 1, 'x')) {
+        p += 2;
+
+        if (!IS_09(buff, p)
+        &&  !IN_CHAR_RANGE(buff, p, 'a', 'f')
+        &&  !IN_CHAR_RANGE(buff, p, 'A', 'F')) {
+            return MaybeString(); 
+        }
+
+        while (IS_09(buff, p)
+        ||     IN_CHAR_RANGE(buff, p, 'a', 'f')
+        ||     IN_CHAR_RANGE(buff, p, 'A', 'F')) {
+            p += 1;
+        }
+    } else {
+        if (IS_C(buff, p, '-')) {
+            p += 1;
+            if (!IS_09(buff, p))
+                return MaybeString();
+            p += 1;
+        }
+        while (IS_09(buff, p))
+            p += 1;
     }
-    while (IS_09(buff, p))
-        p += 1;
+
     if (p > 0) {
         if (IS_C(buff, p, 'u') || IS_C(buff, p, 'i')) {
             p += 1;
@@ -408,6 +426,22 @@ MaybeString parser_floating_pt(StringViewableBuffer & buff) {
     p += 1;
     while (IS_09(buff, p))
         p += 1;
+
+    if (IS_C(buff, p, 'E')
+    ||  IS_C(buff, p, 'e')) {
+        p += 1;
+
+        if (IS_C(buff, p, '+')
+        ||  IS_C(buff, p, '-'))
+            p += 1;
+
+        if (!IS_09(buff, p))
+            return MaybeString();
+
+        while (IS_09(buff, p))
+            p += 1;
+    }
+
     return MaybeString(buff.substr(0, p));
 }
 MaybeString parser_char_literal(StringViewableBuffer & buff) {

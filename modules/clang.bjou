@@ -722,9 +722,33 @@ type libclang {
         CXCursor)
         : CXString>
 
+    Cursor_getMangling : <(
+        CXCursor)
+        : CXString>
+
+    getNumOverloadedDecls : <(
+        CXCursor)
+        : u32>
+
     Cursor_isNull : <(
         CXCursor)
         : i32>
+
+    isStatement : <(
+        CXCursor)
+        : i32>
+    
+    isAttribute : <(
+        CXCursor)
+        : i32>
+
+    getCursorDisplayName : <(
+        CXCursor)
+        : CXString>
+
+    getCursorReferenced : <(
+        CXCursor)
+        : CXCursor>
 
     getCursorKindSpelling : <(
         u32)
@@ -733,6 +757,10 @@ type libclang {
     Cursor_getNumArguments : <(
         CXCursor)
         : int>
+
+    Cursor_getArgument : <(
+        CXCursor, u32)
+        : CXCursor>
 
     Cursor_isVariadic : <(
         CXCursor)
@@ -757,6 +785,10 @@ type libclang {
     getTypeSpelling : <(
         CXType)
         : CXString>
+
+    getTypeDeclaration : <(
+        CXType)
+        : CXCursor>
 
     getNumArgTypes : <(
         CXType)
@@ -790,6 +822,11 @@ type libclang {
     Type_getSizeOf : <(
         CXType)
         : i64>
+
+    equalTypes : <(
+        CXType,
+        CXType)
+        : u32>
 
     getCursorLocation : <(
         CXCursor)
@@ -853,9 +890,21 @@ type libclang {
         CXCursor)
         : CXEvalResult*>
 
+    EvalResult_getKind : <(
+        CXEvalResult*)
+        : u32>
+
     EvalResult_getAsLongLong : <(
         CXEvalResult*)
         : i64>
+    
+    EvalResult_getAsInt : <(
+        CXEvalResult*)
+        : i32>
+
+    getFieldDeclBitWidth : <(
+        CXCursor)
+        : i32>
 
     getClangVersion : <()
         : CXString>
@@ -930,9 +979,27 @@ type libclang {
 
         lib.getCursorSpelling = (lib._handleGetSymbol("clang_getCursorSpelling"))
             as <(CXCursor) : CXString>
+        
+        lib.Cursor_getMangling = (lib._handleGetSymbol("clang_Cursor_getMangling"))
+            as <(CXCursor) : CXString>
+
+        lib.getNumOverloadedDecls = (lib._handleGetSymbol("clang_getNumOverloadedDecls"))
+            as <(CXCursor) : u32>
 
         lib.Cursor_isNull = (lib._handleGetSymbol("clang_Cursor_isNull"))
             as <(CXCursor) : i32>
+
+        lib.isStatement = (lib._handleGetSymbol("clang_isStatement"))
+            as <(CXCursor) : i32>
+
+        lib.isAttribute = (lib._handleGetSymbol("clang_isAttribute"))
+            as <(CXCursor) : i32>
+        
+        lib.getCursorDisplayName = (lib._handleGetSymbol("clang_getCursorDisplayName"))
+            as <(CXCursor) : CXString>
+
+        lib.getCursorReferenced = (lib._handleGetSymbol("clang_getCursorReferenced"))
+            as <(CXCursor) : CXCursor>
 
         lib.getCursorKindSpelling = (lib._handleGetSymbol("clang_getCursorKindSpelling"))
             as <(u32) : CXString>
@@ -942,6 +1009,9 @@ type libclang {
     
         lib.Cursor_getNumArguments = (lib._handleGetSymbol("clang_Cursor_getNumArguments"))
             as <(CXCursor) : int>
+    
+        lib.Cursor_getArgument = (lib._handleGetSymbol("clang_Cursor_getArgument"))
+            as <(CXCursor, u32) : CXCursor>
 
         lib.isCursorDefinition = (lib._handleGetSymbol("clang_isCursorDefinition"))
             as <(CXCursor) : u32>
@@ -957,6 +1027,9 @@ type libclang {
 
         lib.getTypeSpelling = (lib._handleGetSymbol("clang_getTypeSpelling"))
             as <(CXType) : CXString>
+
+        lib.getTypeDeclaration = (lib._handleGetSymbol("clang_getTypeDeclaration"))
+            as <(CXType) : CXCursor>
 
         lib.getResultType = (lib._handleGetSymbol("clang_getResultType"))
             as <(CXType) : CXType>
@@ -981,6 +1054,9 @@ type libclang {
 
         lib.Type_getSizeOf = (lib._handleGetSymbol("clang_Type_getSizeOf"))
             as <(CXType) : i64>
+        
+        lib.equalTypes = (lib._handleGetSymbol("clang_equalTypes"))
+            as <(CXType, CXType) : u32>
 
         lib.getCursorLocation = (lib._handleGetSymbol("clang_getCursorLocation"))
             as <(CXCursor) : CXSourceLocation>
@@ -1026,8 +1102,17 @@ type libclang {
         lib.Cursor_Evaluate = (lib._handleGetSymbol("clang_Cursor_Evaluate"))
             as <(CXCursor) : CXEvalResult*>
 
+        lib.EvalResult_getKind = (lib._handleGetSymbol("clang_EvalResult_getKind"))
+            as <(CXEvalResult*) : u32>
+
         lib.EvalResult_getAsLongLong = (lib._handleGetSymbol("clang_EvalResult_getAsLongLong"))
             as <(CXEvalResult*) : i64>
+        
+        lib.EvalResult_getAsInt = (lib._handleGetSymbol("clang_EvalResult_getAsInt"))
+            as <(CXEvalResult*) : i32>
+
+        lib.getFieldDeclBitWidth = (lib._handleGetSymbol("clang_getFieldDeclBitWidth"))
+            as <(CXCursor) : i32>
 
         lib.getClangVersion = (lib._handleGetSymbol("clang_getClangVersion"))
             as <() : CXString>

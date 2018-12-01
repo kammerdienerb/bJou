@@ -18,8 +18,7 @@ proc getrand() : u64 {
 
     __random_state = x
 
-    # return x * 0x2545f4914f6cdd1d
-    return x * 2685821657736338717u64
+    return x * 0x2545F4914F6CDD1D
 }
 
 proc getrand(limit : u64) : u64
