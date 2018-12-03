@@ -57,6 +57,10 @@ type file {
     proc stderr() : file ref
         return file._getstdfile(2)
 
+    proc exists(path : char*) : bool {
+        return sys.access(path, F_OK) == 0
+    }
+
     proc open(path : char*, mode : int) : file {
         const DEFAULT_PERM :
             mode_t = S_IRUSR bxor S_IWUSR bxor S_IRGRP

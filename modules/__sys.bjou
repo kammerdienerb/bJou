@@ -474,6 +474,8 @@ const SEEK_SET := 0x0
 const SEEK_CUR := 0x1
 const SEEK_END := 0x2
 
+const F_OK     := 0x0
+
 abstract type sys {
     proc write(fd : i32, buf : void*, nbyte : u64) : i64
         return nolibc_syscall(SYS_write, 3, fd, buf, nbyte)
@@ -492,6 +494,9 @@ abstract type sys {
 
     proc lseek(fd : int, offset : u64, whence : int) : u64
         return nolibc_syscall(SYS_lseek, 3, fd, offset, whence)
+
+    proc access(path : char*, mode : int) : i64
+        return nolibc_syscall(SYS_access, 2, path, mode)
 
     proc getpid() : i64
         return nolibc_syscall(SYS_getpid, 0)
