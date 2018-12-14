@@ -17,3 +17,4 @@ tests/out
 .idea/
 berg
 .DS_Store
+.clang_complete

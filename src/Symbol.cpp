@@ -68,17 +68,62 @@ ASTNode * ProcSet::clone() {
 }
 void ProcSet::addSymbols(Scope * scope) { BJOU_DEBUG_ASSERT(false); }
 
+static void printProcSetGetError(ProcSet * set, ASTNode * args, Context * context) {
+    std::vector<std::string> help;
+
+    if (args) {
+        std::string passedTypes = "Note: recieved argument types: (";
+        for (ASTNode *& expr : ((ArgList *)args)->getExpressions()) {
+            passedTypes += expr->getType()->getDemangledName();
+            if (&expr != &((ArgList *)args)->getExpressions().back())
+                passedTypes += ", ";
+        }
+        passedTypes += ")";
+
+        help.push_back(passedTypes);
+    }
+
+    help.push_back("Note: options are:");
+
+    for (auto & p : set->procs) {
+        std::string option = "\t";
+        option +=
+            p.second->isProc()
+            ? p.second->node()->getType()->getDemangledName()
+            : "template " + demangledString(
+                    ((Procedure *)((TemplateProc *)
+                        p.second->node())
+                     ->_template)
+                    ->getMangledName());
+        help.push_back(option);
+    }
+
+    errorl(*context, "No matching call for '" + set->name + "' found.", true,
+            help);
+}
+
 Procedure * ProcSet::get(ASTNode * args, ASTNode * inst, Context * context,
                          bool fail) {
     BJOU_DEBUG_ASSERT(procs.size());
-
-    if (procs.size() == 1 && !procs.begin()->second->isTemplateProc())
-        return (Procedure *)procs.begin()->second->node();
 
     std::vector<const Type *> arg_types;
     if (args)
         for (ASTNode * arg : ((ArgList *)args)->getExpressions())
             arg_types.push_back(arg->getType());
+
+    if (procs.size() == 1 && !procs.begin()->second->isTemplateProc()) {
+        if (args) {
+            ProcedureType * compare_type =
+                (ProcedureType *)ProcedureType::get(arg_types, VoidType::get());
+            if (!argMatch((ProcedureType*)procs.begin()->second->node()->getType(), compare_type)) {
+                if (fail) {
+                    printProcSetGetError(this, args, context);
+                } else
+                    return nullptr;
+            }
+        }
+        return (Procedure *)procs.begin()->second->node();
+    }
 
     // If we know we are using a template (there is an inst) we go ahead and do
     // it immediately.
@@ -121,38 +166,7 @@ Procedure * ProcSet::get(ASTNode * args, ASTNode * inst, Context * context,
     if (resolved.empty()) {
         if (fail) {
             BJOU_DEBUG_ASSERT(args);
-
-            std::vector<std::string> help;
-
-            if (args) {
-                std::string passedTypes = "Note: recieved argument types: (";
-                for (ASTNode *& expr : ((ArgList *)args)->getExpressions()) {
-                    passedTypes += expr->getType()->getDemangledName();
-                    if (&expr != &((ArgList *)args)->getExpressions().back())
-                        passedTypes += ", ";
-                }
-                passedTypes += ")";
-
-                help.push_back(passedTypes);
-            }
-
-            help.push_back("Note: options are:");
-
-            for (auto & p : procs) {
-                std::string option = "\t";
-                option +=
-                    p.second->isProc()
-                        ? p.second->node()->getType()->getDemangledName()
-                        : "template " + demangledString(
-                                            ((Procedure *)((TemplateProc *)
-                                                               p.second->node())
-                                                 ->_template)
-                                                ->getMangledName());
-                help.push_back(option);
-            }
-
-            errorl(*context, "No matching call for '" + name + "' found.", true,
-                   help);
+            printProcSetGetError(this, args, context);
         }
     } else {
         Symbol * sym = resolved[0];

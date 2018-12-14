@@ -773,6 +773,38 @@ bool equal(const Type * t1, const Type * t2) {
     return false;
 }
 
+const Type * convThroughPointerOrRefExtension(const Type *t1, const Type *t2) {
+    const Type * r1 = nullptr;
+    const Type * r2 = nullptr;
+
+    enum { PTR, REF };
+
+    int kind1 = t1->isPointer() ? PTR : REF; 
+    int kind2 = t2->isPointer() ? PTR : REF; 
+
+    if (kind1 == PTR)    r1 = t1->under();
+    else                 r1 = t1->unRef();
+    if (kind2 == PTR)    r2 = t2->under();
+    else                 r2 = t2->unRef();
+
+    if (r1->isStruct() && r2->isStruct()) {
+        const StructType * s1 = (const StructType *)r1;
+        const StructType * s2 = (const StructType *)r2;
+        const Type * extends = nullptr;
+        while (s2->extends) {
+            s2 = (const StructType *)s2->extends;
+            if (equal(s1, s2)) {
+                extends = s2;
+                break;
+            }
+        }
+        if (extends)
+            return t1;
+    }
+
+    return nullptr;
+}
+
 // returns a conversion type if t1 and t2 can convert to a common type
 // order of t1 and t2 matters in some cases:
 //      conv(Derived*, Base*) = nullptr
@@ -843,25 +875,10 @@ const Type * conv(const Type * t1, const Type * t2) {
         if (un)
             return t1;
 
-        const Type * r1 = t1->unRef();
-        const Type * r2 = t2->unRef();
+        const Type *ref_ext = convThroughPointerOrRefExtension(t1, t2);
+        if (ref_ext)
+            return t1;
 
-        if (r1->isStruct() &&
-            ((t2->isRef() && r2->isStruct()) || t2->isStruct())) {
-
-            const StructType * s1 = (const StructType *)r1;
-            const StructType * s2 = (const StructType *)r2;
-            const Type * extends = nullptr;
-            while (s2->extends) {
-                s2 = (const StructType *)s2->extends;
-                if (equal(s1, s2)) {
-                    extends = s2;
-                    break;
-                }
-            }
-            if (extends)
-                return t1;
-        }
         break;
     }
     case Type::POINTER: {
@@ -875,17 +892,8 @@ const Type * conv(const Type * t1, const Type * t2) {
             return t1;
 
         if (p1->isStruct() && t2->isPointer() && p2->isStruct()) {
-            const StructType * s1 = (const StructType *)p1;
-            const StructType * s2 = (const StructType *)p2;
-            const Type * extends = nullptr;
-            while (s2->extends) {
-                s2 = (const StructType *)s2->extends;
-                if (equal(s1, s2)) {
-                    extends = s2;
-                    break;
-                }
-            }
-            if (extends)
+            const Type *ptr_ext = convThroughPointerOrRefExtension(t1, t2);
+            if (ptr_ext)
                 return t1;
         }
         break;
@@ -934,9 +942,19 @@ bool argMatch(const Type * t1, const Type * t2, bool exact) {
             if (!equal(p1->paramTypes[i], p2->paramTypes[i]))
                 return false;
     } else {
-        for (unsigned int i = 0; i < min_nparams; i += 1)
-            if (!conv(p1->paramTypes[i], p2->paramTypes[i]))
-                return false;
+        for (unsigned int i = 0; i < min_nparams; i += 1) {
+            /* conv() doesn't exactly fit what we need in this situation.
+             * Need to check that unref'd types are equal rather than just
+             * convertible when passed as proc args. */
+            if (p1->paramTypes[i]->isRef()) {
+                if (!equal(p1->paramTypes[i]->unRef(), p2->paramTypes[i]->unRef())
+                &&  !convThroughPointerOrRefExtension(p1->paramTypes[i], p2->paramTypes[i]))
+                    return false;
+            } else {
+                if (!conv(p1->paramTypes[i], p2->paramTypes[i]))
+                    return false;
+            }
+        }
     }
 
     return true;

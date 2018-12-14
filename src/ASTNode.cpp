@@ -1354,7 +1354,16 @@ void LssExpression::analyze(bool force) {
         } else
             goto err;
     } else if (lt->isPointer()) {
-        if (!rt->isPointer())
+        if (rt->isPointer()) {
+            // @bad: is this the right way to handle
+            // comparison of pointer types?
+            const Type * dest_t = conv(lt, rt);
+            if (!dest_t)
+                dest_t = conv(rt, lt);
+            if (!dest_t)
+                goto err;
+            convertOperands(this, dest_t);
+        } else 
             goto err;
     } else if (lt->isEnum() && lt == rt) {
         /* good */

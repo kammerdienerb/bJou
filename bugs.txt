@@ -25,11 +25,6 @@
         else return y
 ]
 
--- bool implicit conversion in 'not' expressions
-[
-    if not some_int ...
-]
-
 -- Not getting redefinition error for constants???
 [
     const A := 123
@@ -52,12 +47,6 @@
 [
     a := [...int]
     print "%", a.__data
-]
-
--- Missing implicit conversion in comparison of pointer types.
-[
-    a : int
-    if &a == NULL
 ]
 
 -- Why does [ @NULL ] compile?
@@ -109,10 +98,3 @@
 ]
 
 -- On import errors, we should indicate the resolved path to avoid confusion.
-
--- Incorrect handling of argument conversion through reference types
-[
-    proc p(b : bool ref) {}
-    i : int = 0
-    p(i)
-]
