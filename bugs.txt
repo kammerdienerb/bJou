@@ -9,32 +9,7 @@
 
     -- Related problems with tuple arguments
 
--- seems like re-assigning to slices causes the an LLVM error where one of the slices is casted from its slice value to a pointer to be sent to memcpy when it should be the address which is casted
-
 -- multiple \static_do directives don't work.. symbols blah blah
-
--- logical operators in loop conditions cause terminator errors when 'break' or 'continue' statements are present
-    -- see 'junk/branchbug.bjou'
-    -- apparently just 'for' loops. look at code gen for 'while' loops to fix
-
--- LLVM BB terminator bug
-[
-    if cond1
-        if cond2
-            return x
-        else return y
-]
-
--- Not getting redefinition error for constants???
-[
-    const A := 123
-    const A := 124
-]
-
--- Should emit warning if variable initializer for integers doesn't fit in given type.
-[
-    x : u8 = 12345
-]
 
 -- When constant integers are folded, the resulting expressions should fully represent the type of the constant if it was specified
     -- currently, doing dumb folding
@@ -98,3 +73,8 @@
 ]
 
 -- On import errors, we should indicate the resolved path to avoid confusion.
+
+-- Need better error message for indexing into non-referenceable slice/dyn expressions
+[
+    [ptr: 0, n][1]
+]

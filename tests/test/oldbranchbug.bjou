@@ -1,0 +1,19 @@
+# oldbranchbug.bjou
+
+main()
+
+proc main() {
+    i := 0
+
+    while i < 10 and i % 2 == 0 {
+        print "%", i
+        i += 1
+        break
+    }
+
+    for i = 0; i < 10 and i % 2 == 0; i += 0 {
+        print "%", i
+        i += 1
+        break
+    }
+}

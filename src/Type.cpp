@@ -841,7 +841,7 @@ const Type * conv(const Type * t1, const Type * t2) {
     }
 
     if (t1->isInt() && t2->isBool())
-        return t1;
+        return t2;
     if (t1->isBool() && (t2->isInt() || t2->isChar()))
         return t1;
 

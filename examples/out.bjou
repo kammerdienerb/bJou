@@ -1,0 +1,258 @@
+type __int8_t = char
+type __uint8_t = u8
+type __int16_t = i16
+type __uint16_t = u16
+type __int32_t = i32
+type __uint32_t = u32
+type __int64_t = i64
+type __uint64_t = u64
+type __darwin_intptr_t = i64
+type __darwin_natural_t = u32
+type __darwin_ct_rune_t = i32
+type __bjou_C_union297 {
+    __bytes : u8[128]
+}
+type __mbstate_t = __bjou_C_union297
+type __darwin_mbstate_t = __mbstate_t
+type __darwin_ptrdiff_t = i64
+type __darwin_size_t = u64
+type __darwin_va_list = struct___va_list_tag[1]
+type __darwin_wchar_t = i32
+type __darwin_rune_t = i32
+type __darwin_wint_t = i32
+type __darwin_clock_t = u64
+type __darwin_socklen_t = u32
+type __darwin_ssize_t = i64
+type __darwin_time_t = i64
+type __darwin_blkcnt_t = i64
+type __darwin_blksize_t = i32
+type __darwin_dev_t = i32
+type __darwin_fsblkcnt_t = u32
+type __darwin_fsfilcnt_t = u32
+type __darwin_gid_t = u32
+type __darwin_id_t = u32
+type __darwin_ino64_t = u64
+type __darwin_ino_t = u64
+type __darwin_mach_port_name_t = u32
+type __darwin_mach_port_t = u32
+type __darwin_mode_t = u16
+type __darwin_off_t = i64
+type __darwin_pid_t = i32
+type __darwin_sigset_t = u32
+type __darwin_suseconds_t = i32
+type __darwin_uid_t = u32
+type __darwin_useconds_t = u32
+type __darwin_uuid_t = u8[16]
+type __darwin_uuid_string_t = char[37]
+type struct___darwin_pthread_handler_rec {
+    __routine : <(void*) : void>
+    __arg : void*
+    __next : struct___darwin_pthread_handler_rec*
+}
+type struct__opaque_pthread_attr_t {
+    __sig : i64
+    __opaque : char[56]
+}
+type struct__opaque_pthread_cond_t {
+    __sig : i64
+    __opaque : char[40]
+}
+type struct__opaque_pthread_condattr_t {
+    __sig : i64
+    __opaque : char[8]
+}
+type struct__opaque_pthread_mutex_t {
+    __sig : i64
+    __opaque : char[56]
+}
+type struct__opaque_pthread_mutexattr_t {
+    __sig : i64
+    __opaque : char[8]
+}
+type struct__opaque_pthread_once_t {
+    __sig : i64
+    __opaque : char[8]
+}
+type struct__opaque_pthread_rwlock_t {
+    __sig : i64
+    __opaque : char[192]
+}
+type struct__opaque_pthread_rwlockattr_t {
+    __sig : i64
+    __opaque : char[16]
+}
+type struct__opaque_pthread_t {
+    __sig : i64
+    __cleanup_stack : struct___darwin_pthread_handler_rec*
+    __opaque : char[8176]
+}
+type __darwin_pthread_attr_t = struct__opaque_pthread_attr_t
+type __darwin_pthread_cond_t = struct__opaque_pthread_cond_t
+type __darwin_pthread_condattr_t = struct__opaque_pthread_condattr_t
+type __darwin_pthread_key_t = u64
+type __darwin_pthread_mutex_t = struct__opaque_pthread_mutex_t
+type __darwin_pthread_mutexattr_t = struct__opaque_pthread_mutexattr_t
+type __darwin_pthread_once_t = struct__opaque_pthread_once_t
+type __darwin_pthread_rwlock_t = struct__opaque_pthread_rwlock_t
+type __darwin_pthread_rwlockattr_t = struct__opaque_pthread_rwlockattr_t
+type __darwin_pthread_t = struct__opaque_pthread_t*
+type __darwin_nl_item = i32
+type __darwin_wctrans_t = i32
+type __darwin_wctype_t = u32
+type int8_t = char
+type int16_t = i16
+type int32_t = i32
+type int64_t = i64
+type u_int8_t = u8
+type u_int16_t = u16
+type u_int32_t = u32
+type u_int64_t = u64
+type register_t = i64
+type intptr_t = i64
+type uintptr_t = u64
+type user_addr_t = u64
+type user_size_t = u64
+type user_ssize_t = i64
+type user_long_t = i64
+type user_ulong_t = u64
+type user_time_t = i64
+type user_off_t = i64
+type syscall_arg_t = u64
+type va_list = struct___va_list_tag[1]
+type size_t = u64
+extern renameat(i32, char*, i32, char*) : i32
+extern renamex_np(char*, char*, u32) : i32
+extern renameatx_np(i32, char*, i32, char*, u32) : i32
+type fpos_t = i64
+type struct___sbuf {
+    _base : u8*
+    _size : i32
+}
+type struct___sFILEX {
+}
+type struct___sFILE {
+    _p : u8*
+    _r : i32
+    _w : i32
+    _flags : i16
+    _file : i16
+    _bf : struct___sbuf
+    _lbfsize : i32
+    _cookie : void*
+    _close : <(void*) : i32>
+    _read : <(void*, char*, i32) : i32>
+    _seek : <(void*, i64, i32) : i64>
+    _write : <(void*, char*, i32) : i32>
+    _ub : struct___sbuf
+    _extra : struct___sFILEX*
+    _ur : i32
+    _ubuf : u8[3]
+    _nbuf : u8[1]
+    _lb : struct___sbuf
+    _blksize : i32
+    _offset : i64
+}
+type FILE = struct___sFILE
+__stdinp : struct___sFILE* = (NULL as struct___sFILE*)
+__stdoutp : struct___sFILE* = (NULL as struct___sFILE*)
+__stderrp : struct___sFILE* = (NULL as struct___sFILE*)
+extern clearerr(struct___sFILE*) : void
+extern fclose(struct___sFILE*) : i32
+extern feof(struct___sFILE*) : i32
+extern ferror(struct___sFILE*) : i32
+extern fflush(struct___sFILE*) : i32
+extern fgetc(struct___sFILE*) : i32
+extern fgetpos(struct___sFILE*, i64*) : i32
+extern fgets(char*, i32, struct___sFILE*) : char*
+extern fopen(char*, char*) : struct___sFILE*
+extern fprintf(struct___sFILE*, char*) : i32
+extern fputc(i32, struct___sFILE*) : i32
+extern fputs(char*, struct___sFILE*) : i32
+extern fread(void*, u64, u64, struct___sFILE*) : u64
+extern freopen(char*, char*, struct___sFILE*) : struct___sFILE*
+extern fscanf(struct___sFILE*, char*) : i32
+extern fseek(struct___sFILE*, i64, i32) : i32
+extern fsetpos(struct___sFILE*, i64*) : i32
+extern ftell(struct___sFILE*) : i64
+extern fwrite(void*, u64, u64, struct___sFILE*) : u64
+extern getc(struct___sFILE*) : i32
+extern getchar() : i32
+extern gets(char*) : char*
+extern perror(char*) : void
+extern printf(char*) : i32
+extern putc(i32, struct___sFILE*) : i32
+extern putchar(i32) : i32
+extern puts(char*) : i32
+extern remove(char*) : i32
+extern rename(char*, char*) : i32
+extern rewind(struct___sFILE*) : void
+extern scanf(char*) : i32
+extern setbuf(struct___sFILE*, char*) : void
+extern setvbuf(struct___sFILE*, char*, i32, u64) : i32
+extern sprintf(char*, char*) : i32
+extern sscanf(char*, char*) : i32
+extern tmpfile() : struct___sFILE*
+extern tmpnam(char*) : char*
+extern ungetc(i32, struct___sFILE*) : i32
+extern vfprintf(struct___sFILE*, char*, struct___va_list_tag[1]) : i32
+extern vprintf(char*, struct___va_list_tag[1]) : i32
+extern vsprintf(char*, char*, struct___va_list_tag[1]) : i32
+extern ctermid(char*) : char*
+extern fdopen(i32, char*) : struct___sFILE*
+extern fileno(struct___sFILE*) : i32
+extern pclose(struct___sFILE*) : i32
+extern popen(char*, char*) : struct___sFILE*
+extern __srget(struct___sFILE*) : i32
+extern __svfscanf(struct___sFILE*, char*, struct___va_list_tag[1]) : i32
+extern __swbuf(i32, struct___sFILE*) : i32
+proc __sputc(_c : i32, _p : struct___sFILE*) : i32 {
+    if ((((_p._w) -= 1) >= 0) and (((_p._w) >= (_p._lbfsize)) and (_c != '\n'))) {
+        return ((@((_p._p) += 1)) = _c)
+
+    } else {
+        return (__swbuf(_c, _p))
+
+    }
+
+}
+extern flockfile(struct___sFILE*) : void
+extern ftrylockfile(struct___sFILE*) : i32
+extern funlockfile(struct___sFILE*) : void
+extern getc_unlocked(struct___sFILE*) : i32
+extern getchar_unlocked() : i32
+extern putc_unlocked(i32, struct___sFILE*) : i32
+extern putchar_unlocked(i32) : i32
+extern getw(struct___sFILE*) : i32
+extern putw(i32, struct___sFILE*) : i32
+extern tempnam(char*, char*) : char*
+type off_t = i64
+extern fseeko(struct___sFILE*, i64, i32) : i32
+extern ftello(struct___sFILE*) : i64
+extern snprintf(char*, u64, char*) : i32
+extern vfscanf(struct___sFILE*, char*, struct___va_list_tag[1]) : i32
+extern vscanf(char*, struct___va_list_tag[1]) : i32
+extern vsnprintf(char*, u64, char*, struct___va_list_tag[1]) : i32
+extern vsscanf(char*, char*, struct___va_list_tag[1]) : i32
+type ssize_t = i64
+extern dprintf(i32, char*) : i32
+extern vdprintf(i32, char*, struct___va_list_tag[1]) : i32
+extern getdelim(char**, u64*, i32, struct___sFILE*) : i64
+extern getline(char**, u64*, struct___sFILE*) : i64
+extern fmemopen(void*, u64, char*) : struct___sFILE*
+extern open_memstream(char**, u64*) : struct___sFILE*
+sys_nerr : i32 = 0
+sys_errlist : char** = (NULL as char**)
+extern asprintf(char**, char*) : i32
+extern ctermid_r(char*) : char*
+extern fgetln(struct___sFILE*, u64*) : char*
+extern fmtcheck(char*, char*) : char*
+extern fpurge(struct___sFILE*) : i32
+extern setbuffer(struct___sFILE*, char*, i32) : void
+extern setlinebuf(struct___sFILE*) : i32
+extern vasprintf(char**, char*, struct___va_list_tag[1]) : i32
+extern zopen(char*, char*, i32) : struct___sFILE*
+extern funopen(void*, <(void*, char*, i32) : i32>, <(void*, char*, i32) : i32>, <(void*, i64, i32) : i64>, <(void*) : i32>) : struct___sFILE*
+extern __sprintf_chk(char*, i32, u64, char*) : i32
+extern __snprintf_chk(char*, u64, i32, u64, char*) : i32
+extern __vsprintf_chk(char*, i32, u64, char*, struct___va_list_tag[1]) : i32
+extern __vsnprintf_chk(char*, u64, i32, u64, char*, struct___va_list_tag[1]) : i32

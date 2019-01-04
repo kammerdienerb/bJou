@@ -1336,7 +1336,13 @@ void LssExpression::analyze(bool force) {
     comparisonSignWarn(getContext(), lt, rt);
 
     if (lt->isInt()) {
-        if (rt->isInt() || rt->isFloat() || rt->isChar()) {
+        if (rt->isInt() || rt->isFloat() || rt->isChar() || rt->isBool()) {
+            const Type * dest_t = conv(lt, rt);
+            convertOperands(this, dest_t);
+        } else
+            goto err;
+    } else if (lt->isBool()) {
+        if (rt->isInt() || rt->isFloat() || rt->isChar() || rt->isBool()) {
             const Type * dest_t = conv(lt, rt);
             convertOperands(this, dest_t);
         } else
@@ -4447,7 +4453,21 @@ void BooleanLiteral::dump(std::ostream & stream, unsigned int level,
 // ~~~~~ IntegerLiteral ~~~~~
 
 IntegerLiteral::IntegerLiteral()
-    : is_hex(false) { nodeKind = INTEGER_LITERAL; }
+    : is_hex(false), is_signed(false), is_neg(false) { nodeKind = INTEGER_LITERAL; }
+
+uint64_t IntegerLiteral::getAsUnsigned() {
+    uint64_t u;
+    std::stringstream ss(getContents());
+    ss >> u;
+    return u;
+}
+
+int64_t IntegerLiteral::getAsSigned() {
+    int64_t i;
+    std::stringstream ss(getContents());
+    ss >> i;
+    return i;
+}
 
 bool IntegerLiteral::isConstant() { return true; }
 Val IntegerLiteral::eval() {
@@ -4456,6 +4476,40 @@ Val IntegerLiteral::eval() {
     v.t = getType();
     v.as_i64 = atoll(getContents().c_str());
     return v;
+}
+
+static bool uintFitsInWidth(uint64_t u, unsigned width) {
+    switch (width) {
+        case 8:  if (u > UINT8_MAX)     return false;
+                 break;
+        case 16: if (u > UINT16_MAX)    return false;
+                 break;
+        case 32: if (u > UINT32_MAX)    return false;
+                 break;
+        case 64: if (u > UINT64_MAX)    return false;
+                 break;
+        default:
+            BJOU_DEBUG_ASSERT(false && "invalid width");
+            return false;
+    }
+    return true;
+}
+
+static bool intFitsInWidth(int64_t i, unsigned width) {
+    switch (width) {
+        case 8:  if (i > INT8_MAX || i < INT8_MIN)      return false;
+                 break;
+        case 16: if (i > INT16_MAX || i < INT16_MIN)    return false;
+                 break;
+        case 32: if (i > INT32_MAX || i < INT32_MIN)    return false;
+                 break;
+        case 64: if (i > INT64_MAX || i < INT64_MIN)    return false;
+                 break;
+        default:
+            BJOU_DEBUG_ASSERT(false && "invalid width");
+            return false;
+    }
+    return true;
 }
 
 void IntegerLiteral::analyze(bool force) {
@@ -4489,6 +4543,7 @@ void IntegerLiteral::analyze(bool force) {
         setContents(std::to_string(val));
 
         sign = Type::Sign::UNSIGNED;
+        is_signed = false;
 
         unsigned int bytes = (h.size() - 2) / 2;
         if (bytes == 0)
@@ -4507,8 +4562,13 @@ void IntegerLiteral::analyze(bool force) {
         width |= width >> 16;
         width++;
     }
-    
-    if (!suffix.empty()) {
+   
+    if (suffix.empty()) {
+        std::stringstream ss(getContents());
+        int i;
+        ss >> i;
+        is_neg = i < 0;
+    } else {
         if (suffix[0] == 'u') {
             sign = Type::Sign::UNSIGNED;
         } else if (is_hex) {
@@ -4531,26 +4591,7 @@ void IntegerLiteral::analyze(bool force) {
 
             ss >> u64;
 
-            switch (width) {
-            case 8:
-                if (u64 > UINT8_MAX)
-                    goto erru;
-                break;
-            case 16:
-                if (u64 > UINT16_MAX)
-                    goto erru;
-                break;
-            case 32:
-                if (u64 > UINT32_MAX)
-                    goto erru;
-                break;
-            case 64:
-                if (u64 > UINT64_MAX)
-                    goto erru;
-                break;
-            default:
-                BJOU_DEBUG_ASSERT(false && "invalid width");
-            erru:
+            if (!uintFitsInWidth(u64, width)) {
                 errorl(getContext(), "Literal value is invalid for type "
                                      "specified in its suffix.");
             }
@@ -4560,26 +4601,10 @@ void IntegerLiteral::analyze(bool force) {
 
             ss >> i64;
 
-            switch (width) {
-            case 8:
-                if (i64 > INT8_MAX || i64 < INT8_MIN)
-                    goto erri;
-                break;
-            case 16:
-                if (i64 > INT16_MAX || i64 < INT16_MIN)
-                    goto erri;
-                break;
-            case 32:
-                if (i64 > INT32_MAX || i64 < INT32_MIN)
-                    goto erri;
-                break;
-            case 64:
-                if (i64 > INT64_MAX || i64 < INT64_MIN)
-                    goto erri;
-                break;
-            default:
-                BJOU_DEBUG_ASSERT(false && "invalid width");
-            erri:
+            is_signed = true;
+            is_neg    = i64 < 0;
+
+            if (!intFitsInWidth(i64, width)) {
                 errorl(getContext(), "Literal value is invalid for type "
                                      "specified in its suffix.");
             }
@@ -6449,6 +6474,32 @@ void VariableDeclaration::analyze(bool force) {
                        "Can't initialize " + decl_t->getDemangledName() + " '" +
                            getName() + "' with expression of type '" +
                            init_t->getDemangledName() + "'.");
+
+            /* check if integer type initializers fit in the declarator type */
+            if (decl_t->isInt() && getInitialization()->nodeKind == ASTNode::INTEGER_LITERAL) {
+                IntType        * int_t = (IntType*)decl_t;
+                IntegerLiteral * lit   = (IntegerLiteral*)getInitialization();
+
+                if (lit->is_neg && int_t->sign == Type::Sign::UNSIGNED) {
+                    errorl(getInitialization()->getContext(), "Sign mismatch for initialization of variable '" + name + "'.", true, "Wanted unsigned but got negative initializer");
+                }
+
+                bool bad_int_init = false;
+
+                if (lit->is_signed) {
+                    uint64_t u = lit->getAsUnsigned();
+                    if (!uintFitsInWidth(u, int_t->width))
+                        bad_int_init = true;
+                } else {
+                    int64_t i = lit->getAsSigned();
+                    if (!intFitsInWidth(i, int_t->width))
+                        bad_int_init = true;
+                }
+
+                if (bad_int_init) {
+                    errorl(getInitialization()->getContext(), "Integer literal variable initializer does not fit into the given type '" + int_t->getDemangledName() + "'.");
+                }
+            }
 
             if (!equal(decl_t, init_t))
                 emplaceConversion((Expression *)getInitialization(), decl_t);
@@ -8605,7 +8656,7 @@ Continue::~Continue() {}
 
 // ~~~~~ If ~~~~~
 
-If::If() : conditional(nullptr), statements({}), _else(nullptr) {
+If::If() : conditional(nullptr), statements({}), _else(nullptr), shouldEmitMerge(true) {
     nodeKind = IF;
 }
 

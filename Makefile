@@ -74,7 +74,7 @@ _all: debug release
 .PHONY: all _all
 
 debug:; @$(MAKE) _debug -j$(CORES)
-_debug: $(D_OBJ) nolibc_syscall
+_debug: $(D_OBJ) nolibc_syscall libclangextras
 	@mkdir -p bin
 ifneq ("$(wildcard $(TCMLC_PATH))","")
 	$(PROGRESS) "Building Debug Target $(TARGET) (with tcmalloc)"
@@ -90,7 +90,7 @@ endif
 .PHONY: debug _debug
 
 release:; @$(MAKE) _release -j$(CORES)
-_release: $(R_OBJ) nolibc_syscall
+_release: $(R_OBJ) nolibc_syscall libclangextras
 	@mkdir -p bin
 	$(PROGRESS) "Building Release Target $(TARGET)"
 	$(PROGRESS) ""
@@ -116,6 +116,11 @@ nolibc_syscall:
 
 .PHONY: nolibc_syscall
 
+libclangextras:
+	$(PROGRESS) "Building libclangextras"
+	@mkdir -p lib
+	@$(CXX) $(shell $(LLVM_CFG) --ldflags) -L$(shell $(LLVM_CFG) --prefix)/lib -lclangAST -lclangLex -lclangBasic -lLLVMSupport -lLLVMDemangle -lLLVMCore -lLLVMBinaryFormat -lcurses -shared -fPIC -O3 libclangextras.cpp -o lib/libclangextras.so
+
 install: bin/$(TARGET)
 	@mkdir -p /usr/local/lib/bjou
 	@mkdir -p /usr/local/lib/bjou/modules
@@ -125,6 +130,7 @@ install: bin/$(TARGET)
 	@cp nolibc_syscall/nolibc_syscall.h /usr/local/include
 	@cp nolibc_syscall/nolibc_syscall.o /usr/local/lib
 	@cp nolibc_syscall/libnolibc_syscall.a /usr/local/lib
+	@cp lib/libclangextras.so /usr/local/lib
 
 clean:
 	@$(MAKE) clean -C nolibc_syscall
@@ -133,5 +139,6 @@ clean:
 	@\rm -f obj/release/src/*.o
 	@\rm -f obj/release/tclap/*.o
 	@\rm -f bin/$(TARGET)
+	@\rm -f lib/libclangextras.so
 #######################################################################
 endif # endif for progress bar

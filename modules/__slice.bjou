@@ -49,6 +49,10 @@ proc contains$T(slice : T[] ref, val : T) : bool {
     return false
 }
 
+proc data$T(slice : T[] ref) : T* {
+    return \__slice_data{slice}
+}
+
 proc free$T(slice : T[] ref) {
     delete \__slice_data{slice}
 }

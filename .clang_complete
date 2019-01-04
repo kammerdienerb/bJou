@@ -3,7 +3,7 @@
 
 -DBJOU_USE_COLOR
 -DBJOU_DEBUG_BUILD
--I/usr/local/Cellar/llvm@6/6.0.1/include
+-I/usr/local/Cellar/llvm@6/6.0.1_1/include
 
 -stdlib=libc++
 -fPIC

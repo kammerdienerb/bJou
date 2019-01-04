@@ -2102,7 +2102,7 @@ void * EquExpression::generate(BackEnd & backEnd, bool flag) {
     llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
     llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
 
-    if (lt->isInt() || lt->isChar() || lt->isEnum()) {
+    if (lt->isBool() || lt->isInt() || lt->isChar() || lt->isEnum()) {
         return llbe->builder.CreateICmpEQ(lv, rv);
     } else if (lt->isFloat()) {
         return llbe->builder.CreateFCmpUEQ(lv, rv);
@@ -3668,13 +3668,21 @@ void * If::generate(BackEnd & backEnd, bool flag) {
     if (hasElse)
         _else = llvm::BasicBlock::Create(llbe->llContext, "else");
 
-    bool shouldEmitMerge = true;
-    if (getParent()->nodeKind == ASTNode::PROCEDURE) {
-        if (((Procedure *)getParent())->getStatements().back() == this) {
-            if (alwaysReturns())
-                shouldEmitMerge = false;
-        }
-    }
+    shouldEmitMerge = true;
+    if (alwaysReturns())
+        shouldEmitMerge = false;
+    /* if (getParent()->nodeKind == ASTNode::PROCEDURE) { */
+    /*     Procedure * proc = (Procedure*)getParent(); */
+    /*     if (proc->getStatements().back() == this) { */
+    /*         if (alwaysReturns()) */
+    /*             shouldEmitMerge = false; */
+    /*     } */ 
+    /* } */
+    
+    /* else if (getParent()->nodeKind == ASTNode::IF) { */
+    /*     if (!((If*)getParent())->shouldEmitMerge) */
+    /*         shouldEmitMerge = false; */
+    /* } */
 
     llvm::BasicBlock * merge = nullptr;
     if (shouldEmitMerge)
@@ -3736,25 +3744,10 @@ void * If::generate(BackEnd & backEnd, bool flag) {
 void * For::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    llbe->pushFrame();
-
-    for (ASTNode * init : getInitializations())
-        llbe->getOrGenNode(init);
-
     llvm::Function * func = llbe->builder.GetInsertBlock()->getParent();
 
     llvm::BasicBlock * check =
         llvm::BasicBlock::Create(llbe->llContext, "forcheckcond", func);
-
-    llbe->builder.CreateBr(check);
-
-    llbe->builder.SetInsertPoint(check);
-
-    llvm::Value * cond = (llvm::Value *)llbe->getOrGenNode(getConditional());
-    // Convert condition to a bool by comparing equal to 1.
-    cond = llbe->builder.CreateICmpEQ(
-        cond, llvm::ConstantInt::get(llbe->llContext, llvm::APInt(1, 1, true)),
-        "forcond");
 
     llvm::BasicBlock * then = llvm::BasicBlock::Create(llbe->llContext, "then");
     llvm::BasicBlock * after =
@@ -3765,7 +3758,20 @@ void * For::generate(BackEnd & backEnd, bool flag) {
     llbe->loop_continue_stack.push({llbe->curFrame(), after});
     llbe->loop_break_stack.push({llbe->curFrame(), merge});
 
+    llbe->pushFrame();
+
+    for (ASTNode * init : getInitializations())
+        llbe->getOrGenNode(init);
+
+    llbe->builder.CreateBr(check);
+
     llbe->builder.SetInsertPoint(check);
+
+    llvm::Value * cond = (llvm::Value *)llbe->getOrGenNode(getConditional());
+    // Convert condition to a bool by comparing equal to 1.
+    cond = llbe->builder.CreateICmpEQ(
+        cond, llvm::ConstantInt::get(llbe->llContext, llvm::APInt(1, 1, true)),
+        "forcond");
 
     llbe->builder.CreateCondBr(cond, then, merge);
 
@@ -3789,9 +3795,9 @@ void * For::generate(BackEnd & backEnd, bool flag) {
     for (ASTNode * at : getAfterthoughts())
         llbe->getOrGenNode(at);
 
-    // if (!getFlag(HAS_TOP_LEVEL_RETURN)) {
-    llbe->builder.CreateBr(check);
-    // }
+    /* if (!getFlag(HAS_TOP_LEVEL_RETURN)) { */
+        llbe->builder.CreateBr(check);
+    /* } */
 
     // Emit merge block.
     func->getBasicBlockList().push_back(merge);

@@ -19,7 +19,7 @@ import "null.bjou"
 import "dict.bjou"
 
 # must be defined for clang.bjou to compile
-const libclang_path := "/usr/local/Cellar/llvm/6.0.1/lib/libclang.dylib"
+const libclang_path := "/usr/local/Cellar/llvm@6/6.0.1/lib/libclang.dylib"
 import "clang.bjou"
 import "clangextras.bjou"
 import "c2bjou/ClangWrapper.bjou"
@@ -27,9 +27,9 @@ import "c2bjou/visitors.bjou"
 
 import "compiler.bjou"
 
-import "c/io.bjou"
+# import "c/io.bjou"
 
-proc include(fname : char*) : c2bJou {
+proc include(fname : char*) {# : c2bJou {
     init_clang()
     init_clangextras()
 
@@ -64,40 +64,40 @@ proc include(fname : char*) : c2bJou {
 
     translator.cw.traverseTU(dispatch, (&translator) as CXClientData*)
 
-    # bjou_dump(translator.created.data(), |translator.created|, "out.bjou", false)
+    bjou_dump(translator.created.data(), |translator.created|, "out.bjou", false)
 
     # run passes on translated nodes
-    # gs := bjou_getGlobalScope()
+    gs := bjou_getGlobalScope()
 
-    # foreach node in translator.created {
-    #     bjou_appendNode(node)
-    #     bjou_setGlobalNodeRP(node)
+    foreach node in translator.created {
+        bjou_appendNode(node)
+        bjou_setGlobalNodeRP(node)
         
-    #     cxt   := bjou_getContext(node)
-    #     fpath := str(bjou_contextGetFileName(cxt))
+        cxt   := bjou_getContext(node)
+        fpath := str(bjou_contextGetFileName(cxt))
 
-    #     inc_idx := fpath.find("include")
-    #     if inc_idx != -1 {
-    #         fpath' := str(fpath.c_str() + inc_idx)
-    #         fpath.free()
-    #         fpath = fpath'
-    #     }
+        inc_idx := fpath.find("include")
+        if inc_idx != -1 {
+            fpath' := str(fpath.c_str() + inc_idx)
+            fpath.free()
+            fpath = fpath'
+        }
 
-    #     slash_idx := fpath.find('/') 
+        slash_idx := fpath.find('/') 
 
-    #     # print "%", fpath.c_str() + slash_idx + 1
+        # print "%", fpath.c_str() + slash_idx + 1
 
-    #     fpath.free()
-    # }
-    # foreach node in translator.structs
-    #     bjou_preDeclare(node, gs)
-    # foreach node in translator.created
-    #     bjou_addSymbols(node, gs)
-    # bjou_runTypeCompletion()
-    # foreach node in translator.created
-    #     bjou_analyze(node)
+        fpath.free()
+    }
+    foreach node in translator.structs
+        bjou_preDeclare(node, gs)
+    foreach node in translator.created
+        bjou_addSymbols(node, gs)
+    bjou_runTypeCompletion()
+    foreach node in translator.created
+        bjou_analyze(node)
 
-    return translator
+    # return translator
 }
 
 type AnonDecl {

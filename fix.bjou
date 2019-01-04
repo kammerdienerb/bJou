@@ -1,0 +1,9 @@
+# fix.bjou
+
+\front{ true }
+\run{ main() }
+
+proc main() {
+    x : u8 = -123
+    print "%", x
+}

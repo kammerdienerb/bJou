@@ -170,7 +170,7 @@ void Scope::addSymbol(Symbol * symbol, Context * context) {
                                          "' defined here.");
                 }
             }
-        } else if (existing->node()->getScope()->parent) {
+        } else if (existing->node()->getScope()->parent || existing->node()->getScope() == symbol->node()->getScope()) {
             errorl(*context,
                    "Redefinition of '" + mangled->demangledString() + "'.",
                    false);

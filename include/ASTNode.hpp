@@ -329,6 +329,11 @@ struct ASTNode {
     ((node)->nodeKind >= ASTNode::EXPRESSION &&                                \
      (node)->nodeKind < ASTNode::_END_EXPRESSIONS)
 
+#define IS_CONTROL_TERMINATOR(node)                                            \
+    ((node)->nodeKind == ASTNode::RETURN ||                                    \
+     (node)->nodeKind == ASTNode::BREAK  ||                                    \
+     (node)->nodeKind == ASTNode::CONTINUE)
+
     NodeKind nodeKind;
 
     int flags;
@@ -1619,6 +1624,11 @@ struct IntegerLiteral : Expression {
 
     bool is_hex;
     std::string suffix;
+    bool is_signed;
+    bool is_neg;
+
+    uint64_t getAsUnsigned();
+    int64_t getAsSigned();
 
     // Node interface
     virtual void analyze(bool force = false);
@@ -2953,6 +2963,7 @@ struct If : ASTNode {
     ASTNode * conditional;
     std::vector<ASTNode *> statements;
     ASTNode * _else;
+    bool shouldEmitMerge;
 
     enum eBitFlags E_BIT_FLAGS();
 

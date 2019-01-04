@@ -1,0 +1,16 @@
+# oldterminatorbug.bjou
+
+main()
+
+proc p() : i32 {
+    if 1 == not false
+        if 0 == not not true
+             return 1
+        else 
+            return 2
+    return 0
+}
+
+proc main() {
+    print "%", p()
+}

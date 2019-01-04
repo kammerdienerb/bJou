@@ -1,4 +1,4 @@
-# io.bjou
+# stdio.bjou
 
 import "c2bjou.bjou"
 \run{ include("/usr/include/stdio.h") }

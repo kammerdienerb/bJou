@@ -1,0 +1,19 @@
+# symbols.bjou
+# testing the new symbol system
+
+\run{ main() }
+\front{ true }
+
+type T {
+    field : int
+
+    proc create(i : int) : T
+        return { T: .field = i }
+
+    proc hello(this)
+        for i := 0; i < this.field; i += 1
+            print "hello"
+}
+
+proc main() {
+}

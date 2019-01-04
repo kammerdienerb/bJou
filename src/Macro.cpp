@@ -618,6 +618,15 @@ static ASTNode * front(MacroUse * use) {
     return nullptr;
 }
 
+static ASTNode * frontisset(MacroUse * use) {
+    BooleanLiteral * result = new BooleanLiteral();
+    result->setContext(use->getContext());
+    result->setScope(use->getScope());
+    result->setContents(compilation->args.front_arg ? "true" : "false");
+
+    return result;
+}
+
 static ASTNode * canfindmodule(MacroUse * use) {
     StringLiteral * lit = (StringLiteral *)use->getArgs()[0];
     std::string path = de_quote(lit->getContents());
@@ -802,6 +811,7 @@ MacroManager::MacroManager() {
                              Macros::typeisfloat,
                              {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
     macros["front"] = {"front", Macros::front, {{ANY_EXPRESSION}}};
+    macros["frontisset"] = {"frontisset", Macros::frontisset, {}};
     macros["canfindmodule"] = {"canfindmodule",
                                Macros::canfindmodule,
                                {{ASTNode::NodeKind::STRING_LITERAL}}};
