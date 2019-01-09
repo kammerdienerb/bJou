@@ -1330,6 +1330,8 @@ MaybeASTNode Parser::parseExpression_r(ASTNode * left, int minPrecedence) {
     MaybeASTNode m_right;
     Expression * right = nullptr;
     Expression * result = nullptr;
+    bool bracket = false;
+    Context bracket_context;
 
     /*
         lookahead := peek next token
@@ -1355,24 +1357,23 @@ MaybeASTNode Parser::parseExpression_r(ASTNode * left, int minPrecedence) {
                 right->getContext().finish(&currentContext,
                                            &justCleanedContext);
                 expect(R_SQR_BRACKET, "']'");
+                bracket = true;
+                bracket_context.finish(&currentContext, &justCleanedContext);
             }
         } else if (op == "()") {
             expect(L_PAREN, "'('");
             m_right = parseArgList();
-            if (!m_right) //.assignTo(right)) // this won't work because we have
-                          // to force an ArgList where an Expression should go
+            if (!m_right) {
+                expect(R_PAREN, "')'");
                 return MaybeASTNode();
+            }
             // force it
             ASTNode * argList = nullptr;
             m_right.assignTo(argList);
             BJOU_DEBUG_ASSERT(argList);
             right = (Expression *)argList;
 
-            expect(
-                R_PAREN, "')'", false, false,
-                optional(COLON)
-                    ? "precede procedure declarations with the keyword 'proc'"
-                    : "to end procedure call");
+            expect(R_PAREN, "')'");
             right->getContext().finish(&currentContext, &justCleanedContext);
         } else {
             eat(op);
@@ -1430,7 +1431,11 @@ MaybeASTNode Parser::parseExpression_r(ASTNode * left, int minPrecedence) {
         result->setLeft(left);
         result->setRight(right);
         result->setContext(left->getContext());
-        result->getContext().end = right->getContext().end;
+        if (bracket) {
+            result->getContext().end = bracket_context.end;
+        } else {
+            result->getContext().end = right->getContext().end;
+        }
         // result->getContext().finish(&right->getContext());
 
         // check for postfix

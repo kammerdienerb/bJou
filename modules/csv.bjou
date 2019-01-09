@@ -118,6 +118,26 @@ type csv {
         return this.data[r][c]
     }
 
+    proc get(this, _r : char*, c : u64) : string ref {
+        r := this.rnamed(_r)
+        if r == -1    \die{ "invalid row name" }
+        return this.data[r][c]
+    }
+
+    proc get(this, r : u64, _c : char*) : string ref {
+        c := this.cnamed(_c)
+        if c == -1    \die{ "invalid column name" }
+        return this.data[r][c]
+    }
+
+    proc get(this, _r : char*, _c : char*) : string ref {
+        r := this.rnamed(_r)
+        if r == -1    \die{ "invalid row name" }
+        c := this.cnamed(_c)
+        if c == -1    \die{ "invalid column name" }
+        return this.data[r][c]
+    }
+
     proc _grow(this, r : u64, c : u64) {
         mr  := this.maxrows() - 1
         mr' := mr
@@ -153,6 +173,93 @@ type csv {
     }
 
     proc set(this, r : u64, c : u64, f : f64) {
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = str(f)
+    }
+
+    proc set(this, _r : char*, c : u64, s : string) {
+        r := this.rnamed(_r)
+        if r == -1    \die{ "invalid row name" }
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = s.copy()
+    }
+    
+    proc set(this, _r : char*, c : u64, s : char*) {
+        r := this.rnamed(_r)
+        if r == -1    \die{ "invalid row name" }
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = str(s)
+    }
+
+    proc set(this, _r : char*, c : u64, f : f64) {
+        r := this.rnamed(_r)
+        if r == -1    \die{ "invalid row name" }
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = str(f)
+    }
+    
+    proc set(this, r : u64, _c : char*, s : string) {
+        c := this.cnamed(_c)
+        if c == -1    \die{ "invalid column name" }
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = s.copy()
+    }
+    
+    proc set(this, r : u64, _c : char*, s : char*) {
+        c := this.cnamed(_c)
+        if c == -1    \die{ "invalid column name" }
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = str(s)
+    }
+
+    proc set(this, r : u64, _c : char*, f : f64) {
+        c := this.cnamed(_c)
+        if c == -1    \die{ "invalid column name" }
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = str(f)
+    }
+
+    proc set(this, _r : char*, _c : char*, s : string) {
+        r := this.rnamed(_r)
+        if r == -1    \die{ "invalid row name" }
+        c := this.cnamed(_c)
+        if c == -1    \die{ "invalid column name" }
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = s.copy()
+    }
+    
+    proc set(this, _r : char*, _c : char*, s : char*) {
+        r := this.rnamed(_r)
+        if r == -1    \die{ "invalid row name" }
+        c := this.cnamed(_c)
+        if c == -1    \die{ "invalid column name" }
+        this._grow(r, c)
+        old : string ref = this.get(r, c)
+        old.free()
+        this.data[r][c] = str(s)
+    }
+
+    proc set(this, _r : char*, _c : char*, f : f64) {
+        r := this.rnamed(_r)
+        if r == -1    \die{ "invalid row name" }
+        c := this.cnamed(_c)
+        if c == -1    \die{ "invalid column name" }
         this._grow(r, c)
         old : string ref = this.get(r, c)
         old.free()

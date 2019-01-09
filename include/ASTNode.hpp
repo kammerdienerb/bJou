@@ -2780,6 +2780,7 @@ struct Import : ASTNode {
 
     bool fileError, notModuleError;
     std::string module;
+    std::string full_path;
     Module * theModule;
 
     enum eBitFlags E_BIT_FLAGS_AND(FROM_PATH);

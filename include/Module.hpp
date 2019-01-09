@@ -37,7 +37,6 @@ struct FrontEnd;
 
 struct Module {
     bool activated, activatedAsCT, filled;
-
     unsigned int n_lines;
 
     std::vector<ASTNode *> nodes, structs, ifaceDefs;

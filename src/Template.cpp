@@ -92,6 +92,11 @@ static void templateReplaceTerminals(ASTNode * _template, ASTNode * _def,
             ASTNode * i_clone = i->clone();
             i_clone->setContext(term->getContext());
             if (terminalShouldReplace(term, d)) {
+                // @hack -- this should be better and more robust
+                if (IS_EXPRESSION(term)
+                && (!term->getParent() || term->getParent()->nodeKind != ASTNode::MACRO_USE)) {
+                    errorl(term->getContext(), "Invalid template substitution.", true, "Can't place type declarator where an expression is expected");
+                }
                 (*term->replace)(term->parent, term, i_clone);
             }
         }
@@ -111,6 +116,11 @@ static void templateReplaceTerminals(std::vector<ASTNode *> & terminals,
             ASTNode * i = inst->getElements()[idx];
             ASTNode * i_clone = i->clone();
             if (terminalShouldReplace(term, d)) {
+                // @hack -- this should be better and more robust
+                if (IS_EXPRESSION(term)
+                && (!term->getParent() || term->getParent()->nodeKind != ASTNode::MACRO_USE)) {
+                    errorl(term->getContext(), "Invalid template substitution.", true, "Can't place type declarator where an expression is expected");
+                }
                 (*term->replace)(term->parent, term, i_clone);
             }
         }

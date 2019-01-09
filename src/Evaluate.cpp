@@ -22,8 +22,15 @@ ASTNode * Val::toExpr() {
         b->setContents(as_i64 ? "true" : "false");
         return b;
     } else if (t->isInt()) {
+        IntType * int_t = (IntType*)t;
         IntegerLiteral * i = new IntegerLiteral;
         i->setContents(std::to_string(as_i64));
+        if (int_t->sign == Type::Sign::SIGNED) {
+            i->getContents() += "i";
+        } else {
+            i->getContents() += "u";
+        }
+        i->getContents() += std::to_string(int_t->width);
         return i;
     } else if (t->isFloat()) {
         FloatLiteral * f = new FloatLiteral;

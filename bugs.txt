@@ -11,23 +11,6 @@
 
 -- multiple \static_do directives don't work.. symbols blah blah
 
--- When constant integers are folded, the resulting expressions should fully represent the type of the constant if it was specified
-    -- currently, doing dumb folding
-[
-    const C : u8 = 123
-    var := C # folds to '123'; should fold to '123u8'
-]
-
--- Access expressions into a dynamic array type (probably slices too) cause an assertion failure, when they should throw an error
-[
-    a := [...int]
-    print "%", a.__data
-]
-
--- Why does [ @NULL ] compile?
-
--- 'run' macro should call __bjou_rt_init or at least complete the same tasks before executing code
-
 -- member procs don't work through extended types... more name mangling problems
 [
     type A {
@@ -52,29 +35,4 @@
     }
 ]
 
--- bool to int conversion incorrect for true
-    -- sign issue... casting to u8 works
-[
-    print "%", (true as int)
-]
-
--- missing error for use of typename within template code
-[
-    proc p$T(arg : T) {
-        if arg == T ...
-    }
-]
-
--- weird parsing bug: no error for something like:
-[
-    if true {
-        bad_symbol(
-    }
-]
-
--- On import errors, we should indicate the resolved path to avoid confusion.
-
--- Need better error message for indexing into non-referenceable slice/dyn expressions
-[
-    [ptr: 0, n][1]
-]
+-- 'run' macro should call __bjou_rt_init or at least complete the same tasks before executing code

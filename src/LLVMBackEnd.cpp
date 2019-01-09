@@ -2925,10 +2925,11 @@ void * AsExpression::generate(BackEnd & backEnd, bool flag) {
     llvm::Value * val = (llvm::Value *)llbe->getOrGenNode(getLeft());
     llvm::Type * ll_rt = llbe->getOrGenType(rt);
 
-    if ((lt->isInt()  && rt->isInt())
-    ||  (lt->isBool() && (rt->isInt()))) {
+    if (lt->isInt() && rt->isInt()) {
         return llbe->builder.CreateIntCast(
             val, ll_rt, ((const IntType *)rt)->sign == Type::SIGNED);
+    } else if (lt->isBool() && (rt->isInt() || rt->isChar())) {
+        return llbe->builder.CreateIntCast(val, ll_rt, 0, "booltoint");
     } else if ((lt->isInt() || lt->isChar()) && rt->isBool()) {
         return llbe->builder.CreateICmpNE(val, llvm::ConstantInt::get(llbe->getOrGenType(lt), 0, ((IntType*)lt)->sign == Type::SIGNED));
     } else if (lt->isInt() && rt->isChar()) {
@@ -3671,18 +3672,6 @@ void * If::generate(BackEnd & backEnd, bool flag) {
     shouldEmitMerge = true;
     if (alwaysReturns())
         shouldEmitMerge = false;
-    /* if (getParent()->nodeKind == ASTNode::PROCEDURE) { */
-    /*     Procedure * proc = (Procedure*)getParent(); */
-    /*     if (proc->getStatements().back() == this) { */
-    /*         if (alwaysReturns()) */
-    /*             shouldEmitMerge = false; */
-    /*     } */ 
-    /* } */
-    
-    /* else if (getParent()->nodeKind == ASTNode::IF) { */
-    /*     if (!((If*)getParent())->shouldEmitMerge) */
-    /*         shouldEmitMerge = false; */
-    /* } */
 
     llvm::BasicBlock * merge = nullptr;
     if (shouldEmitMerge)

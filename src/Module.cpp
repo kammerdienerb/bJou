@@ -163,6 +163,7 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                 }
 
                 if (in) {
+                    import->full_path = fname;
                     if (filesSeen.find(fname) == filesSeen.end()) {
                         filesSeen.insert(fname);
 
@@ -253,6 +254,7 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                 }
 
                 if (in) {
+                    import->full_path = fname;
                     filesSeen.insert(fname);
 
                     ImportParser parser(in, fname);

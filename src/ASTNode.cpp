@@ -1957,9 +1957,21 @@ void SubscriptExpression::analyze(bool force) {
         errorl(getRight()->getContext(),
                "Operand right of subscript operator must be an integer type.");
 
-    if (lt->isPointer() || lt->isSlice() || lt->isDynamicArray())
+    if (lt->isSlice()) {
+        if (!((Expression*)getLeft())->canBeLVal()) {
+            errorl(getContext(), "Indexing into slice literal is invalid.");
+        }
+    }
+
+    if (lt->isDynamicArray()) {
+        if (!((Expression*)getLeft())->canBeLVal()) {
+            errorl(getContext(), "Indexing into dynamic array literal is invalid.");
+        }
+    }
+
+    if (lt->isPointer() || lt->isSlice() || lt->isDynamicArray()) {
         setType(lt->under());
-    else if (lt->isArray()) {
+    } else if (lt->isArray()) {
         getRight()->analyze();
         if (getLeft()->nodeKind == ASTNode::INITIALZER_LIST)
             if (!((Expression *)getRight())->isConstant())
@@ -2705,6 +2717,12 @@ int AccessExpression::handleContainerAccess() {
     Identifier * r_id = (Identifier *)getRight();
     Expression * next_call = nextCall();
 
+    if (lt->isDynamicArray()) {
+        lt = ((DynamicArrayType*)lt)->getRealType();
+    } else if (lt->isSlice()) {
+        lt = ((SliceType*)lt)->getRealType();
+    }
+
     // check for regular access
     if (lt->isStruct()
     || (lt->isPointer() && lt->under()->isStruct())) {
@@ -2890,27 +2908,15 @@ void AccessExpression::analyze(bool force) {
         }
     }
 
-    /* if (!type) { */
-    /*     if (handleInjection()) { */
-    /*         setFlag(ANALYZED, true); */
-    /*         return; */
-    /*     } */
-    /*     else if (i == 0) { */
-    /*         errorl(getContext(), */
-    /*                "Access using the '.' operator does not apply to type '" + */ 
-    /*                 getLeft()->getType()->getDemangledName() + "'."); */
-    /*     } */
-    /* } */
-
     if (i == 0 || i == 1) {
         if (handleInjection()) {
             setFlag(ANALYZED, true);
             return;
+        } else if (i == 0) {
+            errorl(getContext(),
+                   "Access using the '.' operator does not apply to type '" + 
+                    getLeft()->getType()->getDemangledName() + "'.");
         }
-    } else if (i == 0) {
-        errorl(getContext(),
-               "Access using the '.' operator does not apply to type '" + 
-                getLeft()->getType()->getDemangledName() + "'.");
     }
 
     setFlag(ANALYZED, true);
@@ -6289,6 +6295,56 @@ void Constant::analyze(bool force) {
                 "Can't create '" + t->getDemangledName() + "'" + " constant " +
                     "'" + getName() + "' with expression of type '" +
                     getInitialization()->getType()->getDemangledName() + "'.");
+
+        /* check if integer type initializers fit in the declarator type */
+        const Type * decl_t = getTypeDeclarator()->getType();
+        if (decl_t->isInt()) {
+            IntType        * int_t          = (IntType*)decl_t;
+            IntegerLiteral * lit            = nullptr;
+            bool             constant       = false;
+            std::string      constant_name;
+           
+            if (getInitialization()->nodeKind == ASTNode::INTEGER_LITERAL) {
+                lit = (IntegerLiteral*)getInitialization();
+            } else if (getInitialization()->nodeKind == ASTNode::IDENTIFIER) {
+                Identifier * i = (Identifier*)getInitialization();
+                if (i->resolved && i->resolved->nodeKind == ASTNode::CONSTANT) {
+                    Constant * c = (Constant*)i->resolved;
+                    if (c->getInitialization()->nodeKind == ASTNode::INTEGER_LITERAL) {
+                        constant = true;
+                        constant_name = c->name;
+                        lit = (IntegerLiteral*)c->getInitialization();
+                    }
+                }
+            }
+
+            if (lit) {
+                if (lit->is_neg && int_t->sign == Type::Sign::UNSIGNED) {
+                    errorl(getInitialization()->getContext(), "Sign mismatch for initialization of constant '" + name + "'.", true, "Wanted unsigned but got negative initializer");
+                }
+
+                bool bad_int_init = false;
+
+                if (lit->is_signed) {
+                    uint64_t u = lit->getAsUnsigned();
+                    if (!uintFitsInWidth(u, int_t->width))
+                        bad_int_init = true;
+                } else {
+                    int64_t i = lit->getAsSigned();
+                    if (!intFitsInWidth(i, int_t->width))
+                        bad_int_init = true;
+                }
+
+                if (bad_int_init) {
+                    if (constant) {
+                        errorl(getInitialization()->getContext(), "Integer constant initializer from constant '" + constant_name + "' does not fit into the given type '" + int_t->getDemangledName() + "'.", true, "Has type '" + lit->getType()->getDemangledName() + "'");
+                    } else {
+                        errorl(getInitialization()->getContext(), "Integer literal constant initializer does not fit into the given type '" + int_t->getDemangledName() + "'.");
+                    }
+                }
+            }
+        }
+
         lValStack.pop();
     } else {
         const Type * t = getInitialization()->getType();
@@ -6311,6 +6367,7 @@ void Constant::analyze(bool force) {
         errorl(getInitialization()->getContext(),
                "Value for '" + getName() + "' is not constant.");
     if (!getInitialization()->getType()->isProcedure()) {
+        ((Expression*)getInitialization())->setType(getTypeDeclarator()->getType()); // @hack
         ASTNode * folded = ((Expression *)getInitialization())->eval().toExpr();
         folded->addSymbols(getScope());
         folded->analyze();
@@ -6476,28 +6533,50 @@ void VariableDeclaration::analyze(bool force) {
                            init_t->getDemangledName() + "'.");
 
             /* check if integer type initializers fit in the declarator type */
-            if (decl_t->isInt() && getInitialization()->nodeKind == ASTNode::INTEGER_LITERAL) {
-                IntType        * int_t = (IntType*)decl_t;
-                IntegerLiteral * lit   = (IntegerLiteral*)getInitialization();
-
-                if (lit->is_neg && int_t->sign == Type::Sign::UNSIGNED) {
-                    errorl(getInitialization()->getContext(), "Sign mismatch for initialization of variable '" + name + "'.", true, "Wanted unsigned but got negative initializer");
+            if (decl_t->isInt()) {
+                IntType        * int_t          = (IntType*)decl_t;
+                IntegerLiteral * lit            = nullptr;
+                bool             constant       = false;
+                std::string      constant_name;
+               
+                if (getInitialization()->nodeKind == ASTNode::INTEGER_LITERAL) {
+                    lit = (IntegerLiteral*)getInitialization();
+                } else if (getInitialization()->nodeKind == ASTNode::IDENTIFIER) {
+                    Identifier * i = (Identifier*)getInitialization();
+                    if (i->resolved && i->resolved->nodeKind == ASTNode::CONSTANT) {
+                        Constant * c = (Constant*)i->resolved;
+                        if (c->getInitialization()->nodeKind == ASTNode::INTEGER_LITERAL) {
+                            constant = true;
+                            constant_name = c->name;
+                            lit = (IntegerLiteral*)c->getInitialization();
+                        }
+                    }
                 }
 
-                bool bad_int_init = false;
+                if (lit) {
+                    if (lit->is_neg && int_t->sign == Type::Sign::UNSIGNED) {
+                        errorl(getInitialization()->getContext(), "Sign mismatch for initialization of variable '" + name + "'.", true, "Wanted unsigned but got negative initializer");
+                    }
 
-                if (lit->is_signed) {
-                    uint64_t u = lit->getAsUnsigned();
-                    if (!uintFitsInWidth(u, int_t->width))
-                        bad_int_init = true;
-                } else {
-                    int64_t i = lit->getAsSigned();
-                    if (!intFitsInWidth(i, int_t->width))
-                        bad_int_init = true;
-                }
+                    bool bad_int_init = false;
 
-                if (bad_int_init) {
-                    errorl(getInitialization()->getContext(), "Integer literal variable initializer does not fit into the given type '" + int_t->getDemangledName() + "'.");
+                    if (lit->is_signed) {
+                        uint64_t u = lit->getAsUnsigned();
+                        if (!uintFitsInWidth(u, int_t->width))
+                            bad_int_init = true;
+                    } else {
+                        int64_t i = lit->getAsSigned();
+                        if (!intFitsInWidth(i, int_t->width))
+                            bad_int_init = true;
+                    }
+
+                    if (bad_int_init) {
+                        if (constant) {
+                            errorl(getInitialization()->getContext(), "Integer variable initializer from constant '" + constant_name + "' does not fit into the given type '" + int_t->getDemangledName() + "'.", true, "Has type '" + lit->getType()->getDemangledName() + "'");
+                        } else {
+                            errorl(getInitialization()->getContext(), "Integer literal variable initializer does not fit into the given type '" + int_t->getDemangledName() + "'.");
+                        }
+                    }
                 }
             }
 
@@ -8339,7 +8418,7 @@ void Import::addSymbols(Scope * _scope) {
     if (notModuleError) {
         error(getContext(),
               "File '" + de_quote(module) + "' does not declare a module.",
-              false);
+              false, "'" + de_quote(module) + "' resolved to path '" + full_path + "'");
         errorl(getContext(), "Attempted import from this location.");
     }
 
