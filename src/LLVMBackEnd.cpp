@@ -217,6 +217,7 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_makeUID", (uint64_t)&bjou_makeUID);
     ee->addGlobalMapping("bjou_createContext", (uint64_t)&bjou_createContext);
     ee->addGlobalMapping("bjou_getContext", (uint64_t)&bjou_getContext);
+    ee->addGlobalMapping("bjou_contextGetFileName", (uint64_t)&bjou_contextGetFileName);
     ee->addGlobalMapping("bjou_setContext", (uint64_t)&bjou_setContext);
     ee->addGlobalMapping("bjou_setProcNameContext", (uint64_t)&bjou_setProcNameContext);
     ee->addGlobalMapping("bjou_setVarDeclNameContext", (uint64_t)&bjou_setVarDeclNameContext);
