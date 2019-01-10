@@ -242,6 +242,8 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_makeZeroInitExpr", (uint64_t)&bjou_makeZeroInitExpr);
     ee->addGlobalMapping("bjou_createAddExpression", (uint64_t)&bjou_createAddExpression);
     ee->addGlobalMapping("bjou_createSubExpression", (uint64_t)&bjou_createSubExpression);
+    ee->addGlobalMapping("bjou_createBSHLExpression", (uint64_t)&bjou_createBSHLExpression);
+    ee->addGlobalMapping("bjou_createBSHRExpression", (uint64_t)&bjou_createBSHRExpression);
     ee->addGlobalMapping("bjou_createMultExpression", (uint64_t)&bjou_createMultExpression);
     ee->addGlobalMapping("bjou_createDivExpression", (uint64_t)&bjou_createDivExpression);
     ee->addGlobalMapping("bjou_createModExpression", (uint64_t)&bjou_createModExpression);
@@ -260,6 +262,8 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createNeqExpression", (uint64_t)&bjou_createNeqExpression);
     ee->addGlobalMapping("bjou_createLogAndExpression", (uint64_t)&bjou_createLogAndExpression);
     ee->addGlobalMapping("bjou_createLogOrExpression", (uint64_t)&bjou_createLogOrExpression);
+    ee->addGlobalMapping("bjou_createBANDExpression", (uint64_t)&bjou_createBANDExpression);
+    ee->addGlobalMapping("bjou_createBORExpression", (uint64_t)&bjou_createBORExpression);
     ee->addGlobalMapping("bjou_createCallExpression", (uint64_t)&bjou_createCallExpression);
     ee->addGlobalMapping("bjou_createSubscriptExpression", (uint64_t)&bjou_createSubscriptExpression);
     ee->addGlobalMapping("bjou_createAccessExpression", (uint64_t)&bjou_createAccessExpression);
@@ -268,6 +272,7 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createDeleteExpression", (uint64_t)&bjou_createDeleteExpression);
     ee->addGlobalMapping("bjou_createSizeofExpression", (uint64_t)&bjou_createSizeofExpression);
     ee->addGlobalMapping("bjou_createNotExpression", (uint64_t)&bjou_createNotExpression);
+    ee->addGlobalMapping("bjou_createBNEGExpression", (uint64_t)&bjou_createBNEGExpression);
     ee->addGlobalMapping("bjou_createDerefExpression", (uint64_t)&bjou_createDerefExpression);
     ee->addGlobalMapping("bjou_createAddressExpression", (uint64_t)&bjou_createAddressExpression);
     ee->addGlobalMapping("bjou_createRefExpression", (uint64_t)&bjou_createRefExpression);
