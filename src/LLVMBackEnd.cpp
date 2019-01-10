@@ -215,6 +215,7 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_StartDefaultCompilation", (uint64_t)&bjou_StartDefaultCompilation);
     ee->addGlobalMapping("bjou_dump", (uint64_t)&bjou_dump);
     ee->addGlobalMapping("bjou_makeUID", (uint64_t)&bjou_makeUID);
+    ee->addGlobalMapping("bjou_isKeyword", (uint64_t)&bjou_isKeyword);
     ee->addGlobalMapping("bjou_createContext", (uint64_t)&bjou_createContext);
     ee->addGlobalMapping("bjou_getContext", (uint64_t)&bjou_getContext);
     ee->addGlobalMapping("bjou_contextGetFileName", (uint64_t)&bjou_contextGetFileName);
