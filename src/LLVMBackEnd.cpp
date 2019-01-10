@@ -278,6 +278,7 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createFloatLiteral", (uint64_t)&bjou_createFloatLiteral);
     ee->addGlobalMapping("bjou_createStringLiteral", (uint64_t)&bjou_createStringLiteral);
     ee->addGlobalMapping("bjou_createCharLiteral", (uint64_t)&bjou_createCharLiteral);
+    ee->addGlobalMapping("bjou_createExprBlock", (uint64_t)&bjou_createExprBlock);
     ee->addGlobalMapping("bjou_createDeclarator", (uint64_t)&bjou_createDeclarator);
     ee->addGlobalMapping("bjou_createArrayDeclarator", (uint64_t)&bjou_createArrayDeclarator);
     ee->addGlobalMapping("bjou_createPointerDeclarator", (uint64_t)&bjou_createPointerDeclarator);
@@ -293,6 +294,7 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createReturn", (uint64_t)&bjou_createReturn);
     ee->addGlobalMapping("bjou_createBreak", (uint64_t)&bjou_createBreak);
     ee->addGlobalMapping("bjou_createContinue", (uint64_t)&bjou_createContinue);
+    ee->addGlobalMapping("bjou_createExprBlockYield", (uint64_t)&bjou_createExprBlockYield);
     ee->addGlobalMapping("bjou_createIf", (uint64_t)&bjou_createIf);
     ee->addGlobalMapping("bjou_createElse", (uint64_t)&bjou_createElse);
     ee->addGlobalMapping("bjou_createFor", (uint64_t)&bjou_createFor);
