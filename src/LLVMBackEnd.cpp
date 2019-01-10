@@ -271,6 +271,7 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createRefExpression", (uint64_t)&bjou_createRefExpression);
     ee->addGlobalMapping("bjou_createAsExpression", (uint64_t)&bjou_createAsExpression);
     ee->addGlobalMapping("bjou_createIdentifier", (uint64_t)&bjou_createIdentifier);
+    ee->addGlobalMapping("bjou_createIdentifierWithInst", (uint64_t)&bjou_createIdentifierWithInst);
     ee->addGlobalMapping("bjou_createBooleanLiteral", (uint64_t)&bjou_createBooleanLiteral);
     ee->addGlobalMapping("bjou_createIntegerLiteral", (uint64_t)&bjou_createIntegerLiteral);
     ee->addGlobalMapping("bjou_createFloatLiteral", (uint64_t)&bjou_createFloatLiteral);

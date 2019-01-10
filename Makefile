@@ -125,7 +125,7 @@ install: bin/$(TARGET)
 	@mkdir -p /usr/local/lib/bjou
 	@mkdir -p /usr/local/lib/bjou/modules
 	@cp bin/$(TARGET) /usr/local/bin/$(TARGET)
-	@rsync -a modules/ /usr/local/lib/bjou/modules/	
+	@cp -r modules/* /usr/local/lib/bjou/modules
 	@cp bjou.h /usr/local/include
 	@cp nolibc_syscall/nolibc_syscall.h /usr/local/include
 	@cp nolibc_syscall/nolibc_syscall.o /usr/local/lib
