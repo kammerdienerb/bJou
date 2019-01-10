@@ -239,6 +239,7 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_getStructName", (uint64_t)&bjou_getStructName);
     ee->addGlobalMapping("bjou_getEnumName", (uint64_t)&bjou_getEnumName);
     ee->addGlobalMapping("bjou_setVarDeclName", (uint64_t)&bjou_setVarDeclName);
+    ee->addGlobalMapping("bjou_createZeroInitExpr", (uint64_t)&bjou_createZeroInitExpr);
     ee->addGlobalMapping("bjou_createAddExpression", (uint64_t)&bjou_createAddExpression);
     ee->addGlobalMapping("bjou_createSubExpression", (uint64_t)&bjou_createSubExpression);
     ee->addGlobalMapping("bjou_createMultExpression", (uint64_t)&bjou_createMultExpression);
