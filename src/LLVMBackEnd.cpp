@@ -295,6 +295,7 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createProcedureDeclarator", (uint64_t)&bjou_createProcedureDeclarator);
     ee->addGlobalMapping("bjou_createAlias", (uint64_t)&bjou_createAlias);
     ee->addGlobalMapping("bjou_createStruct", (uint64_t)&bjou_createStruct);
+    ee->addGlobalMapping("bjou_createEnum", (uint64_t)&bjou_createEnum);
     ee->addGlobalMapping("bjou_createArgList", (uint64_t)&bjou_createArgList);
     ee->addGlobalMapping("bjou_createProcedure", (uint64_t)&bjou_createProcedure);
     ee->addGlobalMapping("bjou_createExternProcedure", (uint64_t)&bjou_createExternProcedure);
