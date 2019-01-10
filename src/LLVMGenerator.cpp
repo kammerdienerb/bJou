@@ -114,8 +114,13 @@ void LLVMGenerator::generate() {
             error(Context(),
                   "Could not open output file for object code emission.");
 
+#if LLVM_VERSION_MAJOR >= 7
+        if (backEnd.defaultTargetMachine->addPassesToEmitFile(pass, *dest, nullptr,
+                                                              ftype))
+#else
         if (backEnd.defaultTargetMachine->addPassesToEmitFile(pass, *dest,
                                                               ftype))
+#endif
             error(Context(), "TargetMachine can't emit a file of this type");
     }
 
