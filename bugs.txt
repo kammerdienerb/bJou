@@ -36,3 +36,11 @@
 ]
 
 -- 'run' macro should call __bjou_rt_init or at least complete the same tasks before executing code
+
+-- Need a better way to manage when macros are executed and when/if their children are analyzed
+[
+    static_if{ cond
+        type T {} }
+    static_if{ not cond
+        type T {} }
+]

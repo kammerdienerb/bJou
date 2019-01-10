@@ -4,7 +4,7 @@
 
 module clang
 
-import "dlfcn.bjou"
+import "c/dlfcn.bjou"
 import "null.bjou"
 
 # global libclang object

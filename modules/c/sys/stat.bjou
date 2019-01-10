@@ -31,29 +31,4 @@ import "c/time.bjou" # time_t, timespec
         st_qspare        : i64[2]
     } }
 
-\static_if{ os.OS != os.MACOS
-    type stat {
-        st_dev       : dev_t
-        st_ino       : ino_t
-        st_mode      : mode_t
-        st_nlink     : nlink_t
-        st_uid       : uid_t
-        st_gid       : gid_t
-        st_rdev      : dev_t
-
-
-        st_atime     : time_t
-        st_atimensec : i64
-        st_mtime     : time_t
-        st_mtimensec : i64
-        st_ctime     : time_t
-        st_ctimensec : i64
-
-        st_size      : off_t
-        st_blocks    : blkcnt_t
-        st_blksize   : blksize_t
-        st_flags     : u32
-        st_gen       : u32
-        st_lspare    : i32
-        st_qspare    : i64[2]
-    } }
+\static_if{ os.OS != os.MACOS    \error{ "not implemented" } }

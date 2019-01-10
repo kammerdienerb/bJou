@@ -115,6 +115,7 @@ abstract type fs {
     # proc readfile(d : fsdir ref) : fsfile {
     # }
 
+    # @incomplete
     proc files(d : fsdir ref, err : errcode ref) : fsfile[...] {
         fls := [...fsfile]
 
@@ -126,7 +127,7 @@ abstract type fs {
         while d.has_next {
             d._e = readdir(d._d)
             d.has_next = not d._e.isnull()
-            fls.push(
+            # fls.push(
         }
 
         return fls

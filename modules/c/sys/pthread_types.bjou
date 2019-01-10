@@ -11,15 +11,6 @@ const __PTHREAD_COND_SIZE__       := 40
 const __PTHREAD_ONCE_SIZE__       := 8
 const __PTHREAD_RWLOCK_SIZE__     := 192
 const __PTHREAD_RWLOCKATTR_SIZE__ := 16
-const __PTHREAD_SIZE__            := 4088
-const __PTHREAD_ATTR_SIZE__       := 36
-const __PTHREAD_MUTEXATTR_SIZE__  := 8
-const __PTHREAD_MUTEX_SIZE__      := 40
-const __PTHREAD_CONDATTR_SIZE__   := 4
-const __PTHREAD_COND_SIZE__       := 24
-const __PTHREAD_ONCE_SIZE__       := 4
-const __PTHREAD_RWLOCK_SIZE__     := 124
-
 
 type _opaque_pthread_mutex_t {
     __sig    : i64
