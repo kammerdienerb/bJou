@@ -264,6 +264,7 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createLogOrExpression", (uint64_t)&bjou_createLogOrExpression);
     ee->addGlobalMapping("bjou_createBANDExpression", (uint64_t)&bjou_createBANDExpression);
     ee->addGlobalMapping("bjou_createBORExpression", (uint64_t)&bjou_createBORExpression);
+    ee->addGlobalMapping("bjou_createBXORExpression", (uint64_t)&bjou_createBXORExpression);
     ee->addGlobalMapping("bjou_createCallExpression", (uint64_t)&bjou_createCallExpression);
     ee->addGlobalMapping("bjou_createSubscriptExpression", (uint64_t)&bjou_createSubscriptExpression);
     ee->addGlobalMapping("bjou_createAccessExpression", (uint64_t)&bjou_createAccessExpression);
