@@ -308,6 +308,7 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createFor", (uint64_t)&bjou_createFor);
     ee->addGlobalMapping("bjou_createWhile", (uint64_t)&bjou_createWhile);
     ee->addGlobalMapping("bjou_createDoWhile", (uint64_t)&bjou_createDoWhile);
+    ee->addGlobalMapping("bjou_createTemplateInst", (uint64_t)&bjou_createTemplateInst);
     ee->addGlobalMapping("bjou_createMacroUse", (uint64_t)&bjou_createMacroUse);
 
     ee->addGlobalMapping("nolibc_syscall", (uint64_t)&nolibc_syscall);
