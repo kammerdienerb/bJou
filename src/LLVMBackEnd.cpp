@@ -165,7 +165,11 @@ void LLVMBackEnd::init() {
         return llvm::createCFGSimplificationPass();
     };
     pass_create_by_name["loop-simplify"] = []() {
+#if LLVM_VERSION_MAJOR >= 7
+        return llvm::createLoopSimplifyCFGPass();
+#else
         return llvm::createLoopSimplifyPass();
+#endif
     };
     pass_create_by_name["loop-unroll"] = []() {
         return llvm::createSimpleLoopUnrollPass();
@@ -3481,9 +3485,17 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
                 llvm::Value * init_v = (llvm::Value *)llbe->getOrGenNode(
                     getInitialization(), true);
 
+#if LLVM_VERSION_MAJOR >= 7
+                llbe->builder.CreateMemCpy(
+                    val, llbe->layout->getABITypeAlignment(ll_t),
+                    init_v, llbe->layout->getABITypeAlignment(ll_t),
+                    llbe->layout->getTypeAllocSize(ll_t));
+#else
                 llbe->builder.CreateMemCpy(
                     val, init_v, llbe->layout->getTypeAllocSize(ll_t),
                     llbe->layout->getABITypeAlignment(ll_t));
+#endif
+
             } else {
                 llvm::Value * init_v =
                     (llvm::Value *)llbe->getOrGenNode(getInitialization());
@@ -4100,7 +4112,11 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                         alloca->getType()->getPointerElementType());
                     auto align = llbe->layout->getABITypeAlignment(
                         alloca->getType()->getPointerElementType());
+#if LLVM_VERSION_MAJOR >= 7
+                    llbe->builder.CreateMemCpy(alloca, align, val, align, size);
+#else
                     llbe->builder.CreateMemCpy(alloca, val, size, align);
+#endif
                 } else {
                     llbe->builder.CreateStore(val, alloca);
                 }
@@ -4184,8 +4200,14 @@ void * Return::generate(BackEnd & backEnd, bool flag) {
             llvm::ConstantInt::get(llvm::Type::getInt64Ty(llbe->llContext),
                                    llbe->layout->getTypeAllocSize(ll_t));
 
+#if LLVM_VERSION_MAJOR >= 7
+        llbe->builder.CreateMemCpy(sret, llbe->layout->getABITypeAlignment(ll_t),
+                                   val, llbe->layout->getABITypeAlignment(ll_t),
+                                   size);
+#else
         llbe->builder.CreateMemCpy(sret, val, size,
                                    llbe->layout->getABITypeAlignment(ll_t));
+#endif
 
         generateFramePreExit(llbe);
         return llbe->builder.CreateRetVoid();
