@@ -15,6 +15,7 @@
 #include "Symbol.hpp"
 
 #include <sstream>
+#include <iterator>
 
 namespace bjou {
 

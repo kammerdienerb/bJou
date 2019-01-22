@@ -130,7 +130,7 @@ nolibc_syscall:
 libclangextras:
 	$(PROGRESS) "Building libclangextras"
 	@mkdir -p lib
-	@$(CXX) $(shell $(LLVM_CFG) --ldflags) -L$(shell $(LLVM_CFG) --prefix)/lib -lclangAST -lclangLex -lclangBasic -lLLVMSupport -lLLVMDemangle -lLLVMCore -lLLVMBinaryFormat -lcurses -shared -fPIC -O3 libclangextras.cpp -o lib/libclangextras.so
+	@$(CXX) $(shell $(LLVM_CFG) --ldflags) -I$(shell $(LLVM_CFG) --prefix)/include -L$(shell $(LLVM_CFG) --prefix)/lib -lclangAST -lclangLex -lclangBasic -lLLVMSupport -lLLVMDemangle -lLLVMCore -lLLVMBinaryFormat -lcurses -std=c++11 -shared -fPIC -O3 libclangextras.cpp -o lib/libclangextras.so
 
 install: bin/$(TARGET)
 	@mkdir -p /usr/local/lib/bjou
