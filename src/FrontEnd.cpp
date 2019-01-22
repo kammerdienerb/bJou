@@ -28,48 +28,10 @@
 
 namespace bjou {
 
-void FrontEnd::fix_typeinfo_v_table_size() {
-    if (!compilation->max_interface_procs)
-        return;
-
-    BJOU_DEBUG_ASSERT(typeTable.count("typeinfo"));
-    StructType * s_t = (StructType *)typeTable["typeinfo"];
-    Struct * s = s_t->_struct;
-
-    // Fix type
-    Type * _v_table_t =
-        (Type *)s_t->memberTypes[s_t->memberIndices["_v_table"]];
-    BJOU_DEBUG_ASSERT(_v_table_t && _v_table_t->isArray());
-    ArrayType * v_table_t = (ArrayType *)_v_table_t;
-    v_table_t->width = compilation->max_interface_procs;
-
-    // Fix original declaration
-    VariableDeclaration * v_table_member = nullptr;
-    for (ASTNode * _mem : s->getMemberVarDecls()) {
-        VariableDeclaration * mem = (VariableDeclaration *)_mem;
-        if (mem->getName() == "_v_table") {
-            v_table_member = mem;
-            break;
-        }
-    }
-    BJOU_DEBUG_ASSERT(v_table_member && v_table_member->getTypeDeclarator());
-    Declarator * _decl = (Declarator *)v_table_member->getTypeDeclarator();
-    BJOU_DEBUG_ASSERT(_decl->nodeKind == ASTNode::ARRAY_DECLARATOR);
-    ArrayDeclarator * decl = (ArrayDeclarator *)_decl;
-    BJOU_DEBUG_ASSERT(decl->expression);
-    BJOU_DEBUG_ASSERT(decl->expression->nodeKind == ASTNode::INTEGER_LITERAL);
-    ASTNode * old = decl->getExpression();
-    decl->setExpression(old->clone());
-    delete old;
-    Expression * expr = (Expression *)decl->getExpression();
-    expr->setContents(std::to_string(compilation->max_interface_procs));
-    decl->size = compilation->max_interface_procs;
-}
-
 FrontEnd::FrontEnd()
-    : typeinfo_struct(nullptr), printf_decl(nullptr), malloc_decl(nullptr),
+    : printf_decl(nullptr), malloc_decl(nullptr),
       free_decl(nullptr), memset_decl(nullptr), memcpy_decl(nullptr),
-      __bjou_rt_init_def(nullptr), n_nodes(0), n_primatives(0) {
+      n_nodes(0), n_primatives(0) {
 
     ctruntime = milliseconds::zero();
 
@@ -108,7 +70,6 @@ FrontEnd::FrontEnd()
         "SUBSCRIPT_EXPRESSION";
     kind2string[ASTNode::NodeKind::CALL_EXPRESSION] = "CALL_EXPRESSION";
     kind2string[ASTNode::NodeKind::ACCESS_EXPRESSION] = "ACCESS_EXPRESSION";
-    kind2string[ASTNode::NodeKind::INJECT_EXPRESSION] = "INJECT_EXPRESSION";
     kind2string[ASTNode::NodeKind::UNARY_PRE_EXPRESSION] =
         "UNARY_PRE_EXPRESSION";
     kind2string[ASTNode::NodeKind::NOT_EXPRESSION] = "NOT_EXPRESSION";
@@ -152,9 +113,6 @@ FrontEnd::FrontEnd()
         "VARIABLE_DECLARATION";
     kind2string[ASTNode::NodeKind::ALIAS] = "ALIAS";
     kind2string[ASTNode::NodeKind::STRUCT] = "STRUCT";
-    kind2string[ASTNode::NodeKind::INTERFACE_DEF] = "INTERFACE_DEF";
-    kind2string[ASTNode::NodeKind::INTERFACE_IMPLEMENTATION] =
-        "INTERFACE_IMPLEMENTATION";
     kind2string[ASTNode::NodeKind::ENUM] = "ENUM";
     kind2string[ASTNode::NodeKind::ARG_LIST] = "ARG_LIST";
     kind2string[ASTNode::NodeKind::THIS] = "THIS";
@@ -235,9 +193,6 @@ milliseconds FrontEnd::go() {
     if (time_arg)
         prettyPrintTimeMin(a_time - ctruntime, "Semantic analysis");
 
-    if (!compilation->args.nopreload_arg)
-        fix_typeinfo_v_table_size();
-
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
 }
@@ -287,8 +242,6 @@ milliseconds FrontEnd::ParseStage() {
                 AST.insert(AST.end(), p.nodes.begin(), p.nodes.end());
                 structs.insert(structs.end(), p.structs.begin(),
                                p.structs.end());
-                ifaceDefs.insert(ifaceDefs.end(), p.ifaceDefs.begin(),
-                                 p.ifaceDefs.end());
 
                 n_lines += p.n_lines;
             }
@@ -321,8 +274,6 @@ milliseconds FrontEnd::ParseStage() {
         for (AsyncParser & p : parserContainer) {
             AST.insert(AST.end(), p.nodes.begin(), p.nodes.end());
             structs.insert(structs.end(), p.structs.begin(), p.structs.end());
-            ifaceDefs.insert(ifaceDefs.end(), p.ifaceDefs.begin(),
-                             p.ifaceDefs.end());
 
             n_lines += p.n_lines;
         }
@@ -372,19 +323,14 @@ milliseconds FrontEnd::SymbolsStage() {
 
     // @incomplete
     // does this work with namespaces? doubt it
-    for (ASTNode * i : ifaceDefs)
-        ((InterfaceDef *)i)->preDeclare(globalScope);
     for (ASTNode * s : structs)
         ((Struct *)s)->preDeclare(globalScope);
 
-    for (ASTNode * i : ifaceDefs)
-        ((InterfaceDef *)i)->addSymbols(globalScope);
     for (ASTNode * s : structs)
         ((Struct *)s)->addSymbols(globalScope);
 
     for (ASTNode * node : AST) {
-        if (node->nodeKind != ASTNode::STRUCT &&
-            node->nodeKind != ASTNode::INTERFACE_DEF)
+        if (node->nodeKind != ASTNode::STRUCT)
             node->addSymbols(globalScope);
     }
 
@@ -493,17 +439,6 @@ milliseconds FrontEnd::ModuleStage() {
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
 }*/
-
-unsigned int FrontEnd::getInterfaceSortKey(std::string key) {
-    static unsigned int n = 0;
-
-    if (interface_sort_keys.count(key))
-        return interface_sort_keys[key];
-
-    interface_sort_keys[key] = n;
-
-    return n++;
-}
 
 std::string FrontEnd::getBuiltinVoidTypeName() const { return "void"; }
 

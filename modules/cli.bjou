@@ -82,15 +82,15 @@ type ArgSwitch extends Arg {
         }
 }
 
-type ArgValue$T extends Arg {
-    val : T
+# type ArgValue$T extends Arg {
+#     val : T
 
-    proc create(parser : ArgParser ref) : ArgValue$T
-        return { ArgValue:
-            .kind   = ArgKind.VAL,
-            .parser = &parser
-        }
-}
+#     proc create(parser : ArgParser ref) : ArgValue$T
+#         return { ArgValue:
+#             .kind   = ArgKind.VAL,
+#             .parser = &parser
+#         }
+# }
 
 type ArgParser {
     prg      : char*
@@ -124,7 +124,7 @@ type ArgParser {
         switch.long  = << if has_long
                             <-cstrdup(long)
                           else <-NULL as char* >>
-        
+      
         this.all.push(switch)
         this.switches.push(switch)
         return @switch
@@ -147,39 +147,39 @@ type ArgParser {
         return this._addSwitch(short, long)
     }
 
-    proc _addValue$T(this, short : char, long : char*) : Arg ref {
-        arg := new ArgValue$T
-        @arg = ArgValue$T.create(this)
+    # proc _addValue$T(this, short : char, long : char*) : Arg ref {
+    #     arg := new ArgValue$T
+    #     @arg = ArgValue$T.create(this)
 
-        arg.short = short
-        has_long := long != NULL as char*
-        arg.long  = << if has_long
-                            <-cstrdup(long)
-                       else <-NULL as char* >>
+    #     arg.short = short
+    #     has_long := long != NULL as char*
+    #     arg.long  = << if has_long
+    #                         <-cstrdup(long)
+    #                    else <-NULL as char* >>
         
-        this.all.push(arg)
-        this.val_args.push(arg)
-        return @arg
-    }
+    #     this.all.push(arg)
+    #     this.val_args.push(arg)
+    #     return @arg
+    # }
     
-    proc addValueInt(this, short : char) : Arg ref
-        return this._addValue$int(short, NULL as char*)
+    # proc addValueInt(this, short : char) : Arg ref
+    #     return this._addValue$int(short, NULL as char*)
 
-    proc addValueFloat(this, long : char*) : Arg ref
-        return this._addValue$float('\0', long)
+    # proc addValueFloat(this, long : char*) : Arg ref
+    #     return this._addValue$float('\0', long)
 
-    proc addValueString(this, short : char, long : char*) : Arg ref
-        return this._addValue$string(short, long)
+    # proc addValueString(this, short : char, long : char*) : Arg ref
+    #     return this._addValue$string(short, long)
 
     proc usage(this) : string {
         u := concat(str("usage: "), str(this.prg), str(" "))
 
-        if |this.switches| > 0
+        if |this.switches| > 0 {
             u.append("[-")
-        foreach sw in this.switches if sw.short
-            u.append(sw.short)
-        if |this.switches| > 0
+            foreach sw in this.switches if sw.short
+                u.append(sw.short)
             u.append(']')
+        }
         foreach sw in this.switches if sw.short == '\0'
             u.append(concat(str(" [--"), str(sw.long), str("]")))
 

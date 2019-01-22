@@ -97,7 +97,6 @@ struct ASTNode {
         SUBSCRIPT_EXPRESSION,
         CALL_EXPRESSION,
         ACCESS_EXPRESSION,
-        INJECT_EXPRESSION,
         UNARY_PRE_EXPRESSION,
         NOT_EXPRESSION,
         BNEG_EXPRESSION,
@@ -140,8 +139,6 @@ struct ASTNode {
         VARIABLE_DECLARATION,
         ALIAS,
         STRUCT,
-        INTERFACE_DEF,
-        INTERFACE_IMPLEMENTATION,
         ENUM,
         ARG_LIST,
         THIS,
@@ -203,7 +200,6 @@ struct ASTNode {
         ASTNode::NodeKind::SUBSCRIPT_EXPRESSION,                               \
         ASTNode::NodeKind::CALL_EXPRESSION,                                    \
         ASTNode::NodeKind::ACCESS_EXPRESSION,                                  \
-        ASTNode::NodeKind::INJECT_EXPRESSION,                                  \
         ASTNode::NodeKind::UNARY_PRE_EXPRESSION,                               \
         ASTNode::NodeKind::NOT_EXPRESSION, ASTNode::NodeKind::BNEG_EXPRESSION, \
         ASTNode::NodeKind::DEREF_EXPRESSION,                                   \
@@ -234,8 +230,7 @@ struct ASTNode {
         ASTNode::NodeKind::PLACEHOLDER_DECLARATOR,                             \
         ASTNode::NodeKind::_END_DECLARATORS, ASTNode::NodeKind::CONSTANT,      \
         ASTNode::NodeKind::VARIABLE_DECLARATION, ASTNode::NodeKind::ALIAS,     \
-        ASTNode::NodeKind::STRUCT, ASTNode::NodeKind::INTERFACE_DEF,           \
-        ASTNode::NodeKind::INTERFACE_IMPLEMENTATION, ASTNode::NodeKind::ENUM,  \
+        ASTNode::NodeKind::STRUCT, ASTNode::NodeKind::ENUM,                    \
         ASTNode::NodeKind::ARG_LIST, ASTNode::NodeKind::THIS,                  \
         ASTNode::NodeKind::PROCEDURE, ASTNode::NodeKind::NAMESPACE,            \
         ASTNode::NodeKind::IMPORT, ASTNode::NodeKind::PRINT,                   \
@@ -280,7 +275,6 @@ struct ASTNode {
         ASTNode::NodeKind::SUBSCRIPT_EXPRESSION,                               \
         ASTNode::NodeKind::CALL_EXPRESSION,                                    \
         ASTNode::NodeKind::ACCESS_EXPRESSION,                                  \
-        ASTNode::NodeKind::INJECT_EXPRESSION,                                  \
         ASTNode::NodeKind::UNARY_PRE_EXPRESSION,                               \
         ASTNode::NodeKind::NOT_EXPRESSION, ASTNode::NodeKind::BNEG_EXPRESSION, \
         ASTNode::NodeKind::DEREF_EXPRESSION,                                   \
@@ -341,6 +335,7 @@ struct ASTNode {
     Context nameContext;
     Scope * scope;
     ASTNode * parent;
+    std::string mod;
     replacementPolicy * replace;
 
     enum eBitFlags E_BIT_FLAGS();
@@ -1066,7 +1061,7 @@ struct Procedure;
 struct CallExpression : BinaryExpression {
     CallExpression();
 
-    enum eBitFlags E_BIT_FLAGS_AND(PAREN, TERMINAL, IDENT, INTERFACE_CALL);
+    enum eBitFlags E_BIT_FLAGS_AND(PAREN, TERMINAL, IDENT);
 
     Procedure * resolved_proc;
 
@@ -1120,7 +1115,6 @@ struct AccessExpression : BinaryExpression {
     CallExpression * injection;
 
     CallExpression * nextCall();
-    int handleInterfaceSpecificCall();
     int handleThroughTemplate();
     int handleAccessThroughDeclarator(bool force);
     int handleContainerAccess();
@@ -1134,28 +1128,6 @@ struct AccessExpression : BinaryExpression {
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
-    // virtual ~AccessExpression();
-    //
-};
-
-/* ============================================================================
- *
- *                               InjectExpression
- *  Expression trees made from the binary call operator '->'.
- *
- * ===========================================================================*/
-
-struct InjectExpression : BinaryExpression {
-    InjectExpression();
-
-    bool isConstant();
-
-    // Node interface
-    virtual void analyze(bool force = false);
-    virtual ASTNode * clone();
-    virtual void dump(std::ostream & stream, unsigned int level = 0,
-                      bool dumpCT = true);
-    // virtual void * generate(BackEnd& backEnd, bool flag = false);
     // virtual ~AccessExpression();
     //
 };
@@ -1403,26 +1375,30 @@ struct AsExpression : UnaryPostExpression {
  *                              Identifier
  *  Extension of Expression. Fields, flags, access, etc. MUST start
  *  with the same items as Expression (in the same order). Represents
- *  identifiers that can be qualified with namespaces. Used in symbol lookup.
+ *  identifiers that can be qualified with modules and types.
+ *  Used in symbol lookup.
  *
  * ===========================================================================*/
 
 struct Identifier : Expression {
     Identifier();
 
-    std::string unqualified;
-    std::string qualified;
-    std::vector<std::string> namespaces;
-    enum eBitFlags E_BIT_FLAGS_AND(PAREN, TERMINAL, IDENT, PREVIOUSLY_QUALIFIED,
-                                   DIRECT_PROC_REF);
+    std::string
+        sym_name,
+        sym_mod,
+        sym_type;
+    enum eBitFlags E_BIT_FLAGS_AND(PAREN, TERMINAL, IDENT);
 
     ASTNode * resolved;
 
-    std::string & getUnqualified();
-    void setUnqualified(std::string _unqualified);
-    std::vector<std::string> & getNamespaces();
-    void setNamespaces(std::vector<std::string> _namespaces);
-    void addNamespace(std::string _nspace);
+    std::string & getSymName();
+    void setSymName(std::string _name);
+    std::string & getSymMod();
+    void setSymMod(std::string _mod);
+    std::string & getSymType();
+    void setSymType(std::string _type);
+
+    std::string symAll() const;
 
     bool isConstant();
     Val eval();
@@ -1944,8 +1920,7 @@ struct Declarator : ASTNode {
     //
 
     // Declarator interface
-    virtual std::string mangleSymbol();
-    virtual std::string mangleAndPrefixSymbol();
+    virtual std::string asString();
     virtual const ASTNode * getBase() const;
     virtual ASTNode * under() const;
     virtual void propagateScope(Scope * _scope);
@@ -1998,8 +1973,7 @@ struct ArrayDeclarator : Declarator {
     //
 
     // Declarator interface
-    virtual std::string mangleSymbol();
-    virtual std::string mangleAndPrefixSymbol();
+    virtual std::string asString();
     virtual const ASTNode * getBase() const;
     virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
@@ -2035,8 +2009,7 @@ struct SliceDeclarator : Declarator {
     //
 
     // Declarator interface
-    virtual std::string mangleSymbol();
-    virtual std::string mangleAndPrefixSymbol();
+    virtual std::string asString();
     virtual const ASTNode * getBase() const;
     virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
@@ -2072,8 +2045,7 @@ struct DynamicArrayDeclarator : Declarator {
     //
 
     // Declarator interface
-    virtual std::string mangleSymbol();
-    virtual std::string mangleAndPrefixSymbol();
+    virtual std::string asString();
     virtual const ASTNode * getBase() const;
     virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
@@ -2110,8 +2082,7 @@ struct PointerDeclarator : Declarator {
     //
 
     // Declarator interface
-    virtual std::string mangleSymbol();
-    virtual std::string mangleAndPrefixSymbol();
+    virtual std::string asString();
     virtual const ASTNode * getBase() const;
     virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
@@ -2148,8 +2119,7 @@ struct RefDeclarator : Declarator {
     //
 
     // Declarator interface
-    virtual std::string mangleSymbol();
-    virtual std::string mangleAndPrefixSymbol();
+    virtual std::string asString();
     virtual const ASTNode * getBase() const;
     virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
@@ -2186,8 +2156,7 @@ struct MaybeDeclarator : Declarator {
     //
 
     // Declarator interface
-    virtual std::string mangleSymbol();
-    virtual std::string mangleAndPrefixSymbol();
+    virtual std::string asString();
     virtual const ASTNode * getBase() const;
     virtual ASTNode * under() const;
     void propagateScope(Scope * _scope);
@@ -2225,8 +2194,7 @@ struct TupleDeclarator : Declarator {
     //
 
     // Declarator interface
-    virtual std::string mangleSymbol();
-    virtual std::string mangleAndPrefixSymbol();
+    virtual std::string asString();
     virtual const ASTNode * getBase() const;
     void propagateScope(Scope * _scope);
 
@@ -2272,8 +2240,7 @@ struct ProcedureDeclarator : Declarator {
     //
 
     // Declarator interface
-    virtual std::string mangleSymbol();
-    virtual std::string mangleAndPrefixSymbol();
+    virtual std::string asString();
     virtual const ASTNode * getBase() const;
     void propagateScope(Scope * _scope);
 
@@ -2283,7 +2250,7 @@ struct ProcedureDeclarator : Declarator {
 /* ============================================================================
  *
  *                              PlaceholderDeclarator
- *  Describes a temporarily unknown type. Used in InterfaceDefs.
+ *  Describes a temporarily unknown type. Used in This.
  *
  * ===========================================================================*/
 
@@ -2303,8 +2270,7 @@ struct PlaceholderDeclarator : Declarator {
     //
 
     // Declarator interface
-    virtual std::string mangleSymbol();
-    virtual std::string mangleAndPrefixSymbol();
+    virtual std::string asString();
     virtual const ASTNode * getBase() const;
     //
 };
@@ -2323,6 +2289,7 @@ struct Constant : ASTNode {
     Constant();
 
     std::string name;
+    std::string lookupName;
     std::string mangledName;
     ASTNode * typeDeclarator;
     ASTNode * initialization;
@@ -2331,9 +2298,11 @@ struct Constant : ASTNode {
 
     std::string & getName();
     void setName(std::string _name);
+    std::string & getLookupName();
+    void setLookupName(std::string _loopupName);
+    ASTNode * getTypeDeclarator() const;
     std::string & getMangledName();
     void setMangledName(std::string _mangledName);
-    ASTNode * getTypeDeclarator() const;
     void setTypeDeclarator(ASTNode * _typeDeclarator);
     ASTNode * getInitialization() const;
     void setInitialization(ASTNode * _initialization);
@@ -2368,6 +2337,7 @@ struct VariableDeclaration : ASTNode {
     VariableDeclaration();
 
     std::string name;
+    std::string lookupName;
     std::string mangledName;
     ASTNode * typeDeclarator;
     ASTNode * initialization;
@@ -2376,6 +2346,8 @@ struct VariableDeclaration : ASTNode {
 
     std::string & getName();
     void setName(std::string _name);
+    std::string & getLookupName();
+    void setLookupName(std::string _loopupName);
     std::string & getMangledName();
     void setMangledName(std::string _mangledName);
     ASTNode * getTypeDeclarator() const;
@@ -2409,15 +2381,15 @@ struct Alias : ASTNode {
     Alias();
 
     std::string name;
-    std::string mangledName;
+    std::string lookupName;
     ASTNode * declarator;
 
     enum eBitFlags E_BIT_FLAGS();
 
     std::string & getName();
     void setName(std::string _name);
-    std::string & getMangledName();
-    void setMangledName(std::string _mangledName);
+    std::string & getLookupName();
+    void setLookupName(std::string _loopupName);
     ASTNode * getDeclarator() const;
     void setDeclarator(ASTNode * _declarator);
 
@@ -2446,23 +2418,23 @@ struct Struct : ASTNode {
     Struct();
 
     std::string name;
+    std::string lookupName;
     std::string mangledName;
     ASTNode * extends;
     std::vector<ASTNode *> memberVarDecls;
     std::vector<ASTNode *> constantDecls;
     std::vector<ASTNode *> memberProcs;
     std::vector<ASTNode *> memberTemplateProcs;
-    std::vector<ASTNode *> interfaceImpls;
 
     ASTNode * inst; // not owned!
-
-    unsigned int n_interface_procs;
 
     enum eBitFlags E_BIT_FLAGS_AND(IS_ABSTRACT, IS_C_UNION,
                                    IS_TEMPLATE_DERIVED);
 
     std::string & getName();
     void setName(std::string _name);
+    std::string & getLookupName();
+    void setLookupName(std::string _loopupName);
     std::string & getMangledName();
     void setMangledName(std::string _mangledName);
     ASTNode * getExtends() const;
@@ -2479,11 +2451,6 @@ struct Struct : ASTNode {
     std::vector<ASTNode *> & getMemberTemplateProcs();
     void setMemberTemplateProcs(std::vector<ASTNode *> _memberTemplateProcs);
     void addMemberTemplateProc(ASTNode * memberTemplateProc);
-    std::vector<ASTNode *> & getInterfaceImpls();
-    void setInterfaceImpls(std::vector<ASTNode *> _interfaceImpls);
-    void addInterfaceImpl(ASTNode * _interfaceImpl);
-
-    std::vector<ASTNode *> getAllInterfaceImplsSorted();
 
     void preDeclare(Scope * _scope);
 
@@ -2501,81 +2468,6 @@ struct Struct : ASTNode {
     //
 };
 
-/* ============================================================================
- *
- *                              InterfaceDef
- *  Represents the definition of an interface which types may implement.
- *
- * ===========================================================================*/
-
-struct InterfaceDef : ASTNode {
-    InterfaceDef();
-
-    std::string name;
-    std::string mangledName;
-    std::map<std::string, std::vector<ASTNode *>> procs;
-
-    enum eBitFlags E_BIT_FLAGS();
-
-    std::string & getName();
-    void setName(std::string _name);
-    std::string & getMangledName();
-    void setMangledName(std::string _mangledName);
-    std::map<std::string, std::vector<ASTNode *>> & getProcs();
-    void setProcs(std::map<std::string, std::vector<ASTNode *>> _procs);
-    void addProcs(std::string key, std::vector<ASTNode *> vals);
-    void addProc(std::string key, ASTNode * val);
-
-    void preDeclare(Scope * _scope);
-    unsigned int totalProcs();
-
-    // Node interface
-    void unwrap(std::vector<ASTNode *> & terminals);
-    ASTNode * clone();
-    void desugar();
-    virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
-    virtual void dump(std::ostream & stream, unsigned int level = 0,
-                      bool dumpCT = true);
-    virtual ~InterfaceDef();
-    //
-};
-
-/* ============================================================================
- *
- *                              InterfaceImplementation
- *  Represents an implementation of an interface within a type definition.
- *
- * ===========================================================================*/
-
-struct InterfaceImplementation : ASTNode {
-    InterfaceImplementation();
-
-    ASTNode * identifier;
-    std::map<std::string, std::vector<ASTNode *>> procs;
-
-    enum eBitFlags E_BIT_FLAGS_AND(PUNT_TO_EXTENSION);
-
-    ASTNode * getIdentifier() const;
-    void setIdentifier(ASTNode * _identifier);
-    std::map<std::string, std::vector<ASTNode *>> & getProcs();
-    void setProcs(std::map<std::string, std::vector<ASTNode *>> _procs);
-    void addProcs(std::string key, std::vector<ASTNode *> vals);
-    void addProc(std::string key, ASTNode * val);
-
-    InterfaceDef * getInterfaceDef();
-
-    // Node interface
-    void unwrap(std::vector<ASTNode *> & terminals);
-    ASTNode * clone();
-    void desugar();
-    virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
-    virtual void dump(std::ostream & stream, unsigned int level = 0,
-                      bool dumpCT = true);
-    virtual ~InterfaceImplementation();
-    //
-};
 
 /* ============================================================================
  *
@@ -2589,6 +2481,7 @@ struct Enum : ASTNode {
     Enum();
 
     std::string name;
+    std::string lookupName;
     std::string mangledName;
     std::vector<std::string> identifiers;
 
@@ -2596,6 +2489,8 @@ struct Enum : ASTNode {
 
     std::string & getName();
     void setName(std::string _name);
+    std::string & getLookupName();
+    void setLookupName(std::string _loopupName);
     std::string & getMangledName();
     void setMangledName(std::string _mangledName);
     std::vector<std::string> & getIdentifiers();
@@ -2677,6 +2572,7 @@ struct Procedure : ASTNode {
     Procedure();
 
     std::string name;
+    std::string lookupName;
     std::string mangledName;
     std::vector<ASTNode *> paramVarDeclarations;
     ASTNode * retDeclarator;
@@ -2686,11 +2582,12 @@ struct Procedure : ASTNode {
     ASTNode * inst; // not owned!
 
     enum eBitFlags E_BIT_FLAGS_AND(IS_ANONYMOUS, IS_TEMPLATE_DERIVED, IS_EXTERN,
-                                   IS_VARARG, IS_TYPE_MEMBER, IS_INTERFACE_DECL,
-                                   IS_INTERFACE_IMPL);
+                                   IS_VARARG, IS_TYPE_MEMBER);
 
     std::string & getName();
     void setName(std::string _name);
+    std::string & getLookupName();
+    void setLookupName(std::string _loopupName);
     std::string & getMangledName();
     void setMangledName(std::string _mangledName);
     std::vector<ASTNode *> & getParamVarDeclarations();
@@ -2720,48 +2617,6 @@ struct Procedure : ASTNode {
                       bool dumpCT = true);
 
     virtual ~Procedure();
-    //
-};
-
-/* ============================================================================
- *
- *                              Namespace
- *  The Namespace node represents a grouping of Symbols under a common name.
- *
- * ===========================================================================*/
-
-struct Namespace : ASTNode {
-    Namespace();
-
-    std::string name;
-    std::vector<ASTNode *> nodes;
-
-    Scope * thisNamespaceScope;
-
-    enum eBitFlags E_BIT_FLAGS();
-
-    std::string & getName();
-    void setName(std::string _name);
-    std::vector<ASTNode *> & getNodes();
-    void setNodes(std::vector<ASTNode *> _nodes);
-    void addNode(ASTNode * _node);
-
-    std::vector<ASTNode *> gather();
-
-    void preDeclare(Scope * _scope);
-
-    // Node interface
-    void unwrap(std::vector<ASTNode *> & terminals);
-    ASTNode * clone();
-    void desugar();
-    virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
-
-    virtual void * generate(BackEnd & backEnd, bool flag = false);
-    virtual void dump(std::ostream & stream, unsigned int level = 0,
-                      bool dumpCT = true);
-
-    virtual ~Namespace();
     //
 };
 
@@ -3255,7 +3110,7 @@ struct With : ASTNode {
  *
  *                              TemplateDefineList
  *  This node is used to define the meta-programming parameters that facilitate
- *  templates for types, procedures, and interfaces in bJou.
+ *  templates for types and procedures in bJou.
  *  '!([TemplateDefineList]) ...'
  *
  * ===========================================================================*/
@@ -3443,6 +3298,7 @@ struct TemplateStruct : ASTNode {
 
     ASTNode * _template;
     ASTNode * templateDef;
+    std::vector<ASTNode*> through_procs;
 
     enum eBitFlags E_BIT_FLAGS();
 
@@ -3472,15 +3328,15 @@ struct TemplateStruct : ASTNode {
 struct TemplateProc : ASTNode {
     TemplateProc();
 
-    std::string mangledName;
+    std::string lookupName;
 
     ASTNode * _template;
     ASTNode * templateDef;
 
     enum eBitFlags E_BIT_FLAGS_AND(IS_TYPE_MEMBER, FROM_THROUGH_TEMPLATE);
 
-    std::string & getMangledName();
-    void setMangledName(std::string _mangledName);
+    std::string & getLookupName();
+    void setLookupName(std::string _loopupName);
     ASTNode * getTemplate() const;
     void setTemplate(ASTNode * __template);
     ASTNode * getTemplateDef() const;

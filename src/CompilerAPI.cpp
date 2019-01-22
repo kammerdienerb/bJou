@@ -174,14 +174,9 @@ extern "C" Scope * bjou_getGlobalScope() {
 extern "C" ASTNode * bjou_clone(ASTNode * node) { return node->clone(); }
 
 extern "C" void bjou_preDeclare(ASTNode * node, Scope * scope) {
-    BJOU_DEBUG_ASSERT(node->nodeKind == ASTNode::STRUCT ||
-                      node->nodeKind == ASTNode::INTERFACE_DEF);
-    if (node->nodeKind == ASTNode::STRUCT)
+    BJOU_DEBUG_ASSERT(node->nodeKind == ASTNode::STRUCT);
+    if (node->nodeKind == ASTNode::STRUCT && "node cannot be predeclared")
         ((Struct *)node)->preDeclare(scope);
-    else if (node->nodeKind == ASTNode::INTERFACE_DEF)
-        ((InterfaceDef *)node)->preDeclare(scope);
-    else
-        BJOU_DEBUG_ASSERT(false && "node cannot be predeclared");
 }
 
 extern "C" void bjou_addSymbols(ASTNode * node, Scope * scope) {
@@ -502,16 +497,6 @@ extern "C" ASTNode * bjou_createAccessExpression(ASTNode * left,
     return node;
 }
 
-extern "C" ASTNode * bjou_createInjectExpression(ASTNode * left,
-                                                 ASTNode * right) {
-    InjectExpression * node = new InjectExpression;
-    node->setContents("->");
-    node->setLeft(left);
-    node->setRight(right);
-
-    return node;
-}
-
 extern "C" ASTNode * bjou_createNewExpression(ASTNode * right) {
     NewExpression * node = new NewExpression;
     node->setContents("new");
@@ -587,14 +572,14 @@ extern "C" ASTNode * bjou_createAsExpression(ASTNode * left, ASTNode * right) {
 
 extern "C" ASTNode * bjou_createIdentifier(const char * unqualified) {
     Identifier * node = new Identifier;
-    node->setUnqualified(unqualified);
+    node->setSymName(unqualified);
 
     return node;
 }
 
 extern "C" ASTNode * bjou_createIdentifierWithInst(const char * unqualified, ASTNode * inst) {
     Identifier * node = new Identifier;
-    node->setUnqualified(unqualified);
+    node->setSymName(unqualified);
     node->setRight(inst);
 
     return node;
@@ -758,8 +743,7 @@ bjou_createStruct(const char * name, ASTNode * extends,
                   ASTNode ** memberVarDecls, int n_memberVarDecls,
                   ASTNode ** constantDecls, int n_constantDecls,
                   ASTNode ** memberProcs, int n_memberProcs,
-                  ASTNode ** memberTemplateProcs, int n_memberTemplateProcs,
-                  ASTNode ** interfaceImpls, int n_interfaceImpls) {
+                  ASTNode ** memberTemplateProcs, int n_memberTemplateProcs) {
 
     Struct * node = new Struct;
     node->setName(name);
@@ -773,8 +757,6 @@ bjou_createStruct(const char * name, ASTNode * extends,
         node->addMemberProc(memberProcs[i]);
     for (int i = 0; i < n_memberTemplateProcs; i += 1)
         node->addMemberTemplateProc(memberTemplateProcs[i]);
-    for (int i = 0; i < n_interfaceImpls; i += 1)
-        node->addInterfaceImpl(interfaceImpls[i]);
 
     return node;
 }

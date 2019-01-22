@@ -1,0 +1,17 @@
+# u642b32
+# u64 to base 32 string
+
+module u642b32
+
+proc u642b32(u : u64) : string {
+    alph := "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+    s    := str()
+
+    do {
+        d := u % 32u64
+        u /= 32
+        s = str(alph[d]).concat(s)
+    } while u > 0
+
+    return s
+}

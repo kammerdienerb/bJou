@@ -7,7 +7,7 @@ type Point { x : int y : int }
 
 proc main() {
 	"creator".hello()
-	"fooworld"[3]->hello()
+	(&"fooworld"[3]).hello()
 	print "%", 2.sum(40)
 	p := { Point: }
 	p.x = 123

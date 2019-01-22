@@ -14,11 +14,12 @@
 #include "Misc.hpp"
 #include "Symbol.hpp"
 
-namespace bjou {
-Scope::Scope(std::string _description, Scope * _parent, bool _nspace)
-    : nspace(_nspace), description(_description), parent(_parent) {}
+#include <sstream>
 
-std::string Scope::mangledPrefix() const { return ""; }
+namespace bjou {
+
+Scope::Scope(std::string _description, Scope * _parent)
+    : description(_description), parent(_parent) {}
 
 Scope::~Scope() {
     for (Scope * scope : scopes)
@@ -27,18 +28,84 @@ Scope::~Scope() {
         delete symbol.second;
 }
 
-NamespaceScope::NamespaceScope(std::string _name, Scope * _parent)
-    : Scope("namespace " + _name, _parent, true), name(_name) {}
+static unsigned damerau_levenshtein_distance(const std::string& s1, const std::string& s2) {
+    unsigned l1, l2, i, j, l_cost;
+    std::vector<std::vector<unsigned> > d;
 
-std::string NamespaceScope::mangledPrefix() const {
-    std::string mangled;
-    if (parent && parent->nspace)
-        mangled = parent->mangledPrefix();
-    mangled += "N" + std::to_string(name.size()) + name;
-    return mangled;
+    l1 = s1.size();
+    l2 = s2.size();
+
+    d.resize(l1+1);
+    for (auto& _d : d)    _d.resize(l2+1);
+   
+    for (i = 0; i <= l1; i++) { d[i][0] = i; }
+    for (j = 0; j <= l2; j++) { d[0][j] = j; }
+
+    for (i = 1; i <= l1; i++) {
+        for (j = 1; j <= l2; j++) {
+            if (s1[i-1] == s2[j-1]) {
+                l_cost = 0;
+            } else {
+                l_cost = 1;
+            }
+
+            d[i][j] = std::min(
+                d[i-1][j] + 1,                  // delete
+                std::min(
+                    d[i][j-1] + 1,              // insert
+                    d[i-1][j-1] + l_cost)       // substitution
+            );
+
+            if ((i > 1)
+            &&  (j > 1)
+            &&  (s1[i-1] == s2[j-2])
+            &&  (s1[i-2] == s2[j-1])) {
+
+                d[i][j] = std::min(
+                            d[i][j],
+                            d[i-2][j-2] + l_cost   // transposition
+                          );
+            }
+        }
+    }
+    return d[l1][l2];
 }
 
-NamespaceScope::~NamespaceScope() {}
+static void collectSimilarSymbols(Scope * scope, std::string symbol, std::vector<std::string> &out) {
+    unsigned thresh = 2;
+
+    std::replace(symbol.begin(), symbol.end(), ':', ' ');
+    std::replace(symbol.begin(), symbol.end(), '.', ' ');
+    std::istringstream iss(symbol);
+    std::vector<std::string> split_symbol(std::istream_iterator<std::string>{iss},
+                                          std::istream_iterator<std::string>());
+
+    while (scope) {
+        for (auto& pair : scope->symbols) {
+            std::string s2_save = pair.first;
+            std::string s2 = s2_save;
+            std::replace(s2.begin(), s2.end(), ':', ' ');
+            std::replace(s2.begin(), s2.end(), '.', ' ');
+            std::istringstream iss2(s2);
+            std::vector<std::string> split_s2(std::istream_iterator<std::string>{iss2},
+                                              std::istream_iterator<std::string>());
+
+            if (split_symbol.size() != split_s2.size())
+                continue;
+
+            unsigned dist = 0;
+            for (int i = 0; i < split_symbol.size(); i += 1) {
+                dist += damerau_levenshtein_distance(split_symbol[i], split_s2[i]);
+            }
+
+            if (dist <= thresh) {
+                out.push_back(s2_save);
+            }
+        }
+
+        scope = scope->parent;
+    }
+}
 
 static void checkUninitialized(Scope * startingScope, Symbol * sym,
                                Context & context) {
@@ -57,7 +124,7 @@ static void checkUninitialized(Scope * startingScope, Symbol * sym,
                 s = s->parent;
             }
             errorl(context,
-                   "'" + sym->demangledString() +
+                   "'" + sym->unmangled +
                        "' might be uninitialized when referenced here.");
         }
     }
@@ -68,31 +135,20 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope, ASTNode * _identifier,
                                  bool checkUninit, bool countAsReference) {
     Identifier * identifier = (Identifier *)_identifier;
 
-    // if (!identifier->qualified.empty())
-    // return getSymbol(identifier->qualified, context, traverse, fail);
+    std::string u = identifier->symAll();
 
-    std::string & u = identifier->getUnqualified();
-
-    if (identifier->namespaces.empty()) {
-        if (symbols.count(u) > 0) {
-            if (checkUninit)
-                checkUninitialized(startingScope, symbols[u], *context);
-            if (countAsReference)
-                symbols[u]->referenced = true;
-            return Maybe<Symbol *>(symbols[u]);
-        }
-        if (traverse && parent)
-            return parent->getSymbol(startingScope, _identifier, context,
-                                     traverse, fail, checkUninit,
-                                     countAsReference);
+    if (symbols.count(u) > 0) {
+        if (checkUninit)
+            checkUninitialized(startingScope, symbols[u], *context);
+        if (countAsReference)
+            symbols[u]->referenced = true;
+        return Maybe<Symbol *>(symbols[u]);
     }
+    if (traverse && parent)
+        return parent->getSymbol(startingScope, _identifier, context,
+                                 traverse, fail, checkUninit,
+                                 countAsReference);
     Scope * scope = compilation->frontEnd.globalScope;
-    for (std::string & nspaceName : identifier->getNamespaces()) {
-        if (scope->namespaces.count(nspaceName))
-            scope = scope->namespaces[nspaceName];
-        else
-            goto end;
-    }
     if (scope->symbols.count(u)) {
         if (checkUninit)
             checkUninitialized(startingScope, scope->symbols[u], *context);
@@ -100,15 +156,29 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope, ASTNode * _identifier,
             scope->symbols[u]->referenced = true;
         return Maybe<Symbol *>(scope->symbols[u]);
     }
-end:
+    
     if (fail) {
-        std::string reportName = mangledIdentifier(identifier);
-        if (context)
+        std::string reportName = identifier->symAll();
+        std::vector<std::string> similar;
+        collectSimilarSymbols(startingScope, u, similar);
+        if (similar.empty()) {
             errorl(*context,
                    "Use of undeclared identifier '" + reportName + "'.");
-        else
-            internalError("getSymbol('" + reportName +
-                          "') failed without a context.");
+        }
+        std::string did_you_mean = "Did you mean ";
+        const char * lazy_comma = "";
+        for (auto& s : similar) {
+            did_you_mean += lazy_comma;
+            if (&s == &similar.back() && similar.size() > 1) {
+                did_you_mean += "or ";
+            }
+            did_you_mean += "'" + s + "'";
+            lazy_comma = ", ";
+        }
+        did_you_mean += "?";
+        BJOU_DEBUG_ASSERT(context);
+        errorl(*context,
+                   "Use of undeclared identifier '" + reportName + "'.", true, did_you_mean);
     }
 
     return Maybe<Symbol *>();
@@ -130,30 +200,38 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope,
         return parent->getSymbol(startingScope, qualifiedIdentifier, context,
                                  traverse, fail, checkUninit, countAsReference);
     if (fail) {
-        if (context)
+        if (context) {
+            std::vector<std::string> similar;
+            collectSimilarSymbols(startingScope, qualifiedIdentifier, similar);
+            if (similar.empty()) {
+                errorl(*context,
+                       "Use of undeclared identifier '" + qualifiedIdentifier + "'.");
+            }
+            std::string did_you_mean = "Did you mean ";
+            const char * lazy_comma = "";
+            for (auto& s : similar) {
+                did_you_mean += lazy_comma;
+                if (&s == &similar.back() && similar.size() > 1) {
+                    did_you_mean += "or ";
+                }
+                did_you_mean += "'" + s + "'";
+                lazy_comma = ", ";
+            }
+            did_you_mean += "?";
+
             errorl(*context, "Use of undeclared identifier '" +
-                                 qualifiedIdentifier + "'.");
-        else
+                                 qualifiedIdentifier + "'.", true, did_you_mean);
+        } else {
             internalError("getSymbol('" + qualifiedIdentifier +
                           "') failed without a context.");
+        }
     }
 
     return Maybe<Symbol *>();
 }
 
 void Scope::addSymbol(Symbol * symbol, Context * context) {
-    if ((!parent || nspace) && symbol->name[symbol->name.size() - 1] == '\'')
-        errorl(symbol->node()->getNameContext(),
-               "Global symbols using the prime notation are disallowed to "
-               "maintain cross-language compatibility.",
-               true, "fix: remove trailing '");
-
-    Symbol * mangled = symbol->mangled(this);
-    Maybe<Symbol *> m_existing;
-    if (nspace)
-        m_existing = getSymbol(this, symbol->name, nullptr, false, false);
-    else
-        m_existing = getSymbol(this, symbol->name, nullptr, true, false);
+    Maybe<Symbol *> m_existing = getSymbol(this, symbol->unmangled, nullptr, true, false);
     Symbol * existing = nullptr;
     if (m_existing.assignTo(existing) &&
         !symbol->node()->getFlag(ASTNode::SYMBOL_OVERWRITE)) {
@@ -162,81 +240,56 @@ void Scope::addSymbol(Symbol * symbol, Context * context) {
             for (auto & psym : procSet->procs) {
                 if (psym.second->node()->getScope() == this) {
                     errorl(*context,
-                           "Redefinition of '" + mangled->demangledString() +
+                           "Redefinition of '" + symbol->unmangled +
                                "' as a different kind of symbol.",
                            false);
                     Context econtext = psym.second->node()->getNameContext();
-                    errorl(econtext, "'" + psym.second->demangledString() +
+                    errorl(econtext, "'" + psym.second->unmangled +
                                          "' defined here.");
                 }
             }
-        } else if (existing->node()->getScope()->parent || existing->node()->getScope() == symbol->node()->getScope()) {
+        } else if (existing->node()->getScope()->parent ||
+                   existing->node()->getScope() == symbol->node()->getScope()) {
+            /* the existing symbol isn't a global or they are both global */
             errorl(*context,
-                   "Redefinition of '" + mangled->demangledString() + "'.",
+                   "Redefinition of '" + symbol->unmangled + "'.",
                    false);
             Context econtext = existing->node()->getNameContext();
             errorl(econtext,
-                   "'" + existing->demangledString() + "' also defined here.");
+                   "'" + existing->unmangled + "' also defined here.");
         }
     }
-    if (symbol->isVar() &&
-        symbol->node()->getFlag(VariableDeclaration::IS_PROC_PARAM))
-        mangled->initializedInScopes.insert(this);
-    symbols[symbol->name] = mangled;
+    if (symbol->isVar()
+    &&  symbol->node()->getFlag(VariableDeclaration::IS_PROC_PARAM))
+        symbol->initializedInScopes.insert(this);
+    symbols[symbol->unmangled] = symbol;
 }
 
-void Scope::addSymbol(_Symbol<Procedure> * symbol, Context * context) {
-    if ((!parent || nspace) && symbol->name[symbol->name.size() - 1] == '\'')
-        errorl(symbol->node()->getNameContext(),
-               "Global symbols using the prime notation are disallowed to "
-               "maintain cross-language compatibility.",
-               true, "fix: remove trailing '");
-
-    Procedure * proc = (Procedure *)symbol->node();
-    Symbol * mangled = symbol->mangled(this);
-
-    std::string name;
-    if (proc->getFlag(Procedure::IS_TYPE_MEMBER)) {
-        Struct * parent = proc->getParentStruct();
-
-        BJOU_DEBUG_ASSERT(parent);
-
-        name = parent->getMangledName() + ".";
-    }
-    name += symbol->name;
-
-    Maybe<Symbol *> m_existing = getSymbol(this, name, nullptr, false, false);
+void Scope::addProcSymbol(Symbol * symbol, bool is_extern, Context * context) {
+    Maybe<Symbol *> m_existing = getSymbol(this, symbol->proc_name, nullptr, false, false);
     Symbol * existing = nullptr;
-    if (m_existing.assignTo(existing) &&
-        existing->node()->nodeKind != ASTNode::PROC_SET &&
-        (existing->node()->getScope()->parent ||
-         !existing->node()->getScope()->nspace)) {
-        if (existing->node()->getFlag(ASTNode::SYMBOL_OVERWRITE)) {
-            existing->node()->setFlag(ASTNode::IGNORE_GEN, true);
-        } else {
+
+    if (m_existing.assignTo(existing)) {
+        if (existing->node()->nodeKind != ASTNode::PROC_SET) {
             errorl(*context,
-                   "Redefinition of '" + mangled->demangledString() +
+                   "Redefinition of '" + symbol->unmangled +
                        "' as a different kind of symbol.",
                    false);
             errorl(existing->node()->getNameContext(),
-                   "'" + existing->demangledString() + "' defined here.");
+                   "'" + symbol->unmangled + "' defined here.");
         }
-    }
 
-    Maybe<Symbol *> m_mangled_existing =
-        getSymbol(this, mangled->name, nullptr, false, false);
-    Symbol * mangled_existing = nullptr;
-    if (m_mangled_existing.assignTo(mangled_existing)) {
-        if (mangled_existing->node()->getFlag(ASTNode::SYMBOL_OVERWRITE)) {
-            mangled_existing->node()->setFlag(ASTNode::IGNORE_GEN, true);
-        } else if (mangled_existing->node()->nodeKind == ASTNode::PROC_SET &&
-                   mangled->node()->getFlag(Procedure::IS_EXTERN)) {
-            ProcSet * set = (ProcSet *)mangled_existing->node();
+        ProcSet * set = (ProcSet*)existing->node();
+
+        if (is_extern) {
             for (auto & sym : set->procs) {
                 if (sym.second->isTemplateProc())
                     continue;
 
                 Procedure * existing_proc = (Procedure *)sym.second->node();
+
+                BJOU_DEBUG_ASSERT(symbol->node()->nodeKind == ASTNode::PROCEDURE);
+                Procedure * proc = (Procedure *)symbol->node();
 
                 if (existing_proc->getFlag(Procedure::IS_EXTERN)) {
                     const Type * t = proc->getType();
@@ -260,226 +313,39 @@ void Scope::addSymbol(_Symbol<Procedure> * symbol, Context * context) {
 
                     if (!proc->getFlag(ASTNode::CT))
                         existing_proc->setFlag(ASTNode::CT, false);
-
-                    // proc->setFlag(ASTNode::IGNORE_GEN, true);
                 }
             }
-        } else {
+        }
+        
+        if (set->procs.count(symbol->unmangled) > 0
+        &&  !is_extern) {
             errorl(*context,
-                   "Redefinition of '" + mangled->demangledString() + "'.",
+                   "Redefinition of '" + symbol->unmangled + "'.",
                    false);
-            errorl(mangled_existing->node()->getNameContext(),
-                   "'" + mangled_existing->demangledString() +
+            errorl(set->procs[symbol->unmangled]->node()->getNameContext(),
+                   "'" + symbol->unmangled +
                        "' also defined here.");
         }
-    }
 
-    // only create a ProcSet if it doesn't clobber another symbol
-
-    // global
-    if (!parent || (nspace && !parent->parent)) {
-        // global ProcSets are only concerned with one layer of namespace
-        // deduction
-        if (compilation->frontEnd.globalScope->symbols.count(name) == 0)
-            compilation->frontEnd.globalScope->symbols[name] =
-                new _Symbol<ProcSet>(name, new ProcSet(name));
-
-        if (compilation->frontEnd.globalScope->symbols[name]
-                ->node()
-                ->nodeKind == ASTNode::PROC_SET) {
-            ProcSet * set =
-                (ProcSet *)compilation->frontEnd.globalScope->symbols[name]
-                    ->node();
-            set->procs[mangled->name] = mangled;
+        set->procs[symbol->unmangled] = symbol;
+    } else {
+        if (symbols.count(symbol->proc_name) == 0) {
+            symbols[symbol->proc_name] = new _Symbol<ProcSet>(symbol->proc_name, new ProcSet(symbol->proc_name));
         }
-
-        // also create another proc set unique to the type/interface combo
-        if (proc->getFlag(Procedure::IS_INTERFACE_IMPL)) {
-            std::string iname = proc->getParentStruct()->getMangledName() + ".";
-            Identifier * ident =
-                (Identifier *)((InterfaceImplementation *)proc->parent)
-                    ->getIdentifier();
-            iname += mangledIdentifier(ident) + "." + proc->getName();
-
-            if (compilation->frontEnd.globalScope->symbols.count(iname) == 0)
-                compilation->frontEnd.globalScope->symbols[iname] =
-                    new _Symbol<ProcSet>(iname, new ProcSet(iname));
-
-            if (compilation->frontEnd.globalScope->symbols[iname]
-                    ->node()
-                    ->nodeKind == ASTNode::PROC_SET) {
-                ProcSet * set =
-                    (ProcSet *)compilation->frontEnd.globalScope->symbols[iname]
-                        ->node();
-                set->procs[mangled->name] = mangled;
-            }
+        if (symbols[symbol->proc_name]->node()->nodeKind == ASTNode::PROC_SET) {
+            ProcSet * set = (ProcSet *)symbols[symbol->proc_name]->node();
+            set->procs[symbol->unmangled] = symbol;
         }
     }
+}
 
-    // local
-    if (symbols.count(name) == 0)
-        symbols[name] = new _Symbol<ProcSet>(name, new ProcSet(name));
-    if (symbols[name]->node()->nodeKind == ASTNode::PROC_SET) {
-        ProcSet * set = (ProcSet *)symbols[name]->node();
-        set->procs[mangled->name] = mangled;
-    }
-
-    // also create another proc set unique to the type/interface combo
-    if (proc->getFlag(Procedure::IS_INTERFACE_IMPL)) {
-        std::string iname = proc->getParentStruct()->getMangledName() + ".";
-        Identifier * ident =
-            (Identifier *)((InterfaceImplementation *)proc->parent)
-                ->getIdentifier();
-        iname += mangledIdentifier(ident) + "." + proc->getName();
-
-        if (symbols.count(name) == 0)
-            symbols[iname] =
-                new _Symbol<ProcSet>(iname, new ProcSet(iname));
-        if (symbols[iname]->node()->nodeKind == ASTNode::PROC_SET) {
-            ProcSet * set = (ProcSet *)symbols[iname]->node();
-            set->procs[mangled->name] = mangled;
-        }
-    }
-
-    // if it's extern and the mangled name is the same, we don't want to clobber
-    // the set
-    if (mangled->name != name)
-        symbols[mangled->name] = mangled;
+void Scope::addSymbol(_Symbol<Procedure> * symbol, Context * context) {
+    Procedure * proc = (Procedure *)symbol->node();
+    addProcSymbol(symbol, proc->getFlag(Procedure::IS_EXTERN), context);
 }
 
 void Scope::addSymbol(_Symbol<TemplateProc> * symbol, Context * context) {
-    if ((!parent || nspace) && symbol->name[symbol->name.size() - 1] == '\'')
-        errorl(symbol->node()->getNameContext(),
-               "Global symbols using the prime notation are disallowed to "
-               "maintain cross-language compatibility.",
-               true, "fix: remove trailing '");
-
-    TemplateProc * template_proc = (TemplateProc *)symbol->node();
-    // Procedure * proc = (Procedure*)template_proc->getTemplate();
-    Symbol * mangled = symbol->mangled(this);
-
-    std::string name;
-
-    if (template_proc->getFlag(TemplateProc::IS_TYPE_MEMBER)) {
-        Struct * s = (Struct *)template_proc->parent;
-        name = s->getMangledName() + ".";
-    }
-    name += symbol->name;
-
-    Maybe<Symbol *> m_existing = getSymbol(this, name, nullptr, false, false);
-    Symbol * existing = nullptr;
-    if (m_existing.assignTo(existing) &&
-        existing->node()->nodeKind != ASTNode::PROC_SET &&
-        existing->node()->getScope()->parent) {
-        if (existing->node()->getFlag(ASTNode::SYMBOL_OVERWRITE)) {
-            existing->node()->setFlag(ASTNode::IGNORE_GEN, true);
-        } else {
-            errorl(*context,
-                   "Redefinition of '" + mangled->demangledString() +
-                       "' as a different kind of symbol.",
-                   false);
-            errorl(existing->node()->getNameContext(),
-                   "'" + existing->demangledString() + "' defined here.");
-        }
-    }
-
-    Maybe<Symbol *> m_mangled_existing =
-        getSymbol(this, mangled->name, nullptr, false, false);
-    Symbol * mangled_existing = nullptr;
-    if (m_mangled_existing.assignTo(mangled_existing)) {
-        if (mangled_existing->node()->getFlag(ASTNode::SYMBOL_OVERWRITE)) {
-            mangled_existing->node()->setFlag(ASTNode::IGNORE_GEN, true);
-        } else {
-            errorl(*context,
-                   "Redefinition of '" + mangled->demangledString() + "'.",
-                   false);
-            errorl(mangled_existing->node()->getNameContext(),
-                   "'" + mangled_existing->demangledString() +
-                       "' also defined here.");
-        }
-    }
-
-    // only create a ProcSet if it doesn't clobber another symbol
-
-    // global
-    if (!parent || (nspace && !parent->parent)) {
-        // global ProcSets are only concerned with one layer of namespace
-        // deduction
-        if (compilation->frontEnd.globalScope->symbols.count(name) == 0)
-            compilation->frontEnd.globalScope->symbols[name] =
-                new _Symbol<ProcSet>(name, new ProcSet(name));
-        if (compilation->frontEnd.globalScope->symbols[name]
-                ->node()
-                ->nodeKind == ASTNode::PROC_SET) {
-            ProcSet * set =
-                (ProcSet *)compilation->frontEnd.globalScope->symbols[name]
-                    ->node();
-            set->procs[mangled->name] = mangled;
-        }
-    }
-
-    // local
-    if (symbols.count(name) == 0)
-        symbols[name] = new _Symbol<ProcSet>(name, new ProcSet(name));
-    if (symbols[name]->node()->nodeKind == ASTNode::PROC_SET) {
-        ProcSet * set = (ProcSet *)symbols[name]->node();
-        set->procs[mangled->name] = mangled;
-    }
-
-    symbols[mangled->name] = mangled;
-}
-
-void createProcSetsForPuntedInterfaceImpl(Struct * s,
-                                          InterfaceImplementation * impl) {
-    Identifier * ident = (Identifier *)impl->getIdentifier();
-    Maybe<Symbol *> m_sym = s->getScope()->getSymbol(s->getScope(), ident);
-    Symbol * sym = nullptr;
-    m_sym.assignTo(sym);
-    BJOU_DEBUG_ASSERT(sym);
-    BJOU_DEBUG_ASSERT(sym->isInterface());
-
-    InterfaceDef * idef = (InterfaceDef *)sym->node();
-
-    for (auto & procs : idef->getProcs()) {
-        std::string name = s->getMangledName() + "." + procs.first;
-        compilation->frontEnd.globalScope->symbols[name] =
-            new _Symbol<ProcSet>(name, new ProcSet(name));
-    }
-}
-
-void createProcSetForInheritedInterfaceImpl(Struct * s,
-                                            InterfaceImplementation * impl) {
-    Identifier * ident = (Identifier *)impl->getIdentifier();
-    Maybe<Symbol *> m_sym = s->getScope()->getSymbol(s->getScope(), ident);
-    Symbol * sym = nullptr;
-    m_sym.assignTo(sym);
-    BJOU_DEBUG_ASSERT(sym);
-    BJOU_DEBUG_ASSERT(sym->isInterface());
-
-    BJOU_DEBUG_ASSERT(impl->parent &&
-                      impl->parent->nodeKind == ASTNode::STRUCT);
-
-    Struct * implementor_struct = (Struct *)impl->parent;
-    InterfaceDef * idef = (InterfaceDef *)sym->node();
-
-    for (auto & procs : idef->getProcs()) {
-        std::string name = s->getMangledName() + "." + procs.first;
-        ProcSet * set = new ProcSet(name);
-        compilation->frontEnd.globalScope->symbols[name] =
-            new _Symbol<ProcSet>(name, set);
-
-        std::string lookup =
-            implementor_struct->getMangledName() + "." + procs.first;
-        Maybe<Symbol *> m_sym = implementor_struct->getScope()->getSymbol(
-            implementor_struct->getScope(), lookup);
-        Symbol * sym = nullptr;
-        m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym);
-        BJOU_DEBUG_ASSERT(sym->isProcSet());
-
-        ProcSet * existing_set = (ProcSet *)sym->node();
-        set->procs = existing_set->procs;
-    }
+    addProcSymbol(symbol, false, context);
 }
 
 void Scope::printSymbols(int indent) const {
@@ -487,9 +353,15 @@ void Scope::printSymbols(int indent) const {
     printf("%s %-76s %s\n", side,
            (std::string(indent * 2, ' ') + "*** " + description + ":").c_str(),
            side);
-    for (auto & sym : symbols)
-        if (sym.second->node()->nodeKind != ASTNode::PROC_SET)
+    for (auto & sym : symbols) {
+        if (sym.second->node()->nodeKind == ASTNode::PROC_SET) {
+            for (auto& p_sym : ((ProcSet*)sym.second->node())->procs) {
+                p_sym.second->tablePrint(indent);
+            }
+        } else {
             sym.second->tablePrint(indent);
+        }
+    }
     for (Scope * scope : scopes)
         scope->printSymbols(indent + 1);
 }

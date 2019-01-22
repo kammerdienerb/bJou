@@ -1,0 +1,12 @@
+# did_you_mean.bjou
+
+macro dyn <<
+    d := [...\common_type(\to_list(\*))]
+    \expand(d.push(\*))
+    <-d
+>>
+
+macro proc
+
+proc main() {
+}

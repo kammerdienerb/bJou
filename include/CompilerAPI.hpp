@@ -109,8 +109,6 @@ extern "C" ASTNode * bjou_createSubscriptExpression(ASTNode * left,
 
 extern "C" ASTNode * bjou_createAccessExpression(ASTNode * left,
                                                  ASTNode * right);
-extern "C" ASTNode * bjou_createInjectExpression(ASTNode * left,
-                                                 ASTNode * right);
 
 extern "C" ASTNode * bjou_createNewExpression(ASTNode * right);
 extern "C" ASTNode * bjou_createDeleteExpression(ASTNode * right);
@@ -171,7 +169,7 @@ extern "C" ASTNode * bjou_createStruct(
     const char * name, ASTNode * extends, ASTNode ** memberVarDecls,
     int n_memberVarDecls, ASTNode ** constantDecls, int n_constantDecls,
     ASTNode ** memberProcs, int n_memberProcs, ASTNode ** memberTemplateProcs,
-    int n_memberTemplateProcs, ASTNode ** interfaceImpls, int n_interfaceImpls);
+    int n_memberTemplateProcs);
 
 extern "C" ASTNode * bjou_createEnum(const char * name, const char ** identifiers, int n_identifiers);
 

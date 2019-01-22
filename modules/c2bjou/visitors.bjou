@@ -5,8 +5,6 @@ module c2bjou_visitors
 import "clang.bjou"
 import "compiler.bjou"
 
-import "dltr.bjou"
-
 type visitor_t = <(CXCursor,      # cursor
                    CXCursor,      # parent
                    CXClientData*) # client_data
@@ -1333,7 +1331,6 @@ proc v_StructDecl(cursor      : CXCursor,
             memberVarDecls.data(), |memberVarDecls|,
             (_nullptr() as ASTNode**), 0,
             (_nullptr() as ASTNode**), 0,
-            (_nullptr() as ASTNode**), 0,
             (_nullptr() as ASTNode**), 0)
 
     delete name
@@ -1392,7 +1389,6 @@ proc v_UnionDecl(cursor      : CXCursor,
             name,
             (_nullptr() as ASTNode*),
             &bytes, 1,
-            (_nullptr() as ASTNode**), 0,
             (_nullptr() as ASTNode**), 0,
             (_nullptr() as ASTNode**), 0,
             (_nullptr() as ASTNode**), 0)

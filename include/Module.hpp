@@ -10,7 +10,6 @@
 #define Module_hpp
 
 #include "ASTNode.hpp"
-#include "Serialization.hpp"
 
 #include <map>
 #include <vector>

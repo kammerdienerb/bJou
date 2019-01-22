@@ -76,7 +76,7 @@ const Type * Type::getBase() const {
 
 const Type * Type::under() const { return this; }
 
-std::string Type::getDemangledName() const { return demangledString(key); }
+std::string Type::getDemangledName() const { return key; }
 
 const Type * Type::replacePlaceholders(const Type * t) const { return this; }
 
@@ -141,7 +141,7 @@ static inline std::string prkey(const std::vector<const Type *> & paramTypes,
 static Declarator * basicDeclarator(const Type * t) {
     Declarator * declarator = new Declarator();
     declarator->context.filename = "<declarator created internally>";
-    declarator->setIdentifier(mangledStringtoIdentifier(t->key));
+    declarator->setIdentifier(stringToIdentifier(t->key));
     /*
     if (this->isStruct()) {
         StructType * s_t = (StructType*)this;
@@ -332,7 +332,7 @@ const Type * SliceType::getRealType() const {
 
     Identifier * ident = new Identifier;
     ident->setScope(compilation->frontEnd.globalScope);
-    ident->setUnqualified("__bjou_slice");
+    ident->setSymName("__bjou_slice");
 
     TemplateInstantiation * new_inst = new TemplateInstantiation;
     new_inst->setScope(compilation->frontEnd.globalScope);
@@ -397,7 +397,7 @@ const Type * DynamicArrayType::getRealType() const {
 
     Identifier * ident = new Identifier;
     ident->setScope(compilation->frontEnd.globalScope);
-    ident->setUnqualified("__bjou_dyn_array");
+    ident->setSymName("__bjou_dyn_array");
 
     new_decl->setIdentifier(ident);
 
@@ -441,8 +441,7 @@ const Type * DynamicArrayType::replacePlaceholders(const Type * t) const {
 StructType::StructType(std::string & name, Struct * __struct,
                        TemplateInstantiation * _inst)
     : Type(STRUCT, name), isAbstract(__struct->getFlag(Struct::IS_ABSTRACT)),
-      isComplete(false), _struct(__struct), inst(_inst), extends(nullptr),
-      idestroy_link(nullptr) {}
+      isComplete(false), _struct(__struct), inst(_inst), extends(nullptr)        {}
 
 const Type * StructType::get(std::string name) {
     return getOrAddType<StructType>(name, name);
@@ -454,9 +453,7 @@ const Type * StructType::get(std::string name, Struct * _struct,
 }
 
 static void insertProcSet(StructType * This, Procedure * proc) {
-    // if (This->memberProcs.find(proc->getName()) == This->memberProcs.end()) {
-    std::string lookup =
-        This->_struct->getMangledName() + "." + proc->getName();
+    std::string lookup = This->_struct->getLookupName() + "." + proc->getName();
     Maybe<Symbol *> m_sym =
         This->_struct->getScope()->getSymbol(This->_struct->getScope(), lookup);
     Symbol * sym = nullptr;
@@ -476,10 +473,18 @@ void StructType::complete() {
 
     int i = 0;
     if (_struct->getExtends()) {
-        extends = (Type *)_struct->getExtends()->getType(); // @leak?
+        extends = (Type *)_struct->getExtends()->getType();
         StructType * extends_s = (StructType *)extends;
         memberIndices = extends_s->memberIndices;
         memberTypes = extends_s->memberTypes;
+        /* @here -- We should probably not do this next line. *
+         * Instead, I think we should add a map to StructType
+         * that maps inherited procs to the originating struct
+         * type. Then, in AccessExpression::handleContainerAccess(), 
+         * when we don't find the proc name in 'memberProcs', we can
+         * look in the map and create an identifier with the left
+         * side being the name of the struct that the proc maps to.
+         */
         memberProcs = extends_s->memberProcs;
         i += memberTypes.size();
     }
@@ -512,40 +517,11 @@ void StructType::complete() {
         insertProcSet(this, proc);
     }
 
-    unsigned int interface_idx = 0;
-
-    for (ASTNode * _impl : _struct->getAllInterfaceImplsSorted()) {
-        InterfaceImplementation * impl = (InterfaceImplementation *)_impl;
-        Identifier * implIdent = (Identifier *)impl->getIdentifier();
-        interfaces.insert(mangledIdentifier(implIdent));
-        int i = 0;
-        for (auto & procs : impl->getProcs()) {
-            for (ASTNode * _proc : procs.second) {
-                Procedure * proc = (Procedure *)_proc;
-
-                interfaceIndexMap[proc] = interface_idx;
-                interface_idx += 1;
-                insertProcSet(this, proc);
-
-                i += 1;
-            }
-        }
-    }
     isComplete = true;
-}
-
-bool StructType::implementsInterfaces() const {
-    BJOU_DEBUG_ASSERT(isComplete);
-
-    return interfaces.size() != 0;
 }
 
 Declarator * StructType::getGenericDeclarator() const {
     return basicDeclarator(this);
-}
-
-std::string StructType::getDemangledName() const {
-    return demangledString(key);
 }
 
 EnumType::EnumType(std::string & name, Enum * __enum)
@@ -570,10 +546,6 @@ const Type * EnumType::get(std::string name, Enum * __enum) {
 
 Declarator * EnumType::getGenericDeclarator() const {
     return basicDeclarator(this);
-}
-
-std::string EnumType::getDemangledName() const {
-    return demangledString(key);
 }
 
 IntegerLiteral * EnumType::getValueLiteral(std::string& identifier, Context & context, Scope * scope) const {
@@ -612,18 +584,6 @@ Declarator * TupleType::getGenericDeclarator() const {
         decl->addSubDeclarator(st->getGenericDeclarator());
     decl->createdFromType = true;
     return decl;
-}
-
-std::string TupleType::getDemangledName() const {
-    std::string demangled = "(";
-    for (const Type * const & st : types) {
-        demangled += st->getDemangledName();
-        if (&st != &types.back())
-            demangled += ", ";
-    }
-    demangled += ")";
-
-    return demangled;
 }
 
 const Type * TupleType::replacePlaceholders(const Type * t) const {
@@ -1111,9 +1071,9 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
                 // @todo add suport for aliases
             }
             */
-            std::string demangledA = demangledString(nonPrimatives[0]->key);
+            std::string demangledA = nonPrimatives[0]->key;
             std::string demangledB =
-                demangledString(badTerm->getType()->getBase()->key); // @leak
+                badTerm->getType()->getBase()->key;
             ref_context = badTerm->getContext();
             errorl(t_context,
                    "Definition of type '" + demangledA +
@@ -1187,8 +1147,6 @@ unsigned int simpleSizer(const Type * t) {
         StructType * s_t = (StructType *)t;
         for (const Type * m_t : s_t->memberTypes)
             size += simpleSizer(m_t);
-        if (s_t->implementsInterfaces())
-            size += sizeof(void *);
     } else if (t->isEnum()) {
         size = 8;
     } else if (t->isTuple()) {
@@ -1205,7 +1163,7 @@ unsigned int simpleSizer(const Type * t) {
 int countConversions(ProcedureType * compare_type,
                      ProcedureType * candidate_type) {
     int nconv = 0;
-    for (int i = 0; i < (int)candidate_type->paramTypes.size(); i += 1) {
+    for (int i = 0; i < (int)compare_type->paramTypes.size(); i += 1) {
         const Type * t1 = compare_type->paramTypes[i];
         const Type * t2 = candidate_type->paramTypes[i];
         if (!conv(t1, t2))

@@ -85,14 +85,6 @@ void init_replacementPolicies() {
         ASTNode::NodeKind::PROCEDURE};
     rpget<replacementPolicy_Struct_MemberTemplateProc>()->allowed_nodeKinds = {
         ASTNode::NodeKind::TEMPLATE_PROC};
-    rpget<replacementPolicy_Struct_InterfaceImpl>()->allowed_nodeKinds = {
-        ASTNode::NodeKind::INTERFACE_IMPLEMENTATION};
-    rpget<replacementPolicy_InterfaceDef_Proc>()->allowed_nodeKinds = {
-        ASTNode::NodeKind::PROCEDURE};
-    rpget<replacementPolicy_InterfaceImplementation_Identifier>()
-        ->allowed_nodeKinds = {ASTNode::NodeKind::IDENTIFIER};
-    rpget<replacementPolicy_InterfaceImplementation_Proc>()
-        ->allowed_nodeKinds = {ASTNode::NodeKind::PROCEDURE};
     rpget<replacementPolicy_ArgList_Expressions>()->allowed_nodeKinds = {
         ANY_EXPRESSION};
     rpget<replacementPolicy_Procedure_ParamVarDeclaration>()
@@ -103,7 +95,6 @@ void init_replacementPolicies() {
         ANY_DECLARATOR};
     rpget<replacementPolicy_Procedure_Statement>()->allowed_nodeKinds = {
         ANY_STATEMENT};
-    rpget<replacementPolicy_Namespace_Node>()->allowed_nodeKinds = {ANY_NODE};
     rpget<replacementPolicy_Print_Args>()->allowed_nodeKinds = {ANY_EXPRESSION};
     rpget<replacementPolicy_Return_Expression>()->allowed_nodeKinds = {
         ANY_EXPRESSION};
@@ -450,58 +441,6 @@ RP_FUNCTOR_IMPL(
 
     return new_node;);
 RP_FUNCTOR_IMPL(
-    Struct_InterfaceImpl, Struct * parent_struct = (Struct *)parent;
-    auto found_node = std::find(parent_struct->getInterfaceImpls().begin(),
-                                parent_struct->getInterfaceImpls().end(),
-                                old_node);
-    if (found_node == parent_struct->getInterfaceImpls().end())
-        internalError("node to replace not found in "
-                      "replacementPolicy_Struct_InterfaceImpl()");
-
-    *found_node = new_node; new_node->parent = parent;
-    new_node->replace = rpget<replacementPolicy_Struct_InterfaceImpl>();
-
-    return new_node;);
-RP_FUNCTOR_IMPL(
-    InterfaceDef_Proc, InterfaceDef * parent_def = (InterfaceDef *)parent;
-    ASTNode ** found_node = nullptr; for (auto & it
-                                          : parent_def->getProcs()) {
-        auto node = std::find(it.second.begin(), it.second.end(), old_node);
-        if (node != it.second.end()) {
-            found_node = node.base();
-            break;
-        }
-    } if (!found_node) internalError("node to replace not found in "
-                                     "replacementPolicy_InterfaceDef_Proc()");
-
-    *found_node = new_node; new_node->parent = parent;
-    new_node->replace = rpget<replacementPolicy_InterfaceDef_Proc>();
-
-    return new_node;);
-RP_FUNCTOR_IMPL(InterfaceImplementation_Identifier,
-                BJOU_DEBUG_ASSERT(((InterfaceImplementation *)parent)
-                                      ->getIdentifier() == old_node);
-                ((InterfaceImplementation *)parent)->setIdentifier(new_node);
-                return new_node;);
-RP_FUNCTOR_IMPL(
-    InterfaceImplementation_Proc,
-    InterfaceImplementation * parent_impl = (InterfaceImplementation *)parent;
-    ASTNode ** found_node = nullptr; for (auto & it
-                                          : parent_impl->getProcs()) {
-        auto node = std::find(it.second.begin(), it.second.end(), old_node);
-        if (node != it.second.end()) {
-            found_node = node.base();
-            break;
-        }
-    } if (!found_node)
-        internalError("node to replace not found in "
-                      "replacementPolicy_InterfaceImplementation_Proc()");
-
-    *found_node = new_node; new_node->parent = parent;
-    new_node->replace = rpget<replacementPolicy_InterfaceImplementation_Proc>();
-
-    return new_node;);
-RP_FUNCTOR_IMPL(
     ArgList_Expressions, ArgList * parent_args = (ArgList *)parent;
     auto found_node = std::find(parent_args->getExpressions().begin(),
                                 parent_args->getExpressions().end(), old_node);
@@ -546,17 +485,6 @@ RP_FUNCTOR_IMPL(
 
     *found_node = new_node; new_node->parent = parent;
     new_node->replace = rpget<replacementPolicy_Procedure_Statement>();
-
-    return new_node;);
-RP_FUNCTOR_IMPL(
-    Namespace_Node, Namespace * parent_nspace = (Namespace *)parent;
-    auto found_node = std::find(parent_nspace->getNodes().begin(),
-                                parent_nspace->getNodes().end(), old_node);
-    if (found_node == parent_nspace->getNodes().end()) internalError(
-        "node to replace not found in replacementPolicy_Namespace_Node()");
-
-    *found_node = new_node; new_node->parent = parent;
-    new_node->replace = rpget<replacementPolicy_Namespace_Node>();
 
     return new_node;);
 RP_FUNCTOR_IMPL(Print_Args,

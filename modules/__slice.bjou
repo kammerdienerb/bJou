@@ -28,7 +28,7 @@ type __bjou_slice$T {
         if _i >= \__slice_len{_s}
         or _i < 0 {
             buff : char[1024]
-            buff.sprintf("slice index out of bounds (index = %d, length = %d)\n    at %s :: %d :: %d",
+            buff.sprintf("slice index out of bounds (index = %llu, length = %llu)\n    at %s :: %d :: %d",
                          _i, \__slice_len{_s}, _loc_f, _loc_l, _loc_c)
             \die{ buff }
         }

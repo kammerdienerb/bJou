@@ -16,20 +16,6 @@ type __bjou_dyn_array$T {
             .__data     = new T[__bjou_dyn_array$T.INIT_SIZE]
         }
     }
-
-    # ~ { free(this) }
-
-# @note @temporary
-# Taking this out until we figure out the best way to handle temporary values with destructors
-
-#     implements idestroy {
-#         proc destroy(this) {
-#             delete this.__data
-#             this.__capacity = 0
-#             this.__used = 0
-#         }     
-#     }
-
 }
 
 proc free$T(da : T[...] ref) {
@@ -50,7 +36,7 @@ proc free$T(da : T[...] ref) {
         if _i >= |_s|
         or _i < 0 {
             buff : char[1024]
-            buff.sprintf("dynamic array index out of bounds (index = %d, length = %d)\n    at %s :: %d :: %d",
+            buff.sprintf("dynamic array index out of bounds (index = %llu, length = %llu)\n    at %s :: %d :: %d",
                          _i, |_s|, _loc_f, _loc_l, _loc_c)
             \die{ buff }
         }

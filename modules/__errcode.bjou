@@ -2,8 +2,6 @@
 
 module __errcode
 
-extern memset(void*, int, u64) : void*
-
 type errcode = int
 
 const NO_ERR            := 0

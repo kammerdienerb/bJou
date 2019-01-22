@@ -219,11 +219,9 @@ type dict$(keyT, valT) {
     proc len(this) : u64
         return this._len
 
-    implements idestroy {
-        proc destroy(this) {
-            if not this._root.isnull()
-                (@this._root).free()
-        }     
+    proc free(this) {
+        if not this._root.isnull()
+            (@this._root).free()
     }
 }
 

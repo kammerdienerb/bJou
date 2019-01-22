@@ -270,7 +270,6 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createCallExpression", (uint64_t)&bjou_createCallExpression);
     ee->addGlobalMapping("bjou_createSubscriptExpression", (uint64_t)&bjou_createSubscriptExpression);
     ee->addGlobalMapping("bjou_createAccessExpression", (uint64_t)&bjou_createAccessExpression);
-    ee->addGlobalMapping("bjou_createInjectExpression", (uint64_t)&bjou_createInjectExpression);
     ee->addGlobalMapping("bjou_createNewExpression", (uint64_t)&bjou_createNewExpression);
     ee->addGlobalMapping("bjou_createDeleteExpression", (uint64_t)&bjou_createDeleteExpression);
     ee->addGlobalMapping("bjou_createSizeofExpression", (uint64_t)&bjou_createSizeofExpression);
@@ -356,21 +355,17 @@ void * LLVMBackEnd::run(Procedure * proc, void * _val_args) {
     jit_reset();
 
     // just in case
-    getOrGenNode(compilation->frontEnd.printf_decl);
-    getOrGenNode(compilation->frontEnd.malloc_decl);
-    getOrGenNode(compilation->frontEnd.free_decl);
-    getOrGenNode(compilation->frontEnd.memset_decl);
-    getOrGenNode(compilation->frontEnd.memcpy_decl);
-    getOrGenNode(compilation->frontEnd.__bjou_rt_init_def);
+    if (!compilation->args.nopreload_arg) {
+        getOrGenNode(compilation->frontEnd.printf_decl);
+        getOrGenNode(compilation->frontEnd.malloc_decl);
+        getOrGenNode(compilation->frontEnd.free_decl);
+        getOrGenNode(compilation->frontEnd.memset_decl);
+        getOrGenNode(compilation->frontEnd.memcpy_decl);
+        getOrGenNode(compilation->frontEnd.__bjou_rt_init_def);
+    }
 
     llvm::Function * fn = (llvm::Function *)getOrGenNode(proc);
     std::string name = fn->getName().str();
-
-    // @bad
-    // have to make a quick fix since, in normal compilation,
-    // this happens after analysis rather than in the middle of it
-    if (!compilation->args.nopreload_arg)
-        compilation->frontEnd.fix_typeinfo_v_table_size();
 
     completeTypes();
     completeGlobs();
@@ -705,8 +700,7 @@ static void genDeps(ASTNode * node, LLVMBackEnd & llbe) {
                 if (r->nodeKind == ASTNode::PROCEDURE ||
                     r->nodeKind == ASTNode::CONSTANT ||
                     (r->nodeKind == ASTNode::VARIABLE_DECLARATION &&
-                     (!r->getScope()->parent ||
-                      r->getScope()->parent->nspace))) {
+                     (!r->getScope()->parent))) {
 
                     llbe.getOrGenNode(r);
                 }
@@ -724,8 +718,7 @@ void LLVMBackEnd::genStructProcs(Struct * s) {
         for (auto & _proc : set.second->procs) {
             Procedure * proc = (Procedure *)_proc.second->node();
             if (!_proc.second->isTemplateProc() &&
-                proc->getParentStruct() == s &&
-                !proc->getFlag(Procedure::IS_INTERFACE_DECL)) {
+                proc->getParentStruct() == s) {
 
                 getOrGenNode(proc);
             }
@@ -919,7 +912,6 @@ milliseconds LLVMBackEnd::CodeGenStage() {
     generated_types.clear();
     types_need_completion.clear();
     procs_need_completion.clear();
-    globaltypeinfos.clear();
     generatedTypeMemberConstants.clear();
 
     frames.clear(); // clear jit frames if any
@@ -927,12 +919,14 @@ milliseconds LLVMBackEnd::CodeGenStage() {
     pushFrame();
 
     // just in case
-    getOrGenNode(compilation->frontEnd.printf_decl);
-    getOrGenNode(compilation->frontEnd.malloc_decl);
-    getOrGenNode(compilation->frontEnd.free_decl);
-    getOrGenNode(compilation->frontEnd.memset_decl);
-    getOrGenNode(compilation->frontEnd.memcpy_decl);
-    getOrGenNode(compilation->frontEnd.__bjou_rt_init_def);
+    if (!compilation->args.nopreload_arg) {
+        getOrGenNode(compilation->frontEnd.printf_decl);
+        getOrGenNode(compilation->frontEnd.malloc_decl);
+        getOrGenNode(compilation->frontEnd.free_decl);
+        getOrGenNode(compilation->frontEnd.memset_decl);
+        getOrGenNode(compilation->frontEnd.memcpy_decl);
+        getOrGenNode(compilation->frontEnd.__bjou_rt_init_def);
+    }
 
     // global variables and constants may reference procs
     // or types that have not been declared yet
@@ -1114,65 +1108,6 @@ milliseconds LLVMBackEnd::LinkingStage() {
 
 void LLVMBackEnd::pushFrame() { frames.emplace_back(); }
 
-static llvm::Value * createidestroyCall(LLVMBackEnd * llbe, llvm::Value * val,
-                                        StructType * s_t) {
-    BJOU_DEBUG_ASSERT(s_t->implementsInterfaces());
-
-    llvm::PointerType * ll_byte_ptr_t =
-        llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
-
-    Procedure * proc = s_t->idestroy_link;
-    BJOU_DEBUG_ASSERT(proc);
-
-    BJOU_DEBUG_ASSERT(s_t->interfaceIndexMap.count(proc));
-    unsigned int idx = s_t->interfaceIndexMap[proc];
-    llvm::Constant * idx_val =
-        llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), idx);
-
-    llvm::Value * typeinfo =
-        (llvm::GlobalVariable *)llbe->getGlobaltypeinfo(s_t->_struct);
-    BJOU_DEBUG_ASSERT(typeinfo);
-    StructType * typeinfo_t =
-        (StructType *)compilation->frontEnd.typeTable["typeinfo"];
-    llvm::StructType * ll_typeinfo_t =
-        (llvm::StructType *)llbe->getOrGenType(typeinfo_t);
-
-    llvm::Value * typeinfo_cast = llbe->builder.CreateBitCast(
-        val, ll_typeinfo_t->getPointerTo()->getPointerTo());
-    llvm::Value * typeinfo_addr =
-        llbe->builder.CreateLoad(typeinfo_cast, "typeinfo_load");
-    llvm::Value * v_table_cast = llbe->builder.CreateBitCast(
-        typeinfo_addr, ll_byte_ptr_t->getPointerTo());
-
-    std::vector<llvm::Value *> gep_indices{idx_val};
-    llvm::Value * gep =
-        llbe->builder.CreateInBoundsGEP(v_table_cast, gep_indices);
-
-    llvm::Value * callee = llbe->builder.CreateLoad(gep, "v_table_load");
-
-    BJOU_DEBUG_ASSERT(callee);
-
-    llvm::Value * fn = llbe->builder.CreateBitCast(
-        callee, llbe->getOrGenType(proc->getType()));
-
-    return llbe->builder.CreateCall(fn, {val});
-}
-
-static void generateFramePreExit(LLVMBackEnd * llbe, StackFrame f) {
-    for (auto it = f.vals.rbegin(); it != f.vals.rend(); it++) {
-        if (it->type->isStruct()) {
-            StructType * s_t = (StructType *)it->type;
-            if (s_t->interfaces.find("idestroy") != s_t->interfaces.end()) {
-                createidestroyCall(llbe, it->val, s_t);
-            }
-        }
-    }
-}
-
-static void generateFramePreExit(LLVMBackEnd * llbe) {
-    generateFramePreExit(llbe, llbe->curFrame());
-}
-
 StackFrame & LLVMBackEnd::curFrame() { return frames.back(); }
 
 void LLVMBackEnd::popFrame() {
@@ -1319,14 +1254,9 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
         case Type::CHAR:
             return llvm::IntegerType::get(llContext, 8);
         case Type::STRUCT: {
-            // have to be really sneaky here
-            // load the type into the map before we run getOrGenNode()
-            // because Struct::generate() will call createGlobaltypeinfo()
-            // which will call getOrGenType() which will infinitely recurse
-            // unless we load the table preemptively
-            llvm::Type * ll_t = llvm::StructType::create(llContext, t->key);
-            generated_types[t] = ll_t;
             Struct * s = ((StructType *)t)->_struct;
+            llvm::Type * ll_t = llvm::StructType::create(llContext, s->getMangledName());
+            generated_types[t] = ll_t;
             s->analyze();
             genStructProcs(s);
             getOrGenNode(s);
@@ -1460,13 +1390,15 @@ void LLVMBackEnd::completeMainEntryPoint(llvm::Function * func) {
 
     builder.SetInsertPoint(&func->back());
 
-    llvm::Function * rt_init_fn = llModule->getFunction(
-        compilation->frontEnd.__bjou_rt_init_def->getMangledName());
-    BJOU_DEBUG_ASSERT(rt_init_fn);
-    std::vector<llvm::Value *> args;
-    args.push_back(getNamedVal("__bjou_main_arg0"));
-    args.push_back(getNamedVal("__bjou_main_arg1"));
-    builder.CreateCall(rt_init_fn, args);
+    if (!compilation->args.nopreload_arg) {
+        llvm::Function * rt_init_fn = llModule->getFunction(
+            compilation->frontEnd.__bjou_rt_init_def->getMangledName());
+        BJOU_DEBUG_ASSERT(rt_init_fn);
+        std::vector<llvm::Value *> args;
+        args.push_back(getNamedVal("__bjou_main_arg0"));
+        args.push_back(getNamedVal("__bjou_main_arg1"));
+        builder.CreateCall(rt_init_fn, args);
+    }
 
     for (ASTNode * node : compilation->frontEnd.AST) {
         if (node->isStatement()) {
@@ -1537,112 +1469,6 @@ llvm::Value * LLVMBackEnd::createGlobalStringVariable(std::string str) {
 
     return llvm::ConstantExpr::getGetElementPtr(var_t, global_var, indices,
                                                 true);
-}
-
-llvm::ConstantArray * LLVMBackEnd::create_v_table_constant_array(Struct * s) {
-    StructType * s_t = (StructType *)s->getType();
-
-    BJOU_DEBUG_ASSERT(s_t->implementsInterfaces());
-
-    llvm::PointerType * ll_byte_ptr_t =
-        llvm::Type::getInt8Ty(llContext)->getPointerTo();
-    std::vector<llvm::Constant *> vals(
-        compilation->max_interface_procs,
-        llvm::ConstantPointerNull::get(ll_byte_ptr_t));
-
-    int i = 0;
-
-    for (ASTNode * _impl : s->getAllInterfaceImplsSorted()) {
-        InterfaceImplementation * impl = (InterfaceImplementation *)_impl;
-
-        for (auto & procs : impl->getProcs()) {
-            for (auto & _proc : procs.second) {
-                if (!impl->getFlag(
-                        InterfaceImplementation::PUNT_TO_EXTENSION)) {
-                    Procedure * proc = (Procedure *)_proc;
-                    llvm::Constant * fn_val =
-                        (llvm::Constant *)getNamedVal(proc->getMangledName());
-                    BJOU_DEBUG_ASSERT(fn_val);
-                    llvm::Constant * cast =
-                        (llvm::Constant *)builder.CreateBitCast(fn_val,
-                                                                ll_byte_ptr_t);
-                    vals[i] = cast;
-                }
-                i += 1;
-            }
-        }
-    }
-
-    StructType * typeinfo_t =
-        (StructType *)compilation->frontEnd.typeTable["typeinfo"];
-
-    llvm::ArrayType * _v_table_t = (llvm::ArrayType *)getOrGenType(
-        typeinfo_t->memberTypes[typeinfo_t->memberIndices["_v_table"]]);
-
-    llvm::ConstantArray * c =
-        (llvm::ConstantArray *)llvm::ConstantArray::get(_v_table_t, vals);
-
-    return c;
-}
-
-llvm::Value * LLVMBackEnd::createGlobaltypeinfo(Struct * s) {
-    if (!compilation->frontEnd.typeinfo_struct)
-        internalError("typeinfo_struct unavailable");
-
-    BJOU_DEBUG_ASSERT(((StructType *)s->getType())->implementsInterfaces());
-
-    StructType * typeinfo_t =
-        (StructType *)compilation->frontEnd.typeinfo_struct->getType();
-    llvm::StructType * ll_typeinfo_t =
-        (llvm::StructType *)getOrGenType(typeinfo_t);
-    BJOU_DEBUG_ASSERT(typeinfo_t);
-    llvm::GlobalVariable * global_var = new llvm::GlobalVariable(
-        /*Module=*/*llModule,
-        /*Type=*/ll_typeinfo_t,
-        /*isConstant=*/true,
-        /*Linkage=*/llvm::GlobalValue::PrivateLinkage,
-        /*Initializer=*/0, // has initializer, specified below
-        /*Name=*/"__bjou_typeinfo_" + s->getMangledName());
-
-    // global_var->setAlignment(layout->getPreferredAlignment(global_var));
-    global_var->setUnnamedAddr(llvm::GlobalVariable::UnnamedAddr::Global);
-
-    std::vector<llvm::Constant *> vals;
-
-    // _v_table
-    BJOU_DEBUG_ASSERT(typeinfo_t->memberIndices.count("_v_table"));
-    BJOU_DEBUG_ASSERT(typeinfo_t->memberIndices["_v_table"] == 0);
-    const Type * _v_table_t = typeinfo_t->memberTypes[0];
-    BJOU_DEBUG_ASSERT(_v_table_t->isArray() &&
-                      _v_table_t->under()->isPointer());
-
-    vals.push_back(create_v_table_constant_array(s));
-
-    // _typename
-    BJOU_DEBUG_ASSERT(typeinfo_t->memberIndices.count("_typename"));
-    BJOU_DEBUG_ASSERT(typeinfo_t->memberIndices["_typename"] == 1);
-    const Type * _typename_t = typeinfo_t->memberTypes[1];
-    BJOU_DEBUG_ASSERT(_typename_t->isPointer() &&
-                      _typename_t->under() == CharType::get());
-
-    vals.push_back((llvm::Constant *)createGlobalStringVariable(
-        demangledString(s->getMangledName())));
-
-    llvm::Constant * init = llvm::ConstantStruct::get(ll_typeinfo_t, vals);
-
-    BJOU_DEBUG_ASSERT(init);
-
-    global_var->setInitializer(init);
-
-    globaltypeinfos[s->getMangledName()] = global_var;
-
-    return global_var;
-}
-
-llvm::Value * LLVMBackEnd::getGlobaltypeinfo(Struct * s) {
-    std::string key = s->getMangledName();
-    BJOU_DEBUG_ASSERT(globaltypeinfos.count(key));
-    return globaltypeinfos[key];
 }
 
 /*
@@ -2285,57 +2111,6 @@ void * BXORExpression::generate(BackEnd & backEnd, bool flag) {
     return llbe->builder.CreateXor(lv, rv);
 }
 
-static llvm::Value * generateInterfaceFn(BackEnd & backEnd,
-                                         CallExpression * call_expr,
-                                         llvm::Value * obj_ptr) {
-    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
-    llvm::PointerType * ll_byte_ptr_t =
-        llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
-
-    BJOU_DEBUG_ASSERT(call_expr->resolved_proc);
-    Procedure * proc = call_expr->resolved_proc;
-
-    Struct * s = proc->getParentStruct();
-
-    BJOU_DEBUG_ASSERT(s && s->getFlag(Struct::IS_ABSTRACT));
-
-    StructType * s_t = (StructType *)s->getType();
-    BJOU_DEBUG_ASSERT(s_t->implementsInterfaces());
-
-    BJOU_DEBUG_ASSERT(s_t->interfaceIndexMap.count(proc));
-    unsigned int idx = s_t->interfaceIndexMap[proc];
-    llvm::Constant * idx_val =
-        llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), idx);
-
-    llvm::Value * typeinfo = (llvm::GlobalVariable *)llbe->getGlobaltypeinfo(s);
-    BJOU_DEBUG_ASSERT(typeinfo);
-    StructType * typeinfo_t =
-        (StructType *)compilation->frontEnd.typeTable["typeinfo"];
-    llvm::StructType * ll_typeinfo_t =
-        (llvm::StructType *)llbe->getOrGenType(typeinfo_t);
-
-    llvm::Value * typeinfo_cast = llbe->builder.CreateBitCast(
-        obj_ptr, ll_typeinfo_t->getPointerTo()->getPointerTo());
-    llvm::LoadInst * typeinfo_addr_load =
-        llbe->builder.CreateLoad(typeinfo_cast, "typeinfo_load");
-    typeinfo_addr_load->setAlignment(sizeof(void *));
-    llvm::Value * v_table_cast = llbe->builder.CreateBitCast(
-        typeinfo_addr_load, ll_byte_ptr_t->getPointerTo());
-
-    std::vector<llvm::Value *> gep_indices{idx_val};
-    llvm::Value * gep =
-        llbe->builder.CreateInBoundsGEP(v_table_cast, gep_indices);
-
-    llvm::Value * callee = llbe->builder.CreateLoad(gep, "v_table_load");
-
-    BJOU_DEBUG_ASSERT(callee);
-
-    llvm::Value * fn = llbe->builder.CreateBitCast(
-        callee, llbe->getOrGenType(proc->getType()));
-
-    return fn;
-}
-
 llvm::Value * fromVec(std::vector<llvm::Value *> & vec, int idx) {
     return vec[idx];
 }
@@ -2362,7 +2137,7 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
 
     llvm::Value * callee = nullptr;
 
-    if (!getFlag(CallExpression::INTERFACE_CALL) && resolved_proc)
+    if (resolved_proc)
         callee = llbe->getOrGenNode(resolved_proc);
 
     std::vector<int> byvals;
@@ -2415,23 +2190,7 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
         i += 1;
     }
 
-    if (getFlag(CallExpression::INTERFACE_CALL)) {
-        BJOU_DEBUG_ASSERT(arglist->getExpressions().size() > 0);
-        Expression * first_arg = (Expression *)arglist->getExpressions()[0];
-        Struct * s = resolved_proc->getParentStruct();
-        BJOU_DEBUG_ASSERT(s);
-        BJOU_DEBUG_ASSERT(conv(s->getType()->getRef(), first_arg->getType()));
-        BJOU_DEBUG_ASSERT(args.size() > (0 + payload->sret));
-        callee = generateInterfaceFn(backEnd, this, args[0 + payload->sret]);
-
-        llvm::Type * first_arg_t = args[0 + payload->sret]->getType();
-        llvm::FunctionType * callee_t =
-            (llvm::FunctionType *)callee->getType()->getPointerElementType();
-        llvm::Type * first_param_t = callee_t->getParamType(0 + payload->sret);
-        if (first_arg_t != first_param_t)
-            args[0 + payload->sret] = llbe->builder.CreateBitCast(
-                args[0 + payload->sret], first_param_t);
-    } else if (!callee)
+    if (!callee)
         callee = (llvm::Value *)llbe->getOrGenNode(getLeft());
 
     BJOU_DEBUG_ASSERT(callee);
@@ -2693,18 +2452,14 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
             // @refactor type member constants
             // should this be here or somewhere in the frontend?
 
-            if (s_t->constantMap.count(r_id->getUnqualified()))
+            if (s_t->constantMap.count(r_id->getSymName()))
                 return llbe->getOrGenNode(
-                    s_t->constantMap[r_id->getUnqualified()]);
+                    s_t->constantMap[r_id->getSymName()]);
 
             // regular structure access
 
             name = "structure_access";
-            elem = s_t->memberIndices[r_id->getUnqualified()];
-            if (s_t->implementsInterfaces())
-                elem += 1; // account for typeinfo member
-            // if (s_t->_struct->getMangledName() == "typeinfo")
-            // elem -= 1;
+            elem = s_t->memberIndices[r_id->getSymName()];
         } else if (pt->under()->isTuple()) {
             name = "tuple_access";
             t_t = (TupleType *)t->under();
@@ -2715,18 +2470,14 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
         // @refactor type member constants
         // should this be here or somewhere in the frontend?
 
-        if (s_t->constantMap.count(r_id->getUnqualified()))
-            return llbe->getOrGenNode(s_t->constantMap[r_id->getUnqualified()]);
+        if (s_t->constantMap.count(r_id->getSymName()))
+            return llbe->getOrGenNode(s_t->constantMap[r_id->getSymName()]);
 
         // regular structure access
 
         name = "structure_access";
         left_val = (llvm::Value *)llbe->getOrGenNode(getLeft(), true);
-        elem = s_t->memberIndices[r_id->getUnqualified()];
-        if (s_t->implementsInterfaces())
-            elem += 1; // account for typeinfo member
-        // if (s_t->_struct->getMangledName() == "typeinfo")
-        // elem -= 1;
+        elem = s_t->memberIndices[r_id->getSymName()];
     } else if (t->isTuple()) {
         name = "tuple_access";
         left_val = (llvm::Value *)llbe->getOrGenNode(getLeft(), true);
@@ -2810,27 +2561,6 @@ void * NewExpression::generate(BackEnd & backEnd, bool flag) {
 
     if (r_t->isArray()) {
         // @incomplete
-        // initialize struct typeinfos in arrays
-    } else {
-        // store typeinfo
-        if (r_t->isStruct()) {
-            StructType * s_t = (StructType *)r_t;
-            Struct * s = s_t->_struct;
-
-            if (s_t->implementsInterfaces()) {
-                llvm::Value * ti_val = llbe->getGlobaltypeinfo(s);
-                BJOU_DEBUG_ASSERT(ti_val);
-                llbe->builder.CreateStore(
-                    ti_val,
-                    llbe->builder.CreateInBoundsGEP(
-                        val,
-                        {llvm::Constant::getNullValue(
-                             llvm::IntegerType::getInt32Ty(llbe->llContext)),
-                         llvm::Constant::getNullValue(
-                             llvm::IntegerType::getInt32Ty(llbe->llContext))}));
-            }
-        }
-        //
     }
 
     return val;
@@ -3049,7 +2779,7 @@ void * StringLiteral::generate(BackEnd & backEnd, bool flag) {
     return ((LLVMBackEnd *)&backEnd)->createGlobalStringVariable(str);
 }
 
-void * TupleLiteral::generate(BackEnd & backEnd, bool flag) {
+void * TupleLiteral::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
     const Type * my_t = getType();
@@ -3068,6 +2798,9 @@ void * TupleLiteral::generate(BackEnd & backEnd, bool flag) {
             (llvm::Value *)llbe->getOrGenNode(subExpressions[i], ((TupleType*)my_t)->getTypes()[i]->isRef()), elem);
     }
 
+    if (getAddr) {
+        return alloca;
+    }
     return llbe->builder.CreateLoad(alloca, "tupleliteral");
 }
 
@@ -3090,7 +2823,8 @@ void * ExternLiteral::generate(BackEnd & backEnd, bool flag) {
 void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    llvm::Value * ptr = llbe->getNamedVal(qualified);
+    TmpMangler mangled(sym_name, sym_mod, sym_type);
+    llvm::Value * ptr = llbe->getNamedVal(mangled.real_mangled);
 
     if (!ptr && resolved) {
         ptr = llbe->getOrGenNode(resolved);
@@ -3125,7 +2859,7 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     if (getAddr)
         return ptr;
 
-    llvm::LoadInst * load = llbe->builder.CreateLoad(ptr, unqualified);
+    llvm::LoadInst * load = llbe->builder.CreateLoad(ptr, symAll());
     if (getType()->isPointer() || getType()->isRef())
         load->setAlignment(sizeof(void *));
 
@@ -3166,25 +2900,19 @@ LLVMBackEnd::createConstantInitializer(InitializerList * ilist) {
     if (t->isStruct()) {
         StructType * s_t = (StructType *)t;
 
-        const unsigned int typeinfo_offset =
-            (unsigned int)s_t->implementsInterfaces();
-
         std::vector<std::string> & names = ilist->getMemberNames();
         std::vector<llvm::Constant *> vals(
-            s_t->memberTypes.size() + typeinfo_offset, nullptr);
-
-        if (typeinfo_offset)
-            vals[0] = (llvm::Constant *)getGlobaltypeinfo(s_t->_struct);
+            s_t->memberTypes.size(), nullptr);
 
         for (int i = 0; i < (int)names.size(); i += 1) {
             // we will assume everything works out since it passed analysis
-            int index = typeinfo_offset + s_t->memberIndices[names[i]];
+            int index =  s_t->memberIndices[names[i]];
             vals[index] = (llvm::Constant *)getOrGenNode(expressions[i]);
         }
-        for (int i = typeinfo_offset; i < (int)vals.size(); i += 1)
+        for (int i = 0; i < (int)vals.size(); i += 1)
             if (!vals[i])
                 vals[i] = llvm::Constant::getNullValue(
-                    getOrGenType(s_t->memberTypes[i - typeinfo_offset]));
+                    getOrGenType(s_t->memberTypes[i]));
         return llvm::ConstantStruct::get((llvm::StructType *)ll_t, vals);
     } else if (t->isArray()) {
         std::vector<llvm::Constant *> vals;
@@ -3251,9 +2979,6 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
     if (myt->isStruct()) {
         StructType * s_t = (StructType *)myt;
 
-        const unsigned int typeinfo_offset =
-            (unsigned int)s_t->implementsInterfaces();
-
         std::vector<std::string> & names = getMemberNames();
 
         alloca = (llvm::AllocaInst *)llbe->allocUnnamedVal(myt);
@@ -3265,10 +2990,10 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
         BJOU_DEBUG_ASSERT(names.size() == expressions.size());
 
         std::vector<llvm::Value *> vals;
-        vals.resize(s_t->memberTypes.size() + typeinfo_offset, nullptr);
+        vals.resize(s_t->memberTypes.size() , nullptr);
 
         for (int i = 0; i < (int)names.size(); i += 1) {
-            int index = s_t->memberIndices[names[i]] + typeinfo_offset;
+            int index = s_t->memberIndices[names[i]] ;
             const Type * dest_t =
                 s_t->memberTypes[s_t->memberIndices[names[i]]];
             if (dest_t->isRef())
@@ -3278,15 +3003,12 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
                 vals[index] = (llvm::Value *)llbe->getOrGenNode(expressions[i]);
         }
 
-        if (typeinfo_offset)
-            vals[0] = llbe->getGlobaltypeinfo(s_t->_struct);
-
         // record uninitialized array members so that we can do a
         // memset to zero later
         std::map<size_t, ArrayType *> uninit_array_elems;
         for (size_t i = 0; i < s_t->memberTypes.size(); i += 1) {
             if (s_t->memberTypes[i]->isArray()) {
-                size_t index = i + typeinfo_offset;
+                size_t index = i ;
                 if (!vals[index])
                     uninit_array_elems[index] =
                         (ArrayType *)s_t->memberTypes[i];
@@ -3303,26 +3025,18 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
                       llvm::ConstantInt::get(
                           llvm::Type::getInt32Ty(llbe->llContext), i)});
 
-            const Type * elem_t = nullptr;
-            if (i != 0 || !typeinfo_offset)
-                elem_t = s_t->memberTypes[i - typeinfo_offset];
+            const Type * elem_t = s_t->memberTypes[i];
 
             if (!vals[i]) {
                 llvm::Value * null_val =
                     llvm::Constant::getNullValue(llbe->getOrGenType(elem_t));
                 llbe->builder.CreateStore(null_val, elem);
             } else {
-                if (i != 0 || !typeinfo_offset) {
-                    llvm::StoreInst * store =
-                        llbe->builder.CreateStore(vals[i], elem);
+                llvm::StoreInst * store =
+                    llbe->builder.CreateStore(vals[i], elem);
 
-                    if (elem_t->isPointer() || elem_t->isRef())
-                        store->setAlignment(sizeof(void *));
-                } else { // typeinfo *
-                    llvm::StoreInst * store =
-                        llbe->builder.CreateStore(vals[i], elem);
+                if (elem_t->isPointer() || elem_t->isRef())
                     store->setAlignment(sizeof(void *));
-                }
             }
         }
 
@@ -3413,7 +3127,7 @@ void * Constant::generate(BackEnd & backEnd, bool flag) {
 void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    if (!getScope()->parent || getScope()->nspace) {
+    if (!getScope()->parent) {
         if (llbe->generated_nodes.find(this) == llbe->generated_nodes.end()) {
             llbe->globs_need_completion.insert(this);
             return GenerateGlobalVariable(this, nullptr, backEnd);
@@ -3427,27 +3141,28 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
     llvm::Type * t = llbe->getOrGenType(getType());
     llvm::Value * val = nullptr;
 
+    std::string val_name = getMangledName();
+
     if (getType()->isRef()) {
         BJOU_DEBUG_ASSERT(getInitialization());
 
         if (getType()->unRef()->isArray()) {
             val = llbe->allocNamedVal(
-                getMangledName(), getType()->unRef()->under()->getPointer());
+                val_name, getType()->unRef()->under()->getPointer());
             llbe->builder.CreateStore(
                 llbe->getOrGenNode(getInitialization(), true), val);
         } else {
             val = llbe->addNamedVal(
-                getMangledName(),
+                val_name,
                 (llvm::Value *)llbe->getOrGenNode(getInitialization(), true),
                 getType());
         }
     } else {
-        val = llbe->allocNamedVal(getMangledName(), getType());
+        val = llbe->allocNamedVal(val_name, getType());
         BJOU_DEBUG_ASSERT(val);
 
         if (getType()->isArray()) {
             // @incomplete
-            // initialize struct typeinfos for arrays
         } else {
             if (getType()->isStruct() || getType()->isSlice() ||
                 getType()->isDynamicArray()) {
@@ -3459,20 +3174,6 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
                 if (getType()->isDynamicArray())
                     s_t = (StructType *)((DynamicArrayType *)getType())
                               ->getRealType();
-
-                Struct * s = s_t->_struct;
-                // store typeinfo
-                if (s_t->implementsInterfaces()) {
-                    llvm::Value * ti = llbe->getGlobaltypeinfo(s);
-                    llbe->builder.CreateStore(
-                        ti, llbe->builder.CreateInBoundsGEP(
-                                val, {llvm::Constant::getNullValue(
-                                          llvm::IntegerType::getInt32Ty(
-                                              llbe->llContext)),
-                                      llvm::Constant::getNullValue(
-                                          llvm::IntegerType::getInt32Ty(
-                                              llbe->llContext))}));
-                }
             }
             //
         }
@@ -3534,9 +3235,6 @@ static void gen_printf_fmt(BackEnd & backEnd, llvm::Value * val, const Type * t,
 
         StructType * s_t = (StructType *)t;
 
-        const unsigned int typeinfo_offset =
-            (unsigned int)s_t->implementsInterfaces();
-
         fmt += "{ ";
         for (int i = 0; i < (int)s_t->memberTypes.size(); i += 1) {
             fmt += ".";
@@ -3549,7 +3247,7 @@ static void gen_printf_fmt(BackEnd & backEnd, llvm::Value * val, const Type * t,
             fmt += " = ";
             const Type * mem_t = s_t->memberTypes[i];
             llvm::Value * mem_val = gep_by_index(
-                backEnd, llbe->getOrGenType(s_t), val, i + typeinfo_offset);
+                backEnd, llbe->getOrGenType(s_t), val, i );
             if (mem_t->isArray()) {
                 mem_val = gep_by_index(
                     backEnd, mem_val->getType()->getPointerElementType(),
@@ -3717,7 +3415,6 @@ void * If::generate(BackEnd & backEnd, bool flag) {
         llbe->getOrGenNode(statement);
 
     if (!getFlag(HAS_TOP_LEVEL_RETURN) && shouldEmitMerge) {
-        generateFramePreExit(llbe);
         llbe->builder.CreateBr(merge);
     }
 
@@ -3735,7 +3432,6 @@ void * If::generate(BackEnd & backEnd, bool flag) {
             llbe->getOrGenNode(statement);
 
         if (!_Else->getFlag(HAS_TOP_LEVEL_RETURN) && shouldEmitMerge) {
-            generateFramePreExit(llbe);
             llbe->builder.CreateBr(merge);
         }
 
@@ -3800,7 +3496,6 @@ void * For::generate(BackEnd & backEnd, bool flag) {
 
     // afterthoughts
     if (!getFlag(HAS_TOP_LEVEL_RETURN)) {
-        generateFramePreExit(llbe);
         llbe->builder.CreateBr(after);
     }
 
@@ -3865,7 +3560,6 @@ void * While::generate(BackEnd & backEnd, bool flag) {
         llbe->getOrGenNode(statement);
 
     if (!getFlag(HAS_TOP_LEVEL_RETURN)) {
-        generateFramePreExit(llbe);
         llbe->builder.CreateBr(check);
     }
 
@@ -3923,7 +3617,6 @@ void * DoWhile::generate(BackEnd & backEnd, bool flag) {
         llbe->getOrGenNode(statement);
 
     if (!getFlag(HAS_TOP_LEVEL_RETURN)) {
-        generateFramePreExit(llbe);
         llbe->builder.CreateBr(check);
     }
 
@@ -3946,11 +3639,6 @@ void * DoWhile::generate(BackEnd & backEnd, bool flag) {
 
 void * Procedure::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
-
-    // due to the nature of the on-demand codegen model,
-    // some interface decls may slip in here.. just ignore
-    if (getFlag(IS_INTERFACE_DECL))
-        return nullptr;
 
     analyze();
 
@@ -3980,6 +3668,7 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         ABILowerProcedureTypeData * payload = new ABILowerProcedureTypeData;
         payload->t = my_t;
         llbe->abi_lowerer->ABILowerProcedureType(payload);
+        BJOU_DEBUG_ASSERT(payload && "could not create proc abi lower procedure type data");
         llbe->proc_abi_info[this] = payload;
         func_type = (llvm::FunctionType *)payload->fn_t;
         //
@@ -4067,16 +3756,18 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         // @abi
         ABILowerProcedureTypeData * payload =
             (ABILowerProcedureTypeData *)llbe->proc_abi_info[this];
+        BJOU_DEBUG_ASSERT(payload && "could not get proc abi lower procedure type data");
         //
 
         int i = 0;
         for (auto & arg : func->args()) {
-            if (i == 0 && payload->sret)
+            if (i == 0 && payload->sret) {
                 arg.setName("__bjou_sret");
-            else
-                arg.setName(((VariableDeclaration *)(getParamVarDeclarations()
-                                                         [i - payload->sret]))
-                                ->getName());
+            } else {
+                VariableDeclaration * param = (VariableDeclaration *)(getParamVarDeclarations()
+                                                         [i - payload->sret]);
+                arg.setName(param->getMangledName());
+            }
             i += 1;
         }
 
@@ -4148,7 +3839,6 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
             // but we hope that semantic analysis will have caught
             // a missing explicitly typed return
 
-            generateFramePreExit(llbe);
             llbe->builder.CreateRetVoid();
         }
 
@@ -4224,7 +3914,6 @@ void * Return::generate(BackEnd & backEnd, bool flag) {
                                    llbe->layout->getABITypeAlignment(ll_t));
 #endif
 
-        generateFramePreExit(llbe);
         return llbe->builder.CreateRetVoid();
     }
     if (getExpression()) {
@@ -4241,17 +3930,9 @@ void * Return::generate(BackEnd & backEnd, bool flag) {
 
         BJOU_DEBUG_ASSERT(v);
 
-        generateFramePreExit(llbe);
         return llbe->builder.CreateRet(v);
     }
-    generateFramePreExit(llbe);
     return llbe->builder.CreateRetVoid();
-}
-
-void * Namespace::generate(BackEnd & backEnd, bool flag) {
-    for (ASTNode * node : getNodes())
-        ((LLVMBackEnd *)&backEnd)->getOrGenNode(node);
-    return nullptr;
 }
 
 void * Struct::generate(BackEnd & backEnd, bool flag) {
@@ -4260,8 +3941,6 @@ void * Struct::generate(BackEnd & backEnd, bool flag) {
     std::string & mname = getMangledName();
     llvm::StructType * ll_s_ty = nullptr;
     StructType * bjou_s_ty = nullptr;
-
-    Struct * typeinfo_struct = compilation->frontEnd.typeinfo_struct;
 
     if (llbe->generated_nodes.find(this) == llbe->generated_nodes.end()) {
         genDeps(this, *llbe);
@@ -4273,29 +3952,12 @@ void * Struct::generate(BackEnd & backEnd, bool flag) {
 
         bjou_s_ty = (StructType *)getType();
 
-        if (bjou_s_ty->isAbstract && bjou_s_ty->memberTypes.empty() &&
-            !bjou_s_ty->implementsInterfaces()) {
-            return ll_s_ty; // leave opaque
-        }
-
-        if (bjou_s_ty->implementsInterfaces()) {
-            if (typeinfo_struct && this != typeinfo_struct)
-                member_types.push_back(
-                    llbe->getOrGenType(typeinfo_struct->getType())
-                        ->getPointerTo());
-        }
-
         for (const Type * bjou_mem_t : bjou_s_ty->memberTypes) {
             llvm::Type * ll_mem_t = llbe->getOrGenType(bjou_mem_t);
             BJOU_DEBUG_ASSERT(ll_mem_t);
             member_types.push_back(ll_mem_t);
         }
         ll_s_ty->setBody(member_types);
-
-        if (bjou_s_ty->implementsInterfaces()) {
-            if (typeinfo_struct && this != typeinfo_struct)
-                llbe->createGlobaltypeinfo(this);
-        }
     }
 
     return ll_s_ty;
@@ -4306,7 +3968,6 @@ void * Break::generate(BackEnd & backEnd, bool flag) {
 
     auto & lfi = llbe->loop_break_stack.top();
 
-    generateFramePreExit(llbe, lfi.frame);
     return llbe->builder.CreateBr(lfi.bb);
 }
 
@@ -4315,7 +3976,6 @@ void * Continue::generate(BackEnd & backEnd, bool flag) {
 
     auto & lfi = llbe->loop_continue_stack.top();
 
-    generateFramePreExit(llbe, lfi.frame);
     return llbe->builder.CreateBr(lfi.bb);
 }
 

@@ -97,19 +97,14 @@ void Module::activate(Import * source, bool ct) {
         multi->take(nodes);
         multi->nodes.insert(multi->nodes.begin(), source);
 
-        for (ASTNode * i : ifaceDefs)
-            ((InterfaceDef *)i)->preDeclare(source->getScope());
         for (ASTNode * s : structs)
             ((Struct *)s)->preDeclare(source->getScope());
 
-        for (ASTNode * i : ifaceDefs)
-            ((InterfaceDef *)i)->addSymbols(source->getScope());
         for (ASTNode * s : structs)
             ((Struct *)s)->addSymbols(source->getScope());
 
         for (ASTNode * node : multi->nodes) {
-            if (node->nodeKind != ASTNode::STRUCT &&
-                node->nodeKind != ASTNode::INTERFACE_DEF)
+            if (node->nodeKind != ASTNode::STRUCT)
                 node->addSymbols(source->getScope());
         }
 

@@ -188,12 +188,8 @@ extern bjou_createStruct(
     ASTNode**, int, # memberVarDecls
     ASTNode**, int, # constantDecls
     ASTNode**, int, # memberProcs
-    ASTNode**, int, # memberTemplateProcs
-    ASTNode**, int) # interfaceImpls
+    ASTNode**, int) # memberTemplateProcs
     : ASTNode*
-
-# InterfaceDef
-# InterfaceImplementation
 
 extern bjou_createEnum(char*, char**, int) : ASTNode*
 

@@ -7,7 +7,11 @@
 
 #include <stdint.h>
 
-uint64_t bJouDemangle_strlen(const char * s) {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+static uint64_t bJouDemangle_strlen(const char * s) {
     uint64_t len;
 
     len = 0;
@@ -18,7 +22,7 @@ uint64_t bJouDemangle_strlen(const char * s) {
     return len;
 }
 
-void bJouDemangle_strcat(char * s1, const char * s2) {
+static void bJouDemangle_strcat(char * s1, const char * s2) {
     uint64_t l2,
              i;
 
@@ -30,7 +34,7 @@ void bJouDemangle_strcat(char * s1, const char * s2) {
     *s1 = 0;
 }
 
-void bJouDemangle_strrev(char * s) {
+static void bJouDemangle_strrev(char * s) {
     char * end;
 
     end = s + bJouDemangle_strlen(s) - 1;
@@ -49,7 +53,7 @@ void bJouDemangle_strrev(char * s) {
 #undef XOR_SWAP
 }
 
-uint64_t bJouDemange_hash(char * s) {
+uint64_t bJouDemangle_hash(const char * s) {
     uint64_t h1;
     char     c;
 
@@ -62,26 +66,22 @@ uint64_t bJouDemange_hash(char * s) {
 }
 
 void bJouDemangle_u642b32(uint64_t u, char * dst) {
-    uint64_t _0,
-             _a,
-             d;
-    char     c[2];
-
-    _0 = '0';
-    _a = 'a';
+    uint64_t    d;
+    char        c[2];
+    const char *alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
     *dst = c[1] = 0;
 
     do {
-        d    = u % 32;
-        c[0] = (d < 10)
-                 ? (char)(_0 + d)
-                 : (char)(_a + d - 10);
-    
+        d    = u % 32ULL;
+        u   /= 32;
+        c[0] = alpha[d];
         bJouDemangle_strcat(dst, c);
-
-        u /= 32;
     } while (u > 0);
 
     bJouDemangle_strrev(dst);
 }
+
+#ifdef __cplusplus
+}
+#endif

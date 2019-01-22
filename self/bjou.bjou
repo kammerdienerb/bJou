@@ -1,0 +1,44 @@
+# bjou.bjou
+
+main()
+
+import "cli.bjou"
+
+proc main() {
+    arg_parser := ArgParser.create(env.args()[0].c_str())
+    arg_parser.add_args_to_parser()
+    usage := arg_parser.help()
+    print "%", usage.c_str()
+    arg_parser.free()
+}
+
+proc add_args_to_parser(arg_parser : ArgParser ref) {
+    arg_parser.addSwitch('O', "optimize")
+        .withDesc("Run LLVM optimization passes.")
+    arg_parser.addSwitch("emit-llvm")
+        .withDesc("Ouput an LLVM bytecode file.")
+    arg_parser.addSwitch('c', "no-link")
+        .withDesc("Compile but do not link.")
+    arg_parser.addSwitch("lld")
+        .withDesc("Attempt to use lld to link. If unsuccessful, use system linker.")
+    arg_parser.addSwitch("no-color")
+        .withDesc("Turn off colored output.")
+    arg_parser.addSwitch("no-preload")
+        .withDesc("Do not automatically import preload modules.")
+    arg_parser.addSwitch("no-abc")
+        .withDesc("Turn off array bounds checking.")
+    arg_parser.addSwitch("no-parallel")
+        .withDesc("Turn off compilation parallelization.")
+    arg_parser.addSwitch("symbols")
+        .withDesc("Print symbol tables to STDOUT.")
+    arg_parser.addSwitch("time")
+        .withDesc("Print the running times of compilation stages to STDOUT.")
+    arg_parser.addSwitch("front")
+        .withDesc("Only run the front end of the compiler.")
+    arg_parser.addSwitch('v', "verbose")
+        .withDesc("Print the LLVM IR to STDOUT.")
+    arg_parser.addSwitch("version")
+        .withDesc("Display version info and exit.")
+    arg_parser.addSwitch('h', "help")
+        .withDesc("Display usage info and exit.")
+}

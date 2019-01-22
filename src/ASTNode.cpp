@@ -35,6 +35,18 @@ SelfDestruct::~SelfDestruct() {
         delete node;
 }
 
+static std::string identStripMod(std::string _s) {
+    size_t p = 0;
+    const char * s = _s.c_str();
+    char c;
+    while ((c = *s) && (isalnum(c) || c == '_' || c == '\''))    s++;
+    if (*s     && (*s     == ':')
+    &&  *(s+1) && (*(s+1) == ':')) {
+        return std::string(s); 
+    }
+    return _s;
+}
+
 // ~~~~~ ASTNode ~~~~~
 
 ASTNode::ASTNode()
@@ -144,7 +156,7 @@ void MultiNode::addSymbols(Scope * _scope) {
 
     if (!isModuleContainer) {
         for (ASTNode * node : nodes) {
-            if (node->nodeKind != STRUCT && node->nodeKind != INTERFACE_DEF)
+            if (node->nodeKind != STRUCT)
                 node->addSymbols(_scope);
         }
     }
@@ -262,7 +274,7 @@ bool Expression::opOverload() {
 
                 call->setContext(getContext());
                 call->setLeft(
-                    mangledStringtoIdentifier(proc->getMangledName()));
+                    stringToIdentifier(proc->getLookupName()));
                 call->setRight(args);
 
                 (*replace)(parent, this, call);
@@ -2022,7 +2034,7 @@ void SubscriptExpression::desugar() {
 
         // __bjou_slice_subscript
         Identifier * __bjou_slice_subscript = new Identifier;
-        __bjou_slice_subscript->setUnqualified("__bjou_slice_subscript");
+        __bjou_slice_subscript->setSymName("__bjou_slice_subscript");
 
         ArgList * r = new ArgList;
         // (slice, index)
@@ -2047,10 +2059,9 @@ void SubscriptExpression::desugar() {
         call->setLeft(__bjou_slice_subscript);
         call->setRight(r);
 
-        call->addSymbols(getScope());
-
         (*replace)(parent, this, call);
 
+        call->addSymbols(getScope());
         call->analyze();
     } else if (getLeft()->getType()->unRef()->isDynamicArray()) {
         CallExpression * call = new CallExpression;
@@ -2058,7 +2069,7 @@ void SubscriptExpression::desugar() {
 
         // __bjou_dynamic_array_subscript
         Identifier * __bjou_dynamic_array_subscript = new Identifier;
-        __bjou_dynamic_array_subscript->setUnqualified(
+        __bjou_dynamic_array_subscript->setSymName(
             "__bjou_dynamic_array_subscript");
 
         ArgList * r = new ArgList;
@@ -2084,10 +2095,9 @@ void SubscriptExpression::desugar() {
         call->setLeft(__bjou_dynamic_array_subscript);
         call->setRight(r);
 
-        call->addSymbols(getScope());
-
         (*replace)(parent, this, call);
 
+        call->addSymbols(getScope());
         call->analyze();
     } else if (getLeft()->getType()->unRef()->isArray() &&
                compilation->frontEnd.abc) {
@@ -2096,7 +2106,7 @@ void SubscriptExpression::desugar() {
 
         // __bjou_array_subscript
         Identifier * __bjou_array_subscript = new Identifier;
-        __bjou_array_subscript->setUnqualified("__bjou_array_subscript");
+        __bjou_array_subscript->setSymName("__bjou_array_subscript");
 
         ArgList * r = new ArgList;
         // (array, len, index, filename, line, col)
@@ -2122,10 +2132,9 @@ void SubscriptExpression::desugar() {
         call->setLeft(__bjou_array_subscript);
         call->setRight(r);
 
-        call->addSymbols(getScope());
-
         (*replace)(parent, this, call);
 
+        call->addSymbols(getScope());
         call->analyze();
     }
 }
@@ -2171,7 +2180,7 @@ void CallExpression::analyze(bool force) {
         if (sym->node()->nodeKind == PROC_SET) {
             procSet = (ProcSet *)sym->node();
             proc = procSet->get(args, l->getRight(), &args->getContext());
-            ((Identifier *)getLeft())->qualified = proc->getMangledName();
+            /* ((Identifier *)getLeft())->qualified = proc->getLookupName(); */
             if (l->getRight())      // TemplateInstantiation
                 l->right = nullptr; // l->setRight(nullptr);
             lt = proc->getType();
@@ -2188,13 +2197,6 @@ void CallExpression::analyze(bool force) {
             ((Identifier *)getLeft())->resolved = proc;
 
         resolved_proc = proc;
-        if (proc->getParent() &&
-            proc->getParent()->nodeKind == ASTNode::INTERFACE_IMPLEMENTATION) {
-            Struct * s = proc->getParentStruct();
-            BJOU_DEBUG_ASSERT(s);
-            if (s->getFlag(Struct::IS_ABSTRACT))
-                setFlag(CallExpression::INTERFACE_CALL, true);
-        }
     }
 
     BJOU_DEBUG_ASSERT(lt);
@@ -2263,8 +2265,7 @@ void CallExpression::analyze(bool force) {
         if (proc)
             errorl(errContext,
                    "No matching call for '" +
-                       demangledString(
-                           mangledIdentifier((Identifier *)getLeft())) +
+                       demangledIdentifier((Identifier *)getLeft()) +
                        "' found.",
                    true, help);
         else
@@ -2324,78 +2325,9 @@ static Identifier * createIdentifierFromAccess(AccessExpression * access,
     Identifier * proc_ident = new Identifier;
     proc_ident->setContext(access->getContext());
     proc_ident->setScope(access->getScope());
-    std::string lookup =
-        struct_t->_struct->getMangledName() + "." + ident->getUnqualified();
-    proc_ident->setUnqualified(lookup);
-    proc_ident->addSymbols(access->getScope());
-
-    proc_ident->setFlag(ASTNode::CT, isCT(access));
-
-    proc_ident->analyze();
-
-    return proc_ident;
-}
-
-// T.interface.ident
-static Identifier * createIdentifierFromAccess(AccessExpression * access,
-                                               Declarator * decl,
-                                               Identifier * iface_ident,
-                                               Identifier * ident) {
-    const Type * t = decl->getType()->unRef();
-    StructType * struct_t = nullptr;
-
-    if (t->isStruct()) {
-        struct_t = (StructType *)t;
-    } else if (t->isPointer() || t->isRef()) {
-        if (t->under()->isStruct())
-            struct_t = (StructType *)t->under();
-    }
-
-    BJOU_DEBUG_ASSERT(struct_t);
-
-    Identifier * proc_ident = new Identifier;
-    proc_ident->setContext(access->getContext());
-    proc_ident->setScope(access->getScope());
-    std::string lookup = struct_t->_struct->getMangledName() + "." +
-                         mangledIdentifier(iface_ident) + "." +
-                         ident->getUnqualified();
-    proc_ident->setUnqualified(lookup);
-    proc_ident->addSymbols(access->getScope());
-
-    proc_ident->setFlag(ASTNode::CT, isCT(access));
-
-    proc_ident->analyze();
-
-    return proc_ident;
-}
-
-// T.interface.ident
-static Identifier * createIdentifierFromAccess(AccessExpression * access,
-                                               Identifier * obj_ident,
-                                               Identifier * iface_ident,
-                                               Identifier * ident) {
-    const Type * t = obj_ident->getType()->unRef();
-    StructType * struct_t = nullptr;
-
-    if (t->isStruct()) {
-        struct_t = (StructType *)t;
-    } else if (t->isPointer()) {
-        if (t->under()->isStruct())
-            struct_t = (StructType *)t->under();
-    }
-
-    BJOU_DEBUG_ASSERT(struct_t);
-
-    Identifier * proc_ident = new Identifier;
-    proc_ident->setContext(access->getContext());
-    proc_ident->setScope(access->getScope());
-    std::string lookup = struct_t->_struct->getMangledName() + "." +
-                         mangledIdentifier(iface_ident) + "." +
-                         ident->getUnqualified();
-    proc_ident->setUnqualified(lookup);
-    proc_ident->addSymbols(access->getScope());
-
-    proc_ident->analyze();
+    proc_ident->setSymMod(struct_t->_struct->mod);
+    proc_ident->setSymType(identStripMod(struct_t->_struct->getLookupName()));
+    proc_ident->setSymName(ident->getSymName());
 
     return proc_ident;
 }
@@ -2406,85 +2338,21 @@ CallExpression * AccessExpression::nextCall() {
     return nullptr;
 }
 
-int AccessExpression::handleInterfaceSpecificCall() {
-    // Special case
-    //
-    // We want to support a transformation from T.interface.proc to the correct
-    // mangled ProcSet Identifier. However, the tree is set up a little
-    // awkwardly for that. ((T.interface).proc). So we are going to scan the LHS
-    // and see if it matches the pattern T.interface.
-
-    if (getLeft()->nodeKind == ACCESS_EXPRESSION &&
-        getRight()->nodeKind == IDENTIFIER) {
-        Identifier * r_id = (Identifier *)getRight();
-        AccessExpression * l = (AccessExpression *)getLeft();
-        // only base declarators
-        if (l->getRight()->nodeKind == IDENTIFIER) {
-            Identifier * interface_ident = (Identifier *)l->getRight();
-            const Type * t = l->getLeft()->getType()->unRef();
-            StructType * struct_t = nullptr;
-
-            if (t->isStruct()) {
-                struct_t = (StructType *)t;
-            } else if (t->isPointer()) {
-                if (t->under()->isStruct())
-                    struct_t = (StructType *)t->under();
-            } else {
-                return 0;
-            }
-
-            BJOU_DEBUG_ASSERT(struct_t);
-
-            if (struct_t->interfaces.find(mangledIdentifier(interface_ident)) !=
-                struct_t->interfaces.end()) {
-                if (l->getLeft()->nodeKind == DECLARATOR) {
-                    Declarator * decl = (Declarator *)l->getLeft();
-                    Identifier * proc_ident = createIdentifierFromAccess(
-                        this, decl, interface_ident, r_id);
-                    (*this->replace)(parent, this, proc_ident);
-                    setType(proc_ident->type);
-                    return -1;
-                } else if (l->getLeft()->nodeKind == IDENTIFIER) {
-                    Identifier * obj_ident = (Identifier *)l->getLeft();
-                    Identifier * proc_ident = createIdentifierFromAccess(
-                        this, obj_ident, interface_ident, r_id);
-
-                    if (nextCall()) {
-                        (*getRight()->replace)(this, getRight(),
-                                               proc_ident); // @lol this works
-                        (*l->replace)(this, l, l->getLeft());
-                        // don't return.. fall to check handleInjection()
-                    } else {
-                        (*this->replace)(parent, this, proc_ident);
-                        setType(proc_ident->type);
-                        if (!type)
-                            proc_ident->getType(); // identifier error
-                        return -1;
-                    }
-                }
-            }
-        }
-    }
-
-    // end special case
-    return 0;
-}
-
 int AccessExpression::handleThroughTemplate() {
     // Special case
     // Consider:
     //
-    //          type Type!(T) {
-    //              proc create(arg : T) : Type!(T) { ... }
+    //          type Type$T {
+    //              proc create(arg : T) : Type$T { ... }
     //          }
     //
     // We would like to be able to say Type.create(12345) which would treat
     // Type.create() as
     //
-    //          proc create!(T)(arg : T) : Type!(T) { ... }
+    //          proc create$T(arg : T) : Type$T { ... }
     //
     // thus using template deduction from arguments to return the correct type
-    // Type!(int).
+    // Type$int.
     //
     // To accomplish this, we will take the procedure from Type and wrap it in
     // its own TemplateProc and transfer the TemplateDefineList from Type to the
@@ -2501,111 +2369,112 @@ int AccessExpression::handleThroughTemplate() {
         Identifier * r_id = (Identifier *)getRight();
 
         // Taken from Declarator::analyze()
-        std::string mangled = decl->mangleSymbol();
+        std::string s = decl->asString();
         Maybe<Symbol *> m_sym = decl->getScope()->getSymbol(
-            decl->getScope(), mangled, &decl->getContext(),
+            decl->getScope(), s, &decl->getContext(),
             /* traverse = */ true, /* fail = */ false);
         Symbol * sym = nullptr;
 
         if (m_sym.assignTo(sym)) {
             if (sym->isTemplateType()) {
-                TemplateStruct * ttype = (TemplateStruct *)sym->node();
-                Struct * s = (Struct *)ttype->_template;
-                s->setMangledName(s->getName());
-                ProcSet set;
-                std::vector<std::string> delete_keys;
-                set.name = r_id->getUnqualified();
+                /* TemplateStruct * ttype = (TemplateStruct *)sym->node(); */
+                /* Struct * s = (Struct *)ttype->_template; */
+                /* s->setLookupName(s->getName()); */
+                /* ProcSet set; */
+                /* std::vector<std::string> delete_keys; */
+                /* set.name = r_id->symAll(); */
 
-                for (ASTNode * _proc : s->getMemberProcs()) {
-                    Procedure * proc = (Procedure *)_proc;
-                    proc->setScope(ttype->getScope());
-                    if (proc->getName() == set.name) {
-                        TemplateProc * tproc = new TemplateProc;
-                        tproc->setFlag(TemplateProc::FROM_THROUGH_TEMPLATE,
-                                       true);
-                        tproc->setFlag(TemplateProc::IS_TYPE_MEMBER, true);
-                        tproc->parent = s;
-                        tproc->setScope(proc->getScope());
-                        tproc->setContext(proc->getContext());
-                        tproc->setNameContext(proc->getNameContext());
-                        tproc->setTemplateDef(ttype->getTemplateDef()->clone());
-                        tproc->setTemplate(proc);
+                /* for (ASTNode * _proc : s->getMemberProcs()) { */
+                /*     Procedure * proc = (Procedure *)_proc; */
+                /*     proc->setScope(ttype->getScope()); */
+                /*     if (proc->getName() == set.name) { */
+                /*         TemplateProc * tproc = new TemplateProc; */
+                /*         tproc->setFlag(TemplateProc::FROM_THROUGH_TEMPLATE, */
+                /*                        true); */
+                /*         tproc->setFlag(TemplateProc::IS_TYPE_MEMBER, true); */
+                /*         tproc->parent = s; */
+                /*         tproc->setScope(proc->getScope()); */
+                /*         tproc->setContext(proc->getContext()); */
+                /*         tproc->setNameContext(proc->getNameContext()); */
+                /*         tproc->setTemplateDef(ttype->getTemplateDef()->clone()); */
+                /*         tproc->setTemplate(proc); */
 
-                        proc->desugarThis();
+                /*         proc->desugarThis(); */
 
-                        _Symbol<TemplateProc> * symbol =
-                            new _Symbol<TemplateProc>(set.name, tproc);
-                        set.procs[symbol->mangled(tproc->getScope())->name] =
-                            symbol;
-                    }
-                }
+                /*         _Symbol<TemplateProc> * symbol = */
+                /*             new _Symbol<TemplateProc>(set.name, s->mod, s->getName(), tproc, nullptr, tproc->getTemplateDef()); */
+                /*         set.procs[symbol->real_mangled] = */
+                /*             symbol; */
+                /*     } */
+                /* } */
 
-                for (ASTNode * _tproc : s->getMemberTemplateProcs()) {
-                    TemplateProc * tproc = (TemplateProc *)_tproc;
-                    Procedure * proc = (Procedure *)tproc->_template;
-                    proc->setScope(ttype->getScope());
+                /* for (ASTNode * _tproc : s->getMemberTemplateProcs()) { */
+                /*     TemplateProc * tproc = (TemplateProc *)_tproc; */
+                /*     Procedure * proc = (Procedure *)tproc->_template; */
+                /*     proc->setScope(ttype->getScope()); */
 
-                    if (proc->getName() == set.name) {
-                        TemplateProc * new_tproc =
-                            (TemplateProc *)tproc->clone();
-                        new_tproc->setFlag(TemplateProc::FROM_THROUGH_TEMPLATE,
-                                           true);
-                        new_tproc->setScope(proc->getScope());
-                        new_tproc->setContext(proc->getContext());
-                        new_tproc->setNameContext(proc->getNameContext());
+                /*     if (proc->getName() == set.name) { */
+                /*         TemplateProc * new_tproc = */
+                /*             (TemplateProc *)tproc->clone(); */
+                /*         new_tproc->setFlag(TemplateProc::FROM_THROUGH_TEMPLATE, */
+                /*                            true); */
+                /*         new_tproc->setScope(proc->getScope()); */
+                /*         new_tproc->setContext(proc->getContext()); */
+                /*         new_tproc->setNameContext(proc->getNameContext()); */
 
-                        TemplateDefineList * new_tproc_def =
-                            (TemplateDefineList *)new_tproc->getTemplateDef();
-                        std::vector<ASTNode *> save_elems =
-                            new_tproc_def->getElements();
-                        new_tproc_def->getElements().clear();
-                        for (ASTNode * elem :
-                             ((TemplateDefineList *)ttype->getTemplateDef())
-                                 ->getElements())
-                            new_tproc_def->addElement(elem);
-                        for (ASTNode * elem : save_elems)
-                            new_tproc_def->addElement(elem);
+                /*         TemplateDefineList * new_tproc_def = */
+                /*             (TemplateDefineList *)new_tproc->getTemplateDef(); */
+                /*         std::vector<ASTNode *> save_elems = */
+                /*             new_tproc_def->getElements(); */
+                /*         new_tproc_def->getElements().clear(); */
+                /*         for (ASTNode * elem : */
+                /*              ((TemplateDefineList *)ttype->getTemplateDef()) */
+                /*                  ->getElements()) */
+                /*             new_tproc_def->addElement(elem); */
+                /*         for (ASTNode * elem : save_elems) */
+                /*             new_tproc_def->addElement(elem); */
 
-                        new_tproc->setTemplate(proc);
+                /*         new_tproc->setTemplate(proc); */
 
-                        proc->desugarThis();
+                /*         proc->desugarThis(); */
 
-                        _Symbol<TemplateProc> * symbol =
-                            new _Symbol<TemplateProc>(set.name, tproc);
-                        std::string key =
-                            symbol->mangled(tproc->getScope())->name;
-                        set.procs[key] = symbol;
-                        delete_keys.push_back(key);
-                    }
-                }
+                /*         _Symbol<TemplateProc> * symbol = */
+                /*             new _Symbol<TemplateProc>(set.name, s->mod, s->getName(), tproc, nullptr, new_tproc->getTemplateDef()); */
+                /*         std::string key = */
+                /*             symbol->real_mangled; */
+                /*         set.procs[key] = symbol; */
+                /*         delete_keys.push_back(key); */
+                /*     } */
+                /* } */
 
-                if (set.procs.empty())
-                    errorl(
-                        r_id->getContext(),
-                        "Template type '" +
-                            ((Identifier *)decl->identifier)->getUnqualified() +
-                            "' does not define a procedure named '" +
-                            r_id->getUnqualified() + "'.");
+                /* if (set.procs.empty()) */
+                /*     errorl( */
+                /*         r_id->getContext(), */
+                /*         "Template type '" + */
+                /*             ((Identifier *)decl->identifier)->symAll() + */
+                /*             "' does not define a procedure named '" + */
+                /*             r_id->getSymName() + "'."); */
 
-                Procedure * proc =
-                    set.get(next_call->getRight(), r_id->getRight(),
-                            &getContext(), true);
+                /* Procedure * proc = */
+                /*     set.get(next_call->getRight(), r_id->getRight(), */
+                /*             &getContext(), true); */
+                /* BJOU_DEBUG_ASSERT(proc); */
 
-                Identifier * proc_ident = new Identifier;
-                proc_ident->setContext(getContext());
-                proc_ident->setScope(getScope());
-                proc_ident->setUnqualified(proc->getMangledName());
-                proc_ident->addSymbols(getScope());
-
-                proc_ident->analyze();
+                Identifier * proc_ident = stringToIdentifier(r_id->getSymName());
+                proc_ident->setSymType(s);
+                    /* = createIdentifierFromAccess( */
+                        /* this, (Declarator *)getLeft(), r_id); */
 
                 (*this->replace)(parent, this, proc_ident);
 
+                proc_ident->addSymbols(getScope());
+                proc_ident->analyze();
+
                 // cleanup
-                for (auto & key : delete_keys)
-                    delete set.procs[key]->node();
-                for (auto & p : set.procs)
-                    delete p.second;
+                /* for (auto & key : delete_keys) */
+                /*     delete set.procs[key]->node(); */
+                /* for (auto & p : set.procs) */
+                /*     delete p.second; */
 
                 return -1;
             }
@@ -2627,17 +2496,11 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
         if (lt->isStruct()) {
             StructType * struct_t =
                 (StructType *)lt; // can't have constness here
-            Maybe<Symbol *> m_interface_sym;
-            Symbol * interface_sym;
             if (getRight()->nodeKind == ASTNode::IDENTIFIER) {
-                if (struct_t->constantMap.count(r_id->getUnqualified()) > 0) {
-                    if (nodeKind == INJECT_EXPRESSION)
-                        errorl(getContext(), "To access type data members, use "
-                                             "'.' instead of '->'.");
-
+                if (struct_t->constantMap.count(r_id->getSymName()) > 0) {
                     Expression * const_expr =
                         (Expression *)struct_t
-                            ->constantMap[r_id->getUnqualified()]
+                            ->constantMap[r_id->getSymName()]
                             ->getInitialization();
                     const_expr = (Expression *)const_expr->clone();
                     const_expr->setScope(getScope());
@@ -2645,36 +2508,29 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
                     (*this->replace)(parent, this, const_expr);
                     setType(const_expr->getType());
                     return -1;
-                } else if (struct_t->memberProcs.count(r_id->getUnqualified()) >
+                } else if (struct_t->memberProcs.count(r_id->getSymName()) >
                            0) {
                     Identifier * proc_ident = createIdentifierFromAccess(
                         this, (Declarator *)getLeft(), r_id);
                     (*this->replace)(parent, this, proc_ident);
+                    proc_ident->addSymbols(getScope());
+                    proc_ident->setFlag(ASTNode::CT, isCT(this));
+                    proc_ident->analyze();
+
                     setType(proc_ident->type);
                     if (!type && !nextCall())
                         proc_ident->getType(); // identifier error
                     return -1;
-                } else if ((m_interface_sym = getScope()->getSymbol(
-                                getScope(), r_id, &r_id->getContext(), true,
-                                false, false, false)) &&
-                           m_interface_sym.assignTo(interface_sym) &&
-                           interface_sym->isInterface()) {
-
-                    Identifier * proc_ident = createIdentifierFromAccess(
-                        this, (Declarator *)getLeft(), r_id);
-                    (*this->replace)(parent, this, proc_ident);
-                    setType(proc_ident->type);
-                    return -1;
                 } else {
-                    if (struct_t->memberIndices.count(r_id->getUnqualified()) >
+                    if (struct_t->memberIndices.count(r_id->getSymName()) >
                         0)
                         errorl(getRight()->getContext(),
                                "Type '" + lt->getDemangledName() +
                                    "' does not define a constant or procedure "
                                    "member named '" +
-                                   r_id->getUnqualified() + "'.",
+                                   r_id->getSymName() + "'.",
                                true,
-                               "'" + r_id->getUnqualified() +
+                               "'" + r_id->getSymName() +
                                    "' is a member variable and can only be "
                                    "accessed by an instance of '" +
                                    lt->getDemangledName() + "'");
@@ -2683,17 +2539,17 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
                                "Type '" + lt->getDemangledName() +
                                    "' does not define a constant or procedure "
                                    "named '" +
-                                   r_id->getUnqualified() + "'.");
+                                   r_id->getSymName() + "'.");
                 }
             } else
                 errorl(getRight()->getContext(), "Expected identifier.");
         } else if (lt->isEnum()) {
             if (getRight()->nodeKind == ASTNode::IDENTIFIER) {
                 EnumType * e_t = (EnumType*)lt;
-                IntegerLiteral * lit = e_t->getValueLiteral(r_id->getUnqualified(), getContext(), getScope());
+                IntegerLiteral * lit = e_t->getValueLiteral(r_id->getSymName(), getContext(), getScope());
                 
                 if (!lit) {
-                    errorl(getRight()->getContext(), "'" + r_id->getUnqualified() + "' is not named in enum '" + e_t->getDemangledName() + "'.");
+                    errorl(getRight()->getContext(), "'" + r_id->getSymName() + "' is not named in enum '" + e_t->getDemangledName() + "'.");
                 }
 
                 lit->analyze();
@@ -2703,7 +2559,7 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
                 setType(e_t);
                 return -1;
             } else
-                errorl(getRight()->getContext(), "Expected identifier.");
+                errorl(getRight()->getContext(), "Expected identifier."); // @bad error message
         } else
             errorl(getLeft()->getContext(),
                    "'" + lt->getDemangledName() + "' does not have members.");
@@ -2734,48 +2590,39 @@ int AccessExpression::handleContainerAccess() {
         if (getRight()->nodeKind == ASTNode::IDENTIFIER) {
             // don't analyze here else we probably get 'use of undeclared
             // identifier' r_id->analyze(force);
-            if (struct_t->memberIndices.count(r_id->getUnqualified()) > 0) {
-                if (nodeKind == INJECT_EXPRESSION)
-                    errorl(getContext(), "To access type data members, use '.' "
-                                         "instead of '->'.");
+            if (struct_t->memberIndices.count(r_id->getSymName()) > 0) {
                 setType(struct_t->memberTypes
-                            [struct_t->memberIndices[r_id->getUnqualified()]]);
+                            [struct_t->memberIndices[r_id->getSymName()]]);
                 if (nextCall())
                     return -1;
                 else return 1;
-            } else if (struct_t->constantMap.count(r_id->getUnqualified()) >
+            } else if (struct_t->constantMap.count(r_id->getSymName()) >
                        0) {
-                if (nodeKind == INJECT_EXPRESSION)
-                    errorl(getContext(), "To access type data members, use '.' "
-                                         "instead of '->'.");
                 setType(
-                    struct_t->constantMap[r_id->getUnqualified()]->getType());
+                    struct_t->constantMap[r_id->getSymName()]->getType());
                 return 1;
-            } else if (struct_t->memberProcs.count(r_id->getUnqualified()) >
+            } else if (struct_t->memberProcs.count(r_id->getSymName()) >
                        0) {
                 Identifier * proc_ident = createIdentifierFromAccess(
                     this, (Declarator *)getLeft(), r_id);
                 (*getRight()->replace)(this, getRight(),
                                        proc_ident); // @lol this works
+                proc_ident->addSymbols(getScope());
+                proc_ident->setFlag(ASTNode::CT, isCT(this));
+                proc_ident->analyze();
                 if (!nextCall())
                     setType(proc_ident->getType());
                 // don't return.. fall to check handleInjection()
                 return 1;
             } else if (!next_call)
                 errorl(getRight()->getContext(),
-                       "No member named '" + r_id->getUnqualified() + "' in '" +
+                       "No member named '" + r_id->getSymName() + "' in '" +
                            struct_t->getDemangledName() + "'.");
-        } else if (next_call) {
-            // @incomplete interface stuff
         } else
             errorl(getRight()->getContext(), "Invalid structure accessor.",
                    true, "expected member name");
     } else if (lt->isTuple() || (lt->isPointer() && lt->under()->isTuple())) {
         TupleType * tuple_t = (TupleType *)lt;
-
-        if (nodeKind == INJECT_EXPRESSION)
-            errorl(getContext(),
-                   "To access tuple elements, use '.' instead of '->'.");
 
         if (lt->isPointer())
             tuple_t = (TupleType *)lt->under();
@@ -2817,50 +2664,6 @@ bool AccessExpression::handleInjection() {
     if (next_call) {
         // injection
         // we give away ownership of both left and right nodes
-
-        if (nodeKind == INJECT_EXPRESSION) {
-            if (getLeft()->getFlag(IDENT)) {
-                Maybe<Symbol *> m_sym =
-                    getScope()->getSymbol(getScope(), (Identifier *)getLeft(),
-                                          &getLeft()->getContext());
-                Symbol * sym = nullptr;
-                m_sym.assignTo(sym);
-                BJOU_DEBUG_ASSERT(sym);
-                if (sym->isType())
-                    errorl(getLeft()->getContext(),
-                           "Operand left of '->' operator must be addressable.",
-                           true, "Cannot take the address of a type.");
-                else if (sym->isProcSet())
-                    errorl(getLeft()->getContext(),
-                           "Operand left of '->' operator must be addressable.",
-                           true,
-                           "Use of '" + sym->demangledString() +
-                               "' is ambiguous."); // @bad
-                else if (sym->isInterface())
-                    errorl(getLeft()->getContext(),
-                           "Operand left of '->' operator must be addressable.",
-                           true, "Cannot take the address of an interface.");
-                else if (sym->node()->getFlag(ASTNode::IS_TEMPLATE))
-                    errorl(getLeft()->getContext(),
-                           "Operand left of '->' operator must be addressable.",
-                           true,
-                           "Cannot take the address of a template definition.");
-            } else {
-                if (getLeft()->getFlag(TERMINAL) ||
-                    !((Expression *)getLeft())->canBeLVal())
-                    errorl(
-                        getLeft()->getContext(),
-                        "Operand left of '->' operator must be addressable.");
-            }
-
-            AddressExpression * a = new AddressExpression;
-            a->setScope(getLeft()->getScope());
-            a->setContext(getLeft()->getContext());
-            ASTNode * l = getLeft();
-            (*getLeft()->replace)(this, getLeft(), a);
-            a->setRight(l);
-        }
-
         ArgList * args = (ArgList *)next_call->getRight();
         args->addExpressionToFront(getLeft());
         // args->getExpressions().insert(args->getExpressions().begin(),
@@ -2886,12 +2689,7 @@ void AccessExpression::analyze(bool force) {
 
     int i = 0;
 
-    if ((i = handleInterfaceSpecificCall())) {
-        if (i == -1) {
-            setFlag(ANALYZED, true);
-            return;
-        }
-    } else if (getLeft()->analyze(force), (i = handleThroughTemplate())) {
+    if (getLeft()->analyze(force), (i = handleThroughTemplate())) {
         if (i == -1) {
             setFlag(ANALYZED, true);
             return;
@@ -2935,40 +2733,6 @@ void AccessExpression::dump(std::ostream & stream, unsigned int level,
     stream << ")";
 }
 
-//
-
-// ~~~~~ InjectExpression ~~~~~
-
-InjectExpression::InjectExpression() {
-    contents = "->";
-
-    nodeKind = INJECT_EXPRESSION;
-}
-
-bool InjectExpression::isConstant() { return false; }
-
-void InjectExpression::analyze(bool force) {
-    HANDLE_FORCE();
-
-    ((AccessExpression *)this)->AccessExpression::analyze();
-
-    // InjectExpressions are always replaced
-    // BJOU_DEBUG_ASSERT(type && "expression does not have a type");
-    setFlag(ANALYZED, true);
-}
-
-ASTNode * InjectExpression::clone() { return ExpressionClone(this); }
-
-void InjectExpression::dump(std::ostream & stream, unsigned int level,
-                            bool dumpCT) {
-    if (!dumpCT && isCT(this))
-        return;
-    stream << "(";
-    getLeft()->dump(stream, level, dumpCT);
-    stream << "->";
-    getRight()->dump(stream, level, dumpCT);
-    stream << ")";
-}
 //
 
 // ~~~~~ UnaryPreExpression ~~~~~
@@ -3385,11 +3149,8 @@ void AddressExpression::analyze(bool force) {
                        "Cannot take the address of a type.");
             else if (sym->isProcSet())
                 errorl(right->getContext(), "Use of '" +
-                                                sym->demangledString() +
+                                                sym->unmangled +
                                                 "' is ambiguous."); // @bad
-            else if (sym->isInterface())
-                errorl(right->getContext(),
-                       "Cannot take the address of an interface.");
             else if (sym->node()->getFlag(ASTNode::IS_TEMPLATE))
                 errorl(right->getContext(),
                        "Cannot take the address of a template definition.");
@@ -3448,11 +3209,8 @@ void RefExpression::analyze(bool force) {
         if (sym->isType())
             errorl(right->getContext(), "Cannot take a reference of a type.");
         else if (sym->isProcSet())
-            errorl(right->getContext(), "Use of '" + sym->demangledString() +
+            errorl(right->getContext(), "Use of '" + sym->unmangled +
                                             "' is ambiguous."); // @bad
-        else if (sym->isInterface())
-            errorl(right->getContext(),
-                   "Cannot take a reference of an interface.");
         else if (sym->node()->getFlag(ASTNode::IS_TEMPLATE))
             errorl(right->getContext(),
                    "Cannot take a reference of a template definition.");
@@ -3574,7 +3332,7 @@ void AsExpression::dump(std::ostream & stream, unsigned int level,
 
 // ~~~~~ Identifier ~~~~~
 
-Identifier::Identifier() : unqualified({}), namespaces({}), resolved(nullptr) {
+Identifier::Identifier() : sym_name({}), sym_mod({}), sym_type({}), resolved(nullptr) {
     nodeKind = IDENTIFIER;
     setFlag(IDENT, true);
     setFlag(TERMINAL, true);
@@ -3611,17 +3369,29 @@ Val Identifier::eval() {
     return {};
 }
 
-std::string & Identifier::getUnqualified() { return unqualified; }
-void Identifier::setUnqualified(std::string _unqualified) {
-    unqualified = _unqualified;
+std::string & Identifier::getSymName() { return sym_name; }
+void Identifier::setSymName(std::string _name) {
+    sym_name = _name;
 }
 
-std::vector<std::string> & Identifier::getNamespaces() { return namespaces; }
-void Identifier::setNamespaces(std::vector<std::string> _namespaces) {
-    namespaces = _namespaces;
+std::string & Identifier::getSymMod() { return sym_mod; }
+void Identifier::setSymMod(std::string _mod) {
+    sym_mod = _mod;
 }
-void Identifier::addNamespace(std::string _nspace) {
-    namespaces.push_back(_nspace);
+
+std::string & Identifier::getSymType() { return sym_type; }
+void Identifier::setSymType(std::string _type) {
+    sym_type = _type;
+}
+
+std::string Identifier::symAll() const {
+    std::string r;
+
+    if (!sym_mod.empty())     r += sym_mod  + "::";
+    if (!sym_type.empty())    r += sym_type + ".";
+    r += sym_name;
+
+    return r;
 }
 
 // Node interface
@@ -3631,45 +3401,26 @@ const Type * Identifier::getType() {
     if (!type) {
         Maybe<Symbol *> m_sym;
         Symbol * sym = nullptr;
-
-        if (getFlag(DIRECT_PROC_REF)) {
-            m_sym = getScope()->getSymbol(getScope(), getUnqualified());
-            m_sym.assignTo(sym);
-            BJOU_DEBUG_ASSERT(sym);
-            sym = ((ProcSet *)sym->node())->procs[qualified];
-        } else {
-            m_sym =
-                getScope()->getSymbol(getScope(), this, &this->getContext());
-            m_sym.assignTo(sym);
-            BJOU_DEBUG_ASSERT(sym);
-
-            if (qualified.empty())
-                qualified = mangledIdentifier(this);
-        }
+        m_sym = getScope()->getSymbol(getScope(), this, &this->getContext());
+        m_sym.assignTo(sym);
+        BJOU_DEBUG_ASSERT(sym);
 
         if (sym->isProcSet()) {
             ProcSet * set = (ProcSet *)sym->node();
-            Procedure * proc = set->get(nullptr, getRight(), &getContext());
-            BJOU_DEBUG_ASSERT(proc);
-            qualified = proc->getMangledName();
+            ASTNode * proc = set->get(nullptr, getRight(), &getContext());
+            BJOU_DEBUG_ASSERT(proc && proc->nodeKind == ASTNode::PROCEDURE);
             setType(proc->getType());
         } else {
-            if (sym->isType() && getParent() && getParent()->getParent() && (IS_EXPRESSION(getParent()->getParent()) || getParent()->getParent()->nodeKind == ARG_LIST)) {
+            if (sym->isType() && getParent() && getParent()->getParent()
+            && (IS_EXPRESSION(getParent()->getParent()) || getParent()->getParent()->nodeKind == ARG_LIST)) {
                 if (getParent()->getParent()->nodeKind == ASTNode::ACCESS_EXPRESSION) {
                     setType(sym->node()->getType());
                     return type;
                 }
             }
 
-            std::string sym_kind = "???";
-
-            if (sym->isType() || sym->isTemplateType())
-                sym_kind = "Type declarator";
-            else if (sym->isInterface())
-                sym_kind = "Interface name";
-
             errorl(getContext(),
-                   sym_kind + " '" + sym->demangledString() +
+                   "Type declarator '" + sym->unmangled +
                        "' not allowed here."); // @bad error message
         }
     }
@@ -3683,50 +3434,55 @@ void Identifier::analyze(bool force) {
 
     Maybe<Symbol *> m_sym;
     Symbol * sym = nullptr;
-
-    if (getFlag(DIRECT_PROC_REF)) {
-        m_sym = getScope()->getSymbol(getScope(), getUnqualified());
-        m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym);
-        sym = ((ProcSet *)sym->node())->procs[qualified];
-    } else {
-        m_sym = getScope()->getSymbol(getScope(), this, &this->getContext());
-        m_sym.assignTo(sym);
-        BJOU_DEBUG_ASSERT(sym);
-
-        if (qualified.empty())
-            qualified = mangledIdentifier(this);
-    }
+    m_sym = getScope()->getSymbol(getScope(), this, &this->getContext());
+    m_sym.assignTo(sym);
+    BJOU_DEBUG_ASSERT(sym);
 
     if (sym->isVar() || sym->isConstant() || sym->isProc()) {
         setType(sym->node()->getType());
     } else if (sym->isProcSet()) {
+        bool call_independent = true;
+
+        /* if this identifier is part of a call, the CallExpression
+         * will be responsible for checking it in the set with args, etc.
+         * Otherwise, we should fail here if we can't trivially deduce it
+         * from the set. */
+        ASTNode * p = getParent();
+        if (p) {
+            if (p->nodeKind == ASTNode::CALL_EXPRESSION) {
+                CallExpression * call = (CallExpression*)p;
+                if (this == call->getLeft()) {
+                    call_independent = false;
+                }
+            } else if (p->nodeKind == ASTNode::ACCESS_EXPRESSION) {
+                AccessExpression * access = (AccessExpression*)p;
+                if (access->nextCall())
+                    call_independent = false;
+            }
+        }
+
         ProcSet * set = (ProcSet *)sym->node();
+
+        if (set->procs.size() == 1 && call_independent) {
+            Symbol * first = set->procs.begin()->second;
+            if (first->isTemplateProc()
+            && (!getRight() || getRight()->nodeKind != ASTNode::TEMPLATE_INSTANTIATION)) {
+                errorl(getContext(),
+                        "Missing template instantiation arguments for template proc.");
+            }
+        }
+
         Procedure * proc =
             set->get(nullptr, getRight(), &getContext(),
-                     false); // don't fail.. will catch in getType()
+                     call_independent);
         if (proc) {
-            qualified = proc->getMangledName();
             resolved = proc;
             setType(proc->getType());
         }
     } else if (sym->isType() || sym->isTemplateType()) {
-        // @what did I do here?
-        /* if (compilation->frontEnd.lValStack.empty())
-            errorl(getContext(), "Type declarator not allowed here.");
-        else errorl(getContext(), "Type declarator not allowed here.", true,
-        "Note: no viable procedure found for l-value type " +
-        compilation->frontEnd.lValStack.top()->getDemangledName());
-        */
-        /*
-        if (sym->isType())
-            setType(sym->node()->getType());
-        else internalError("Identifier error."); // @bad!
-         */
-
         if (parent && (IS_EXPRESSION(parent) || parent->nodeKind == ARG_LIST)) {
             if (parent->nodeKind != ASTNode::ACCESS_EXPRESSION)
-                errorl(getContext(), "Can't use type name '" + unqualified +
+                errorl(getContext(), "Can't use type name '" + symAll() +
                                          "' as expression.");
         }
 
@@ -3746,7 +3502,7 @@ void Identifier::analyze(bool force) {
 
     if (resolved) {
         if (!isCT(this) && isCT(resolved))
-            errorl(getContext(), "Referenced symbol '" + unqualified +
+            errorl(getContext(), "Referenced symbol '" + symAll() +
                                      "' is only available at compile time.");
     }
 
@@ -3761,7 +3517,7 @@ ASTNode * Identifier::clone() { return ExpressionClone(this); }
 void Identifier::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
         return;
-    stream << (qualified.empty() ? unqualified : qualified);
+    stream << symAll();
     if (getRight())
         getRight()->dump(stream, level, dumpCT);
 }
@@ -4112,7 +3868,7 @@ void SliceExpression::desugar() {
     Declarator * slice_decl =
         ((SliceType *)getType())->getRealType()->getGenericDeclarator();
     Identifier * create = new Identifier;
-    create->setUnqualified("create");
+    create->setSymName("create");
     AccessExpression * l = new AccessExpression;
     l->setLeft(slice_decl);
     l->setRight(create);
@@ -4125,7 +3881,7 @@ void SliceExpression::desugar() {
 
         Identifier * __data = new Identifier;
         __data->setContext(getSrc()->getContext());
-        __data->setUnqualified("__data");
+        __data->setSymName("__data");
 
         access->setLeft(getSrc());
         access->setRight(__data);
@@ -4140,7 +3896,7 @@ void SliceExpression::desugar() {
 
         Identifier * __data = new Identifier;
         __data->setContext(getSrc()->getContext());
-        __data->setUnqualified("__data");
+        __data->setSymName("__data");
 
         access->setLeft(getSrc());
         access->setRight(__data);
@@ -4250,7 +4006,7 @@ void DynamicArrayExpression::desugar() {
     Declarator * da_decl =
         ((DynamicArrayType *)getType())->getRealType()->getGenericDeclarator();
     Identifier * create = new Identifier;
-    create->setUnqualified("create");
+    create->setSymName("create");
     AccessExpression * l = new AccessExpression;
     l->setLeft(da_decl);
     l->setRight(create);
@@ -4376,7 +4132,7 @@ void LenExpression::desugar() {
 
         Identifier * __len = new Identifier;
         __len->setContext(getContext());
-        __len->setUnqualified("__len");
+        __len->setSymName("__len");
 
         Expression * l = (Expression *)getExpr();
 
@@ -4394,7 +4150,7 @@ void LenExpression::desugar() {
 
         Identifier * __len = new Identifier;
         __len->setContext(getContext());
-        __len->setUnqualified("__used");
+        __len->setSymName("__used");
 
         Expression * l = (Expression *)getExpr();
 
@@ -4754,23 +4510,19 @@ void ProcLiteral::analyze(bool force) {
 
     Procedure * proc = (Procedure *)getRight();
 
-    // proc->addSymbols(compilation->frontEnd.globalScope);
     proc->analyze(force);
-    compilation->frontEnd.deferredAST.push_back(proc);
 
     const Type * rt = proc->getType();
     setType(rt);
 
     Identifier * proc_ident = new Identifier;
     proc_ident->setScope(getScope());
-    proc_ident->setUnqualified(proc->getName());
-    proc_ident->qualified = proc->getMangledName();
-    proc_ident->setFlag(Identifier::DIRECT_PROC_REF, true);
+    proc_ident->setSymName(proc->getName());
     proc_ident->setFlag(Expression::TERMINAL, true);
-    proc_ident->addSymbols(getScope());
 
     (*this->replace)(parent, this, proc_ident);
 
+    proc_ident->addSymbols(getScope());
     proc_ident->analyze();
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
@@ -4784,7 +4536,7 @@ void ProcLiteral::addSymbols(Scope * _scope) {
     if (left)
         left->addSymbols(scope);
     if (right)
-        right->addSymbols(compilation->frontEnd.globalScope);
+        right->addSymbols(scope);
 }
 
 ASTNode * ProcLiteral::clone() { return ExpressionClone(this); }
@@ -5126,12 +4878,12 @@ void Declarator::addTypeSpecifier(std::string _specifier) {
 void Declarator::analyze(bool force) {
     HANDLE_FORCE();
 
-    std::string mangled = mangleSymbol();
+    std::string s = asString();
 
     // Maybe<Symbol*> m_sym = getScope()->getSymbol(getScope(), getIdentifier(),
     // &getContext(), /* traverse = */true, /* fail = */false);
     Maybe<Symbol *> m_sym =
-        getScope()->getSymbol(getScope(), mangled, &getContext(),
+        getScope()->getSymbol(getScope(), s, &getContext(),
                               /* traverse = */ true, /* fail = */ false);
     Symbol * sym = nullptr;
 
@@ -5145,12 +4897,12 @@ void Declarator::analyze(bool force) {
             if (t->isStruct() || t->isEnum()) {
                 if (getTemplateInst())
                     errorl(getTemplateInst()->getContext(),
-                           "'" + sym->demangledString() +
+                           "'" + sym->unmangled +
                                "' is not a template type.");
             } else if (sym->isTemplateType()) {
                 if (!getTemplateInst())
                     errorl(getContext(),
-                           "Missing template instantiation arguments.");
+                           "Missing template instantiation arguments for template type.");
                 TemplateStruct * ttype = (TemplateStruct *)sym->node();
                 Declarator * new_decl =
                     makeTemplateStruct(ttype, getTemplateInst())
@@ -5165,11 +4917,11 @@ void Declarator::analyze(bool force) {
                 return;
             } else if (!t->isPrimative()) {
                 errorl(getContext(),
-                       "'" + sym->demangledString() + "' is not a type.");
+                       "'" + sym->unmangled + "' is not a type.");
             }
         }
-    } else if (compilation->frontEnd.typeTable.count(mangled) == 0 ||
-               !compilation->frontEnd.typeTable[mangled]->isPrimative())
+    } else if (compilation->frontEnd.typeTable.count(s) == 0 ||
+               !compilation->frontEnd.typeTable[s]->isPrimative())
         getScope()->getSymbol(getScope(), getIdentifier(),
                               &getContext()); // should just produce an error
 
@@ -5204,14 +4956,14 @@ const Type * Declarator::getType() {
     if (type)
         return type;
 
-    if (compilation->frontEnd.primativeTypeTable.count(mangleSymbol()) > 0)
-        return compilation->frontEnd.primativeTypeTable[mangleSymbol()];
+    if (compilation->frontEnd.primativeTypeTable.count(asString()) > 0)
+        return compilation->frontEnd.primativeTypeTable[asString()];
 
     // Maybe<Symbol*> m_sym = getScope()->getSymbol(getScope(), identifier,
     // &getContext());
-    std::string mangled = mangleSymbol();
+    std::string s = asString();
     Maybe<Symbol *> m_sym =
-        getScope()->getSymbol(getScope(), mangled, &getContext());
+        getScope()->getSymbol(getScope(), s, &getContext());
     Symbol * sym = nullptr;
     m_sym.assignTo(sym);
     BJOU_DEBUG_ASSERT(sym);
@@ -5239,29 +4991,8 @@ Declarator::~Declarator() {
 //
 
 // Declarator interface
-std::string Declarator::mangleSymbol() {
-    return mangledIdentifier((Identifier *)getIdentifier());
-    /*
-    if (shouldAnalyze)
-        analyze();
-
-    Identifier * identifier = (Identifier*)getIdentifier();
-    if (identifier->namespaces.empty() &&
-        compilation->frontEnd.typeTable.count(identifier->getUnqualified()) &&
-        compilation->frontEnd.typeTable[identifier->getUnqualified()]->isPrimative())
-        return identifier->getUnqualified();
-
-    Maybe<Symbol*> m_sym = getScope()->getSymbol(identifier, &getContext());
-    Symbol * sym = nullptr;
-    m_sym.assignTo(sym);
-    BJOU_DEBUG_ASSERT(sym);
-    return sym->name;
-     */
-}
-
-std::string Declarator::mangleAndPrefixSymbol() {
-    std::string mangled = mangleSymbol();
-    return "T" + std::to_string(mangled.size()) + mangled;
+std::string Declarator::asString() {
+    return ((Identifier*)getIdentifier())->symAll();
 }
 
 const ASTNode * Declarator::getBase() const { return this; }
@@ -5397,15 +5128,8 @@ const Type * ArrayDeclarator::getType() {
 //
 
 // Declarator interface
-std::string ArrayDeclarator::mangleSymbol() {
-    return "a" + ((Declarator *)getArrayOf())->mangleSymbol();
-}
-
-std::string ArrayDeclarator::mangleAndPrefixSymbol() {
-    std::string baseMangled =
-        ((Declarator *)getArrayOf())->mangleAndPrefixSymbol();
-    return baseMangled.substr(0, strlen("T")) + "a" +
-           baseMangled.substr(strlen("T") /* to end */);
+std::string ArrayDeclarator::asString() {
+    return ((Declarator *)getArrayOf())->asString() + "[" + std::to_string(size) + "]";
 }
 
 const ASTNode * ArrayDeclarator::getBase() const {
@@ -5506,15 +5230,8 @@ const Type * SliceDeclarator::getType() {
 //
 
 // Declarator interface
-std::string SliceDeclarator::mangleSymbol() {
-    return "s" + ((Declarator *)getSliceOf())->mangleSymbol();
-}
-
-std::string SliceDeclarator::mangleAndPrefixSymbol() {
-    std::string baseMangled =
-        ((Declarator *)getSliceOf())->mangleAndPrefixSymbol();
-    return baseMangled.substr(0, strlen("T")) + "s" +
-           baseMangled.substr(strlen("T") /* to end */);
+std::string SliceDeclarator::asString() {
+    return ((Declarator *)getSliceOf())->asString() + "[]";
 }
 
 const ASTNode * SliceDeclarator::getBase() const {
@@ -5616,15 +5333,8 @@ const Type * DynamicArrayDeclarator::getType() {
 //
 
 // Declarator interface
-std::string DynamicArrayDeclarator::mangleSymbol() {
-    return "a" + ((Declarator *)getArrayOf())->mangleSymbol();
-}
-
-std::string DynamicArrayDeclarator::mangleAndPrefixSymbol() {
-    std::string baseMangled =
-        ((Declarator *)getArrayOf())->mangleAndPrefixSymbol();
-    return baseMangled.substr(0, strlen("T")) + "a" +
-           baseMangled.substr(strlen("T") /* to end */);
+std::string DynamicArrayDeclarator::asString() {
+    return ((Declarator *)getArrayOf())->asString() + "[...]";
 }
 
 const ASTNode * DynamicArrayDeclarator::getBase() const {
@@ -5716,15 +5426,8 @@ const Type * PointerDeclarator::getType() {
 }
 
 // Declarator interface
-std::string PointerDeclarator::mangleSymbol() {
-    return "p" + ((Declarator *)getPointerOf())->mangleSymbol();
-}
-
-std::string PointerDeclarator::mangleAndPrefixSymbol() {
-    std::string baseMangled =
-        ((Declarator *)getPointerOf())->mangleAndPrefixSymbol();
-    return baseMangled.substr(0, strlen("T")) + "p" +
-           baseMangled.substr(strlen("T") /* to end */);
+std::string PointerDeclarator::asString() {
+    return ((Declarator *)getPointerOf())->asString() + "*";
 }
 
 const ASTNode * PointerDeclarator::getBase() const {
@@ -5815,15 +5518,8 @@ const Type * RefDeclarator::getType() {
 //
 
 // Declarator interface
-std::string RefDeclarator::mangleSymbol() {
-    return "r" + ((Declarator *)getRefOf())->mangleSymbol();
-}
-
-std::string RefDeclarator::mangleAndPrefixSymbol() {
-    std::string baseMangled =
-        ((Declarator *)getRefOf())->mangleAndPrefixSymbol();
-    return baseMangled.substr(0, strlen("T")) + "r" +
-           baseMangled.substr(strlen("T") /* to end */);
+std::string RefDeclarator::asString() {
+    return ((Declarator *)getRefOf())->asString() + " ref";
 }
 
 const ASTNode * RefDeclarator::getBase() const {
@@ -5905,15 +5601,8 @@ const Type * MaybeDeclarator::getType() {
 //
 
 // Declarator interface
-std::string MaybeDeclarator::mangleSymbol() {
-    return "m" + ((Declarator *)getMaybeOf())->mangleSymbol();
-}
-
-std::string MaybeDeclarator::mangleAndPrefixSymbol() {
-    std::string baseMangled =
-        ((Declarator *)getMaybeOf())->mangleAndPrefixSymbol();
-    return baseMangled.substr(0, strlen("T")) + "m" +
-           baseMangled.substr(strlen("T") /* to end */);
+std::string MaybeDeclarator::asString() {
+    return ((Declarator *)getMaybeOf())->asString() + "?";
 }
 
 const ASTNode * MaybeDeclarator::getBase() const {
@@ -6019,17 +5708,18 @@ const Type * TupleDeclarator::getType() {
 //
 
 // Declarator interface
-std::string TupleDeclarator::mangleSymbol() {
-    std::string mangled = "__bjou_tuple_";
+std::string TupleDeclarator::asString() {
+    const char * lazy_comma = "";
+    std::string mangled = "(";
     std::vector<ASTNode *> & subDeclarators = getSubDeclarators();
-    mangled += std::to_string(subDeclarators.size());
-    for (ASTNode * sd : subDeclarators)
-        mangled += ((Declarator *)sd)->mangleAndPrefixSymbol();
+    for (ASTNode * sd : subDeclarators) {
+        mangled += lazy_comma + ((Declarator *)sd)->asString();
+        lazy_comma = ", ";
+    }
+    mangled += ")";
 
     return mangled;
 }
-
-std::string TupleDeclarator::mangleAndPrefixSymbol() { return mangleSymbol(); }
 
 const ASTNode * TupleDeclarator::getBase() const { return this; }
 
@@ -6167,20 +5857,26 @@ const Type * ProcedureDeclarator::getType() {
 //
 
 // Declarator interface
-std::string ProcedureDeclarator::mangleSymbol() {
-    std::string mangled = "PA";
+std::string ProcedureDeclarator::asString() {
+    const char * lazy_comma = "";
+    std::string mangled = "<(";
     std::vector<ASTNode *> & subDeclarators = getParamDeclarators();
-    mangled += std::to_string(subDeclarators.size());
-    for (ASTNode * sd : subDeclarators)
-        mangled += ((Declarator *)sd)->mangleAndPrefixSymbol();
+    for (ASTNode * sd : subDeclarators) {
+        mangled += lazy_comma + ((Declarator *)sd)->asString();
+        lazy_comma = ", ";
+    }
+    if (getFlag(ProcedureDeclarator::IS_VARARG)) {
+        mangled += lazy_comma + std::string("...");
+    }
+    mangled += ")";
     ASTNode * retDeclarator = getRetDeclarator();
-    mangled += "R" + ((Declarator *)retDeclarator)->mangleAndPrefixSymbol();
+    if (retDeclarator) {
+        mangled += " : ";
+        mangled += ((Declarator *)retDeclarator)->asString();
+    }
+    mangled += ">";
 
     return mangled;
-}
-
-std::string ProcedureDeclarator::mangleAndPrefixSymbol() {
-    return mangleSymbol();
 }
 
 const ASTNode * ProcedureDeclarator::getBase() const { return this; }
@@ -6231,9 +5927,7 @@ const Type * PlaceholderDeclarator::getType() { return PlaceholderType::get(); }
 //
 
 // Declarator interface
-std::string PlaceholderDeclarator::mangleSymbol() { return "_"; }
-
-std::string PlaceholderDeclarator::mangleAndPrefixSymbol() { return "_"; }
+std::string PlaceholderDeclarator::asString() { return "_"; }
 
 const ASTNode * PlaceholderDeclarator::getBase() const { return this; }
 //
@@ -6241,13 +5935,18 @@ const ASTNode * PlaceholderDeclarator::getBase() const { return this; }
 // ~~~~~ Constant ~~~~~
 
 Constant::Constant()
-    : name({}), mangledName({}), typeDeclarator(nullptr),
+    : name({}), lookupName({}), typeDeclarator(nullptr),
       initialization(nullptr) {
     nodeKind = CONSTANT;
 }
 
 std::string & Constant::getName() { return name; }
 void Constant::setName(std::string _name) { name = _name; }
+
+std::string & Constant::getLookupName() { return lookupName; }
+void Constant::setLookupName(std::string _lookupName) {
+    lookupName = _lookupName;
+}
 
 std::string & Constant::getMangledName() { return mangledName; }
 void Constant::setMangledName(std::string _mangledName) {
@@ -6381,8 +6080,11 @@ void Constant::analyze(bool force) {
 void Constant::addSymbols(Scope * _scope) {
     setScope(_scope);
     if (!getFlag(IS_TYPE_MEMBER)) {
-        _Symbol<Constant> * symbol = new _Symbol<Constant>(getName(), this);
-        setMangledName(symbol->mangledString(_scope));
+        _Symbol<Constant> * symbol = new _Symbol<Constant>(getName(), _scope->parent ? "" : mod, "", this);
+
+        setLookupName(symbol->unmangled);
+        setMangledName(symbol->real_mangled);
+        
         _scope->addSymbol(symbol, &getNameContext());
     }
     if (getTypeDeclarator())
@@ -6450,13 +6152,18 @@ const Type * Constant::getType() {
 // ~~~~~ VariableDeclaration ~~~~~
 
 VariableDeclaration::VariableDeclaration()
-    : name({}), mangledName({}), typeDeclarator(nullptr),
+    : name({}), lookupName({}), typeDeclarator(nullptr),
       initialization(nullptr) {
     nodeKind = VARIABLE_DECLARATION;
 }
 
 std::string & VariableDeclaration::getName() { return name; }
 void VariableDeclaration::setName(std::string _name) { name = _name; }
+
+std::string & VariableDeclaration::getLookupName() { return lookupName; }
+void VariableDeclaration::setLookupName(std::string _lookupName) {
+    lookupName = _lookupName;
+}
 
 std::string & VariableDeclaration::getMangledName() { return mangledName; }
 void VariableDeclaration::setMangledName(std::string _mangledName) {
@@ -6494,7 +6201,7 @@ void VariableDeclaration::analyze(bool force) {
 
     if (!getFlag(IS_TYPE_MEMBER)) {
         Maybe<Symbol *> m_sym = getScope()->getSymbol(
-            getScope(), getMangledName(), &getNameContext(), true, true, false);
+            getScope(), getLookupName(), &getNameContext(), true, true, false);
         m_sym.assignTo(sym);
         BJOU_DEBUG_ASSERT(sym);
     }
@@ -6592,7 +6299,7 @@ void VariableDeclaration::analyze(bool force) {
 
         sym->initializedInScopes.insert(getScope());
 
-        if ((getScope()->nspace || !getScope()->parent) &&
+        if (!getScope()->parent &&
             !((Expression *)getInitialization())->isConstant())
             errorl(getInitialization()->getContext(),
                    "Global variable initializations must be compile time "
@@ -6644,8 +6351,16 @@ void VariableDeclaration::addSymbols(Scope * _scope) {
     setScope(_scope);
     if (!getFlag(IS_TYPE_MEMBER)) {
         _Symbol<VariableDeclaration> * symbol =
-            new _Symbol<VariableDeclaration>(getName(), this);
-        setMangledName(symbol->mangledString(_scope));
+            new _Symbol<VariableDeclaration>(getName(), _scope->parent ? "" : mod, "", this);
+
+        setLookupName(symbol->unmangled);
+        setMangledName(symbol->real_mangled);
+        /* if (_scope->parent) { */
+        /*     setMangledName(symbol->unmangled); */
+        /* } else { */
+        /*     setMangledName(symbol->real_mangled); */
+        /* } */
+
         _scope->addSymbol(symbol, &getNameContext());
     }
     if (getTypeDeclarator())
@@ -6717,16 +6432,16 @@ bool VariableDeclaration::isStatement() const { return true; }
 
 // ~~~~~ Alias ~~~~~
 
-Alias::Alias() : name({}), mangledName({}), declarator(nullptr) {
+Alias::Alias() : name({}), lookupName({}), declarator(nullptr) {
     nodeKind = ALIAS;
 }
 
 std::string & Alias::getName() { return name; }
 void Alias::setName(std::string _name) { name = _name; }
 
-std::string & Alias::getMangledName() { return mangledName; }
-void Alias::setMangledName(std::string _mangledName) {
-    mangledName = _mangledName;
+std::string & Alias::getLookupName() { return lookupName; }
+void Alias::setLookupName(std::string _lookupName) {
+    lookupName = _lookupName;
 }
 
 ASTNode * Alias::getDeclarator() const { return declarator; }
@@ -6751,12 +6466,12 @@ void Alias::addSymbols(Scope * _scope) {
     getDeclarator()->addSymbols(_scope);
 
     setScope(_scope);
-    _Symbol<Alias> * symbol = new _Symbol<Alias>(getName(), this);
-    setMangledName(symbol->mangledString(_scope));
+    _Symbol<Alias> * symbol = new _Symbol<Alias>(getName(), mod, "", this);
+    setLookupName(symbol->unmangled);
 
     // do this before adding symbol so that it can't self reference
     getDeclarator()->analyze();
-    Type::alias(getMangledName(), getDeclarator()->getType());
+    Type::alias(symbol->unmangled, getDeclarator()->getType());
 
     _scope->addSymbol(symbol, &getNameContext());
 }
@@ -6764,7 +6479,7 @@ void Alias::addSymbols(Scope * _scope) {
 const Type * Alias::getType() {
     analyze();
 
-    const Type * t = getTypeFromTable(getMangledName());
+    const Type * t = getTypeFromTable(getLookupName());
 
     BJOU_DEBUG_ASSERT(t);
 
@@ -6805,13 +6520,18 @@ Alias::~Alias() {
 // ~~~~~ Struct ~~~~~
 
 Struct::Struct()
-    : name({}), mangledName({}), extends(nullptr), memberVarDecls({}),
-      interfaceImpls({}), inst(nullptr), n_interface_procs(0) {
+    : name({}), lookupName({}), extends(nullptr), memberVarDecls({}),
+      inst(nullptr) {
     nodeKind = STRUCT;
 }
 
 std::string & Struct::getName() { return name; }
 void Struct::setName(std::string _name) { name = _name; }
+
+std::string & Struct::getLookupName() { return lookupName; }
+void Struct::setLookupName(std::string _lookupName) {
+    lookupName = _lookupName;
+}
 
 std::string & Struct::getMangledName() { return mangledName; }
 void Struct::setMangledName(std::string _mangledName) {
@@ -6873,49 +6593,6 @@ void Struct::addMemberTemplateProc(ASTNode * memberTemplateProc) {
     memberTemplateProc->replace =
         rpget<replacementPolicy_Struct_MemberTemplateProc>();
     memberTemplateProcs.push_back(memberTemplateProc);
-}
-
-std::vector<ASTNode *> & Struct::getInterfaceImpls() { return interfaceImpls; }
-void Struct::setInterfaceImpls(std::vector<ASTNode *> _interfaceImpls) {
-    interfaceImpls = _interfaceImpls;
-}
-void Struct::addInterfaceImpl(ASTNode * _interfaceImpl) {
-    _interfaceImpl->parent = this;
-    _interfaceImpl->replace = rpget<replacementPolicy_Struct_InterfaceImpl>();
-    interfaceImpls.push_back(_interfaceImpl);
-}
-
-std::vector<ASTNode *> Struct::getAllInterfaceImplsSorted() {
-    // std::map<std::string, ASTNode*> sorted_map;
-    std::map<unsigned int, ASTNode *> sorted_map;
-    std::vector<ASTNode *> sorted_vec;
-
-    sorted_vec.reserve(n_interface_procs);
-
-    if (getExtends()) {
-        StructType * extends_t = (StructType *)getExtends()->getType();
-        for (ASTNode * _impl :
-             extends_t->_struct->getAllInterfaceImplsSorted()) {
-            InterfaceImplementation * impl = (InterfaceImplementation *)_impl;
-            Identifier * ident = (Identifier *)impl->getIdentifier();
-            // sorted_map[mangledIdentifier(ident)] = _impl;
-            sorted_map[compilation->frontEnd.getInterfaceSortKey(
-                mangledIdentifier(ident))] = _impl;
-        }
-    }
-
-    for (ASTNode * _impl : getInterfaceImpls()) {
-        InterfaceImplementation * impl = (InterfaceImplementation *)_impl;
-        Identifier * ident = (Identifier *)impl->getIdentifier();
-        // sorted_map[mangledIdentifier(ident)] = _impl;
-        sorted_map[compilation->frontEnd.getInterfaceSortKey(
-            mangledIdentifier(ident))] = _impl;
-    }
-
-    for (auto & impl : sorted_map)
-        sorted_vec.push_back(impl.second);
-
-    return sorted_vec;
 }
 
 // Node interface
@@ -6986,7 +6663,6 @@ void Struct::analyze(bool force) {
         }
 
         proc->analyze(force);
-        // compilation->frontEnd.deferredAST.push_back(proc);
     }
 
     for (ASTNode * _template_proc : getMemberTemplateProcs()) {
@@ -7004,84 +6680,37 @@ void Struct::analyze(bool force) {
     if (getExtends()) {
         ASTNode * extends = getExtends();
         const Type * e_t = extends->getType();
-        if (e_t->isStruct()) {
-            const StructType * e_s_t = (const StructType *)e_t;
-            Struct * extendsStruct = (Struct *)e_s_t->_struct;
-            std::vector<std::string> implNames;
-            for (ASTNode * _impl : getInterfaceImpls()) {
-                InterfaceImplementation * impl =
-                    (InterfaceImplementation *)_impl;
-                implNames.push_back(
-                    mangledIdentifier((Identifier *)impl->getIdentifier()));
-            }
-            for (ASTNode * _e_impl : extendsStruct->getInterfaceImpls()) {
-                InterfaceImplementation * e_impl =
-                    (InterfaceImplementation *)_e_impl;
-                if (e_impl->getFlag(
-                        InterfaceImplementation::PUNT_TO_EXTENSION)) {
-                    if (std::find(implNames.begin(), implNames.end(),
-                                  mangledIdentifier(
-                                      (Identifier *)e_impl->getIdentifier())) ==
-                        implNames.end()) {
-                        errorl(this->getNameContext(),
-                               "Type '" + demangledString(getMangledName()) +
-                                   "' extends abstract type '" +
-                                   e_s_t->getDemangledName() +
-                                   "', but does not implement required "
-                                   "interface '" +
-                                   demangledString(mangledIdentifier(
-                                       (Identifier *)e_impl->getIdentifier())) +
-                                   "'.",
-                               false);
-                        errorl(e_impl->getContext(), "Required:");
-                    }
-                }
-            }
-        } else
+        if (!e_t->isStruct()) {
             errorl(extends->getContext(),
                    "Can't extend a type that is not a struct."); // @bad error
                                                                  // message
+        }
     }
-
-    for (ASTNode * _impl : getInterfaceImpls()) {
-        InterfaceImplementation * impl = (InterfaceImplementation *)_impl;
-        impl->analyze(force);
-    }
-
-    for (ASTNode * _impl : getAllInterfaceImplsSorted()) {
-        InterfaceImplementation * impl = (InterfaceImplementation *)_impl;
-        n_interface_procs += impl->getInterfaceDef()->totalProcs();
-    }
-
-    if (n_interface_procs > compilation->max_interface_procs)
-        compilation->max_interface_procs = n_interface_procs;
 
     setFlag(ANALYZED, true);
 }
 
 void Struct::preDeclare(Scope * _scope) {
     setScope(_scope);
-    _Symbol<Struct> * symbol = new _Symbol<Struct>(getName(), this, inst);
-    setMangledName(symbol->mangledString(_scope));
+    _Symbol<Struct> * symbol = new _Symbol<Struct>(getName(), mod, "", this, inst, nullptr);
+    setLookupName(symbol->unmangled);
+    setMangledName(symbol->real_mangled);
     _scope->addSymbol(symbol, &getNameContext());
 
-    if (getMangledName() == "typeinfo")
-        compilation->frontEnd.typeinfo_struct = this;
-
     // @refactor? should this really be here?
-    StructType::get(getMangledName(), this, (TemplateInstantiation *)inst);
+    StructType::get(symbol->unmangled, this, (TemplateInstantiation *)inst);
 }
 
 void Struct::addSymbols(Scope * _scope) {
     /*
     setScope(_scope);
     _Symbol<Struct>* symbol = new _Symbol<Struct>(getName(), this, inst);
-    setMangledName(symbol->mangledString(_scope));
+    setLookupName(symbol->real_mangled);
     _scope->addSymbol(symbol, &getNameContext());
 
     // @refactor? should this really be here?
-    compilation->frontEnd.typeTable[getMangledName()] = new
-    StructType(getMangledName(), this, (TemplateInstantiation*)inst);
+    compilation->frontEnd.typeTable[getLookupName()] = new
+    StructType(getLookupName(), this, (TemplateInstantiation*)inst);
     */
 
     if (extends)
@@ -7096,16 +6725,6 @@ void Struct::addSymbols(Scope * _scope) {
         ((Procedure*)((TemplateProc*)tproc)->_template)->desugarThis();
         tproc->addSymbols(_scope);
     }
-    for (ASTNode * _impl : getAllInterfaceImplsSorted()) {
-        InterfaceImplementation * impl = (InterfaceImplementation *)_impl;
-        if (impl->getParent() == this) {
-            if (impl->getFlag(InterfaceImplementation::PUNT_TO_EXTENSION))
-                createProcSetsForPuntedInterfaceImpl(this, impl);
-            impl->addSymbols(_scope);
-        } else {
-            createProcSetForInheritedInterfaceImpl(this, impl);
-        }
-    }
 }
 
 void Struct::unwrap(std::vector<ASTNode *> & terminals) {
@@ -7117,8 +6736,6 @@ void Struct::unwrap(std::vector<ASTNode *> & terminals) {
         constant->unwrap(terminals);
     for (ASTNode * proc : getMemberProcs())
         proc->unwrap(terminals);
-    for (ASTNode * impl : getInterfaceImpls())
-        impl->unwrap(terminals);
 }
 
 ASTNode * Struct::clone() {
@@ -7130,8 +6747,6 @@ ASTNode * Struct::clone() {
     std::vector<ASTNode *> constants = my_constantDecls;
     std::vector<ASTNode *> & my_memberProcs = c->getMemberProcs();
     std::vector<ASTNode *> procs = my_memberProcs;
-    std::vector<ASTNode *> & my_interfaceImpls = c->getInterfaceImpls();
-    std::vector<ASTNode *> impls = my_interfaceImpls;
 
     if (c->getExtends())
         c->setExtends(c->getExtends()->clone());
@@ -7139,7 +6754,6 @@ ASTNode * Struct::clone() {
     my_memberVarDecls.clear();
     my_constantDecls.clear();
     my_memberProcs.clear();
-    my_interfaceImpls.clear();
 
     for (ASTNode * v : vars)
         c->addMemberVarDecl(v->clone());
@@ -7147,8 +6761,6 @@ ASTNode * Struct::clone() {
         c->addConstantDecl(co->clone());
     for (ASTNode * p : procs)
         c->addMemberProc(p->clone());
-    for (ASTNode * i : impls)
-        c->addInterfaceImpl(i->clone());
 
     return c;
 }
@@ -7194,10 +6806,6 @@ void Struct::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
         tproc->dump(stream, level, dumpCT);
         stream << "\n";
     }
-    for (ASTNode * impl : getInterfaceImpls()) {
-        impl->dump(stream, level, dumpCT);
-        stream << "\n";
-    }
     level -= 1;
 
     stream << std::string(4 * level, ' ');
@@ -7213,8 +6821,6 @@ void Struct::desugar() {
         constant->desugar();
     for (ASTNode * proc : getMemberProcs())
         proc->desugar();
-    for (ASTNode * impl : getInterfaceImpls())
-        impl->desugar();
 }
 
 Struct::~Struct() {
@@ -7225,455 +6831,27 @@ Struct::~Struct() {
     // ownership transferred to top of AST
     // for (ASTNode * proc : memberProcs)
     // delete proc;
-    for (ASTNode * ii : interfaceImpls)
-        delete ii;
 }
 //
 
 const Type * Struct::getType() {
     // analyze(); // should not be necessary
-    std::string mangled = getMangledName();
+    std::string mangled = getLookupName();
 
     return StructType::get(mangled);
 }
 
-// ~~~~~ InterfaceDef ~~~~~
-
-InterfaceDef::InterfaceDef() : name({}), mangledName({}), procs({}) {
-    nodeKind = INTERFACE_DEF;
-}
-
-std::string & InterfaceDef::getName() { return name; }
-void InterfaceDef::setName(std::string _name) { name = _name; }
-
-std::string & InterfaceDef::getMangledName() { return mangledName; }
-void InterfaceDef::setMangledName(std::string _mangledName) {
-    mangledName = _mangledName;
-}
-
-std::map<std::string, std::vector<ASTNode *>> & InterfaceDef::getProcs() {
-    return procs;
-}
-void InterfaceDef::setProcs(
-    std::map<std::string, std::vector<ASTNode *>> _procs) {
-    procs = _procs;
-}
-void InterfaceDef::addProcs(std::string key, std::vector<ASTNode *> vals) {
-    procs[key] = vals;
-}
-void InterfaceDef::addProc(std::string key, ASTNode * val) {
-    val->parent = this;
-    val->replace = rpget<replacementPolicy_InterfaceDef_Proc>();
-    procs[key].push_back(val);
-}
-
-unsigned int InterfaceDef::totalProcs() {
-    unsigned int total = 0;
-
-    for (auto & procs : getProcs())
-        total += (int)procs.second.size();
-
-    return total;
-}
-
-// Node interface
-void InterfaceDef::analyze(bool force) {
-    HANDLE_FORCE();
-
-    for (auto & procs : getProcs()) {
-        std::unordered_map<Procedure *, const Type *> proc_types;
-        for (ASTNode * _proc : procs.second) {
-            Procedure * proc = (Procedure *)_proc;
-
-            if (proc->getParamVarDeclarations().empty())
-                errorl(proc->getNameContext(), "The first parameter of an "
-                                               "interface procedure "
-                                               "declaration must be 'this'.");
-            else if (proc->getParamVarDeclarations()[0]->nodeKind !=
-                     ASTNode::THIS)
-                errorl(proc->getParamVarDeclarations()[0]->getContext(),
-                       "The first parameter of an interface procedure "
-                       "declaration must be 'this'.");
-
-            proc_types[proc] = proc->Procedure::getType();
-        }
-        for (ASTNode * _proc : procs.second) {
-            Procedure * proc = (Procedure *)_proc;
-            for (auto & pt : proc_types) {
-                if (proc != pt.first) {
-                    ProcedureType * proc_type =
-                        (ProcedureType *)proc_types[proc];
-                    if (argMatch(proc_type, pt.second)) {
-                        errorl(pt.first->getNameContext(),
-                               "Interface procedure declaration matches "
-                               "previous declaration.",
-                               false);
-                        errorl(proc->getNameContext(), "First declared here.");
-                    }
-                }
-            }
-        }
-    }
-
-    setFlag(ANALYZED, true);
-}
-
-void InterfaceDef::preDeclare(Scope * _scope) {
-    setScope(_scope);
-    _Symbol<InterfaceDef> * symbol = new _Symbol<InterfaceDef>(getName(), this);
-    setMangledName(symbol->mangledString(_scope));
-    _scope->addSymbol(symbol, &getNameContext());
-}
-
-void InterfaceDef::addSymbols(Scope * _scope) {
-    /*
-            setScope(_scope);
-    _Symbol<InterfaceDef>* symbol = new _Symbol<InterfaceDef>(getName(), this);
-    setMangledName(symbol->mangledString(_scope));
-    _scope->addSymbol(symbol, &getNameContext());
-            */
-
-    for (auto & procs : getProcs()) {
-        for (ASTNode * _proc : procs.second) {
-            Procedure * proc = (Procedure *)_proc;
-
-            // @bad
-            for (ASTNode * _param : proc->getParamVarDeclarations()) {
-                _param->setScope(_scope);
-
-                if (_param->nodeKind == THIS)
-                    continue;
-
-                BJOU_DEBUG_ASSERT(_param->nodeKind == VARIABLE_DECLARATION);
-
-                VariableDeclaration * param = (VariableDeclaration *)_param;
-
-                if (param->getInitialization())
-                    param->getInitialization()->addSymbols(_scope);
-                if (param->getTypeDeclarator())
-                    param->getTypeDeclarator()->addSymbols(_scope);
-            }
-
-            proc->getRetDeclarator()->addSymbols(_scope);
-        }
-    }
-}
-
-void InterfaceDef::unwrap(std::vector<ASTNode *> & terminals) {
-    for (auto & procs : getProcs())
-        for (ASTNode * proc : procs.second)
-            proc->unwrap(terminals);
-}
-
-ASTNode * InterfaceDef::clone() {
-    InterfaceDef * c = new InterfaceDef(*this);
-
-    std::map<std::string, std::vector<ASTNode *>> & my_procs = c->getProcs();
-    std::map<std::string, std::vector<ASTNode *>> _procs = my_procs;
-
-    my_procs.clear();
-
-    for (auto & it : _procs)
-        for (ASTNode * p : it.second)
-            c->addProc(it.first, p->clone());
-
-    return c;
-}
-
-void InterfaceDef::dump(std::ostream & stream, unsigned int level,
-                        bool dumpCT) {
-    if (!dumpCT && isCT(this))
-        return;
-    stream << std::string(4 * level, ' ');
-
-    stream << "interface " << getName() << "{\n";
-
-    level += 1;
-    for (auto & procs : getProcs())
-        for (ASTNode * proc : procs.second)
-            proc->dump(stream, level, dumpCT);
-    level -= 1;
-
-    stream << std::string(4 * level, ' ');
-    stream << "}";
-    stream << "\n";
-}
-
-void InterfaceDef::desugar() {
-    for (auto & procs : getProcs())
-        for (ASTNode * proc : procs.second)
-            proc->desugar();
-}
-
-InterfaceDef::~InterfaceDef() {
-    for (auto & procs : getProcs())
-        for (ASTNode * proc : procs.second)
-            delete proc;
-}
-//
-
-// ~~~~~ InterfaceImplementation ~~~~~
-
-InterfaceImplementation::InterfaceImplementation()
-    : identifier(nullptr), procs({}) {
-    nodeKind = INTERFACE_IMPLEMENTATION;
-}
-
-ASTNode * InterfaceImplementation::getIdentifier() const { return identifier; }
-void InterfaceImplementation::setIdentifier(ASTNode * _identifier) {
-    identifier = _identifier;
-    identifier->parent = this;
-    identifier->replace =
-        rpget<replacementPolicy_InterfaceImplementation_Identifier>();
-}
-
-std::map<std::string, std::vector<ASTNode *>> &
-InterfaceImplementation::getProcs() {
-    return procs;
-}
-void InterfaceImplementation::setProcs(
-    std::map<std::string, std::vector<ASTNode *>> _procs) {
-    BJOU_DEBUG_ASSERT(false);
-    procs = _procs;
-}
-void InterfaceImplementation::addProcs(std::string key,
-                                       std::vector<ASTNode *> vals) {
-    BJOU_DEBUG_ASSERT(false);
-    procs[key] = vals;
-}
-void InterfaceImplementation::addProc(std::string key, ASTNode * val) {
-    val->parent = this;
-    val->replace = rpget<replacementPolicy_InterfaceImplementation_Proc>();
-    val->setFlag(Procedure::IS_TYPE_MEMBER, true);
-    procs[key].push_back(val);
-}
-
-InterfaceDef * InterfaceImplementation::getInterfaceDef() {
-    Identifier * id = (Identifier *)getIdentifier();
-    Maybe<Symbol *> m_defSym =
-        getScope()->getSymbol(getScope(), id, &getContext());
-    Symbol * defSym = nullptr;
-    m_defSym.assignTo(defSym);
-    BJOU_DEBUG_ASSERT(defSym);
-
-    std::string demangledIdentifier = demangledString(mangledIdentifier(id));
-
-    if (!defSym->isInterface())
-        errorl(id->getContext(),
-               "'" + demangledIdentifier + "' is not an interface.");
-
-    InterfaceDef * ifaceDef = (InterfaceDef *)defSym->node();
-    BJOU_DEBUG_ASSERT(ifaceDef);
-    return ifaceDef;
-}
-
-// Node interface
-void InterfaceImplementation::analyze(bool force) {
-    HANDLE_FORCE();
-
-    InterfaceDef * ifaceDef = getInterfaceDef();
-    Identifier * id = (Identifier *)getIdentifier();
-    std::string demangledIdentifier = demangledString(mangledIdentifier(id));
-
-    if (!getFlag(PUNT_TO_EXTENSION)) {
-        std::set<ASTNode *> used;
-
-        for (auto & _defs : ifaceDef->getProcs()) {
-            const std::string & procName = _defs.first;
-            std::vector<ASTNode *> & defs = _defs.second;
-
-            if (getProcs().count(procName) == 0) {
-                std::vector<std::string> reqs = {
-                    "'" + procName + "' requires implementations of type(s):"};
-                for (ASTNode * _def : defs) {
-                    Procedure * def = (Procedure *)_def;
-
-                    const Type * parent_t = parent->getType();
-
-                    const Type * placeholder_def_t =
-                        (const Type *)def->getType();
-                    const Type * def_t =
-                        placeholder_def_t->replacePlaceholders(parent_t);
-
-                    reqs.push_back(def_t->getDemangledName());
-                    errorl(id->getContext(),
-                           "'" +
-                               demangledString(
-                                   ((Struct *)parent)->getMangledName()) +
-                               "' implementation for interface '" +
-                               demangledIdentifier + "' does not satisfy '" +
-                               procName + "'.",
-                           true, reqs);
-                }
-            }
-
-            for (ASTNode * _def : defs) {
-                Procedure * def = (Procedure *)_def;
-
-                const Type * parent_t = parent->getType(); // @leak?
-
-                const Type * placeholder_def_t = (const Type *)def->getType();
-                const Type * def_t =
-                    placeholder_def_t->replacePlaceholders(parent_t);
-
-                bool found = false;
-                std::vector<ASTNode *> & procImpls = getProcs()[procName];
-                for (ASTNode * proc : procImpls) {
-                    if (equal(def_t, proc->getType())) {
-                        found = true;
-                        used.insert(proc);
-
-                        if (ifaceDef->getMangledName() == "idestroy" &&
-                            procName == "destroy")
-                            ((StructType *)parent_t)->idestroy_link =
-                                (Procedure *)proc;
-
-                        break;
-                    }
-                }
-                if (!found)
-                    errorl(id->getContext(),
-                           "'" +
-                               demangledString(
-                                   ((Struct *)parent)->getMangledName()) +
-                               "' implementation for interface '" +
-                               demangledIdentifier + "' does not satisfy '" +
-                               procName + "'.",
-                           true,
-                           "Missing implementation: " + procName + " " +
-                               def_t->getDemangledName()); // @leak
-            }
-        }
-
-        for (auto & procs : getProcs()) {
-            for (ASTNode * _proc : procs.second) {
-                if (!used.count(_proc)) {
-                    Procedure * proc = (Procedure *)_proc;
-                    errorl(proc->getNameContext(),
-                           "Interface '" + demangledIdentifier +
-                               "' does not require a procedure named '" +
-                               proc->getName() + "' of type " +
-                               proc->getType()->getDemangledName() + ".");
-                }
-            }
-        }
-
-        for (auto & procs : getProcs())
-            for (ASTNode * proc : procs.second)
-                proc->analyze(force);
-    }
-    setFlag(ANALYZED, true);
-}
-
-void InterfaceImplementation::addSymbols(Scope * _scope) {
-    setScope(_scope);
-
-    // If the parent struct is not abstract, we will unset the punt flag so that
-    // analysis will give errors about incompletion
-    if (!((Struct *)parent)->getFlag(Struct::IS_ABSTRACT))
-        setFlag(PUNT_TO_EXTENSION, false);
-
-    if (getFlag(PUNT_TO_EXTENSION)) {
-        InterfaceDef * ifaceDef = getInterfaceDef();
-
-        for (auto & procs : ifaceDef->getProcs()) {
-            for (ASTNode * _proc : procs.second) {
-                Procedure * proc = (Procedure *)_proc;
-                proc = (Procedure *)proc->clone();
-
-                addProc(procs.first, proc);
-
-                proc->desugarThis();
-
-                for (ASTNode * _param : proc->getParamVarDeclarations()) {
-                    VariableDeclaration * param = (VariableDeclaration *)_param;
-                    param->setScope(ifaceDef->getScope());
-                    param->getTypeDeclarator()->setScope(ifaceDef->getScope());
-
-                    BJOU_DEBUG_ASSERT(param->getTypeDeclarator());
-
-                    Declarator * new_decl =
-                        param->getTypeDeclarator()
-                            ->getType()
-                            ->replacePlaceholders(parent->getType())
-                            ->getGenericDeclarator();
-                    delete param->getTypeDeclarator();
-                    param->setTypeDeclarator(new_decl);
-                }
-
-                Declarator * ret_decl = (Declarator *)proc->getRetDeclarator();
-
-                BJOU_DEBUG_ASSERT(ret_decl);
-
-                Declarator * new_decl =
-                    ret_decl->getType()
-                        ->replacePlaceholders(parent->getType())
-                        ->getGenericDeclarator();
-                delete ret_decl;
-                proc->setRetDeclarator(new_decl);
-            }
-        }
-    }
-
-    for (auto & procs : getProcs())
-        for (ASTNode * proc : procs.second)
-            proc->addSymbols(_scope);
-}
-
-void InterfaceImplementation::unwrap(std::vector<ASTNode *> & terminals) {
-    for (auto & procs : getProcs())
-        for (ASTNode * proc : procs.second)
-            proc->unwrap(terminals);
-}
-
-ASTNode * InterfaceImplementation::clone() {
-    InterfaceImplementation * c = new InterfaceImplementation(*this);
-
-    std::map<std::string, std::vector<ASTNode *>> & my_procs = c->getProcs();
-    std::map<std::string, std::vector<ASTNode *>> _procs = my_procs;
-
-    my_procs.clear();
-
-    c->setIdentifier(getIdentifier()->clone());
-
-    for (auto & it : _procs)
-        for (ASTNode * p : it.second)
-            c->addProc(it.first, p->clone());
-
-    return c;
-}
-
-void InterfaceImplementation::dump(std::ostream & stream, unsigned int level,
-                                   bool dumpCT) {
-    if (!dumpCT && isCT(this))
-        return;
-    stream << std::string(4 * level, ' ');
-    level += 1;
-    for (auto & procs : getProcs())
-        for (ASTNode * proc : procs.second)
-            proc->dump(stream, level, dumpCT);
-    level -= 1;
-}
-
-void InterfaceImplementation::desugar() {
-    for (auto & procs : getProcs())
-        for (ASTNode * proc : procs.second)
-            proc->desugar();
-}
-
-InterfaceImplementation::~InterfaceImplementation() {
-    BJOU_DEBUG_ASSERT(identifier);
-    delete identifier;
-    // @bad FIX THIS WHEN YOU FIGURE OUT WHAT THE MAP IS SUPPOSED TO LOOK LIKE
-}
-//
-
 // ~~~~~ Enum ~~~~~
 
-Enum::Enum() : name({}), mangledName({}), identifiers({}) { nodeKind = ENUM; }
+Enum::Enum() : name({}), lookupName({}), identifiers({}) { nodeKind = ENUM; }
 
 std::string & Enum::getName() { return name; }
 void Enum::setName(std::string _name) { name = _name; }
+
+std::string & Enum::getLookupName() { return lookupName; }
+void Enum::setLookupName(std::string _lookupName) {
+    lookupName = _lookupName;
+}
 
 std::string & Enum::getMangledName() { return mangledName; }
 void Enum::setMangledName(std::string _mangledName) {
@@ -7698,11 +6876,14 @@ ASTNode * Enum::clone() { return new Enum(*this); }
 
 void Enum::addSymbols(Scope * _scope) {
     setScope(_scope);
-    _Symbol<Enum> * symbol = new _Symbol<Enum>(getName(), this);
-    setMangledName(symbol->mangledString(_scope));
+    _Symbol<Enum> * symbol = new _Symbol<Enum>(getName(), mod, "", this);
+
+    setLookupName(symbol->unmangled);
+    setMangledName(symbol->real_mangled);
+
     _scope->addSymbol(symbol, &getNameContext());
 
-    EnumType::get(getMangledName(), this);
+    EnumType::get(symbol->unmangled, this);
 }
 
 void Enum::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
@@ -7731,7 +6912,7 @@ Enum::~Enum() {}
 const Type * Enum::getType() {
     analyze();
 
-    std::string mangled = getMangledName();
+    std::string mangled = getLookupName();
     return EnumType::get(mangled);
 }
 
@@ -7912,7 +7093,7 @@ This::~This() {}
 // ~~~~~ Procedure ~~~~~
 
 Procedure::Procedure()
-    : name({}), mangledName({}), paramVarDeclarations({}),
+    : name({}), lookupName({}), paramVarDeclarations({}),
       retDeclarator(nullptr), procDeclarator(nullptr), statements({}),
       inst(nullptr) {
     nodeKind = PROCEDURE;
@@ -7920,6 +7101,11 @@ Procedure::Procedure()
 
 std::string & Procedure::getName() { return name; }
 void Procedure::setName(std::string _name) { name = _name; }
+
+std::string & Procedure::getLookupName() { return lookupName; }
+void Procedure::setLookupName(std::string _lookupName) {
+    lookupName = _lookupName;
+}
 
 std::string & Procedure::getMangledName() { return mangledName; }
 void Procedure::setMangledName(std::string _mangledName) {
@@ -7975,15 +7161,6 @@ Struct * Procedure::getParentStruct() {
     } else if (parent->nodeKind == ASTNode::TEMPLATE_PROC &&
                parent->getParent()->nodeKind == ASTNode::STRUCT) {
         s = (Struct *)parent->getParent();
-    } else if (parent->nodeKind == ASTNode::INTERFACE_IMPLEMENTATION) {
-        BJOU_DEBUG_ASSERT(parent->getParent());
-        s = (Struct *)parent->getParent();
-    } else if (parent->nodeKind == ASTNode::TEMPLATE_PROC &&
-               parent->getParent()->nodeKind ==
-                   ASTNode::INTERFACE_IMPLEMENTATION) {
-        BJOU_DEBUG_ASSERT(parent->getParent());
-        BJOU_DEBUG_ASSERT(parent->getParent()->getParent());
-        s = (Struct *)parent->getParent()->getParent();
     }
 
     BJOU_DEBUG_ASSERT(s);
@@ -7995,7 +7172,7 @@ void Procedure::desugarThis() {
     This * seen = nullptr;
     for (ASTNode * node : getParamVarDeclarations()) {
         if (node->nodeKind == ASTNode::THIS) {
-            if (!parent)
+            if (!getParent() || getParent()->nodeKind != ASTNode::STRUCT)
                 errorl(node->getContext(),
                        "'this' not allowed here."); // @bad error message
 
@@ -8080,54 +7257,72 @@ void Procedure::analyze(bool force) {
 void Procedure::addSymbols(Scope * _scope) {
     setScope(_scope);
 
+    _Symbol<Procedure> * symbol = nullptr;
+
+    Struct * parent_struct = nullptr;
+    if (getParent() && getParent()->nodeKind == ASTNode::STRUCT)
+        parent_struct = getParentStruct();
+
+    if (parent_struct) {
+        symbol = new _Symbol<Procedure>(getName(), mod, parent_struct->getLookupName(), (Procedure *)this, inst, nullptr);
+    } else {
+        symbol = new _Symbol<Procedure>(getName(), mod, "", (Procedure *)this, inst, nullptr);
+    }
+
     Scope * myScope = new Scope("", _scope);
+    myScope->description =
+        "scope opened by " + symbol->unmangled;
 
     // open scope normally unless it is a local proc
-    // if so, put it in the nearest namespace listing (or global if none)
-    if (_scope->nspace || !_scope->parent) {
+    // if so, put it in the global scope
+    if (!_scope->parent) {
         _scope->scopes.push_back(myScope);
     } else {
         Scope * walk = _scope;
-        while (walk->parent && !walk->nspace)
+        while (walk->parent)
             walk = walk->parent;
         walk->scopes.push_back(myScope);
     }
 
-    desugarThis();
+    if (!getFlag(Procedure::IS_EXTERN)) {
+        desugarThis();
 
-    for (ASTNode * param : getParamVarDeclarations())
-        param->addSymbols(myScope);
-    getRetDeclarator()->addSymbols(myScope);
-    for (ASTNode * statement : getStatements())
-        statement->addSymbols(myScope);
+        for (ASTNode * param : getParamVarDeclarations())
+            param->addSymbols(myScope);
+        getRetDeclarator()->addSymbols(myScope);
+        for (ASTNode * statement : getStatements())
+            statement->addSymbols(myScope);
+        // necessary if proc was imported
+        if (procDeclarator)
+            procDeclarator->addSymbols(myScope);
 
-    // necessary if proc was imported
-    if (procDeclarator)
-        procDeclarator->addSymbols(myScope);
 
-    // this has to be done after params and ret so that name mangling works in
-    // symbols
-    _Symbol<Procedure> * symbol =
-        new _Symbol<Procedure>(getName(), (Procedure *)this, inst);
-    setMangledName(symbol->mangledString(_scope));
+        setLookupName(symbol->proc_name);
+        setMangledName(symbol->real_mangled);
 
-    myScope->description =
-        "scope opened by " + demangledString(getMangledName());
+        if (getName() == "__bjou_rt_init")
+            compilation->frontEnd.__bjou_rt_init_def = this;
+    } else {
+        setLookupName(symbol->proc_name);
+        setMangledName(symbol->proc_name);
+
+        for (ASTNode * param : getParamVarDeclarations())
+            param->addSymbols(myScope);
+        getRetDeclarator()->addSymbols(myScope);
+
+        if (getLookupName() == "printf")
+            compilation->frontEnd.printf_decl = this;
+        else if (getLookupName() == "malloc")
+            compilation->frontEnd.malloc_decl = this;
+        else if (getLookupName() == "free")
+            compilation->frontEnd.free_decl = this;
+        else if (getLookupName() == "memset")
+            compilation->frontEnd.memset_decl = this;
+        else if (getLookupName() == "memcpy")
+            compilation->frontEnd.memcpy_decl = this;
+    }
 
     _scope->addSymbol(symbol, &getNameContext());
-
-    if (getMangledName() == "printf" && getFlag(IS_EXTERN))
-        compilation->frontEnd.printf_decl = this;
-    else if (getMangledName() == "malloc" && getFlag(IS_EXTERN))
-        compilation->frontEnd.malloc_decl = this;
-    else if (getMangledName() == "free" && getFlag(IS_EXTERN))
-        compilation->frontEnd.free_decl = this;
-    else if (getMangledName() == "memset" && getFlag(IS_EXTERN))
-        compilation->frontEnd.memset_decl = this;
-    else if (getMangledName() == "memcpy" && getFlag(IS_EXTERN))
-        compilation->frontEnd.memcpy_decl = this;
-    else if (getName() == "__bjou_rt_init")
-        compilation->frontEnd.__bjou_rt_init_def = this;
 }
 
 void Procedure::unwrap(std::vector<ASTNode *> & terminals) {
@@ -8266,118 +7461,6 @@ const Type * Procedure::getType() {
     return procDeclarator->getType();
 }
 
-// ~~~~~ Namespace ~~~~~
-
-Namespace::Namespace() : name({}), nodes({}), thisNamespaceScope(nullptr) {
-    nodeKind = NAMESPACE;
-}
-
-std::string & Namespace::getName() { return name; }
-void Namespace::setName(std::string _name) { name = _name; }
-
-std::vector<ASTNode *> & Namespace::getNodes() { return nodes; }
-void Namespace::setNodes(std::vector<ASTNode *> _nodes) { nodes = _nodes; }
-void Namespace::addNode(ASTNode * _node) {
-    _node->parent = this;
-    _node->replace = rpget<replacementPolicy_Namespace_Node>();
-    nodes.push_back(_node);
-}
-
-std::vector<ASTNode *> Namespace::gather() {
-    std::vector<ASTNode *> gathered;
-    gathered.reserve(nodes.size());
-
-    for (ASTNode * node : getNodes()) {
-        if (node->nodeKind == NAMESPACE) {
-            std::vector<ASTNode *> sub = ((Namespace *)node)->gather();
-            gathered.insert(gathered.end(), sub.begin(), sub.end());
-        } else
-            gathered.push_back(node);
-    }
-
-    return gathered;
-}
-
-// Node interface
-void Namespace::analyze(bool force) {
-    HANDLE_FORCE();
-
-    for (ASTNode * node : getNodes())
-        node->analyze(force);
-
-    setFlag(ANALYZED, true);
-}
-
-void Namespace::preDeclare(Scope * _scope) {
-    setScope(_scope);
-
-    if (scope->namespaces.count(getName()) == 0) {
-        NamespaceScope * myScope = new NamespaceScope(getName(), _scope);
-        _scope->scopes.push_back(myScope);
-        _scope->namespaces[getName()] = myScope;
-    }
-
-    thisNamespaceScope = scope->namespaces[getName()];
-
-    for (ASTNode * node : nodes) {
-        if (node->nodeKind == ASTNode::STRUCT)
-            ((Struct *)node)->preDeclare(thisNamespaceScope);
-        else if (node->nodeKind == ASTNode::NAMESPACE)
-            ((Namespace *)node)->preDeclare(thisNamespaceScope);
-    }
-}
-
-void Namespace::addSymbols(Scope * _scope) {
-    for (ASTNode * node : getNodes())
-        node->addSymbols(thisNamespaceScope);
-}
-
-void Namespace::unwrap(std::vector<ASTNode *> & terminals) {
-    for (ASTNode * node : getNodes())
-        node->unwrap(terminals);
-}
-
-ASTNode * Namespace::clone() {
-    Namespace * c = new Namespace(*this);
-
-    std::vector<ASTNode *> & my_nodes = c->getNodes();
-    std::vector<ASTNode *> _nodes = my_nodes;
-
-    my_nodes.clear();
-
-    for (ASTNode * n : _nodes)
-        c->addNode(n->clone());
-
-    return c;
-}
-
-void Namespace::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
-    if (!dumpCT && isCT(this))
-        return;
-    stream << std::string(4 * level, ' ');
-
-    stream << "namespace " << getName() << " {\n";
-
-    level += 1;
-    for (ASTNode * node : getNodes())
-        node->dump(stream, level, dumpCT);
-    level -= 1;
-
-    stream << std::string(4 * level, ' ');
-    stream << "}";
-    stream << "\n";
-}
-
-void Namespace::desugar() {
-    for (ASTNode * node : getNodes())
-        node->desugar();
-}
-
-Namespace::~Namespace() {
-    for (ASTNode * n : nodes)
-        delete n;
-}
-//
 
 // ~~~~~ Import ~~~~~
 
@@ -8422,7 +7505,7 @@ void Import::addSymbols(Scope * _scope) {
         errorl(getContext(), "Attempted import from this location.");
     }
 
-    if (getScope()->parent && !getScope()->parent->nspace) {
+    if (getScope()->parent) {
         errorl(getContext(), "Module imports must be made at global scope.",
                false);
         errorl(getContext(), "Attempting to import " + getModule() +
@@ -9216,7 +8299,12 @@ void Foreach::analyze(bool force) {
 
 void Foreach::addSymbols(Scope * _scope) {
     setScope(_scope);
-    getExpression()->addSymbols(_scope);
+    Scope * myScope = new Scope(
+        "line " + std::to_string(getContext().begin.line) + " foreach", _scope);
+    _scope->scopes.push_back(myScope);
+    getExpression()->addSymbols(myScope);
+    for (ASTNode * statement : getStatements())
+        statement->addSymbols(myScope);
 }
 
 void Foreach::unwrap(std::vector<ASTNode *> & terminals) {
@@ -9284,7 +8372,7 @@ void Foreach::desugar() {
     LssExpression * lss = new LssExpression;
 
     Identifier * i_it = new Identifier;
-    i_it->setUnqualified(it->getName());
+    i_it->setSymName(it->getName());
 
     LenExpression * len = new LenExpression;
     len->setExpr(getExpression());
@@ -9297,7 +8385,7 @@ void Foreach::desugar() {
     AddAssignExpression * inc = new AddAssignExpression;
 
     Identifier * _i_it = new Identifier;
-    _i_it->setUnqualified(it->getName());
+    _i_it->setSymName(it->getName());
 
     IntegerLiteral * one = new IntegerLiteral;
     one->setContents("1");
@@ -9321,7 +8409,7 @@ void Foreach::desugar() {
     SubscriptExpression * sub = new SubscriptExpression;
 
     Identifier * __i_it = new Identifier;
-    __i_it->setUnqualified(it->getName());
+    __i_it->setSymName(it->getName());
 
     sub->setLeft(getExpression()->clone());
     sub->setRight(__i_it);
@@ -10111,17 +9199,14 @@ void TemplateAlias::addSymbols(Scope * _scope) {
     setScope(_scope);
     Alias * typeTemplate = (Alias *)getTemplate();
     _Symbol<TemplateAlias> * symbol =
-        new _Symbol<TemplateAlias>(typeTemplate->getName(), this);
+        new _Symbol<TemplateAlias>(typeTemplate->getName(), mod, "", this, nullptr, getTemplateDef());
     _scope->addSymbol(symbol, &typeTemplate->getNameContext());
-
-    // @refactor? should this really be here?
-    std::string mangledName = symbol->mangledString(_scope);
 
     BJOU_DEBUG_ASSERT(false);
 
     /*
-    compilation->frontEnd.typeTable[mangledName] =
-        new TemplateAliasType(mangledName);
+    compilation->frontEnd.typeTable[lookupName] =
+        new TemplateAliasType(lookupName);
     */
 }
 
@@ -10184,16 +9269,70 @@ void TemplateStruct::addSymbols(Scope * _scope) {
     setScope(_scope);
     Struct * typeTemplate = (Struct *)getTemplate();
     _Symbol<TemplateStruct> * symbol =
-        new _Symbol<TemplateStruct>(typeTemplate->getName(), this);
+        new _Symbol<TemplateStruct>(typeTemplate->getName(), mod, "", this, nullptr, nullptr);
     _scope->addSymbol(symbol, &typeTemplate->getNameContext());
 
-    // @refactor? should this really be here?
-    std::string mangledName = symbol->mangledString(_scope);
+    BJOU_DEBUG_ASSERT(_template->nodeKind == ASTNode::STRUCT);
+    Struct * s = (Struct*)_template;
 
-    /*
-    compilation->frontEnd.typeTable[mangledName] =
-        new TemplateStructType(mangledName);
-    */
+    for (ASTNode * _proc : s->getMemberProcs()) {
+        Procedure * proc = (Procedure *)_proc->clone();
+        proc->setScope(getScope());
+
+        TemplateProc * tproc = new TemplateProc;
+        tproc->setFlag(TemplateProc::FROM_THROUGH_TEMPLATE,
+                true);
+        tproc->setFlag(TemplateProc::IS_TYPE_MEMBER, true);
+        tproc->parent = s;
+        tproc->setScope(proc->getScope());
+        tproc->setContext(proc->getContext());
+        tproc->setNameContext(proc->getNameContext());
+        tproc->setTemplateDef(getTemplateDef()->clone());
+        tproc->setTemplate(proc);
+
+        /* proc->desugarThis(); */
+
+        through_procs.push_back(tproc);
+    }
+
+    for (ASTNode * _tproc : s->getMemberTemplateProcs()) {
+        TemplateProc * tproc = (TemplateProc *)_tproc;
+
+        TemplateProc * new_tproc =
+            (TemplateProc *)tproc->clone();
+        Procedure * proc = (Procedure *)new_tproc->_template;
+        proc->setScope(getScope());
+        new_tproc->setFlag(TemplateProc::FROM_THROUGH_TEMPLATE,
+                true);
+        new_tproc->setScope(proc->getScope());
+        new_tproc->setContext(proc->getContext());
+        new_tproc->setNameContext(proc->getNameContext());
+
+        TemplateDefineList * new_tproc_def =
+            (TemplateDefineList *)new_tproc->getTemplateDef();
+        std::vector<ASTNode *> save_elems =
+            new_tproc_def->getElements();
+        new_tproc_def->getElements().clear();
+        for (ASTNode * elem :
+                ((TemplateDefineList *)getTemplateDef())
+                ->getElements())
+            new_tproc_def->addElement(elem);
+        for (ASTNode * elem : save_elems)
+            new_tproc_def->addElement(elem);
+
+        new_tproc->setTemplate(proc);
+
+        /* proc->desugarThis(); */
+    }
+
+    for (ASTNode * through_proc : through_procs) {
+        TemplateProc * tproc = (TemplateProc*)through_proc;
+        Procedure * p = (Procedure*)tproc->_template;
+        _Symbol<TemplateProc> * symbol =
+            new _Symbol<TemplateProc>(p->getName(), mod, s->getName(), tproc, nullptr, tproc->getTemplateDef());
+        getScope()->addSymbol(symbol, &p->getNameContext());
+        tproc->setLookupName(symbol->real_mangled);
+    }
 }
 
 void TemplateStruct::dump(std::ostream & stream, unsigned int level,
@@ -10216,9 +9355,9 @@ TemplateProc::TemplateProc() : _template(nullptr), templateDef(nullptr) {
     setFlag(IS_TEMPLATE, true);
 }
 
-std::string & TemplateProc::getMangledName() { return mangledName; }
-void TemplateProc::setMangledName(std::string _mangledName) {
-    mangledName = _mangledName;
+std::string & TemplateProc::getLookupName() { return lookupName; }
+void TemplateProc::setLookupName(std::string _lookupName) {
+    lookupName = _lookupName;
 }
 
 ASTNode * TemplateProc::getTemplate() const { return _template; }
@@ -10259,8 +9398,8 @@ void TemplateProc::addSymbols(Scope * _scope) {
     // procedureTemplate->addSymbols(_scope);
 
     _Symbol<TemplateProc> * symbol =
-        new _Symbol<TemplateProc>(procedureTemplate->getName(), this);
-    setMangledName(symbol->mangled(_scope)->name);
+        new _Symbol<TemplateProc>(procedureTemplate->getName(), mod, "", this, nullptr, getTemplateDef());
+    setLookupName(symbol->real_mangled);
     _scope->addSymbol(symbol, &procedureTemplate->getNameContext());
 }
 
@@ -10523,7 +9662,7 @@ void MacroUse::addSymbols(Scope * _scope) {
 
     int i = 0;
     for (ASTNode * arg : getArgs()) {
-        if (arg->nodeKind != STRUCT && arg->nodeKind != INTERFACE_DEF) {
+        if (arg->nodeKind != STRUCT) {
             if (compilation->frontEnd.macroManager.shouldAddSymbols(this, i))
                 arg->addSymbols(_scope);
             else

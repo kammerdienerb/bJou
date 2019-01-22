@@ -15,7 +15,7 @@ type vec$T {
     z : T
 }
 
-proc printvec$T(this : vec$T*) {
+proc printvec$T(this : vec$T ref) {
     x : T = this.x
     y : T = this.y
     z : T = this.z
@@ -31,9 +31,9 @@ proc printvec$T(this : vec$T*) {
     swap(&a, &b)
     print "a: %\nb: %", a, b
     vi := { vec$int: .x = 1, .y = 2, .z = 3 }
-    vi->printvec()
+    vi.printvec()
     vf := { vec$float: .x = 1.23, .y = 4.56, .z = 7.89 }
     swap(&vf.x, &vf.z)
-    vf->printvec()
+    vf.printvec()
     print "%", vf.x.sum(vf.y).sum(vf.z)
 })()

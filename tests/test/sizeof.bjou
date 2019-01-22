@@ -5,21 +5,9 @@ type Point {
 	y : int
 }
 
-interface I {
-    proc p(this)    
-}
-
-type I_impl {
-    implements I {
-        proc p(this)
-            print "I_impl"
-    } 
-}
-
 proc main() {
 	print "%", sizeof int
 	print "%", sizeof Point
-    print "%", sizeof I_impl
 }
 
 main()

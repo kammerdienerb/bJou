@@ -174,10 +174,11 @@ static ASTNode * static_do(MacroUse * use) {
     use->setFlag(ASTNode::CT, true);
 
     Procedure * proc = new Procedure;
+    proc->setName(compilation->frontEnd.makeUID("__bjou_static_do"));
     proc->setContext(use->getContext());
     proc->setNameContext(use->getContext());
     Identifier * vi = new Identifier;
-    vi->setUnqualified("void");
+    vi->setSymName("void");
     vi->setContext(use->getContext());
     Declarator * vd = new Declarator;
     vd->setIdentifier(vi);
@@ -300,7 +301,7 @@ static ASTNode * op(MacroUse * use) {
         Procedure * proc = (Procedure *)proc_arg;
 
         _Symbol<Procedure> * symbol =
-            new _Symbol<Procedure>(op_str, proc, proc->inst);
+            new _Symbol<Procedure>(op_str, use->mod, "", proc, proc->inst, nullptr);
 
         use->getScope()->addSymbol(symbol, &proc->getNameContext());
 
@@ -310,7 +311,7 @@ static ASTNode * op(MacroUse * use) {
         Procedure * proc = (Procedure *)tproc->_template;
 
         _Symbol<TemplateProc> * symbol =
-            new _Symbol<TemplateProc>(op_str, tproc);
+            new _Symbol<TemplateProc>(op_str, use->mod, "", tproc, nullptr, tproc->getTemplateDef());
 
         use->getScope()->addSymbol(symbol, &proc->getNameContext());
 
@@ -341,7 +342,7 @@ static ASTNode * __da_data(MacroUse * use) {
 
     Identifier * data = new Identifier;
     data->setContext(use->getContext());
-    data->setUnqualified("__data");
+    data->setSymName("__data");
 
     access->setLeft(expr);
     access->setRight(data);
@@ -374,7 +375,7 @@ static ASTNode * __da_capacity(MacroUse * use) {
 
     Identifier * data = new Identifier;
     data->setContext(use->getContext());
-    data->setUnqualified("__capacity");
+    data->setSymName("__capacity");
 
     access->setLeft(expr);
     access->setRight(data);
@@ -407,7 +408,7 @@ static ASTNode * __da_used(MacroUse * use) {
 
     Identifier * data = new Identifier;
     data->setContext(use->getContext());
-    data->setUnqualified("__used");
+    data->setSymName("__used");
 
     access->setLeft(expr);
     access->setRight(data);
@@ -438,7 +439,7 @@ static ASTNode * __slice_data(MacroUse * use) {
 
     Identifier * data = new Identifier;
     data->setContext(use->getContext());
-    data->setUnqualified("__data");
+    data->setSymName("__data");
 
     access->setLeft(expr);
     access->setRight(data);
@@ -469,7 +470,7 @@ static ASTNode * __slice_len(MacroUse * use) {
 
     Identifier * data = new Identifier;
     data->setContext(use->getContext());
-    data->setUnqualified("__len");
+    data->setSymName("__len");
 
     access->setLeft(expr);
     access->setRight(data);
@@ -668,7 +669,7 @@ static ASTNode * die(MacroUse * use) {
     Identifier * ident = new Identifier;
     ident->setScope(use->getScope());
     ident->setContext(use->getContext());
-    ident->setUnqualified("__die");
+    ident->setSymName("__die");
 
     ArgList * args = new ArgList;
     args->setScope(use->getScope());

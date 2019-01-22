@@ -87,6 +87,10 @@ type string {
         return this.__data.data()
     }
 
+    proc data(this) : char[...] ref {
+        return this.__data
+    }
+
     proc append(this, ch : char) {
         this.__data.back() = ch
         this.__data.push('\0')
@@ -94,13 +98,13 @@ type string {
 
     proc append(this, s : string) {
         for i := 0; i < s.len(); i += 1
-            this.__data.push(s.__data[i])
+            this.append(s.__data[i])
     }
 
     proc append(this, s : char*) {
         s_slice := [s, 0:cstrlen(s)]
         foreach ch in s_slice
-            this.__data.push(ch)
+            this.append(ch)
     }
 
     proc pop(this) {

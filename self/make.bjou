@@ -1,0 +1,19 @@
+#! /usr/bin/env bjou
+# make.bjou
+
+import "build.bjou"
+
+\static_do {
+    sources := { "bjou.bjou" }
+
+    options := BuildOptions.create()
+
+    options.output_name = "bjou"
+
+    foreach f in sources
+        options.files.push(f)
+
+    options.time = true
+
+    build(options)
+}

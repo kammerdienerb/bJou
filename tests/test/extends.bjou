@@ -1,0 +1,42 @@
+# extends.bjou
+
+main()
+
+type A {
+    a : i32
+
+    proc p(this)    print "A.p()"
+}
+
+type B extends A {
+    b : f32
+    
+    proc q(this)    print "B.q()"
+}
+
+type C extends B {
+    c : void*
+    
+    proc r(this)    print "C.r()"
+}
+
+proc main() {
+    a := { A: }
+    print "%", a
+    b := { B: }
+    print "%", b
+    c := { C: }
+    print "%", c
+
+    a.p()
+    b.p()
+    c.p()
+    
+    a.q()
+    b.q()
+    c.q()
+    
+    a.r()
+    b.r()
+    c.r()
+}

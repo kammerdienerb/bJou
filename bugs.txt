@@ -44,3 +44,27 @@
     static_if{ not cond
         type T {} }
 ]
+
+-- LLVM 7 isn't working
+
+-- should template define elements be checked against other symbols?
+[
+    type A {}
+    type T$A { field : A }
+]
+
+-- with the new symbol system, we use Declarator::asString to create template proc symbols..
+   This can cause duplication of code when the declarators used to instantiate a template are
+   different names for the same type. There isn't a problem except for code bloat.
+[
+    proc p$T(t : T) {}
+    p$int(1)
+    p$i32(2)
+]
+
+-- check for uninitialized references in zero-initialized fields of a struct
+[
+    type A { field : int ref }
+    type B { a : A }
+    { B: }
+]

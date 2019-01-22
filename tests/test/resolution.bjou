@@ -9,44 +9,10 @@ proc memcpy() print "memcpy"
 proc p$(A, B)(a : A, b : B) { }
 proc p$(A, B)(b : B, a : A) { }
 
-interface I1 {
-    proc p(this)
-    proc p(this, i : int)
-}
-
-interface I2 {
-    proc p(this)
-}
-
-type T {
-    proc create() : T
-        return { T: }
-
-    implements I1 {
-        proc p(this)
-            print "I1.p()"
-
-        proc p(this, i : int) {  }
-    }
-
-    implements I2 {
-        proc p(this)
-            print "I2.p()"
-    }
-}
-
 (proc main() {
     dst := { 0, 0, 0 }
     src := { 1, 2, 3 }
-    # n := 3 as u64
 	n := 3
-    print "Helper"
-    # dst.memcpy(src, n) # helper is broken
     memcpy$int(1, 2, 3) # 3
-    memcpy() # extern
-    # p(1, 'a') ambiguous
-    t := getref(@ new T)
-    # t.p() ambiguous
-    t.I1.p()
-    t.I2.p()
+    memcpy()
 })()

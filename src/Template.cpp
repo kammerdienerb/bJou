@@ -63,11 +63,11 @@ static bool terminalShouldReplace(ASTNode * term, ASTNode * d) {
     if (IS_DECLARATOR(term)) {
         Declarator * decl = (Declarator *)term;
         Identifier * ident = (Identifier *)decl->getIdentifier();
-        if (ident->getUnqualified() == elem->getName())
+        if (ident->getSymName() == elem->getName())
             return true;
     } else if (term->nodeKind == ASTNode::IDENTIFIER) { // @bad
         Identifier * ident = (Identifier *)term;
-        if (ident->getUnqualified() == elem->getName())
+        if (ident->getSymName() == elem->getName())
             return true;
     } else if (IS_EXPRESSION(term)) {
         // @incomplete
@@ -135,11 +135,11 @@ Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst) {
 
     checkTypeTemplateInstantiation(ttype->getTemplateDef(), inst);
 
-    _Symbol<Struct> * newsym = new _Symbol<Struct>(s->getName(), s, inst);
-    std::string mangledName = newsym->mangledString(scope);
+    _Symbol<Struct> * newsym = new _Symbol<Struct>(s->getName(), _ttype->mod, "", s, inst, nullptr);
+    std::string qual = newsym->unmangled;
 
     Maybe<Symbol *> m_sym =
-        scope->getSymbol(scope, mangledName, nullptr, true, false, false);
+        scope->getSymbol(scope, qual, nullptr, true, false, false);
     Symbol * sym = nullptr;
     if (m_sym.assignTo(sym)) {
         // found it
@@ -150,7 +150,7 @@ Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst) {
     }
 
     Struct * clone = (Struct *)s->clone();
-    clone->setName(mangledName);
+    clone->setName(s->getName());
     clone->inst = inst;
 
     clone->setFlag(Struct::IS_TEMPLATE_DERIVED, true);
@@ -200,7 +200,7 @@ static Declarator * patternMatchType(Declarator * pattern, Declarator * subject,
 
     switch (pattern->nodeKind) {
     case ASTNode::DECLARATOR: {
-        if (pattern->mangleSymbol() == name)
+        if (pattern->asString() == name)
             return (Declarator *)subject->clone();
 
         if (pattern->getTemplateInst()) {
@@ -473,25 +473,43 @@ Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args,
         proc->addParamVarDeclaration(new_param);
 
     _Symbol<Procedure> * newsym =
-        new _Symbol<Procedure>(proc->getName(), proc, new_inst);
-    std::string mangledName = newsym->mangledString(scope);
+        new _Symbol<Procedure>(proc->getName(), tproc->mod, "", proc, new_inst, nullptr);
+    std::string qual = newsym->unmangled;
 
-    Maybe<Symbol *> m_sym =
-        scope->getSymbol(scope, mangledName, nullptr, true, false, false);
-    Symbol * sym = nullptr;
-    if (m_sym.assignTo(sym)) {
-        // found it
-        BJOU_DEBUG_ASSERT(sym->isProc());
-        BJOU_DEBUG_ASSERT(sym->node()->nodeKind == ASTNode::PROCEDURE);
+    Maybe<Symbol*> m_set_sym = scope->getSymbol(scope, newsym->proc_name, nullptr, true, false, false);
+    Symbol * set_sym = nullptr;
+    if (m_set_sym.assignTo(set_sym)) {
+        ProcSet * set = (ProcSet*)set_sym->node();
+        if (set->procs.count(qual)) {
+            ASTNode * existing = set->procs[qual]->node();
+            BJOU_DEBUG_ASSERT(existing->nodeKind == ASTNode::PROCEDURE);
 
-        // restore params
-        proc->getParamVarDeclarations().clear();
+            // restore params
+            proc->getParamVarDeclarations().clear();
 
-        for (ASTNode * p : save_params)
-            proc->addParamVarDeclaration(p);
+            for (ASTNode * p : save_params)
+                proc->addParamVarDeclaration(p);
 
-        return (Procedure *)sym->node();
+            return (Procedure *)existing;
+        }
     }
+
+    /* Maybe<Symbol *> m_sym = */
+    /*     scope->getSymbol(scope, qual, nullptr, true, false, false); */
+    /* Symbol * sym = nullptr; */
+    /* if (m_sym.assignTo(sym)) { */
+    /*     // found it */
+    /*     BJOU_DEBUG_ASSERT(sym->isProc()); */
+    /*     BJOU_DEBUG_ASSERT(sym->node()->nodeKind == ASTNode::PROCEDURE); */
+
+    /*     // restore params */
+    /*     proc->getParamVarDeclarations().clear(); */
+
+    /*     for (ASTNode * p : save_params) */
+    /*         proc->addParamVarDeclaration(p); */
+
+    /*     return (Procedure *)sym->node(); */
+    /* } */
 
     // restore params
     proc->getParamVarDeclarations().clear();

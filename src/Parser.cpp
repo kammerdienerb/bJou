@@ -30,10 +30,10 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_hash, parser_thick_arrow, parser_dollar, parser_question,
     parser_dbl_question, parser_template_begin, parser_kwd_const,
     parser_kwd_type, parser_kwd_abstract, parser_kwd_extends,
-    parser_kwd_interface, parser_kwd_implements, parser_kwd_from,
+    parser_kwd_from,
     parser_kwd_enum, parser_kwd_print, parser_kwd_raw, parser_kwd_immut,
     parser_kwd_coerce, parser_kwd_this, parser_kwd_ref, parser_kwd_delete,
-    parser_kwd_namespace, parser_kwd_import, parser_kwd_module,
+    parser_kwd_import, parser_kwd_module,
     parser_kwd_alias, parser_kwd_operator, parser_kwd_return, parser_kwd_if,
     parser_kwd_else, parser_kwd_while, parser_kwd_do, parser_kwd_for,
     parser_kwd_foreach, parser_kwd_in, parser_kwd_match, parser_kwd_with,
@@ -53,7 +53,8 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_div_eq, parser_mod_eq, parser_var_decl_beg,
     // parser_constant_decl_beg, // @const
     parser_sl_comment_beg, parser_ml_comment_beg, parser_ml_comment_end,
-    parser_end_of_line};
+parser_end_of_line
+};
 
 #define GOOD_IDX(buff, p) ((p) < (buff).viewSize())
 #define IS_C(buff, p, c) ((p) < (buff).viewSize() && (buff)[(p)] == (c))
@@ -78,8 +79,8 @@ constexpr const TokenParserFnType tokenParsers[] = {
 #define IS_SPACE(buff, p) ((p) < (buff).viewSize() && (isspace((buff)[(p)])))
 
 const char * kwds[] = {
-    "type",    "abstract", "interface", "implements", "extends", "from",
-    "enum",    "print",    "raw",       "immut",      "delete",  "namespace",
+    "type",    "abstract", "extends", "from",
+    "enum",    "print",    "raw",       "immut",      "delete", 
     "import",  "alias",    "operator",  "coerce",     "this",    "ref",
 
     "return",  "if",       "else",      "while",      "do",      "for",
@@ -245,12 +246,6 @@ MaybeString parser_kwd_abstract(StringViewableBuffer & buff) {
 MaybeString parser_kwd_extends(StringViewableBuffer & buff) {
     return parse_kwd(buff, "extends");
 }
-MaybeString parser_kwd_interface(StringViewableBuffer & buff) {
-    return parse_kwd(buff, "interface");
-}
-MaybeString parser_kwd_implements(StringViewableBuffer & buff) {
-    return parse_kwd(buff, "implements");
-}
 MaybeString parser_kwd_from(StringViewableBuffer & buff) {
     return parse_kwd(buff, "from");
 }
@@ -277,9 +272,6 @@ MaybeString parser_kwd_ref(StringViewableBuffer & buff) {
 }
 MaybeString parser_kwd_delete(StringViewableBuffer & buff) {
     return parse_kwd(buff, "delete");
-}
-MaybeString parser_kwd_namespace(StringViewableBuffer & buff) {
-    return parse_kwd(buff, "namespace");
 }
 MaybeString parser_kwd_import(StringViewableBuffer & buff) {
     return parse_kwd(buff, "import");
@@ -1010,7 +1002,7 @@ ASTNode * Parser::newVoidDeclarator() {
     Declarator * result = new Declarator();
     // result->getContext().start(&currentContext);
     Identifier * identifier = new Identifier();
-    identifier->setUnqualified(compilation->frontEnd.getBuiltinVoidTypeName());
+    identifier->setSymName(compilation->frontEnd.getBuiltinVoidTypeName());
     result->setIdentifier(identifier);
     // result->getContext().finish(&currentContext, &justCleanedContext);
     return result;
@@ -1197,12 +1189,12 @@ MaybeASTNode Parser::parseQualifiedIdentifier(bool allow_primative_typenames) {
                                          : IDENTIFIER,
                "");
 
-        while (optional(DBL_COLON)) {
-            result->addNamespace(identifier);
+        if (optional(DBL_COLON)) {
+            result->setSymMod(identifier);
             identifier = expect(IDENTIFIER, "identifier", false, false,
                                 "for qualified identifier");
         }
-        result->setUnqualified(identifier);
+        result->setSymName(identifier);
 
         result->getContext().finish(&currentContext, &justCleanedContext);
 
@@ -1234,8 +1226,6 @@ static BinaryExpression * newBinaryExpressionFromOp(std::string & op) {
         return new SubscriptExpression;
     else if (op == ".")
         return new AccessExpression;
-    else if (op == "->")
-        return new InjectExpression;
     else if (op == "*")
         return new MultExpression;
     else if (op == "/")
@@ -2042,19 +2032,17 @@ MaybeASTNode Parser::parseTopLevelNode() {
     ASTNode * mod_check = nullptr;
 
     MaybeASTNode m_node;
-    (m_node = parseModuleDeclaration()) || (m_node = parseNamespace()) ||
+    (m_node = parseModuleDeclaration()) || 
         (m_node = parseProc()) || (m_node = parseExternSig()) ||
-        (m_node = parseType()) || (m_node = parseInterfaceDef()) ||
-        (m_node = parseEnum()) || (m_node = parseConstant()) ||
-        (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
-        (m_node = parseStatement()) || (m_node = parseImport());
+        (m_node = parseType()) || (m_node = parseEnum()) ||
+        (m_node = parseConstant()) || (m_node = parseVariableDeclaration()) || 
+        (m_node = parseAlias()) || (m_node = parseStatement()) ||
+        (m_node = parseImport());
 
     ASTNode * node = nullptr;
     if (m_node.assignTo(node)) {
         if (node->nodeKind == ASTNode::STRUCT)
             compilation->frontEnd.structs.push_back(node);
-        else if (node->nodeKind == ASTNode::INTERFACE_DEF)
-            compilation->frontEnd.ifaceDefs.push_back(node);
     }
 
     return m_node;
@@ -2065,9 +2053,9 @@ MaybeASTNode AsyncParser::parseTopLevelNode() {
     ASTNode * mod_check = nullptr;
 
     MaybeASTNode m_node;
-    (m_node = parseModuleDeclaration()) || (m_node = parseNamespace()) ||
+    (m_node = parseModuleDeclaration()) ||
         (m_node = parseProc()) || (m_node = parseExternSig()) ||
-        (m_node = parseType()) || (m_node = parseInterfaceDef()) ||
+        (m_node = parseType()) || 
         (m_node = parseEnum()) || (m_node = parseConstant()) ||
         (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
         (m_node = parseStatement()) || (m_node = parseImport());
@@ -2076,8 +2064,6 @@ MaybeASTNode AsyncParser::parseTopLevelNode() {
     if (m_node.assignTo(node)) {
         if (node->nodeKind == ASTNode::STRUCT)
             structs.push_back(node);
-        else if (node->nodeKind == ASTNode::INTERFACE_DEF)
-            ifaceDefs.push_back(node);
     }
 
     return m_node;
@@ -2088,9 +2074,9 @@ MaybeASTNode ImportParser::parseTopLevelNode() {
     ASTNode * mod_check = nullptr;
 
     MaybeASTNode m_node;
-    (m_node = parseModuleDeclaration()) || (m_node = parseNamespace()) ||
+    (m_node = parseModuleDeclaration()) ||
         (m_node = parseProc()) || (m_node = parseExternSig()) ||
-        (m_node = parseType()) || (m_node = parseInterfaceDef()) ||
+        (m_node = parseType()) || 
         (m_node = parseEnum()) || (m_node = parseConstant()) ||
         (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
         (m_node = parseStatement()) || (m_node = parseImport());
@@ -2099,8 +2085,6 @@ MaybeASTNode ImportParser::parseTopLevelNode() {
     if (m_node.assignTo(node)) {
         if (node->nodeKind == ASTNode::STRUCT)
             structs.push_back(node);
-        else if (node->nodeKind == ASTNode::INTERFACE_DEF)
-            ifaceDefs.push_back(node);
     }
 
     return m_node;
@@ -2139,33 +2123,6 @@ MaybeASTNode Parser::parseModuleDeclaration() {
 
         std::string identifier = expect(IDENTIFIER, "module identifier");
         result->setIdentifier(identifier);
-
-        result->getContext().finish(&currentContext, &justCleanedContext);
-
-        return MaybeASTNode(result);
-    }
-    return MaybeASTNode();
-}
-
-MaybeASTNode Parser::parseNamespace() {
-    if (optional(KWD_NAMESPACE, true)) {
-        Namespace * result = new Namespace();
-        result->getContext().start(&currentContext);
-
-        eat("namespace");
-
-        result->setName(expect(IDENTIFIER, "namespace identifier"));
-        expect(L_CURLY_BRACE, "'{'");
-        while (true) {
-            MaybeASTNode m_subNode = parseTopLevelNode();
-            ASTNode * subNode = nullptr;
-            if (!m_subNode.assignTo(subNode))
-                break;
-
-            result->addNode(subNode);
-        }
-        expect(R_CURLY_BRACE, "'}'", false, false,
-               "to close namespace '" + result->getName() + "'");
 
         result->getContext().finish(&currentContext, &justCleanedContext);
 
@@ -2268,14 +2225,7 @@ MaybeASTNode Parser::parseType() {
                                 result->addMemberTemplateProc(member);
                             else
                                 result->addMemberProc(member);
-                        } else {
-                            MaybeASTNode m_interfaceImpl = parseInterfaceImpl();
-                            ASTNode * interfaceImpl = nullptr;
-                            if (m_interfaceImpl.assignTo(interfaceImpl)) {
-                                result->addInterfaceImpl(interfaceImpl);
-                            } else
-                                break;
-                        }
+                        } else break;
                     }
                 }
             }
@@ -2297,72 +2247,6 @@ MaybeASTNode Parser::parseType() {
 
             return MaybeASTNode(result);
         }
-    }
-    return MaybeASTNode();
-}
-
-MaybeASTNode Parser::parseInterfaceDef() {
-    if (optional(KWD_INTERFACE, true)) {
-        InterfaceDef * result = new InterfaceDef();
-        result->getContext().start(&currentContext);
-
-        eat("interface");
-
-        result->setName(expect(IDENTIFIER, "interface identifier"));
-
-        expect(L_CURLY_BRACE, "'{'");
-        while (true) {
-            MaybeASTNode m_proc = parseProc(/*parse_body =*/false);
-            ASTNode * _proc = nullptr;
-            if (m_proc.assignTo(_proc)) {
-                Procedure * proc = (Procedure *)_proc;
-                proc->setFlag(Procedure::IS_INTERFACE_DECL, true);
-                result->addProc(proc->getName(), _proc);
-            } else
-                break;
-        }
-        expect(R_CURLY_BRACE, "'}'");
-
-        result->getContext().finish(&currentContext, &justCleanedContext);
-        return MaybeASTNode(result);
-    }
-    return MaybeASTNode();
-}
-
-MaybeASTNode Parser::parseInterfaceImpl() {
-    if (optional(KWD_IMPLEMENTS, true)) {
-        InterfaceImplementation * result = new InterfaceImplementation();
-        result->getContext().start(&currentContext);
-
-        eat("implements");
-
-        MaybeASTNode m_qualIdentifier = parseQualifiedIdentifier();
-        ASTNode * qualIdentifier = nullptr;
-        if (!m_qualIdentifier.assignTo(qualIdentifier))
-            errornext(*this, "Expected identifier referring to an interface.",
-                      true, "after 'implements'");
-        result->setIdentifier(qualIdentifier);
-
-        if (optional(L_CURLY_BRACE)) {
-            while (true) {
-                MaybeASTNode m_proc = parseProc();
-                ASTNode * _proc = nullptr;
-
-                if (!m_proc.assignTo(_proc))
-                    break;
-
-                Procedure * proc = (Procedure *)_proc;
-                proc->setFlag(Procedure::IS_INTERFACE_IMPL, true);
-
-                result->addProc(proc->getName(), _proc);
-            }
-            expect(R_CURLY_BRACE, "'}'");
-        } else
-            result->setFlag(InterfaceImplementation::PUNT_TO_EXTENSION, true);
-
-        result->getContext().finish(&currentContext, &justCleanedContext);
-
-        return MaybeASTNode(result);
     }
     return MaybeASTNode();
 }

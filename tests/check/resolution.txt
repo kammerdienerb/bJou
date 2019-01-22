@@ -1,5 +1,2 @@
-Helper
 1, 2, 3
 memcpy
-I1.p()
-I2.p()

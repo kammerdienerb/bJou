@@ -51,8 +51,6 @@ MaybeString parser_kwd_const(StringViewableBuffer & buff);
 MaybeString parser_kwd_type(StringViewableBuffer & buff);
 MaybeString parser_kwd_abstract(StringViewableBuffer & buff);
 MaybeString parser_kwd_extends(StringViewableBuffer & buff);
-MaybeString parser_kwd_interface(StringViewableBuffer & buff);
-MaybeString parser_kwd_implements(StringViewableBuffer & buff);
 MaybeString parser_kwd_from(StringViewableBuffer & buff);
 MaybeString parser_kwd_enum(StringViewableBuffer & buff);
 MaybeString parser_kwd_print(StringViewableBuffer & buff);
@@ -62,7 +60,6 @@ MaybeString parser_kwd_coerce(StringViewableBuffer & buff);
 MaybeString parser_kwd_this(StringViewableBuffer & buff);
 MaybeString parser_kwd_ref(StringViewableBuffer & buff);
 MaybeString parser_kwd_delete(StringViewableBuffer & buff);
-MaybeString parser_kwd_namespace(StringViewableBuffer & buff);
 MaybeString parser_kwd_import(StringViewableBuffer & buff);
 MaybeString parser_kwd_module(StringViewableBuffer & buff);
 MaybeString parser_kwd_alias(StringViewableBuffer & buff);
@@ -167,8 +164,6 @@ enum TokenKind {
     KWD_TYPE,
     KWD_ABSTRACT,
     KWD_EXTENDS,
-    KWD_INTERFACE,
-    KWD_IMPLEMENTS,
     KWD_FROM,
     KWD_ENUM,
     KWD_PRINT,
@@ -178,7 +173,6 @@ enum TokenKind {
     KWD_THIS,
     KWD_REF,
     KWD_DELETE,
-    KWD_NAMESPACE,
     KWD_IMPORT,
     KWD_MODULE,
     KWD_ALIAS,
@@ -331,10 +325,7 @@ struct Parser {
     virtual MaybeASTNode parseTopLevelNode();
     MaybeASTNode parseImport();
     MaybeASTNode parseModuleDeclaration();
-    MaybeASTNode parseNamespace();
     MaybeASTNode parseType();
-    MaybeASTNode parseInterfaceDef();
-    MaybeASTNode parseInterfaceImpl();
     MaybeASTNode parseEnum();
     MaybeASTNode parseAlias();
     MaybeASTNode parseConstant();

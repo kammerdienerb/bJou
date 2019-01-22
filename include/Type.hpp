@@ -261,14 +261,10 @@ struct StructType : Type {
     Struct * _struct;
     TemplateInstantiation * inst;
     Type * extends;
-    Procedure * idestroy_link;
     std::unordered_map<std::string, int> memberIndices;
     std::vector<const Type *> memberTypes;
     std::unordered_map<std::string, Constant *> constantMap;
-    // std::unordered_map<std::string, std::vector<ASTNode*> > memberProcs;
     std::unordered_map<std::string, ProcSet *> memberProcs;
-    std::set<std::string> interfaces;
-    std::unordered_map<Procedure *, unsigned int> interfaceIndexMap;
 
     StructType(std::string & name, Struct * __struct = nullptr,
                TemplateInstantiation * _inst = nullptr);
@@ -279,11 +275,7 @@ struct StructType : Type {
 
     Declarator * getGenericDeclarator() const;
 
-    std::string getDemangledName() const;
-
     void complete();
-
-    bool implementsInterfaces() const;
 };
 
 struct EnumType : Type {
@@ -296,8 +288,6 @@ struct EnumType : Type {
     static const Type * get(std::string name, Enum * __enum);
 
     Declarator * getGenericDeclarator() const;
-
-    std::string getDemangledName() const;
 
     IntegerLiteral * getValueLiteral(std::string& identifier, Context & context, Scope * scope) const;
 };
@@ -312,8 +302,6 @@ struct TupleType : Type {
     const std::vector<const Type *> & getTypes() const;
 
     Declarator * getGenericDeclarator() const;
-
-    std::string getDemangledName() const;
 
     const Type * replacePlaceholders(const Type * t) const;
 };

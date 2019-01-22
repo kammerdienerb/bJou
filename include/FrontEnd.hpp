@@ -34,12 +34,11 @@ struct FrontEnd {
     std::set<ASTNode *> macros_need_fast_tracked_analysis;
     std::set<ASTNode *> non_run_non_fast_tracked_macros;
     bool stop_tracking_macros = false;
-    std::vector<ASTNode *> structs, ifaceDefs, namespaces;
+    std::vector<ASTNode *> structs, namespaces;
     std::unordered_map<std::string, const Type *> typeTable;
     std::unordered_map<std::string, const Type *> primativeTypeTable;
     Scope * globalScope;
 
-    Struct * typeinfo_struct;
     Procedure * printf_decl;
     Procedure * malloc_decl;
     Procedure * free_decl;
@@ -57,10 +56,6 @@ struct FrontEnd {
     std::map<std::string, Module *> modulesByPath;
     std::map<ASTNode::NodeKind, std::string> kind2string;
     MacroManager macroManager;
-
-    std::unordered_map<std::string, unsigned int> interface_sort_keys;
-    unsigned int getInterfaceSortKey(std::string);
-    void fix_typeinfo_v_table_size();
 
     int n_nodes;
     size_t n_primatives;

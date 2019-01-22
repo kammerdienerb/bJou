@@ -53,12 +53,13 @@ else ifneq ("$(wildcard $(JEMLC_PATH))", "")
 	R_LFLAGS += -ljemalloc
 endif
 D_LFLAGS	= $(R_LFLAGS)
-SRC			= $(wildcard src/*.cpp)
-TCLAP_SRC	= $(wildcard tclap/*.cpp)
-ALL_SRC		= $(SRC)
-ALL_SRC 	+= $(TCLAP_SRC)
-R_OBJ 		= $(patsubst %.cpp,obj/release/%.o,$(ALL_SRC))
-D_OBJ 		= $(patsubst %.cpp,obj/debug/%.o,$(ALL_SRC))
+CXX_SRC		= $(wildcard src/*.cpp)
+CXX_SRC     += $(wildcard tclap/*.cpp)
+C_SRC		= $(wildcard src/*.c)
+R_CXX_OBJ 	= $(patsubst %.cpp,obj/release/%.o,$(CXX_SRC))
+D_CXX_OBJ 	= $(patsubst %.cpp,obj/debug/%.o,$(CXX_SRC))
+R_C_OBJ 	= $(patsubst %.c,obj/release/%.o,$(C_SRC))
+D_C_OBJ 	= $(patsubst %.c,obj/debug/%.o,$(C_SRC))
 
 GETCONF    := $(shell command -v getconf 2> /dev/null)
 ifdef GETCONF
@@ -74,7 +75,7 @@ _all: debug release
 .PHONY: all _all
 
 debug:; @$(MAKE) _debug -j$(CORES)
-_debug: $(D_OBJ) nolibc_syscall libclangextras
+_debug: $(D_CXX_OBJ) $(D_C_OBJ) nolibc_syscall libclangextras
 	@mkdir -p bin
 ifneq ("$(wildcard $(TCMLC_PATH))","")
 	$(PROGRESS) "Building Debug Target $(TARGET) (with tcmalloc)"
@@ -83,18 +84,18 @@ else ifneq ("$(wildcard $(JEMLC_PATH))", "")
 else
 	$(PROGRESS) "Building Debug Target $(TARGET)"
 endif
-	@$(CXX) -o bin/$(TARGET) $(D_OBJ) $(D_LFLAGS)
+	@$(CXX) -o bin/$(TARGET) $(D_CXX_OBJ) $(D_C_OBJ) $(D_LFLAGS)
 	$(PROGRESS) "Creating .clang_complete"
 	@echo "$(D_CFLAGS)" | tr " " "\n" > ".clang_complete"
 
 .PHONY: debug _debug
 
 release:; @$(MAKE) _release -j$(CORES)
-_release: $(R_OBJ) nolibc_syscall libclangextras
+_release: $(R_CXX_OBJ) $(R_C_OBJ) nolibc_syscall libclangextras
 	@mkdir -p bin
 	$(PROGRESS) "Building Release Target $(TARGET)"
 	$(PROGRESS) ""
-	@$(CXX) -o bin/$(TARGET) $(R_OBJ) $(R_LFLAGS) 
+	@$(CXX) -o bin/$(TARGET) $(R_CXX_OBJ) $(R_C_OBJ) $(R_LFLAGS) 
 
 .PHONY: release _release
 
@@ -109,6 +110,16 @@ obj/release/%.o: %.cpp
 	@mkdir -p obj/release/tclap
 	$(PROGRESS) "Compiling $<"
 	@$(CXX) $(R_CFLAGS) -c -o $@ $<
+
+obj/debug/%.o: %.c
+	@mkdir -p obj/debug/src
+	$(PROGRESS) "Compiling $<"
+	@$(CC) -g -O0 -c -o $@ $<	
+
+obj/release/%.o: %.c
+	@mkdir -p obj/release/src
+	$(PROGRESS) "Compiling $<"
+	@$(CC) -O3 -c -o $@ $<
 
 nolibc_syscall:
 	$(PROGRESS) "Building nolibc_syscall"
