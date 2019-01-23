@@ -1,17 +1,4 @@
--- templates with types within proc args crash compiler
-[
-    proc p$T(arg : <(T)>) { }
-]
-    -- This is why we need a dumber name mangler.
-       I say we just do some sort of hashing and use those.
-       Leave readablity of the generated binary to debug information.
-       Would be simpler, faster, and less error prone (I think).
-
-    -- Related problems with tuple arguments
-
--- multiple \static_do directives don't work.. symbols blah blah
-
--- member procs don't work through extended types... more name mangling problems
+-- member procs don't work through extended types...
 [
     type A {
         proc p() {}
@@ -21,18 +8,6 @@
 
     b := { B: }
     b.p()
-]
-
--- symbol resolution in interfaces is broken
-[
-    interface I { proc(this) : string }
-]
-
--- missing interface symbol lacks context
-[
-    type T {
-        implements missing
-    }
 ]
 
 -- 'run' macro should call __bjou_rt_init or at least complete the same tasks before executing code
