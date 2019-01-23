@@ -1,3 +1,6 @@
+
+
+
 macro hello{ name }{
     if not bNodeIsStrLit()
         \die{ "macro hello: argument is not a string literal!" }

@@ -81,6 +81,9 @@ static void collectSimilarSymbols(Scope * scope, std::string symbol, std::vector
     std::vector<std::string> split_symbol(std::istream_iterator<std::string>{iss},
                                           std::istream_iterator<std::string>());
 
+    std::vector<std::vector<std::string> > outs;
+    outs.resize(thresh+1);
+
     while (scope) {
         for (auto& pair : scope->symbols) {
             std::string s2_save = pair.first;
@@ -100,11 +103,17 @@ static void collectSimilarSymbols(Scope * scope, std::string symbol, std::vector
             }
 
             if (dist <= thresh) {
-                out.push_back(s2_save);
+                outs[dist].push_back(s2_save);
             }
         }
 
         scope = scope->parent;
+    }
+
+    for (auto& _out : outs) {
+        for (auto& s : _out) {
+            out.push_back(s);
+        }
     }
 }
 
