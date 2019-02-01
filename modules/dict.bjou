@@ -6,6 +6,9 @@ module dict
 import "null.bjou"
 import "algor.bjou"
 
+using null
+using algor
+
 type _dictNode$(keyT, valT) {
     key   : keyT
     val   : valT

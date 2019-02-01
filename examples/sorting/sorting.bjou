@@ -1,0 +1,73 @@
+# sorting.bjou
+
+import "insertionsort.bjou"
+import "mergesort.bjou"
+import "random.bjou"
+import "c/time.bjou"
+import "csv.bjou"
+import "io.bjou"
+
+using insertionsort
+using mergesort
+using c_time
+
+main()
+
+type clock_t = u64
+extern clock() : clock_t
+
+proc time_call$T(call : <(T[])>, arg : T[]) : clock_t {
+    t := clock()
+    call(arg)
+    return clock() - t
+}
+
+proc main() {
+    random::seedrand(time())
+
+    table := csv::csv.create()
+    table.has_h_header = true
+
+    table.set(0, 0, "n")
+    table.set(0, 1, "merge sort")
+    table.set(0, 2, "insertion sort")
+
+    iter := 1
+    n    := 1 
+    while true {
+        m_array := [...u64]
+        for i := 0; i < n; i += 1 {
+            m_array.push(random::getrand())
+        }
+        i_array := m_array.copy()
+
+        m_slice := [ m_array, 0:|m_array| ]
+        i_slice := [ i_array, 0:|i_array| ]
+
+        m_time  := time_call(mergesort$u64,     m_slice)
+        i_time  := time_call(insertionsort$u64, i_slice)
+
+        i_array.free()
+        m_array.free()
+
+        s_n      := str(n as u64)
+        s_m_time := str(m_time)
+        s_i_time := str(i_time)
+
+        table.set(iter, "n",              s_n)
+        table.set(iter, "merge sort",     s_m_time)
+        table.set(iter, "insertion sort", s_i_time)
+
+        s_i_time.free()
+        s_m_time.free()
+        s_n.free()
+
+        if i_time > m_time    break
+
+        iter += 1
+        n    *= 2
+    }
+
+    table.write(io::file.stdout())
+    table.free()
+}

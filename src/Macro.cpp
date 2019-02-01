@@ -68,7 +68,7 @@ static ASTNode * static_if(MacroUse * use) {
     // static_if is marked as 'no add symbols' below.
     // we have to add symbols here just for the expression
     // argument.
-    use->getArgs()[0]->addSymbols(use->getScope());
+    use->getArgs()[0]->addSymbols(use->mod, use->getScope());
     use->getArgs()[0]->analyze();
 
     if (((Expression *)use->getArgs()[0])->eval().as_i64) {
@@ -76,7 +76,7 @@ static ASTNode * static_if(MacroUse * use) {
                                     use->getArgs().end());
         MultiNode * multi = new MultiNode;
         multi->take(keep);
-        multi->addSymbols(use->getScope());
+        multi->addSymbols(use->mod, use->getScope());
         // multi->analyze();
         return multi;
     }
@@ -191,7 +191,7 @@ static ASTNode * static_do(MacroUse * use) {
 
     proc->setFlag(ASTNode::CT, true);
 
-    proc->addSymbols(use->getScope());
+    proc->addSymbols(use->mod, use->getScope());
     proc->analyze();
 
     std::vector<Val> no_args;
@@ -347,7 +347,7 @@ static ASTNode * __da_data(MacroUse * use) {
     access->setLeft(expr);
     access->setRight(data);
 
-    access->addSymbols(use->getScope());
+    access->addSymbols(use->mod, use->getScope());
     access->setType(result_t);
     access->setFlag(AccessExpression::ANALYZED, true);
 
@@ -380,7 +380,7 @@ static ASTNode * __da_capacity(MacroUse * use) {
     access->setLeft(expr);
     access->setRight(data);
 
-    access->addSymbols(use->getScope());
+    access->addSymbols(use->mod, use->getScope());
     access->setType(result_t);
     access->setFlag(AccessExpression::ANALYZED, true);
 
@@ -413,7 +413,7 @@ static ASTNode * __da_used(MacroUse * use) {
     access->setLeft(expr);
     access->setRight(data);
 
-    access->addSymbols(use->getScope());
+    access->addSymbols(use->mod, use->getScope());
     access->setType(result_t);
     access->setFlag(AccessExpression::ANALYZED, true);
 
@@ -444,7 +444,7 @@ static ASTNode * __slice_data(MacroUse * use) {
     access->setLeft(expr);
     access->setRight(data);
 
-    access->addSymbols(use->getScope());
+    access->addSymbols(use->mod, use->getScope());
     access->setType(result_t);
     access->setFlag(AccessExpression::ANALYZED, true);
 
@@ -475,7 +475,7 @@ static ASTNode * __slice_len(MacroUse * use) {
     access->setLeft(expr);
     access->setRight(data);
 
-    access->addSymbols(use->getScope());
+    access->addSymbols(use->mod, use->getScope());
     access->setType(result_t);
     access->setFlag(AccessExpression::ANALYZED, true);
 
@@ -514,7 +514,7 @@ static ASTNode * os(MacroUse * use) {
     lit->setContents("0");
 #endif
 
-    lit->addSymbols(use->getScope());
+    lit->addSymbols(use->mod, use->getScope());
     lit->analyze();
 
     return lit;
@@ -669,6 +669,7 @@ static ASTNode * die(MacroUse * use) {
     Identifier * ident = new Identifier;
     ident->setScope(use->getScope());
     ident->setContext(use->getContext());
+    ident->setSymMod("__die");
     ident->setSymName("__die");
 
     ArgList * args = new ArgList;
@@ -720,7 +721,7 @@ static ASTNode * isbigendian(MacroUse * use) {
     lit->setContents("false");
 #endif
 
-    lit->addSymbols(use->getScope());
+    lit->addSymbols(use->mod, use->getScope());
     lit->analyze();
 
     return lit;
@@ -732,10 +733,17 @@ static ASTNode * typetag(MacroUse * use) {
     const Type * t = use->getArgs()[0]->getType();
     lit->setContents(std::to_string(std::hash<std::string>{}(t->key)) + "u64");
 
-    lit->addSymbols(use->getScope());
+    lit->addSymbols(use->mod, use->getScope());
     lit->analyze();
 
     return lit;
+}
+
+static ASTNode * add_global_using(MacroUse * use) {
+    Identifier * ident = (Identifier*)use->getArgs()[0];
+    compilation->frontEnd.globalScope->usings.push_back(ident->getSymName());
+
+    return nullptr;
 }
 
 } // namespace Macros
@@ -821,6 +829,7 @@ MacroManager::MacroManager() {
     macros["typetag"] = {"typetag",
                              Macros::typetag,
                              {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+    macros["add_global_using"] = {"add_global_using", Macros::add_global_using, {{ASTNode::NodeKind::IDENTIFIER}}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {

@@ -145,6 +145,7 @@ struct ASTNode {
         PROCEDURE,
         NAMESPACE,
         IMPORT,
+        USING,
         PRINT,
         RETURN,
         BREAK,
@@ -233,7 +234,7 @@ struct ASTNode {
         ASTNode::NodeKind::STRUCT, ASTNode::NodeKind::ENUM,                    \
         ASTNode::NodeKind::ARG_LIST, ASTNode::NodeKind::THIS,                  \
         ASTNode::NodeKind::PROCEDURE, ASTNode::NodeKind::NAMESPACE,            \
-        ASTNode::NodeKind::IMPORT, ASTNode::NodeKind::PRINT,                   \
+        ASTNode::NodeKind::IMPORT, ASTNode::NodeKind::USING, ASTNode::NodeKind::PRINT,                   \
         ASTNode::NodeKind::RETURN, ASTNode::NodeKind::BREAK,                   \
         ASTNode::NodeKind::CONTINUE, ASTNode::NodeKind::IF,                    \
         ASTNode::NodeKind::ELSE, ASTNode::NodeKind::FOR,                       \
@@ -307,7 +308,7 @@ struct ASTNode {
 
 #define ANY_STATEMENT                                                          \
     ASTNode::NodeKind::IGNORE, ANY_EXPRESSION, ASTNode::NodeKind::CONSTANT,    \
-        ASTNode::NodeKind::VARIABLE_DECLARATION, ASTNode::NodeKind::IMPORT,    \
+        ASTNode::NodeKind::VARIABLE_DECLARATION, ASTNode::NodeKind::IMPORT, ASTNode::NodeKind::USING,    \
         ASTNode::NodeKind::PRINT, ASTNode::NodeKind::RETURN,                   \
         ASTNode::NodeKind::BREAK, ASTNode::NodeKind::CONTINUE,                 \
         ASTNode::NodeKind::IF, ASTNode::NodeKind::ELSE,                        \
@@ -359,7 +360,7 @@ struct ASTNode {
 
     // Node interface
     virtual void analyze(bool force = false) = 0;
-    virtual void addSymbols(Scope * _scope) = 0;
+    virtual void addSymbols(std::string& _mod, Scope * _scope) = 0;
     virtual void unwrap(std::vector<ASTNode *> & terminals);
     virtual ASTNode * clone() = 0;
     virtual void desugar();
@@ -390,7 +391,7 @@ struct MultiNode : ASTNode {
     void take(std::vector<ASTNode *> & _nodes);
 
     void analyze(bool force = false);
-    void addSymbols(Scope * _scope);
+    void addSymbols(std::string& _mod, Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     void * generate(BackEnd & backEnd, bool flag = false);
 
@@ -440,7 +441,7 @@ struct Expression : ASTNode {
     virtual ASTNode * clone() = 0;
     virtual void desugar();
     virtual void analyze(bool force = false) = 0;
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
 
     virtual const Type * getType();
     virtual bool isStatement() const;
@@ -1452,7 +1453,7 @@ struct InitializerList : Expression {
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual ~InitializerList();
     //
 };
@@ -1488,7 +1489,7 @@ struct SliceExpression : Expression {
     void desugar();
     // no generation, will be desugared
     // virtual void * generate(BackEnd & backEnd, bool flag = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~SliceExpression();
@@ -1520,7 +1521,7 @@ struct DynamicArrayExpression : Expression {
     void desugar();
     // no generation, will be desugared
     // virtual void * generate(BackEnd & backEnd, bool flag = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~DynamicArrayExpression();
@@ -1551,7 +1552,7 @@ struct LenExpression : Expression {
     void desugar();
     // no generation, will be desugared
     // virtual void * generate(BackEnd & backEnd, bool flag = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~LenExpression();
@@ -1709,7 +1710,7 @@ struct ProcLiteral : UnaryPreExpression {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
@@ -1734,7 +1735,7 @@ struct ExternLiteral : UnaryPreExpression {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
@@ -1809,7 +1810,7 @@ struct TupleLiteral : Expression {
     bool isConstant();
 
     // Node interface
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void analyze(bool force = false);
     ASTNode * clone();
     void desugar();
@@ -1852,7 +1853,7 @@ struct ExprBlock : Expression {
     bool isConstant();
 
     // Node interface
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void analyze(bool force = false);
     ASTNode * clone();
     void desugar();
@@ -1913,7 +1914,7 @@ struct Declarator : ASTNode {
     void desugar();
     virtual const Type * getType();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~Declarator();
@@ -1964,7 +1965,7 @@ struct ArrayDeclarator : Declarator {
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
     void desugar();
-    void addSymbols(Scope * _scope);
+    void addSymbols(std::string& _mod, Scope * _scope);
     virtual void analyze(bool force = false);
     virtual const Type * getType();
     virtual void dump(std::ostream & stream, unsigned int level = 0,
@@ -2000,7 +2001,7 @@ struct SliceDeclarator : Declarator {
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
     void desugar();
-    void addSymbols(Scope * _scope);
+    void addSymbols(std::string& _mod, Scope * _scope);
     virtual void analyze(bool force = false);
     virtual const Type * getType();
     virtual void dump(std::ostream & stream, unsigned int level = 0,
@@ -2036,7 +2037,7 @@ struct DynamicArrayDeclarator : Declarator {
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
     void desugar();
-    void addSymbols(Scope * _scope);
+    void addSymbols(std::string& _mod, Scope * _scope);
     virtual void analyze(bool force = false);
     virtual const Type * getType();
     virtual void dump(std::ostream & stream, unsigned int level = 0,
@@ -2070,7 +2071,7 @@ struct PointerDeclarator : Declarator {
     void setPointerOf(ASTNode * _pointerOf);
 
     // Node interface
-    void addSymbols(Scope * _scope);
+    void addSymbols(std::string& _mod, Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
     void desugar();
@@ -2107,7 +2108,7 @@ struct RefDeclarator : Declarator {
     void setRefOf(ASTNode * _refOf);
 
     // Node interface
-    void addSymbols(Scope * _scope);
+    void addSymbols(std::string& _mod, Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
     void desugar();
@@ -2144,7 +2145,7 @@ struct MaybeDeclarator : Declarator {
     void setMaybeOf(ASTNode * _maybeOf);
 
     // Node interface
-    void addSymbols(Scope * _scope);
+    void addSymbols(std::string& _mod, Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
     void desugar();
@@ -2182,7 +2183,7 @@ struct TupleDeclarator : Declarator {
     void addSubDeclarator(ASTNode * _subDeclarator);
 
     // Node interface
-    void addSymbols(Scope * _scope);
+    void addSymbols(std::string& _mod, Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
     void desugar();
@@ -2228,7 +2229,7 @@ struct ProcedureDeclarator : Declarator {
     void setRetDeclarator(ASTNode * _retDeclarator);
 
     // Node interface
-    void addSymbols(Scope * _scope);
+    void addSymbols(std::string& _mod, Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
     void desugar();
@@ -2258,7 +2259,7 @@ struct PlaceholderDeclarator : Declarator {
     PlaceholderDeclarator();
 
     // Node interface
-    void addSymbols(Scope * _scope);
+    void addSymbols(std::string& _mod, Scope * _scope);
     void unwrap(std::vector<ASTNode *> & terminals);
     ASTNode * clone();
     void desugar();
@@ -2312,7 +2313,7 @@ struct Constant : ASTNode {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual bool isStatement() const;
     virtual void dump(std::ostream & stream, unsigned int level = 0,
@@ -2362,7 +2363,7 @@ struct VariableDeclaration : ASTNode {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
@@ -2399,7 +2400,7 @@ struct Alias : ASTNode {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~Alias();
@@ -2452,7 +2453,7 @@ struct Struct : ASTNode {
     void setMemberTemplateProcs(std::vector<ASTNode *> _memberTemplateProcs);
     void addMemberTemplateProc(ASTNode * memberTemplateProc);
 
-    void preDeclare(Scope * _scope);
+    void preDeclare(std::string& _mod, Scope * _scope);
 
     // Node interface
     const Type * getType();
@@ -2460,7 +2461,7 @@ struct Struct : ASTNode {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
@@ -2501,7 +2502,7 @@ struct Enum : ASTNode {
     const Type * getType();
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~Enum();
@@ -2532,7 +2533,7 @@ struct ArgList : ASTNode {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~ArgList();
@@ -2554,7 +2555,7 @@ struct This : ASTNode {
     const Type * getType();
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~This();
@@ -2610,7 +2611,7 @@ struct Procedure : ASTNode {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
 
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
@@ -2649,10 +2650,31 @@ struct Import : ASTNode {
     void unwrap(std::vector<ASTNode *> & terminals);
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~Import();
+    //
+};
+
+struct Using : ASTNode {
+    Using();
+
+    std::string module;
+    
+    enum eBitFlags E_BIT_FLAGS();
+
+    std::string& getModule();
+    void setModule(std::string _module);
+    
+    // Node interface
+    void unwrap(std::vector<ASTNode *> & terminals);
+    virtual void analyze(bool force = false);
+    ASTNode * clone();
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+    virtual ~Using();
     //
 };
 
@@ -2680,7 +2702,7 @@ struct Print : ASTNode {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
 
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
@@ -2714,7 +2736,7 @@ struct Return : ASTNode {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
 
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
@@ -2740,7 +2762,7 @@ struct Break : ASTNode {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     bool isStatement() const;
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
@@ -2764,7 +2786,7 @@ struct Continue : ASTNode {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     bool isStatement() const;
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
@@ -2795,7 +2817,7 @@ struct ExprBlockYield : ASTNode {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
 
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
@@ -2839,7 +2861,7 @@ struct If : ASTNode {
     void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
@@ -2872,7 +2894,7 @@ struct Else : ASTNode {
     void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~Else();
@@ -2916,7 +2938,7 @@ struct For : ASTNode {
     bool isStatement() const;
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
@@ -2957,7 +2979,7 @@ struct Foreach : ASTNode {
     bool isStatement() const;
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     // no generate(). will be desugared
@@ -2993,7 +3015,7 @@ struct While : ASTNode {
     void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
@@ -3028,7 +3050,7 @@ struct DoWhile : ASTNode {
     void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
@@ -3064,7 +3086,7 @@ struct Match : ASTNode {
     void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~Match();
@@ -3099,7 +3121,7 @@ struct With : ASTNode {
     void desugar();
     bool isStatement() const;
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~With();
@@ -3129,7 +3151,7 @@ struct TemplateDefineList : ASTNode {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~TemplateDefineList();
@@ -3173,7 +3195,7 @@ struct TemplateDefineTypeDescriptor : TemplateDefineElement {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual ~TemplateDefineTypeDescriptor();
     //
 };
@@ -3193,7 +3215,7 @@ struct TemplateDefineVariadicTypeArgs : TemplateDefineElement {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual ~TemplateDefineVariadicTypeArgs();
     //
 };
@@ -3222,7 +3244,7 @@ struct TemplateDefineExpression : TemplateDefineElement {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual ~TemplateDefineExpression();
     //
 };
@@ -3251,7 +3273,7 @@ struct TemplateInstantiation : ASTNode {
     ASTNode * clone();
     void desugar();
     virtual void analyze(bool force = false);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~TemplateInstantiation();
@@ -3281,7 +3303,7 @@ struct TemplateAlias : ASTNode {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual ~TemplateAlias();
     //
 };
@@ -3311,7 +3333,7 @@ struct TemplateStruct : ASTNode {
     const Type * getType();
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     void dump(std::ostream & stream, unsigned int level = 0,
               bool dumpCT = false);
     virtual ~TemplateStruct();
@@ -3345,7 +3367,7 @@ struct TemplateProc : ASTNode {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     void dump(std::ostream & stream, unsigned int level = 0,
               bool dumpCT = false);
     virtual ~TemplateProc();
@@ -3367,7 +3389,7 @@ struct SLComment : ASTNode {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~SLComment();
@@ -3389,7 +3411,7 @@ struct ModuleDeclaration : ASTNode {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~ModuleDeclaration();
@@ -3404,7 +3426,7 @@ struct IgnoreNode : ASTNode {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     void dump(std::ostream & stream, unsigned int level = 0,
               bool dumpCT = false);
@@ -3436,7 +3458,7 @@ struct MacroUse : ASTNode {
     virtual void analyze(bool force = false);
     ASTNode * clone();
     void unwrap(std::vector<ASTNode *> & terminals);
-    virtual void addSymbols(Scope * _scope);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~MacroUse();

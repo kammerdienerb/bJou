@@ -5,6 +5,9 @@ module c_dirent
 import "c/sys/pthread_types.bjou"
 import "c/sys/dirent.bjou"
 
+using c_sys_dirent
+using c_sys_pthread_types
+
 abstract type _telldir { }
 
 type DIR {

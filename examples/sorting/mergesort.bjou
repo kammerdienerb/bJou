@@ -1,0 +1,56 @@
+# mergesort.bjou
+
+module mergesort
+
+proc mergesort$T(list : T[]) {
+    if |list| <= 1    return
+
+    half := |list| / 2
+    L    := [ list.data(),    0:half            ]
+    R    := [ list.data(), half:(|list| - half) ]
+
+    mergesort(L)
+    mergesort(R)
+    _merge(list)
+}
+
+proc _merge$T(list : T[]) {
+    i        := 0
+    j        := 0
+    k        := 0
+    l        := |list| / 2
+    r        := |list| - l
+    list_ptr := list.data()
+    L_tmp    := new T[l]
+    R_tmp    := new T[r]
+
+    mcopy(L_tmp, list_ptr,     l * sizeof T)
+    mcopy(R_tmp, list_ptr + l, r * sizeof T)
+
+    while i < l
+    and   j < r {
+        if L_tmp[i] < R_tmp[j] {
+            @(list_ptr + k) = L_tmp[i]
+            i += 1
+        } else {
+            @(list_ptr + k) = R_tmp[j]
+            j += 1
+        }
+        k += 1
+    }
+
+    while i < l {
+        @(list_ptr + k) = L_tmp[i]
+        i += 1
+        k += 1
+    }
+
+    while j < r {
+        @(list_ptr + k) = R_tmp[j]
+        j += 1
+        k += 1
+    }
+
+    delete R_tmp
+    delete L_tmp
+}

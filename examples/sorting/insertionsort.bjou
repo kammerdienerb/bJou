@@ -1,0 +1,20 @@
+# insertionsort.bjou
+
+module insertionsort
+
+proc insertionsort$T(list : T[]) {
+    list_ptr := list.data()
+
+    for i := 1; i < |list|; i += 1 {
+        v := list[i]
+        p := i
+
+        while p > 0
+        and   list[p - 1] > v {
+            @(list_ptr + p) = list[p - 1]
+            p -= 1
+        }
+
+        @(list_ptr + p) = v
+    }
+}

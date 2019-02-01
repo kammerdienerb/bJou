@@ -150,13 +150,15 @@ Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst) {
     }
 
     Struct * clone = (Struct *)s->clone();
+    clone->parent = nullptr;
     clone->setName(s->getName());
+    clone->setLookupName(s->getLookupName());
     clone->inst = inst;
 
     clone->setFlag(Struct::IS_TEMPLATE_DERIVED, true);
 
-    clone->preDeclare(scope);
-    clone->addSymbols(scope);
+    clone->preDeclare(ttype->mod, scope);
+    clone->addSymbols(ttype->mod, scope);
 
     templateReplaceTerminals(clone, ttype->getTemplateDef(), inst);
 
@@ -400,7 +402,7 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
         for (ASTNode * _var : params) {
             VariableDeclaration *var_clone, *var = (VariableDeclaration *)_var;
             var_clone = (VariableDeclaration *)var->clone();
-            var_clone->getTypeDeclarator()->addSymbols(tproc->getScope());
+            var_clone->getTypeDeclarator()->addSymbols(tproc->mod, tproc->getScope());
             var_clone->unwrap(terms);
             var_clones.push_back(var_clone);
         }
@@ -425,18 +427,6 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
             (ProcedureType *)ProcedureType::get(arg_types, VoidType::get());
 
         nconv = countConversions(candidate_type, compare_type);
-
-        /*
-        for (int i = 0; i < (int)arg_types.size(); i += 1) {
-            if (!conv(arg_types[i], new_param_types[i])) {
-                if (delete_new_inst)
-                    delete new_inst;
-                return -1;
-            }
-            if (!equal(arg_types[i], new_param_types[i]))
-                nconv += 1;
-        }
-        */
     }
 
     if (delete_new_inst)
@@ -472,10 +462,25 @@ Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args,
     for (ASTNode * new_param : new_params)
         proc->addParamVarDeclaration(new_param);
 
-    _Symbol<Procedure> * newsym =
-        new _Symbol<Procedure>(proc->getName(), tproc->mod, "", proc, new_inst, nullptr);
-    std::string qual = newsym->unmangled;
+    std::string t = "";
+    if (tproc->getParent()) {
+        ASTNode * p = tproc->getParent();
+        if (p->nodeKind == ASTNode::STRUCT) {
+            Struct * s = (Struct*)p;
+            if (!p->getParent() || p->getParent()->nodeKind != ASTNode::TEMPLATE_STRUCT) {
+                t = string_sans_mod(s->getLookupName());
+            } else if (p->getParent() && p->getParent()->nodeKind == ASTNode::TEMPLATE_STRUCT) {
+                t = s->getName();
+            }
+        } else if (p->nodeKind == ASTNode::TEMPLATE_STRUCT) {
+            t         = ((Struct*)((TemplateStruct*)tproc->getParent())->_template)->getName();
+        }
+    }
 
+    _Symbol<Procedure> * newsym =
+        new _Symbol<Procedure>(proc->getName(), tproc->mod, t, proc, new_inst, nullptr);
+    std::string qual = newsym->unmangled;
+    
     Maybe<Symbol*> m_set_sym = scope->getSymbol(scope, newsym->proc_name, nullptr, true, false, false);
     Symbol * set_sym = nullptr;
     if (m_set_sym.assignTo(set_sym)) {
@@ -493,23 +498,6 @@ Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args,
             return (Procedure *)existing;
         }
     }
-
-    /* Maybe<Symbol *> m_sym = */
-    /*     scope->getSymbol(scope, qual, nullptr, true, false, false); */
-    /* Symbol * sym = nullptr; */
-    /* if (m_sym.assignTo(sym)) { */
-    /*     // found it */
-    /*     BJOU_DEBUG_ASSERT(sym->isProc()); */
-    /*     BJOU_DEBUG_ASSERT(sym->node()->nodeKind == ASTNode::PROCEDURE); */
-
-    /*     // restore params */
-    /*     proc->getParamVarDeclarations().clear(); */
-
-    /*     for (ASTNode * p : save_params) */
-    /*         proc->addParamVarDeclaration(p); */
-
-    /*     return (Procedure *)sym->node(); */
-    /* } */
 
     // restore params
     proc->getParamVarDeclarations().clear();
@@ -529,7 +517,7 @@ Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args,
     if (tproc->getFlag(TemplateProc::FROM_THROUGH_TEMPLATE))
         clone->setFlag(ASTNode::SYMBOL_OVERWRITE, true);
 
-    clone->addSymbols(scope);
+    clone->addSymbols(tproc->mod, scope);
 
     clone->analyze(true);
     clone->setFlag(Procedure::IS_TEMPLATE_DERIVED, true);

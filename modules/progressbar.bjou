@@ -6,6 +6,8 @@ import "cli.bjou"
 
 import "c/io.bjou"
 
+using c_io
+
 extern strdup(char*) : char*
 
 type ProgressBar {
@@ -58,7 +60,7 @@ type ProgressBar {
 
         printf("::█")
         for i := 0; i < w; i += 1
-            printf("%s%s%s", attr, fill, cli.RESET)
+            printf("%s%s%s", attr, fill, cli::RESET)
         for i := 0; i < this.width - w; i += 1
             printf(" ")
         printf("█ %u%% (%u/%u)      \r", ((perc * 100) as u32), n, this.total)

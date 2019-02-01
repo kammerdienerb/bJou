@@ -9,7 +9,7 @@ import "c/string.bjou"
 proc exepath() : string {
 
 # MACOS
-\static_if{ os.OS == os.MACOS
+\static_if{ os::OS == os::MACOS
     extern _NSGetExecutablePath(char*, u32*) : int
 
     _buff : char[512] 
@@ -27,7 +27,7 @@ proc exepath() : string {
     }
     return s }
 
-\static_if{ os.OS != os.MACOS
+\static_if{ os::OS != os::MACOS
     \error{ "exepath is not implemented for this system yet." } }
 
 }

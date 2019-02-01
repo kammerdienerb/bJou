@@ -9,6 +9,9 @@ import "compiler.bjou"
 # The compilation we spawn will (maybe) run through to the back end.
 \front{ true }
 
+extern mkdir(char*, u16) : int
+const MODE_0777 := 511
+
 type BuildOptions {
     build_dir : char*
 
@@ -38,26 +41,40 @@ type BuildOptions {
             .link                = [...char*],
             .files               = [...char*]
         }
+
+    proc prepare(this) {
+        print "preparing.."
+        mkdir(this.build_dir, MODE_0777)
+        buff : char[4096]
+        buff[0] = 0
+        cstrcat(buff, this.build_dir)
+        cstrcat(buff, "/")
+        cstrcat(buff, this.output_name)
+        this.output_name = buff
+    }
 }
 
-extern strcat(char*, char*) : char*
-
-extern mkdir(char*, u16) : int
-const MODE_0777 := 511
-
-proc prepare(options : BuildOptions ref) {
-    print "preparing.."
-    mkdir(options.build_dir, MODE_0777)
-    buff : char[4096]
-    buff[0] = 0
-    strcat(buff, options.build_dir)
-    strcat(buff, "/")
-    strcat(buff, options.output_name)
-    options.output_name = buff
-}
 
 proc build(options : BuildOptions ref) {
-    prepare(options)
+    if |options.files| == 0
+        \die{ "no files provided!" }
+
+    cleanup_output_name := false
+    o                   := NULL as char*
+
+    if options.output_name == NULL as char* {
+        o = cstrdup(options.files[0])
+        cleanup_output_name = true
+        s := str(o)
+        idx := s.findlast('.')
+        s.free()
+        if idx >= 0 {
+            o[idx] = '\0'
+        }
+        options.output_name = o
+    }
+
+    options.prepare()
 
     print "building % for bJou version %", options.output_name, bjou_getVersionString()
     foreach f in options.files
@@ -83,6 +100,8 @@ proc build(options : BuildOptions ref) {
         |options.link|,
         options.files.data(),
         |options.files|)
+
+    if cleanup_output_name    delete o
 
     print "done"
 }

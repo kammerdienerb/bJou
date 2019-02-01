@@ -13,6 +13,7 @@
 #include "Global.hpp"
 #include "Misc.hpp"
 #include "Operator.hpp"
+#include "Symbol.hpp"
 
 #include <set>
 #include <vector>
@@ -141,14 +142,14 @@ static inline std::string prkey(const std::vector<const Type *> & paramTypes,
 static Declarator * basicDeclarator(const Type * t) {
     Declarator * declarator = new Declarator();
     declarator->context.filename = "<declarator created internally>";
-    declarator->setIdentifier(stringToIdentifier(t->key));
-    /*
-    if (this->isStruct()) {
-        StructType * s_t = (StructType*)this;
-        if (s_t->inst)
-            declarator->setTemplateInst(s_t->inst);
+    auto m_mod = get_mod_from_string(t->key);
+    if (m_mod) {
+        std::string mod;
+        m_mod.assignTo(mod);
+        declarator->setIdentifier(stringToIdentifier(mod, "", t->key.substr(mod.size() + 2)));
+    } else {
+        declarator->setIdentifier(stringToIdentifier(t->key));
     }
-     */
     declarator->createdFromType = true;
     return declarator;
 }
@@ -332,6 +333,7 @@ const Type * SliceType::getRealType() const {
 
     Identifier * ident = new Identifier;
     ident->setScope(compilation->frontEnd.globalScope);
+    ident->setSymMod("__slice");
     ident->setSymName("__bjou_slice");
 
     TemplateInstantiation * new_inst = new TemplateInstantiation;
@@ -341,7 +343,8 @@ const Type * SliceType::getRealType() const {
     new_decl->setIdentifier(ident);
     new_decl->setTemplateInst(new_inst);
 
-    new_decl->addSymbols(compilation->frontEnd.globalScope);
+    std::string empty_mod_string = "";
+    new_decl->addSymbols(empty_mod_string, compilation->frontEnd.globalScope);
 
     PointerDeclarator * holder = new PointerDeclarator(new_decl);
 
@@ -397,6 +400,7 @@ const Type * DynamicArrayType::getRealType() const {
 
     Identifier * ident = new Identifier;
     ident->setScope(compilation->frontEnd.globalScope);
+    ident->setSymMod("__dynamic_array");
     ident->setSymName("__bjou_dyn_array");
 
     new_decl->setIdentifier(ident);
@@ -407,7 +411,8 @@ const Type * DynamicArrayType::getRealType() const {
 
     new_decl->setTemplateInst(new_inst);
 
-    new_decl->addSymbols(compilation->frontEnd.globalScope);
+    std::string empty_mod_string = "";
+    new_decl->addSymbols(empty_mod_string, compilation->frontEnd.globalScope);
 
     PointerDeclarator * holder = new PointerDeclarator(new_decl);
 
@@ -455,7 +460,7 @@ const Type * StructType::get(std::string name, Struct * _struct,
 static void insertProcSet(StructType * This, Procedure * proc) {
     std::string lookup = This->_struct->getLookupName() + "." + proc->getName();
     Maybe<Symbol *> m_sym =
-        This->_struct->getScope()->getSymbol(This->_struct->getScope(), lookup);
+        This->_struct->getScope()->getSymbol(This->_struct->getScope(), lookup, &proc->getNameContext());
     Symbol * sym = nullptr;
     m_sym.assignTo(sym);
     BJOU_DEBUG_ASSERT(sym && sym->isProcSet());

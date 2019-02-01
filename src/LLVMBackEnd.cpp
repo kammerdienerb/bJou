@@ -717,9 +717,7 @@ void LLVMBackEnd::genStructProcs(Struct * s) {
     for (auto & set : s_t->memberProcs) {
         for (auto & _proc : set.second->procs) {
             Procedure * proc = (Procedure *)_proc.second->node();
-            if (!_proc.second->isTemplateProc() &&
-                proc->getParentStruct() == s) {
-
+            if (!_proc.second->isTemplateProc()) { //&& proc->getParentStruct() == s) {
                 getOrGenNode(proc);
             }
         }
@@ -835,7 +833,7 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
     const Type * t = var->getType();
     llvm::Type * ll_t = llbe->getOrGenType(t);
 
-    if (!gvar) {
+    /* if (!gvar) { */
         if (t->isArray()) {
             PointerType * ptr_t = (PointerType *)t->under()->getPointer();
             llvm::Type * ll_ptr_t = llbe->getOrGenType(ptr_t);
@@ -856,8 +854,8 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
 
         llbe->addNamedVal(var->getMangledName(), gvar, t);
 
-        return gvar;
-    } else {
+        /* return gvar; */
+    /* } else { */
         auto align = llbe->layout->getABITypeAlignment(ll_t);
 
         if (t->isArray()) {
@@ -897,7 +895,7 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
             else
                 gvar->setInitializer(llvm::Constant::getNullValue(ll_t));
         }
-    }
+    /* } */
 
     return gvar;
 }
@@ -3127,15 +3125,16 @@ void * Constant::generate(BackEnd & backEnd, bool flag) {
 void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
-    if (!getScope()->parent) {
-        if (llbe->generated_nodes.find(this) == llbe->generated_nodes.end()) {
-            llbe->globs_need_completion.insert(this);
+    if (!getScope()->parent || getScope()->is_module_scope) {
             return GenerateGlobalVariable(this, nullptr, backEnd);
-        } else {
-            llvm::Value * me = llbe->getOrGenNode(this);
-            return GenerateGlobalVariable(this, (llvm::GlobalVariable *)me,
-                                          backEnd);
-        }
+        /* if (llbe->generated_nodes.find(this) == llbe->generated_nodes.end()) { */
+        /*     llbe->globs_need_completion.insert(this); */
+        /*     return GenerateGlobalVariable(this, nullptr, backEnd); */
+        /* } else { */
+        /*     llvm::Value * me = llbe->getOrGenNode(this); */
+        /*     return GenerateGlobalVariable(this, (llvm::GlobalVariable *)me, */
+        /*                                   backEnd); */
+        /* } */
     }
 
     llvm::Type * t = llbe->getOrGenType(getType());

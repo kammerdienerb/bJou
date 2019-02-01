@@ -4,7 +4,9 @@
 \front{ true }
 
 import "io.bjou"
+using io
 import "csv.bjou"
+using csv
 
 proc main() {
     table := csv.create(file.stdin())
@@ -19,7 +21,7 @@ proc main() {
         perc *= 100.0
         table.set(r, perc_col, perc)
     }
-    table.rfilter(perc_col, csv.pred_nonzero)
+    table.rfilter(perc_col, csv::pred_nonzero)
 
     table.write(file.stdout())
     table.free()

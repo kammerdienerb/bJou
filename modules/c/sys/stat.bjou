@@ -5,9 +5,11 @@ module c_sys_stat
 import "os.bjou"
 
 import "c/sys/types.bjou"
+using c_sys_types
 import "c/time.bjou" # time_t, timespec
+using c_time
 
-\static_if{ os.OS == os.MACOS
+\static_if{ os::OS == os::MACOS
     type stat {
         st_dev           : dev_t
         st_mode          : mode_t
@@ -31,4 +33,4 @@ import "c/time.bjou" # time_t, timespec
         st_qspare        : i64[2]
     } }
 
-\static_if{ os.OS != os.MACOS    \error{ "not implemented" } }
+\static_if{ os::OS != os::MACOS    \error{ "not implemented" } }

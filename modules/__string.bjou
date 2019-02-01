@@ -4,7 +4,6 @@ module __string
 
 import "null.bjou"
 
-extern strlen(char*) : u64
 extern sprintf(char*, char*, ...) : int
 extern sscanf(char*, char*, ...) : int
 extern strstr(char*, char*) : char*
@@ -39,6 +38,17 @@ proc cstrcmp(s1 : char*, s2 : char*) : int {
         s2 += 1
     }
     return @(s1 as u8*) - @(s2 as u8*)
+}
+
+proc cstrcat(dst : char*, src : char*) : char* {
+    p := dst + cstrlen(dst)
+
+    while @p = @src {
+        p   += 1
+        src += 1
+    }
+
+    return dst
 }
 
 type string {
@@ -134,7 +144,7 @@ type string {
     proc find(this, needle : char*) : i64 {
         haystack := this.c_str()
         search   := strstr(haystack, needle)
-        if search.isnull()
+        if search.null::isnull()
             return -1
         return ptrdiff(search as void*, haystack as void*)
     }
@@ -153,20 +163,20 @@ type string {
         haystack := this.c_str()
         running  := haystack
 
-        result := NULL as char*
+        result := null::NULL as char*
 
         if @needle == '\0'
             return 0
 
         while true {
             search := strstr(running, needle)
-            if search.isnull()
+            if search.null::isnull()
                 break
             result  = search
             running = search + 1
         }
 
-        if result.isnull()
+        if result.null::isnull()
             return -1
 
         return ptrdiff(result as void*, haystack as void*)
@@ -211,6 +221,10 @@ proc equal(s1 : string ref, s2 : string ref) : bool {
     return cstrcmp(s1.c_str(), s2.c_str()) == 0
 }
 
+\op { "==" proc __string_equ(s1 : string ref, s2 : string ref) : bool {
+    return equal(s1, s2)
+}}
+
 # @note: These concat() functions are inefficient.
 
 proc concat(s1 : string, s2 : char*) : string {
@@ -225,14 +239,6 @@ proc concat(s1 : string, s2 : char*) : string {
 
     return out
 }
-
-\op { "+" proc __string_plus(s1 : string, s2 : string) : string {
-    return concat(s1, s2)
-}}
-
-\op { "==" proc __string_equ(s1 : string ref, s2 : string ref) : bool {
-    return equal(s1, s2)
-}}
 
 proc concat(s1 : string, s2 : string) : string {
     out := str()
@@ -290,6 +296,10 @@ proc concat(strs : string[...] ref) : string {
     }
     return out
 }
+
+\op { "+" proc __string_plus(s1 : string, s2 : string) : string {
+    return concat(s1, s2)
+}}
 
 proc ljust(s : string ref, width : int) {
     l := s.len()

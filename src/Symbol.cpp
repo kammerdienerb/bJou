@@ -29,9 +29,20 @@ ASTNode * ProcSet::clone() {
     BJOU_DEBUG_ASSERT(false);
     return nullptr;
 }
-void ProcSet::addSymbols(Scope * scope) { BJOU_DEBUG_ASSERT(false); }
+void ProcSet::addSymbols(std::string& _mod, Scope * scope) { BJOU_DEBUG_ASSERT(false); }
 
-static void printProcSetGetError(ProcSet * set, ASTNode * args, Context * context) {
+static bool can_use_module_node(ASTNode * node, Scope * scope) {
+    const std::string& m = node->mod;
+    if (!m.empty()) {
+        auto search = std::find(scope->usings.begin(), scope->usings.end(), m);
+        if (search == scope->usings.end()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void printProcSetGetError(ProcSet * set, ASTNode * args, Context * context, Scope * scope, bool set_is_in_module) {
     std::vector<std::string> help;
 
     if (args) {
@@ -48,19 +59,45 @@ static void printProcSetGetError(ProcSet * set, ASTNode * args, Context * contex
 
     help.push_back("Note: options are:");
 
+    int n_options = 0;
+
     for (auto & p : set->procs) {
+        if (!set_is_in_module && !can_use_module_node(p.second->node(), scope)) {
+            continue;
+        }
         std::string option = "\t";
         option += p.second->unmangled;
         help.push_back(option);
+        n_options += 1;
     }
 
-    errorl(*context, "No matching call for '" + set->name + "' found.", true,
-            help);
+    if (n_options == 0) {
+        help.clear();
+        help.push_back("No viable option is in scope");
+        help.push_back("Note: '" + set->name + "' has other options in the following modules:");
+
+        std::set<std::string> mods;
+        for (auto & p : set->procs) {
+            ASTNode * n = p.second->node();
+            const std::string& mod = n->mod;
+            if (!mod.empty()) {
+                mods.insert(mod);
+            }
+        }
+
+        for (auto& m : mods) {
+            help.push_back("    " + m);
+        }
+    }
+
+    errorl(*context, "No matching call for '" + set->name + "' found.", true, help);
 }
 
-Procedure * ProcSet::get(ASTNode * args, ASTNode * inst, Context * context,
+Procedure * ProcSet::get(Scope * scope, ASTNode * args, ASTNode * inst, Context * context,
                          bool fail) {
     BJOU_DEBUG_ASSERT(procs.size());
+
+    bool set_is_in_module = getScope()->is_module_scope;
 
     std::vector<const Type *> arg_types;
     if (args)
@@ -73,7 +110,7 @@ Procedure * ProcSet::get(ASTNode * args, ASTNode * inst, Context * context,
                 (ProcedureType *)ProcedureType::get(arg_types, VoidType::get());
             if (!argMatch((ProcedureType*)procs.begin()->second->node()->getType(), compare_type)) {
                 if (fail) {
-                    printProcSetGetError(this, args, context);
+                    printProcSetGetError(this, args, context, scope, set_is_in_module);
                 } else
                     return nullptr;
             }
@@ -116,13 +153,13 @@ Procedure * ProcSet::get(ASTNode * args, ASTNode * inst, Context * context,
     }
 
     std::vector<Symbol *> candidates, resolved;
-    candidates = getCandidates(compare_type, args, inst, context, fail);
+    candidates = getCandidates(scope, compare_type, args, inst, context, fail, set_is_in_module);
     resolve(candidates, resolved, compare_type, args, inst, context, fail);
 
     if (resolved.empty()) {
         if (fail) {
             BJOU_DEBUG_ASSERT(args);
-            printProcSetGetError(this, args, context);
+            printProcSetGetError(this, args, context, scope, set_is_in_module);
         }
     } else {
         Symbol * sym = resolved[0];
@@ -166,13 +203,17 @@ Procedure * ProcSet::getTemplate(std::vector<const Type *> & arg_types,
     return nullptr;
 }
 
-std::vector<Symbol *> ProcSet::getCandidates(ProcedureType * compare_type,
+std::vector<Symbol *> ProcSet::getCandidates(Scope * scope, ProcedureType * compare_type,
                                              ASTNode * args, ASTNode * inst,
-                                             Context * context, bool fail) {
+                                             Context * context, bool fail, bool set_is_in_module) {
     std::vector<Symbol *> candidates;
 
     if (compare_type) {
         for (auto & p : procs) {
+            if (!set_is_in_module && !can_use_module_node(p.second->node(), scope)) {
+                continue;
+            }
+
             if (!p.second->isTemplateProc()) {
                 if (argMatch(p.second->node()->getType(), compare_type)) {
                     if (!p.second->node()->getFlag(
@@ -289,6 +330,46 @@ Identifier * stringToIdentifier(std::string s) {
     return ident;
 }
 
+Identifier * stringToIdentifier(std::string m, std::string t, std::string n) {
+    Identifier * ident = new Identifier;
+    ident->getContext().filename = "<identifier created internally>";
+
+    ident->setSymMod(m);
+    ident->setSymType(t);
+    ident->setSymName(n);
+
+    return ident;
+}
+
+Maybe<std::string> get_mod_from_string(const std::string& s) {
+    size_t p = 0,
+           l = s.size();
+    if (l > 2) {
+        while (p < l - 2
+        &&    (isalnum(s[p])
+            || s[p] == '_'
+            || s[p] == '\'')) {
+            p += 1;
+        }
+
+        if (s[p] == ':' && s[p + 1] == ':') {
+            return Maybe<std::string>(s.substr(0, p));
+        }
+    }
+
+    return Maybe<std::string>();
+}
+ 
+std::string string_sans_mod(const std::string& s) {
+    if (auto m_mod = get_mod_from_string(s)) {
+        std::string mod;
+        m_mod.assignTo(mod);
+        return s.substr(mod.size() + 2);
+    }
+
+    return s;
+}
+
 Symbol::Symbol(ASTNode * __node)
     : _node(__node), initializedInScopes({}), referenced(false) { }
 Symbol::~Symbol() { }
@@ -310,7 +391,7 @@ void Symbol::tablePrint(int indent) {
 
     std::string left, right;
    
-    if (_node->getScope()->parent) {
+    if (_node->getScope()->parent && !_node->getScope()->is_module_scope) {
         left = right = unmangled;
     } else {
         left = real_mangled;

@@ -55,14 +55,14 @@ proc resize$T(da : T[...] ref, size : u64) {
 }
 
 proc resize$T(da : T[...] ref, size : u64, val : T) {
-	_d := getref(\__da_data{da})
-	_c := getref(\__da_capacity{da})
-	_u := getref(\__da_used{da})
+	_d := __ref::getref(\__da_data{da})
+	_c := __ref::getref(\__da_capacity{da})
+	_u := __ref::getref(\__da_used{da})
 
 	if size < _u {
 		_u = size
 	} else {
-        __u := unref(_u)
+        __u := __ref::unref(_u)
 
         while _c < size
             da.__bjou_dynamic_array_grow()
@@ -75,9 +75,9 @@ proc resize$T(da : T[...] ref, size : u64, val : T) {
 }
 
 proc __bjou_dynamic_array_grow$T(da : T[...] ref) {
-    _d := getref(\__da_data{da})
-    _c := getref(\__da_capacity{da})
-    _u := getref(\__da_used{da})
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
 
     _c *= 2
     new__data := new T[_c]
@@ -87,9 +87,9 @@ proc __bjou_dynamic_array_grow$T(da : T[...] ref) {
 }
 
 proc __bjou_dynamic_array_shrink$T(da : T[...] ref) {
-    _d := getref(\__da_data{da})
-    _c := getref(\__da_capacity{da})
-    _u := getref(\__da_used{da})
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
 
     _c /= 2
     new__data := new T[_c]
@@ -104,9 +104,9 @@ proc len$T(da : T[...] ref) : u64 {
 
 # push by val
 proc push$T(da : T[...] ref, item : T) {
-    _d := getref(\__da_data{da})
-    _c := getref(\__da_capacity{da})
-    _u := getref(\__da_used{da})
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
 
     # make space if necessary
     if _u == _c
@@ -120,9 +120,9 @@ proc push$T(da : T[...] ref, item : T) {
 
 # push by ref
 proc push$T(da : T[...] ref, item : T ref) {
-    _d := getref(\__da_data{da})
-    _c := getref(\__da_capacity{da})
-    _u := getref(\__da_used{da})
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
 
     # make space if necessary
     if _u == _c
@@ -135,9 +135,9 @@ proc push$T(da : T[...] ref, item : T ref) {
 }
 
 proc pop$T(da : T[...] ref) {
-    _d := getref(\__da_data{da})
-    _c := getref(\__da_capacity{da})
-    _u := getref(\__da_used{da})
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
 
     if _u == 0
         return
@@ -163,8 +163,8 @@ proc erase$T(da : T[...] ref, idx : u64) {
     if |da| == 0
         \die{ "called erase() on an empty dynamic array" }
     da[idx] # bounds check
-    _d := getref(\__da_data{da})
-    _u := getref(\__da_used{da})
+    _d := __ref::getref(\__da_data{da})
+    _u := __ref::getref(\__da_used{da})
 
     mmove(_d + idx, _d + idx + 1, (_u - idx - 1) * sizeof T)
     da.pop()
@@ -179,9 +179,9 @@ proc set$T(da : T[...] ref, data : T[]) {
     delete \__da_data{da}
     da = [...T]
 
-    _d := getref(\__da_data{da})
-    _c := getref(\__da_capacity{da})
-    _u := getref(\__da_used{da})
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
 
     # make space
     while _c < |data|
@@ -196,9 +196,9 @@ proc set$T(da : T[...] ref, data : T[]) {
 proc copy$T(da : T[...] ref) : T[...] {
     c : T[...] = da
 
-    _d := getref(\__da_data{c})
-    _c := getref(\__da_capacity{c})
-    _u := getref(\__da_used{c})
+    _d := __ref::getref(\__da_data{c})
+    _c := __ref::getref(\__da_capacity{c})
+    _u := __ref::getref(\__da_used{c})
     
     _d = new T[_c]
 
@@ -207,39 +207,76 @@ proc copy$T(da : T[...] ref) : T[...] {
     return c
 }
 
+proc _swap$T(a : T ref, b : T ref) {
+    tmp := __ref::unref(a)
+    a    = __ref::unref(b)
+    b    = tmp
+}
+
+proc _sort$T(arr : T*, len : u64) {
+    if len < 2    return
+     
+    pivot := arr[len / 2]
+
+    i := 0
+    j := len - 1
+
+    while true {
+        while arr[i] < pivot    i += 1
+        while arr[j] > pivot    j -= 1
+
+        if i >= j    break
+
+        _swap(arr[i], arr[j])
+
+        i += 1
+        j -= 1
+    }
+
+    _sort(arr, i)
+    _sort(arr + i, len - i)
+}
+
+proc _sort$T(arr : T*, len : u64, cmp : <(T ref, T ref) : i32>) {
+    if len < 2    return
+     
+    pivot := arr[len / 2]
+
+    i := 0
+    j := len - 1
+
+    while true {
+        while cmp(arr[i], pivot) < 0    i += 1
+        while cmp(arr[j], pivot) > 0    j -= 1
+
+        if i >= j    break
+
+        _swap(arr[i], arr[j])
+
+        i += 1
+        j -= 1
+    }
+
+    _sort(arr, i, cmp)
+    _sort(arr + i, len - i, cmp)
+}
+
 proc sort$T(da : T[...] ref) {
-    proc _swap(a : T ref, b : T ref) {
-        tmp := unref(a)
-        a    = unref(b)
-        b    = tmp
-    }
-
-    proc _sort(arr : T*, l : u64, r : u64) {
-        if l >= r    return
-
-        pivot := arr[l]
-
-        l' := l
-        r' := r
-
-        while l' < r' {
-            while arr[l'] < pivot    l' += 1
-            while pivot < arr[r']    r' -= 1
-            _swap(arr[l'], arr[r'])
-        }
-
-        _swap(pivot, arr[l'])
-
-        _sort(arr, l, l')
-        _sort(arr, l' + 1, r)
-    }
-
     _d := \__da_data{da}
     _u := \__da_used{da}
 
-    if _u == 0    return
+    if _u < 2    return
 
-    _sort(_d, 0, _u - 1)
+    _sort(_d, _u)
+}
+
+proc sort$T(da : T[...] ref, cmp : <(T ref, T ref) : i32>) {
+    _d := \__da_data{da}
+    _u := \__da_used{da}
+
+    if _u < 2    return
+
+    _sort(_d, _u, cmp)
 }
 
 proc find$T(da : T[...] ref, val : T) : i64 {

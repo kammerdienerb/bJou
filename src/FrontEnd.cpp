@@ -321,17 +321,33 @@ milliseconds FrontEnd::SymbolsStage() {
 
     globalScope = new Scope("global", nullptr);
 
-    // @incomplete
-    // does this work with namespaces? doubt it
+    /* @bad
+     * We're going to force usings for some preload stuff.
+     * We should instead use an 'include' kind of thing 
+     * and have __preload.bjou have using statements for 
+     * the modules it imports.. another day.
+     */
+    globalScope->usings.push_back("__ref");
+    globalScope->usings.push_back("__errcode");
+    globalScope->usings.push_back("null");
+    globalScope->usings.push_back("__array");
+    globalScope->usings.push_back("__slice");
+    globalScope->usings.push_back("__dynamic_array");
+    globalScope->usings.push_back("__dynamic_array");
+    globalScope->usings.push_back("__string");
+    globalScope->usings.push_back("__env");
+    globalScope->usings.push_back("__panic");
+
+    std::string empty_mod_string = "";
     for (ASTNode * s : structs)
-        ((Struct *)s)->preDeclare(globalScope);
+        ((Struct *)s)->preDeclare(empty_mod_string, globalScope);
 
     for (ASTNode * s : structs)
-        ((Struct *)s)->addSymbols(globalScope);
+        ((Struct *)s)->addSymbols(empty_mod_string, globalScope);
 
     for (ASTNode * node : AST) {
         if (node->nodeKind != ASTNode::STRUCT)
-            node->addSymbols(globalScope);
+            node->addSymbols(empty_mod_string, globalScope);
     }
 
     auto end = Clock::now();

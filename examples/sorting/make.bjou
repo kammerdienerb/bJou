@@ -1,19 +1,14 @@
-#! /usr/bin/env bjou
-# make.bjou
-
 import "build.bjou"
 
 \static_do {
-    sources := { "bjou.bjou" }
+    sources := { "sorting.bjou", "/usr/local/lib/nolibc_syscall.o" }
 
     options := build::BuildOptions.create()
 
-    options.output_name = "bjou"
+    options.output_name = "sorting"
 
     foreach f in sources
         options.files.push(f)
-
-    options.time = true
 
     build::build(options)
 }

@@ -4,24 +4,22 @@
 
 module os
 
-abstract type os {
-    const OS       := \os{}
+const OS       := \os{}
 
-    const UNKNOWN  := 0
-    const LINUX    := 1
-    const MACOS    := 2
-    const WINDOWS  := 3
+const UNKNOWN  := 0
+const LINUX    := 1
+const MACOS    := 2
+const WINDOWS  := 3
 
-    const IS_POSIX := os.OS == os.LINUX or os.OS == os.MACOS
+const IS_POSIX := OS == LINUX or OS == MACOS
 
-    proc name() : char* {
-        \static_if{ os.OS == os.UNKNOWN
-            return "unknown"}    
-        \static_if{ os.OS == os.LINUX 
-            return "Linux"}   
-        \static_if{ os.OS == os.MACOS
-            return "Mac OS"}    
-        \static_if{ os.OS == os.WINDOWS
-            return "Windows"}    
-    }   
-}
+proc name() : char* {
+    \static_if{ OS == UNKNOWN
+        return "unknown"}    
+    \static_if{ OS == LINUX 
+        return "Linux"}   
+    \static_if{ OS == MACOS
+        return "Mac OS"}    
+    \static_if{ OS == WINDOWS
+        return "Windows"}    
+}   

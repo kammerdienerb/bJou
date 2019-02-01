@@ -4,6 +4,7 @@
 module input
 
 import "null.bjou"
+using null
 import "c/io.bjou"
 import "c/string.bjou"
 

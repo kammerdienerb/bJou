@@ -4,7 +4,7 @@ module c_libgen
 
 import "os.bjou"
 
-\static_if{ os.OS == os.WINDOWS
+\static_if{ os::OS == os::WINDOWS
     \error { "c/libgen.bjou is not available for Windows." } }
 
 extern basename(char*)          : char*

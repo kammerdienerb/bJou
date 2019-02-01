@@ -35,6 +35,7 @@ boost::archive::text_iarchive * _ar);
 struct FrontEnd;
 
 struct Module {
+    std::string identifier;
     bool activated, activatedAsCT, filled;
     unsigned int n_lines;
 
@@ -45,8 +46,7 @@ struct Module {
     Module();
 
     void fill(std::vector<ASTNode *> & _nodes,
-              std::vector<ASTNode *> & _structs,
-              std::vector<ASTNode *> & _ifaceDefs);
+              std::vector<ASTNode *> & _structs);
     void activate(Import * source, bool ct);
 };
 

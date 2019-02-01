@@ -10,10 +10,10 @@ proc zinit$T() : T {
         return { T: }}
 
     \static_if { \typeispointer{T}
-        return (_nullptr() as T)}
+        return (null::_nullptr() as T)}
 
     \static_if { \typeisproc{T}
-        return (_nullptr() as T)}
+        return (null::_nullptr() as T)}
     
     \static_if { \typeisint{T}
         return 0}

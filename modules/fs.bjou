@@ -4,35 +4,43 @@
 module fs
 
 import "os.bjou"
+using os
 
 import "null.bjou"
 
 import "c/io.bjou"
+using c_io
 import "c/string.bjou"
+using c_string
 
 import "c/sys/stat.bjou"
+using c_sys_stat
 import "c/dirent.bjou"
+using c_dirent
+using c_sys_dirent
 
 type fschar_t = char
 
 const FS_PATH_MAX     := 4096
 const FS_FILENAME_MAX := 256
-\static_if{ os.OS == os.WINDOWS
+\static_if{ os::OS == os::WINDOWS
     const FS_PATH_EXTRA   := 2 }
-\static_if{ os.OS != os.WINDOWS
+\static_if{ os::OS != os::WINDOWS
     const FS_PATH_EXTRA   := 0 }
 
 ############################################################### Windows
 #######################################################################
-\static_if{ os.OS == os.WINDOWS
+\static_if{ os::OS == os::WINDOWS
     \error{ "fs.bjou not implemented for Windows yet." } }
 #######################################################################
 
 ################################################################## Unix
 #######################################################################
-\static_if{ os.OS != os.WINDOWS
+\static_if{ os::OS != os::WINDOWS
     import "c/sys/stat.bjou"
+    using c_sys_stat
     import "c/libgen.bjou"
+    using c_libgen
 
     type fsfile {
         path      : fschar_t[FS_PATH_MAX]
@@ -53,91 +61,88 @@ const FS_FILENAME_MAX := 256
     } }
 #######################################################################
 
-abstract type fs {
-    proc open(path : string, err : errcode ref) : fsdir {
-        error := 0
-        size  := 0
+proc open(path : string, err : errcode ref) : fsdir {
+    error := 0
+    size  := 0
 
-        d := { fsdir: }
+    d := { fsdir: }
 
-        if path.len() == 0 {
-            err = ERR_BAD_ARG
-            return d
-        }
-
-        if path.len() + FS_PATH_EXTRA >= FS_PATH_MAX {
-            err = ERR_NAME_TOO_LONG
-            return d
-        }
-
-        fs.close(d)
-
-        # remove trailing slashes
-        path_beg := path.__data.data()
-        pathp    : char*
-        while (pathp = &path.__data.back()) != path_beg
-        and   (@pathp == '\\' or @pathp == '/')
-            path.__data.pop()
-
-        strcpy(d.path, path.c_str())
-
-        d._d = opendir(path.c_str())
-
-        if d._d.isnull() {
-            fs.close(d)
-            err = -1
-            return d
-        }
-
-        # read first file
-        d.has_next = true
-        
-        d._e = readdir(d._d) 
-        if d._e.isnull()
-            d.has_next = false
-
+    if path.len() == 0 {
+        err = ERR_BAD_ARG
         return d
     }
 
-    proc open(path : string) : fsdir {
-        err := NO_ERR
-        d := fs.open(path, err)
-        if err != NO_ERR \die{ err }
+    if path.len() + FS_PATH_EXTRA >= FS_PATH_MAX {
+        err = ERR_NAME_TOO_LONG
         return d
     }
 
-    proc close(d : fsdir ref) {
-        if not d._d.isnull()
-            closedir(d._d) 
-        d = { fsdir: }
+    close(d)
+
+    # remove trailing slashes
+    path_beg := path.__data.data()
+    pathp    : char*
+    while (pathp = &path.__data.back()) != path_beg
+    and   (@pathp == '\\' or @pathp == '/')
+        path.__data.pop()
+
+    strcpy(d.path, path.c_str())
+
+    d._d = opendir(path.c_str())
+
+    if d._d.isnull() {
+        close(d)
+        err = -1
+        return d
     }
 
-    # proc readfile(d : fsdir ref) : fsfile {
-    # }
+    # read first file
+    d.has_next = true
+    
+    d._e = readdir(d._d) 
+    if d._e.isnull()
+        d.has_next = false
 
-    # @incomplete
-    proc files(d : fsdir ref, err : errcode ref) : fsfile[...] {
-        fls := [...fsfile]
-
-        if d._d.isnull() {
-            err = ERR_BAD_ARG
-            return fls
-        }
-
-        while d.has_next {
-            d._e = readdir(d._d)
-            d.has_next = not d._e.isnull()
-            # fls.push(
-        }
-
-        return fls
-    }
-
-    proc files(d : fsdir ref) : fsfile[...] {
-        err := NO_ERR
-        fls := fs.files(d, err)
-        if err != NO_ERR \die{ err }
-        return fls
-    }
+    return d
 }
 
+proc open(path : string) : fsdir {
+    err := NO_ERR
+    d := open(path, err)
+    if err != NO_ERR \die{ err }
+    return d
+}
+
+proc close(d : fsdir ref) {
+    if not d._d.isnull()
+        closedir(d._d) 
+    d = { fsdir: }
+}
+
+# proc readfile(d : fsdir ref) : fsfile {
+# }
+
+# @incomplete
+proc files(d : fsdir ref, err : errcode ref) : fsfile[...] {
+    fls := [...fsfile]
+
+    if d._d.isnull() {
+        err = ERR_BAD_ARG
+        return fls
+    }
+
+    while d.has_next {
+        d._e = readdir(d._d)
+        d.has_next = not d._e.isnull()
+        # fls.push(
+    }
+
+    return fls
+}
+
+proc files(d : fsdir ref) : fsfile[...] {
+    err := NO_ERR
+    fls := files(d, err)
+    if err != NO_ERR \die{ err }
+    return fls
+}

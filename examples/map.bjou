@@ -3,6 +3,10 @@
 import "dict.bjou"
 import "input.bjou"
 
+using dict
+using input
+using null
+
 # \run{ main() }
 main()
 

@@ -18,7 +18,7 @@ proc __bjou_pr_bt(skip : int) {
     backtrace_symbols_fd(&buff[skip], size - skip, 2)
 }
 
-proc __die(err : errcode, fl : char*, pn : char*, ln : u32) {
+proc __die(err : __errcode::errcode, fl : char*, pn : char*, ln : u32) {
     buff : char[4096]
 
     do_color := isatty(2) == 1
@@ -28,7 +28,7 @@ proc __die(err : errcode, fl : char*, pn : char*, ln : u32) {
     bold  := << if do_color <-"\e[1m" else <-"" >>
     reset := << if do_color <-"\e[0m" else <-"" >>
 
-    es := errstr(err)
+    es := __errcode::errstr(err)
 
     const fmt1 :=
 "%s%s%s%s :: %s%s%s%s :: %s%s%u%s -- exiting due to an error

@@ -31,12 +31,11 @@
 namespace bjou {
 
 Module::Module()
-    : activated(false), activatedAsCT(false), filled(false), n_lines(0),
+    : identifier(), activated(false), activatedAsCT(false), filled(false), n_lines(0),
       multi(nullptr) {}
 
 void Module::fill(std::vector<ASTNode *> & _nodes,
-                  std::vector<ASTNode *> & _structs,
-                  std::vector<ASTNode *> & _ifaceDefs) {
+                  std::vector<ASTNode *> & _structs) {
     if (filled)
         return;
 
@@ -45,7 +44,6 @@ void Module::fill(std::vector<ASTNode *> & _nodes,
 
     nodes     = std::move(_nodes);
     structs   = std::move(_structs);
-    ifaceDefs = std::move(_ifaceDefs);
 }
 
 void Module::activate(Import * source, bool ct) {
@@ -97,15 +95,21 @@ void Module::activate(Import * source, bool ct) {
         multi->take(nodes);
         multi->nodes.insert(multi->nodes.begin(), source);
 
-        for (ASTNode * s : structs)
-            ((Struct *)s)->preDeclare(source->getScope());
+        Scope * module_scope = new Scope("", compilation->frontEnd.globalScope, /* is_module_scope =*/ true, identifier);
+        module_scope->description =
+            "scope opened by module '" + identifier + "'";
+        compilation->frontEnd.globalScope->scopes.push_back(module_scope);
 
         for (ASTNode * s : structs)
-            ((Struct *)s)->addSymbols(source->getScope());
+            ((Struct *)s)->preDeclare(identifier, module_scope);
 
-        for (ASTNode * node : multi->nodes) {
-            if (node->nodeKind != ASTNode::STRUCT)
-                node->addSymbols(source->getScope());
+        for (ASTNode * s : structs)
+            ((Struct *)s)->addSymbols(identifier, module_scope);
+
+        for (ASTNode * n : multi->nodes) {
+            if (n->nodeKind != ASTNode::STRUCT) {
+                n->addSymbols(identifier, module_scope);
+            }
         }
 
         compilation->frontEnd.n_lines += n_lines;
@@ -198,6 +202,8 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
 
                             BJOU_DEBUG_ASSERT(module);
 
+                            module->identifier = parser->mod_decl->getIdentifier();
+
                             import->theModule = module;
                         } else {
                             import->notModuleError = true;
@@ -222,7 +228,7 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
 
                 BJOU_DEBUG_ASSERT(module);
 
-                module->fill(p->nodes, p->structs, p->ifaceDefs);
+                module->fill(p->nodes, p->structs);
 
                 module->n_lines = p->n_lines;
 
@@ -277,8 +283,7 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
 
                             pushImportsFromAST(parser.nodes, imports);
 
-                            module->fill(parser.nodes, parser.structs,
-                                         parser.ifaceDefs);
+                            module->fill(parser.nodes, parser.structs);
 
                             module->n_lines = parser.n_lines;
                         } else {
@@ -289,6 +294,8 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
                         }
 
                         BJOU_DEBUG_ASSERT(module);
+
+                        module->identifier = parser.mod_decl->getIdentifier();
 
                         import->theModule = module;
                     } else {

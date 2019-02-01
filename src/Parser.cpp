@@ -33,7 +33,7 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_kwd_from,
     parser_kwd_enum, parser_kwd_print, parser_kwd_raw, parser_kwd_immut,
     parser_kwd_coerce, parser_kwd_this, parser_kwd_ref, parser_kwd_delete,
-    parser_kwd_import, parser_kwd_module,
+    parser_kwd_import, parser_kwd_using, parser_kwd_module,
     parser_kwd_alias, parser_kwd_operator, parser_kwd_return, parser_kwd_if,
     parser_kwd_else, parser_kwd_while, parser_kwd_do, parser_kwd_for,
     parser_kwd_foreach, parser_kwd_in, parser_kwd_match, parser_kwd_with,
@@ -81,7 +81,7 @@ parser_end_of_line
 const char * kwds[] = {
     "type",    "abstract", "extends", "from",
     "enum",    "print",    "raw",       "immut",      "delete", 
-    "import",  "alias",    "operator",  "coerce",     "this",    "ref",
+    "import",  "using", "alias",    "operator",  "coerce",     "this",    "ref",
 
     "return",  "if",       "else",      "while",      "do",      "for",
     "foreach", "in",       "match",     "with",       "break",   "continue",
@@ -275,6 +275,9 @@ MaybeString parser_kwd_delete(StringViewableBuffer & buff) {
 }
 MaybeString parser_kwd_import(StringViewableBuffer & buff) {
     return parse_kwd(buff, "import");
+}
+MaybeString parser_kwd_using(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "using");
 }
 MaybeString parser_kwd_module(StringViewableBuffer & buff) {
     return parse_kwd(buff, "module");
@@ -2114,6 +2117,24 @@ MaybeASTNode Parser::parseImport() {
     return MaybeASTNode();
 }
 
+MaybeASTNode Parser::parseUsing() {
+    if (optional(KWD_USING, true)) {
+        Using * result = new Using();
+        result->getContext().start(&currentContext);
+
+        eat("using");
+
+        std::string module = expect(IDENTIFIER, "module name");
+
+        result->setModule(module);
+        
+        result->getContext().finish(&currentContext, &justCleanedContext);
+
+        return MaybeASTNode(result);
+    }
+    return MaybeASTNode();
+}
+
 MaybeASTNode Parser::parseModuleDeclaration() {
     if (optional(KWD_MODULE, true)) {
         ModuleDeclaration * result = new ModuleDeclaration();
@@ -2629,7 +2650,8 @@ MaybeASTNode Parser::parseStatement() {
         (m_statement = parsePrint()) || (m_statement = parseIf()) ||
         (m_statement = parseFor()) || (m_statement = parseForeach()) ||
         (m_statement = parseWhile()) || (m_statement = parseDoWhile()) ||
-        (m_statement = parseConstant()) || (m_statement = parseMatch());
+        (m_statement = parseConstant()) || (m_statement = parseMatch()) ||
+        (m_statement = parseUsing());
 
     return m_statement;
 }

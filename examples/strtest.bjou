@@ -4,6 +4,7 @@
 \front{ true }
 
 import "shell.bjou"
+using shell
 
 extern getenv(char*) : char*
 
@@ -19,13 +20,13 @@ proc main() {
     path.free()
     user.free()
 
-    output := sh.ls()
+    output := ls()
     foreach ref line in output
         if line[0] == 'b'
             print "%", line.c_str()
     output.free()
 
-    output = sh.seq(10)
+    output = seq(10)
     foreach ref line in output
         print "%", line.c_str()
     output.free()

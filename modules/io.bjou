@@ -9,17 +9,17 @@ __bjou_io_stdfiles     : file[3]
 __bjou_io_stdfileptrs  : file*[3]
 
 type file {
-    const READ   := O_RDONLY
-    const WRITE  := O_WRONLY bxor O_CREAT
-    const APPEND := O_WRONLY bxor O_CREAT bxor O_APPEND
+    const READ   := __sys::O_RDONLY
+    const WRITE  := __sys::O_WRONLY bxor __sys::O_CREAT
+    const APPEND := __sys::O_WRONLY bxor __sys::O_CREAT bxor __sys::O_APPEND
 
-    fd       : fd_t
+    fd       : __sys::fd_t
     eof      : bool
     can_seek : bool
     path     : char*
 
     proc _file_can_seek(fd : int) : bool
-        return sys.lseek(fd, 0, SEEK_CUR) == -1
+        return __sys::lseek(fd, 0, __sys::SEEK_CUR) == -1
 
     proc _getstdfile(fd : int) : file ref {
         if fd < 0
@@ -58,15 +58,17 @@ type file {
         return file._getstdfile(2)
 
     proc exists(path : char*) : bool {
-        return sys.access(path, F_OK) == 0
+        return __sys::access(path, __sys::F_OK) == 0
     }
 
     proc open(path : char*, mode : int) : file {
+        using __sys
+
         const DEFAULT_PERM :
             mode_t = S_IRUSR bxor S_IWUSR bxor S_IRGRP
                 bxor S_IWGRP bxor S_IROTH bxor S_IWOTH
 
-        fd    := sys.open(path, mode, DEFAULT_PERM)
+        fd    := open(path, mode, DEFAULT_PERM)
         path' := << if fd >= 0 <- cstrdup(path) else <- NULL as char* >>
 
         return { file:
@@ -85,10 +87,10 @@ type file {
         if not this.can_seek
             return not this.eof 
 
-        cur := sys.lseek(this.fd, 0, SEEK_CUR)
-        end := sys.lseek(this.fd, 0, SEEK_END)
+        cur := __sys::lseek(this.fd, 0, __sys::SEEK_CUR)
+        end := __sys::lseek(this.fd, 0, __sys::SEEK_END)
         # restore
-        sys.lseek(this.fd, cur, SEEK_SET)
+        __sys::lseek(this.fd, cur, __sys::SEEK_SET)
 
         return cur != end and not this.eof
     }
@@ -101,7 +103,7 @@ type file {
 
         if this.good() {
             delete this.path
-            sys.close(this.fd)
+            __sys::close(this.fd)
         }
     }
 
@@ -109,16 +111,16 @@ type file {
         if not this.can_seek
             return -1
 
-        save := sys.lseek(this.fd, 0, SEEK_CUR)
-        s    := sys.lseek(this.fd, 0, SEEK_END)
+        save := __sys::lseek(this.fd, 0, __sys::SEEK_CUR)
+        s    := __sys::lseek(this.fd, 0, __sys::SEEK_END)
         # restore
-        sys.lseek(this.fd, save, SEEK_SET)
+        __sys::lseek(this.fd, save, __sys::SEEK_SET)
 
         return s
     }
 
     proc write(this, data : char*, nbytes : u64) : u64 {
-        return sys.write(this.fd, data, nbytes)
+        return __sys::write(this.fd, data, nbytes)
     }
 
     proc write(this, s : string ref) : u64 {
@@ -126,7 +128,7 @@ type file {
     }
 
     proc read(this, dst : char*, nbytes : u64) : u64 {
-        r := sys.read(this.fd, dst, nbytes)
+        r := __sys::read(this.fd, dst, nbytes)
         this.eof = (r == 0)
         return r
     }

@@ -9,11 +9,11 @@ import "input.bjou"
 
 proc main() {
     path := str("/usr/local/bin/")
-    dir := fs.open(path)
+    dir := fs::open(path)
     print "%", dir 
-    files := fs.files(dir)
+    files := fs::files(dir)
     foreach ref fsf in files
         print "a file" 
-    fs.close(dir)
+    fs::close(dir)
     path.free()
 }

@@ -1,0 +1,17 @@
+# test_mod.bjou
+
+module test_mod
+
+const PI := 3.1415926536
+pi := PI
+
+type T$U {
+    field : U
+    proc create(u : U) : T$U {
+        print "creating T"
+        return { T$U: .field = u }
+    }
+}
+
+proc p()
+    print "p()"

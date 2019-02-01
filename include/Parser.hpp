@@ -61,6 +61,7 @@ MaybeString parser_kwd_this(StringViewableBuffer & buff);
 MaybeString parser_kwd_ref(StringViewableBuffer & buff);
 MaybeString parser_kwd_delete(StringViewableBuffer & buff);
 MaybeString parser_kwd_import(StringViewableBuffer & buff);
+MaybeString parser_kwd_using(StringViewableBuffer & buff);
 MaybeString parser_kwd_module(StringViewableBuffer & buff);
 MaybeString parser_kwd_alias(StringViewableBuffer & buff);
 MaybeString parser_kwd_operator(StringViewableBuffer & buff);
@@ -174,6 +175,7 @@ enum TokenKind {
     KWD_REF,
     KWD_DELETE,
     KWD_IMPORT,
+    KWD_USING,
     KWD_MODULE,
     KWD_ALIAS,
     KWD_OPERATOR,
@@ -324,6 +326,7 @@ struct Parser {
 
     virtual MaybeASTNode parseTopLevelNode();
     MaybeASTNode parseImport();
+    MaybeASTNode parseUsing();
     MaybeASTNode parseModuleDeclaration();
     MaybeASTNode parseType();
     MaybeASTNode parseEnum();

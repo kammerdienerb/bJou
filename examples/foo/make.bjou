@@ -6,7 +6,7 @@ import "build.bjou"
         "file2.bjou"
     }
 
-    options := BuildOptions.create()
+    options := build::BuildOptions.create()
 
     options.output_name = "foo"
 
@@ -15,5 +15,5 @@ import "build.bjou"
 
     options.noparallel = true
 
-    build(options)
+    build::build(options)
 }

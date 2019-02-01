@@ -6,14 +6,15 @@ module cli
 __cli_fg_buff : char[64]
 __cli_bg_buff : char[64]
 
-extern printf(char* , ...) : int
-extern sprintf(char*, char* , ...) : int
-extern strlen(char*) : u64
+extern sprintf(char*, char* , ...) : i32
 
 enum ArgKind {
     BASE,
     SWITCH,
-    VAL
+    UNKNOWN_VAL,
+    INT_VAL,
+    FLOAT_VAL,
+    STRING_VAL
 }
 
 abstract type Arg {
@@ -66,6 +67,57 @@ abstract type Arg {
                 s = concat(s, str("\n    "), str(this.desc))
 
             return s
+        } else if this.kind == ArgKind.INT_VAL {
+            has_short := this.short != '\0'
+            has_long  := this.long != NULL as char*
+
+            s := str()
+            if has_short {
+                s = concat(s, str("-"), str(this.short), str(" <integer>"))
+                if has_long
+                    s = concat(s, str(", --"), str(this.long), str("=<integer>"))
+            } else {
+                s = concat(s, str("--"), str(this.long), str("=<integer>"))
+            }
+
+            if this.desc != NULL as char*
+                s = concat(s, str("\n    "), str(this.desc))
+
+            return s
+        } else if this.kind == ArgKind.FLOAT_VAL {
+            has_short := this.short != '\0'
+            has_long  := this.long != NULL as char*
+
+            s := str()
+            if has_short {
+                s = concat(s, str("-"), str(this.short), str(" <float>"))
+                if has_long
+                    s = concat(s, str(", --"), str(this.long), str("=<float>"))
+            } else {
+                s = concat(s, str("--"), str(this.long), str("=<float>"))
+            }
+
+            if this.desc != NULL as char*
+                s = concat(s, str("\n    "), str(this.desc))
+
+            return s
+        } else if this.kind == ArgKind.STRING_VAL {
+            has_short := this.short != '\0'
+            has_long  := this.long != NULL as char*
+
+            s := str()
+            if has_short {
+                s = concat(s, str("-"), str(this.short), str(" <string>"))
+                if has_long
+                    s = concat(s, str(", --"), str(this.long), str("=<string>"))
+            } else {
+                s = concat(s, str("--"), str(this.long), str("=<string>"))
+            }
+
+            if this.desc != NULL as char*
+                s = concat(s, str("\n    "), str(this.desc))
+
+            return s
         }
 
         \die{ "incomplete" }
@@ -82,37 +134,38 @@ type ArgSwitch extends Arg {
         }
 }
 
-# type ArgValue$T extends Arg {
-#     val : T
+type ArgValue$T extends Arg {
+    val : T
 
-#     proc create(parser : ArgParser ref) : ArgValue$T
-#         return { ArgValue:
-#             .kind   = ArgKind.VAL,
-#             .parser = &parser
-#         }
-# }
+    proc create(parser : ArgParser ref) : ArgValue$T
+        return { ArgValue$T:
+            .kind   = ArgKind.UNKNOWN_VAL,
+            .parser = &parser
+        }
+}
 
 type ArgParser {
     prg      : char*
     all      : Arg*[...]
     switches : ArgSwitch*[...]
+    val_args : Arg*[...]
 
     proc create(prg : char*) : ArgParser {
         return { ArgParser:
             .prg      = cstrdup(prg),
             .all      = [...Arg*],
-            .switches = [...ArgSwitch*] 
+            .switches = [...ArgSwitch*],
+            .val_args = [...Arg*]
         }
     }
 
     proc free(this) {
-        foreach arg in this.all
+        foreach arg in this.all {
+            (@arg).free()
             delete arg
+        }
 
         delete this.prg
-
-        this.switches.free()
-        this.all.free()
     }
 
     proc _addSwitch(this, short : char, long : char*) : Arg ref {
@@ -137,39 +190,107 @@ type ArgParser {
         return this._addSwitch(short, NULL as char*)
     }
 
-    proc addSwitch(this, long : char*) : Arg ref
+    proc addSwitch(this, long : char*) : Arg ref {
+        if cstrlen(long) == 0
+            \die{ "Empty long name for switch argument." }
         return this._addSwitch('\0', long)
+    }
     
     proc addSwitch(this, short : char, long : char*) : Arg ref {
         if short == '\0'
             \die{ "Can't use '\\0' for switch argument." }
+        if cstrlen(long) == 0
+            \die{ "Empty long name for switch argument." }
 
         return this._addSwitch(short, long)
     }
 
-    # proc _addValue$T(this, short : char, long : char*) : Arg ref {
-    #     arg := new ArgValue$T
-    #     @arg = ArgValue$T.create(this)
+    proc _addValue$T(this, short : char, long : char*) : Arg ref {
+        arg := new ArgValue$T
+        @arg = ArgValue$T.create(this)
+        \static_if{ \same_type{ T i32 }
+            arg.kind = ArgKind.INT_VAL }
+        \static_if{ \same_type{ T f32 }
+            arg.kind = ArgKind.FLOAT_VAL }
+        \static_if{ \same_type{ T string }
+            arg.kind = ArgKind.STRING_VAL }
 
-    #     arg.short = short
-    #     has_long := long != NULL as char*
-    #     arg.long  = << if has_long
-    #                         <-cstrdup(long)
-    #                    else <-NULL as char* >>
+        arg.short = short
+        has_long := long != NULL as char*
+        arg.long  = << if has_long
+                            <-cstrdup(long)
+                       else <-NULL as char* >>
         
-    #     this.all.push(arg)
-    #     this.val_args.push(arg)
-    #     return @arg
-    # }
+        this.all.push(arg)
+        this.val_args.push(arg)
+        return @arg
+    }
     
-    # proc addValueInt(this, short : char) : Arg ref
-    #     return this._addValue$int(short, NULL as char*)
+    proc addValueInt(this, short : char) : Arg ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
 
-    # proc addValueFloat(this, long : char*) : Arg ref
-    #     return this._addValue$float('\0', long)
+        return this._addValue$i32(short, NULL as char*)
+    }
 
-    # proc addValueString(this, short : char, long : char*) : Arg ref
-    #     return this._addValue$string(short, long)
+    proc addValueInt(this, long : char*) : Arg ref {
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+        return this._addValue$i32('\0', long)
+    }
+    
+    proc addValueInt(this, short : char, long : char*) : Arg ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+
+        return this._addValue$i32(short, long)
+    }
+
+    proc addValueFloat(this, short : char) : Arg ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
+
+        return this._addValue$f32(short, NULL as char*)
+    }
+
+    proc addValueFloat(this, long : char*) : Arg ref {
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+        return this._addValue$f32('\0', long)
+    }
+    
+    proc addValueFloat(this, short : char, long : char*) : Arg ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+
+        return this._addValue$f32(short, long)
+    }
+
+    proc addValueString(this, short : char) : Arg ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
+
+        return this._addValue$string(short, NULL as char*)
+    }
+
+    proc addValueString(this, long : char*) : Arg ref {
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+        return this._addValue$string('\0', long)
+    }
+    
+    proc addValueString(this, short : char, long : char*) : Arg ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+
+        return this._addValue$string(short, long)
+    }
 
     proc usage(this) : string {
         u := concat(str("usage: "), str(this.prg), str(" "))
@@ -182,12 +303,43 @@ type ArgParser {
         }
         foreach sw in this.switches if sw.short == '\0'
             u.append(concat(str(" [--"), str(sw.long), str("]")))
+        foreach va in this.val_args {
+            if va.short != '\0' {
+                if va.req
+                     u.append(str(" -"))
+                else u.append(str(" [-"))
+
+                u.append(va.short)
+                if      va.kind == ArgKind.INT_VAL
+                    u.append(str(" <int>"))
+                else if va.kind == ArgKind.FLOAT_VAL
+                    u.append(str(" <float>"))
+                else if va.kind == ArgKind.STRING_VAL
+                    u.append(str(" <string>"))
+
+                if not va.req    u.append(']')
+            } else {
+                if va.req
+                     u.append(str(" --"))
+                else u.append(str(" [--"))
+
+                u.append(va.long)
+                if      va.kind == ArgKind.INT_VAL
+                    u.append(str("=<int>"))
+                else if va.kind == ArgKind.FLOAT_VAL
+                    u.append(str("=<float>"))
+                else if va.kind == ArgKind.STRING_VAL
+                    u.append(str("=<string>"))
+
+                if not va.req    u.append(']')
+            }
+        }
 
         return u 
     }
 
     proc help(this) : string {
-        h := str("Options:\n\n")
+        h := str("options:\n\n")
 
         foreach arg in this.all
             h = concat(h, (@arg).help(), str("\n"))
@@ -196,56 +348,54 @@ type ArgParser {
     }
 }
 
-abstract type cli {
-    const RESET         := "\e[0m"
-    const BOLD          := "\e[1m"
-    const UNDERLINE     := "\e[4m"
-    const BLINK         := "\e[5m"
-    const INVERT        := "\e[7m"
-    const BOLD_OFF      := "\e[22m"
-    const UNDERLINE_OFF := "\e[24m"
-    const BLINK_OFF     := "\e[25m"
-    const INVERT_OFF    := "\e[27m"
-    const BLACK         := "\e[30m"
-    const RED           := "\e[31m"
-    const GREEN         := "\e[32m"
-    const YELLOW        := "\e[33m"
-    const BLUE          := "\e[34m"
-    const MAGENTA       := "\e[35m"
-    const CYAN          := "\e[36m"
-    const WHITE         := "\e[37m"
-    const BG_BLACK      := "\e[40m"
-    const BG_RED        := "\e[41m"
-    const BG_GREEN      := "\e[42m"
-    const BG_YELLOW     := "\e[43m"
-    const BG_BLUE       := "\e[44m"
-    const BG_MAGENTA    := "\e[45m"
-    const BG_CYAN       := "\e[46m"
-    const BG_WHITE      := "\e[47m"
+const RESET         := "\e[0m"
+const BOLD          := "\e[1m"
+const UNDERLINE     := "\e[4m"
+const BLINK         := "\e[5m"
+const INVERT        := "\e[7m"
+const BOLD_OFF      := "\e[22m"
+const UNDERLINE_OFF := "\e[24m"
+const BLINK_OFF     := "\e[25m"
+const INVERT_OFF    := "\e[27m"
+const BLACK         := "\e[30m"
+const RED           := "\e[31m"
+const GREEN         := "\e[32m"
+const YELLOW        := "\e[33m"
+const BLUE          := "\e[34m"
+const MAGENTA       := "\e[35m"
+const CYAN          := "\e[36m"
+const WHITE         := "\e[37m"
+const BG_BLACK      := "\e[40m"
+const BG_RED        := "\e[41m"
+const BG_GREEN      := "\e[42m"
+const BG_YELLOW     := "\e[43m"
+const BG_BLUE       := "\e[44m"
+const BG_MAGENTA    := "\e[45m"
+const BG_CYAN       := "\e[46m"
+const BG_WHITE      := "\e[47m"
 
-    proc fg256(val : u8) : char* {
-        __cli_fg_buff.sprintf("\e[38;5;%dm", val)
-        return __cli_fg_buff
-    }
-
-    proc bg256(val : u8) : char* {
-        __cli_bg_buff.sprintf("\e[48;5;%dm", val)
-        return __cli_bg_buff
-    }
-
-    proc fgRGB(r : u8, g : u8, b : u8) : char* {
-        __cli_fg_buff.sprintf("\e[38;2;%d;%d;%dm", r, g, b)
-        return __cli_fg_buff
-    }
-
-    proc bgRGB(r : u8, g : u8, b : u8) : char* {
-        __cli_bg_buff.sprintf("\e[48;2;%d;%d;%dm", r, g, b)
-        return __cli_bg_buff
-    }
-
-    proc sattr(s : string ref, attr : char*) : string ref
-        return (s = concat(str(attr), s, str(cli.RESET)))
-    
-    proc sattr(s : string ref, attr1 : char*, attr2 : char*) : string ref
-        return (s = concat(str(attr1), str(attr2), s, str(cli.RESET)))
+proc fg256(val : u8) : char* {
+    __cli_fg_buff.sprintf("\e[38;5;%dm", val)
+    return __cli_fg_buff
 }
+
+proc bg256(val : u8) : char* {
+    __cli_bg_buff.sprintf("\e[48;5;%dm", val)
+    return __cli_bg_buff
+}
+
+proc fgRGB(r : u8, g : u8, b : u8) : char* {
+    __cli_fg_buff.sprintf("\e[38;2;%d;%d;%dm", r, g, b)
+    return __cli_fg_buff
+}
+
+proc bgRGB(r : u8, g : u8, b : u8) : char* {
+    __cli_bg_buff.sprintf("\e[48;2;%d;%d;%dm", r, g, b)
+    return __cli_bg_buff
+}
+
+proc sattr(s : string ref, attr : char*) : string ref
+    return (s = concat(str(attr), s, str(RESET)))
+
+proc sattr(s : string ref, attr1 : char*, attr2 : char*) : string ref
+    return (s = concat(str(attr1), str(attr2), s, str(RESET)))

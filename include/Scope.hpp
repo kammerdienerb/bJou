@@ -24,20 +24,29 @@ struct ASTNode;
 struct Context;
 
 struct Scope {
-    Scope(std::string description, Scope * _parent);
+    Scope(std::string description, Scope * _parent, bool _is_module_scope = false, std::string mod = "");
     ~Scope();
 
     std::string description;
     Scope * parent;
+    bool is_module_scope;
+    std::string module_name;
     std::unordered_map<std::string, Symbol *> symbols;
     std::vector<Scope *> scopes;
+    std::vector<std::string> usings;
 
-    Maybe<Symbol *> getSymbol(Scope * startingScope, ASTNode * _identifier,
+    Maybe<Symbol *> getSymbolSingleScope(Scope * startingScope,
+                                         const std::string & qualifiedIdentifier,
+                                         Context * context = nullptr, 
+                                         bool checkUninit = true,
+                                         bool countAsReference = true);
+    Maybe<Symbol *> getSymbol(Scope * startingScope,
+                              const std::string & qualifiedIdentifier,
                               Context * context = nullptr, bool traverse = true,
                               bool fail = true, bool checkUninit = true,
-                              bool countAsReference = true);
-    Maybe<Symbol *> getSymbol(Scope * startingScope,
-                              std::string & qualifiedIdentifier,
+                              bool countAsReference = true,
+                              std::string mod = "");
+    Maybe<Symbol *> getSymbol(Scope * startingScope, ASTNode * _identifier,
                               Context * context = nullptr, bool traverse = true,
                               bool fail = true, bool checkUninit = true,
                               bool countAsReference = true);

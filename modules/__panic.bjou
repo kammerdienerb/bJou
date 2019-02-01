@@ -2,17 +2,14 @@
 
 module __panic
 
-# must be imported from __preload.bjou, but just in case
-import "__errcode.bjou"
-
 extern write(int, void*, u64) : i64
 extern strlen(char*) : u64
 extern exit(i32)
 
-proc panic(errcode : i32, message : char*) {
+proc panic(err_code : i32, message : char*) {
     write(2, message as void*, strlen(message))
     write(2, "\n" as void*, 1)
-	exit(errcode)
+	exit(err_code)
 }
 
 proc panic(message : char*) {

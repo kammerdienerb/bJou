@@ -33,18 +33,18 @@ struct ProcSet : ASTNode {
     // Node interface
     void analyze(bool force = false);
     ASTNode * clone();
-    void addSymbols(Scope * scope);
+    void addSymbols(std::string& _mod, Scope * scope);
     ~ProcSet();
     //
 
-    Procedure * get(ASTNode * args = nullptr, ASTNode * inst = nullptr,
+    Procedure * get(Scope * scope, ASTNode * args = nullptr, ASTNode * inst = nullptr,
                     Context * context = nullptr, bool fail = true);
     Procedure * getTemplate(std::vector<const Type *> & arg_types,
                             ASTNode * args, ASTNode * inst, Context * context,
                             bool fail);
-    std::vector<Symbol *> getCandidates(ProcedureType * compare_type,
+    std::vector<Symbol *> getCandidates(Scope * scope, ProcedureType * compare_type,
                                         ASTNode * args, ASTNode * inst,
-                                        Context * context, bool fail);
+                                        Context * context, bool fail, bool set_is_in_module);
     bool resolve(std::vector<Symbol *> & candidates,
                  std::vector<Symbol *> & resolved, ProcedureType * compare_type,
                  ASTNode * args, ASTNode * inst, Context * context, bool fail);
@@ -55,6 +55,9 @@ struct ProcSet : ASTNode {
 std::string mangledIdentifier(Identifier * ident);
 std::string demangledIdentifier(Identifier * ident);
 Identifier * stringToIdentifier(std::string mangled);
+Identifier * stringToIdentifier(std::string m, std::string t, std::string n);
+Maybe<std::string> get_mod_from_string(const std::string& s);
+std::string string_sans_mod(const std::string& s);
 
 struct Symbol {
     Symbol(ASTNode * __node);
@@ -309,61 +312,6 @@ template <> inline _Symbol<TemplateProc>::_Symbol(std::string name, std::string 
         real_mangled = name + "_" + b32;
     }
 }
-
-#if 0
-template <> inline _Symbol<TemplateStruct>::_Symbol(std::string name, std::string mod, std::string type, ASTNode * __node, ASTNode * _inst, ASTNode * _def)
-        : Symbol(__node) {
-
-    BJOU_DEBUG_ASSERT(_def && !_inst);
-
-    TemplateStruct * ttype = (TemplateStruct*)__node;
-    Struct * s = (Struct*)ttype->_template;
-
-    { /* make the unmangled symbol */
-        const char * lazy_comma = "";
-        if (!mod.empty()) {
-            unmangled += mod + "::";
-        }
-        if (!type.empty()) {
-            unmangled += type + ".";
-        }
-        unmangled += name;
-        
-        TemplateDefineList * def = (TemplateDefineList*)_def;
-        BJOU_DEBUG_ASSERT(def->getElements().size() > 0);
-        unmangled += "$(";
-        for (ASTNode * _elem : def->getElements()) {
-            TemplateDefineElement * elem = (TemplateDefineElement*)_elem; 
-            unmangled += lazy_comma + elem->getName();
-            lazy_comma = ", ";
-        }
-        unmangled += ")";
-    }
-
-    { /* make the template_pos_string */
-        const char * lazy_comma = "";
-        if (!mod.empty()) {
-            template_pos_string += mod + "::";
-        }
-        if (!type.empty()) {
-            template_pos_string += type + ".";
-        }
-        template_pos_string += name;
-
-        TemplateDefineList * def = (TemplateDefineList*)_def;
-
-        template_pos_string += std::to_string(def->getElements().size());
-    }
-
-    { /* make the real_mangled symbol */
-        uint64_t real_hash = bJouDemangle_hash(unmangled.c_str()); 
-        char buff[128];
-        bJouDemangle_u642b32(real_hash, buff);
-        std::string b32(buff);
-        real_mangled = name + "_" + b32;
-    }
-}
-#endif
 
 struct TmpMangler : _Symbol<void> {
     TmpMangler(std::string name, std::string mod, std::string type)

@@ -14,4 +14,4 @@ type timespec {
 
 extern time(time_t*) : time_t
 proc time() : time_t
-    return time(nullptr$time_t())
+    return time(nullptr$c_time::time_t())

@@ -151,13 +151,14 @@ void MultiNode::analyze(bool force) {
         node->analyze(force);
 }
 
-void MultiNode::addSymbols(Scope * _scope) {
+void MultiNode::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
 
     if (!isModuleContainer) {
         for (ASTNode * node : nodes) {
             if (node->nodeKind != STRUCT)
-                node->addSymbols(_scope);
+                node->addSymbols(mod, _scope);
         }
     }
 }
@@ -240,7 +241,7 @@ bool Expression::opOverload() {
 
     Symbol * sym = nullptr;
     Maybe<Symbol *> m_sym = getScope()->getSymbol(getScope(), getContents(),
-                                                  nullptr, true, false, false);
+            nullptr, true, false, false);
 
     if (m_sym.assignTo(sym)) {
         BJOU_DEBUG_ASSERT(sym->isProcSet());
@@ -258,7 +259,7 @@ bool Expression::opOverload() {
         }
 
         ProcSet * set = (ProcSet *)sym->node();
-        Procedure * proc = set->get(args, nullptr, nullptr, false);
+        Procedure * proc = set->get(getScope(), args, nullptr, nullptr, false);
         if (proc) {
             // need to check args here since there may only be one
             // overload that is returned without checking
@@ -279,7 +280,7 @@ bool Expression::opOverload() {
 
                 (*replace)(parent, this, call);
 
-                call->addSymbols(getScope());
+                call->addSymbols(mod, getScope());
                 call->analyze();
 
                 setType(call->getType());
@@ -371,14 +372,15 @@ void Expression::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void Expression::addSymbols(Scope * _scope) {
+void Expression::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     ASTNode * left = getLeft();
     ASTNode * right = getRight();
     if (left)
-        left->addSymbols(scope);
+        left->addSymbols(mod, scope);
     if (right)
-        right->addSymbols(scope);
+        right->addSymbols(mod, scope);
 }
 
 void Expression::desugar() {
@@ -2034,6 +2036,7 @@ void SubscriptExpression::desugar() {
 
         // __bjou_slice_subscript
         Identifier * __bjou_slice_subscript = new Identifier;
+        __bjou_slice_subscript->setSymMod("__slice");
         __bjou_slice_subscript->setSymName("__bjou_slice_subscript");
 
         ArgList * r = new ArgList;
@@ -2061,7 +2064,7 @@ void SubscriptExpression::desugar() {
 
         (*replace)(parent, this, call);
 
-        call->addSymbols(getScope());
+        call->addSymbols(mod, getScope());
         call->analyze();
     } else if (getLeft()->getType()->unRef()->isDynamicArray()) {
         CallExpression * call = new CallExpression;
@@ -2069,6 +2072,7 @@ void SubscriptExpression::desugar() {
 
         // __bjou_dynamic_array_subscript
         Identifier * __bjou_dynamic_array_subscript = new Identifier;
+        __bjou_dynamic_array_subscript->setSymMod("__dynamic_array");
         __bjou_dynamic_array_subscript->setSymName(
             "__bjou_dynamic_array_subscript");
 
@@ -2097,7 +2101,7 @@ void SubscriptExpression::desugar() {
 
         (*replace)(parent, this, call);
 
-        call->addSymbols(getScope());
+        call->addSymbols(mod, getScope());
         call->analyze();
     } else if (getLeft()->getType()->unRef()->isArray() &&
                compilation->frontEnd.abc) {
@@ -2106,6 +2110,7 @@ void SubscriptExpression::desugar() {
 
         // __bjou_array_subscript
         Identifier * __bjou_array_subscript = new Identifier;
+        __bjou_array_subscript->setSymMod("__array");
         __bjou_array_subscript->setSymName("__bjou_array_subscript");
 
         ArgList * r = new ArgList;
@@ -2134,7 +2139,7 @@ void SubscriptExpression::desugar() {
 
         (*replace)(parent, this, call);
 
-        call->addSymbols(getScope());
+        call->addSymbols(mod, getScope());
         call->analyze();
     }
 }
@@ -2179,7 +2184,7 @@ void CallExpression::analyze(bool force) {
         BJOU_DEBUG_ASSERT(sym);
         if (sym->node()->nodeKind == PROC_SET) {
             procSet = (ProcSet *)sym->node();
-            proc = procSet->get(args, l->getRight(), &args->getContext());
+            proc = procSet->get(getScope(), args, l->getRight(), &args->getContext());
             /* ((Identifier *)getLeft())->qualified = proc->getLookupName(); */
             if (l->getRight())      // TemplateInstantiation
                 l->right = nullptr; // l->setRight(nullptr);
@@ -2326,8 +2331,13 @@ static Identifier * createIdentifierFromAccess(AccessExpression * access,
     proc_ident->setContext(access->getContext());
     proc_ident->setScope(access->getScope());
     proc_ident->setSymMod(struct_t->_struct->mod);
-    proc_ident->setSymType(identStripMod(struct_t->_struct->getLookupName()));
+    std::string t_name = string_sans_mod(struct_t->_struct->getLookupName());
+    proc_ident->setSymType(t_name);
     proc_ident->setSymName(ident->getSymName());
+
+    if (ident->getRight()) {
+        proc_ident->setRight(ident->getRight());
+    }
 
     return proc_ident;
 }
@@ -2369,113 +2379,22 @@ int AccessExpression::handleThroughTemplate() {
         Identifier * r_id = (Identifier *)getRight();
 
         // Taken from Declarator::analyze()
-        std::string s = decl->asString();
         Maybe<Symbol *> m_sym = decl->getScope()->getSymbol(
-            decl->getScope(), s, &decl->getContext(),
+            decl->getScope(), decl->getIdentifier(), &decl->getContext(),
             /* traverse = */ true, /* fail = */ false);
         Symbol * sym = nullptr;
 
         if (m_sym.assignTo(sym)) {
             if (sym->isTemplateType()) {
-                /* TemplateStruct * ttype = (TemplateStruct *)sym->node(); */
-                /* Struct * s = (Struct *)ttype->_template; */
-                /* s->setLookupName(s->getName()); */
-                /* ProcSet set; */
-                /* std::vector<std::string> delete_keys; */
-                /* set.name = r_id->symAll(); */
-
-                /* for (ASTNode * _proc : s->getMemberProcs()) { */
-                /*     Procedure * proc = (Procedure *)_proc; */
-                /*     proc->setScope(ttype->getScope()); */
-                /*     if (proc->getName() == set.name) { */
-                /*         TemplateProc * tproc = new TemplateProc; */
-                /*         tproc->setFlag(TemplateProc::FROM_THROUGH_TEMPLATE, */
-                /*                        true); */
-                /*         tproc->setFlag(TemplateProc::IS_TYPE_MEMBER, true); */
-                /*         tproc->parent = s; */
-                /*         tproc->setScope(proc->getScope()); */
-                /*         tproc->setContext(proc->getContext()); */
-                /*         tproc->setNameContext(proc->getNameContext()); */
-                /*         tproc->setTemplateDef(ttype->getTemplateDef()->clone()); */
-                /*         tproc->setTemplate(proc); */
-
-                /*         proc->desugarThis(); */
-
-                /*         _Symbol<TemplateProc> * symbol = */
-                /*             new _Symbol<TemplateProc>(set.name, s->mod, s->getName(), tproc, nullptr, tproc->getTemplateDef()); */
-                /*         set.procs[symbol->real_mangled] = */
-                /*             symbol; */
-                /*     } */
-                /* } */
-
-                /* for (ASTNode * _tproc : s->getMemberTemplateProcs()) { */
-                /*     TemplateProc * tproc = (TemplateProc *)_tproc; */
-                /*     Procedure * proc = (Procedure *)tproc->_template; */
-                /*     proc->setScope(ttype->getScope()); */
-
-                /*     if (proc->getName() == set.name) { */
-                /*         TemplateProc * new_tproc = */
-                /*             (TemplateProc *)tproc->clone(); */
-                /*         new_tproc->setFlag(TemplateProc::FROM_THROUGH_TEMPLATE, */
-                /*                            true); */
-                /*         new_tproc->setScope(proc->getScope()); */
-                /*         new_tproc->setContext(proc->getContext()); */
-                /*         new_tproc->setNameContext(proc->getNameContext()); */
-
-                /*         TemplateDefineList * new_tproc_def = */
-                /*             (TemplateDefineList *)new_tproc->getTemplateDef(); */
-                /*         std::vector<ASTNode *> save_elems = */
-                /*             new_tproc_def->getElements(); */
-                /*         new_tproc_def->getElements().clear(); */
-                /*         for (ASTNode * elem : */
-                /*              ((TemplateDefineList *)ttype->getTemplateDef()) */
-                /*                  ->getElements()) */
-                /*             new_tproc_def->addElement(elem); */
-                /*         for (ASTNode * elem : save_elems) */
-                /*             new_tproc_def->addElement(elem); */
-
-                /*         new_tproc->setTemplate(proc); */
-
-                /*         proc->desugarThis(); */
-
-                /*         _Symbol<TemplateProc> * symbol = */
-                /*             new _Symbol<TemplateProc>(set.name, s->mod, s->getName(), tproc, nullptr, new_tproc->getTemplateDef()); */
-                /*         std::string key = */
-                /*             symbol->real_mangled; */
-                /*         set.procs[key] = symbol; */
-                /*         delete_keys.push_back(key); */
-                /*     } */
-                /* } */
-
-                /* if (set.procs.empty()) */
-                /*     errorl( */
-                /*         r_id->getContext(), */
-                /*         "Template type '" + */
-                /*             ((Identifier *)decl->identifier)->symAll() + */
-                /*             "' does not define a procedure named '" + */
-                /*             r_id->getSymName() + "'."); */
-
-                /* Procedure * proc = */
-                /*     set.get(next_call->getRight(), r_id->getRight(), */
-                /*             &getContext(), true); */
-                /* BJOU_DEBUG_ASSERT(proc); */
-
                 Identifier * proc_ident = stringToIdentifier(r_id->getSymName());
-                proc_ident->setSymType(s);
+                proc_ident->setSymType(decl->asString());
                     /* = createIdentifierFromAccess( */
                         /* this, (Declarator *)getLeft(), r_id); */
 
                 (*this->replace)(parent, this, proc_ident);
 
-                proc_ident->addSymbols(getScope());
+                proc_ident->addSymbols(mod, getScope());
                 proc_ident->analyze();
-
-                // cleanup
-                /* for (auto & key : delete_keys) */
-                /*     delete set.procs[key]->node(); */
-                /* for (auto & p : set.procs) */
-                /*     delete p.second; */
-
                 return -1;
             }
         }
@@ -2513,7 +2432,7 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
                     Identifier * proc_ident = createIdentifierFromAccess(
                         this, (Declarator *)getLeft(), r_id);
                     (*this->replace)(parent, this, proc_ident);
-                    proc_ident->addSymbols(getScope());
+                    proc_ident->addSymbols(mod, getScope());
                     proc_ident->setFlag(ASTNode::CT, isCT(this));
                     proc_ident->analyze();
 
@@ -2607,7 +2526,7 @@ int AccessExpression::handleContainerAccess() {
                     this, (Declarator *)getLeft(), r_id);
                 (*getRight()->replace)(this, getRight(),
                                        proc_ident); // @lol this works
-                proc_ident->addSymbols(getScope());
+                proc_ident->addSymbols(mod, getScope());
                 proc_ident->setFlag(ASTNode::CT, isCT(this));
                 proc_ident->analyze();
                 if (!nextCall())
@@ -3407,7 +3326,7 @@ const Type * Identifier::getType() {
 
         if (sym->isProcSet()) {
             ProcSet * set = (ProcSet *)sym->node();
-            ASTNode * proc = set->get(nullptr, getRight(), &getContext());
+            ASTNode * proc = set->get(getScope(), nullptr, getRight(), &getContext());
             BJOU_DEBUG_ASSERT(proc && proc->nodeKind == ASTNode::PROCEDURE);
             setType(proc->getType());
         } else {
@@ -3473,7 +3392,7 @@ void Identifier::analyze(bool force) {
         }
 
         Procedure * proc =
-            set->get(nullptr, getRight(), &getContext(),
+            set->get(getScope(), nullptr, getRight(), &getContext(),
                      call_independent);
         if (proc) {
             resolved = proc;
@@ -3580,12 +3499,13 @@ void InitializerList::unwrap(std::vector<ASTNode *> & terminals) {
         expression->unwrap(terminals);
 }
 
-void InitializerList::addSymbols(Scope * _scope) {
-    Expression::addSymbols(_scope);
+void InitializerList::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    Expression::addSymbols(mod, _scope);
     if (getObjDeclarator())
-        getObjDeclarator()->addSymbols(_scope);
+        getObjDeclarator()->addSymbols(mod, _scope);
     for (ASTNode * expr : getExpressions())
-        expr->addSymbols(_scope);
+        expr->addSymbols(mod, _scope);
 }
 
 void InitializerList::analyze(bool force) {
@@ -3788,11 +3708,12 @@ void SliceExpression::unwrap(std::vector<ASTNode *> & terminals) {
     length->unwrap(terminals);
 }
 
-void SliceExpression::addSymbols(Scope * _scope) {
+void SliceExpression::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
-    src->addSymbols(_scope);
-    start->addSymbols(_scope);
-    length->addSymbols(_scope);
+    src->addSymbols(mod, _scope);
+    start->addSymbols(mod, _scope);
+    length->addSymbols(mod, _scope);
 }
 
 void SliceExpression::analyze(bool force) {
@@ -3906,15 +3827,15 @@ void SliceExpression::desugar() {
 
         r->addExpression(access);
     } else
-        r->addExpression(getSrc());
+        r->addExpression(getSrc()->clone());
 
-    r->addExpression(getStart());
-    r->addExpression(getLength());
+    r->addExpression(getStart()->clone());
+    r->addExpression(getLength()->clone());
 
     call->setLeft(l);
     call->setRight(r);
 
-    call->addSymbols(getScope());
+    call->addSymbols(mod, getScope());
 
     slice_decl->desugar();
 
@@ -3958,9 +3879,10 @@ void DynamicArrayExpression::unwrap(std::vector<ASTNode *> & terminals) {
     typeDeclarator->unwrap(terminals);
 }
 
-void DynamicArrayExpression::addSymbols(Scope * _scope) {
+void DynamicArrayExpression::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
-    typeDeclarator->addSymbols(_scope);
+    typeDeclarator->addSymbols(mod, _scope);
 }
 
 void DynamicArrayExpression::analyze(bool force) {
@@ -4017,7 +3939,7 @@ void DynamicArrayExpression::desugar() {
     call->setLeft(l);
     call->setRight(r);
 
-    call->addSymbols(getScope());
+    call->addSymbols(mod, getScope());
 
     da_decl->desugar();
 
@@ -4058,9 +3980,10 @@ void LenExpression::unwrap(std::vector<ASTNode *> & terminals) {
     expr->unwrap(terminals);
 }
 
-void LenExpression::addSymbols(Scope * _scope) {
+void LenExpression::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
-    expr->addSymbols(_scope);
+    expr->addSymbols(mod, _scope);
 }
 
 void LenExpression::analyze(bool force) {
@@ -4165,7 +4088,7 @@ void LenExpression::desugar() {
     } else
         BJOU_DEBUG_ASSERT(false);
 
-    replacement->addSymbols(getScope());
+    replacement->addSymbols(mod, getScope());
     replacement->desugar();
     // @bad hack
     replacement->setFlag(ANALYZED, true);
@@ -4276,6 +4199,14 @@ static bool intFitsInWidth(int64_t i, unsigned width) {
 
 void IntegerLiteral::analyze(bool force) {
     HANDLE_FORCE();
+
+    /* @bad @hack
+     * If this came from an enum value
+     * (via AccessExpression::handleAccessThroughDeclarator()), this
+     * node could be forced to run analysis again. If that happens, we'll
+     * lose the EnumType.
+     */
+    if (type && type->isEnum())    { return; }
 
     const std::string& con = getContents();
     if (con.size() > 2 &&
@@ -4522,21 +4453,22 @@ void ProcLiteral::analyze(bool force) {
 
     (*this->replace)(parent, this, proc_ident);
 
-    proc_ident->addSymbols(getScope());
+    proc_ident->addSymbols(mod, getScope());
     proc_ident->analyze();
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
 }
 
-void ProcLiteral::addSymbols(Scope * _scope) {
+void ProcLiteral::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     ASTNode * left = getLeft();
     ASTNode * right = getRight();
     if (left)
-        left->addSymbols(scope);
+        left->addSymbols(mod, scope);
     if (right)
-        right->addSymbols(scope);
+        right->addSymbols(mod, scope);
 }
 
 ASTNode * ProcLiteral::clone() { return ExpressionClone(this); }
@@ -4569,14 +4501,15 @@ void ExternLiteral::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void ExternLiteral::addSymbols(Scope * _scope) {
+void ExternLiteral::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     ASTNode * left = getLeft();
     ASTNode * right = getRight();
     if (left)
-        left->addSymbols(scope);
+        left->addSymbols(mod, scope);
     if (right)
-        right->addSymbols(compilation->frontEnd.globalScope);
+        right->addSymbols(mod, compilation->frontEnd.globalScope);
 }
 
 ASTNode * ExternLiteral::clone() { return ExpressionClone(this); }
@@ -4679,10 +4612,11 @@ void TupleLiteral::addSubExpression(ASTNode * _subExpression) {
     subExpressions.push_back(_subExpression);
 }
 
-void TupleLiteral::addSymbols(Scope * _scope) {
-    Expression::addSymbols(_scope);
+void TupleLiteral::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    Expression::addSymbols(mod, _scope);
     for (ASTNode * sub : getSubExpressions())
-        sub->addSymbols(_scope);
+        sub->addSymbols(mod, _scope);
 }
 
 void TupleLiteral::analyze(bool force) {
@@ -4746,10 +4680,11 @@ void ExprBlock::addStatement(ASTNode * _statement) {
     statements.push_back(_statement);
 }
 
-void ExprBlock::addSymbols(Scope * _scope) {
-    Expression::addSymbols(_scope);
+void ExprBlock::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    Expression::addSymbols(mod, _scope);
     for (ASTNode * statement : getStatements())
-        statement->addSymbols(_scope);
+        statement->addSymbols(mod, _scope);
 }
 
 void ExprBlock::analyze(bool force) {
@@ -4883,7 +4818,7 @@ void Declarator::analyze(bool force) {
     // Maybe<Symbol*> m_sym = getScope()->getSymbol(getScope(), getIdentifier(),
     // &getContext(), /* traverse = */true, /* fail = */false);
     Maybe<Symbol *> m_sym =
-        getScope()->getSymbol(getScope(), s, &getContext(),
+        getScope()->getSymbol(getScope(), getIdentifier(), &getContext(),
                               /* traverse = */ true, /* fail = */ false);
     Symbol * sym = nullptr;
 
@@ -4961,9 +4896,8 @@ const Type * Declarator::getType() {
 
     // Maybe<Symbol*> m_sym = getScope()->getSymbol(getScope(), identifier,
     // &getContext());
-    std::string s = asString();
     Maybe<Symbol *> m_sym =
-        getScope()->getSymbol(getScope(), s, &getContext());
+        getScope()->getSymbol(getScope(), getIdentifier(), &getContext());
     Symbol * sym = nullptr;
     m_sym.assignTo(sym);
     BJOU_DEBUG_ASSERT(sym);
@@ -4974,10 +4908,11 @@ const Type * Declarator::getType() {
     return sym->node()->getType();
 }
 
-void Declarator::addSymbols(Scope * _scope) {
+void Declarator::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     if (getTemplateInst())
-        getTemplateInst()->addSymbols(_scope);
+        getTemplateInst()->addSymbols(mod, _scope);
 }
 
 Declarator::~Declarator() {
@@ -5070,11 +5005,12 @@ ArrayDeclarator::~ArrayDeclarator() {
         delete expression;
 }
 
-void ArrayDeclarator::addSymbols(Scope * _scope) {
+void ArrayDeclarator::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
-    getArrayOf()->addSymbols(_scope);
+    getArrayOf()->addSymbols(mod, _scope);
     if (expression)
-        expression->addSymbols(scope);
+        expression->addSymbols(mod, scope);
 }
 
 void ArrayDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
@@ -5183,9 +5119,10 @@ SliceDeclarator::~SliceDeclarator() {
     delete sliceOf;
 }
 
-void SliceDeclarator::addSymbols(Scope * _scope) {
+void SliceDeclarator::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
-    getSliceOf()->addSymbols(_scope);
+    getSliceOf()->addSymbols(mod, _scope);
 }
 
 void SliceDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
@@ -5218,7 +5155,7 @@ void SliceDeclarator::desugar() {
 
     (*replace)(parent, this, new_decl);
 
-    new_decl->addSymbols(getScope());
+    new_decl->addSymbols(mod, getScope());
     new_decl->analyze();
     */
 }
@@ -5286,9 +5223,10 @@ DynamicArrayDeclarator::~DynamicArrayDeclarator() {
     delete arrayOf;
 }
 
-void DynamicArrayDeclarator::addSymbols(Scope * _scope) {
+void DynamicArrayDeclarator::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
-    getArrayOf()->addSymbols(_scope);
+    getArrayOf()->addSymbols(mod, _scope);
 }
 
 void DynamicArrayDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
@@ -5321,7 +5259,7 @@ void DynamicArrayDeclarator::desugar() {
 
     (*replace)(parent, this, new_decl);
 
-    new_decl->addSymbols(getScope());
+    new_decl->addSymbols(mod, getScope());
     new_decl->analyze();
     */
 }
@@ -5392,9 +5330,10 @@ PointerDeclarator::~PointerDeclarator() {
     delete pointerOf;
 }
 
-void PointerDeclarator::addSymbols(Scope * _scope) {
+void PointerDeclarator::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
-    getPointerOf()->addSymbols(_scope);
+    getPointerOf()->addSymbols(mod, _scope);
 }
 
 void PointerDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
@@ -5483,9 +5422,10 @@ RefDeclarator::~RefDeclarator() {
     delete refOf;
 }
 
-void RefDeclarator::addSymbols(Scope * _scope) {
+void RefDeclarator::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
-    getRefOf()->addSymbols(_scope);
+    getRefOf()->addSymbols(mod, _scope);
 }
 
 void RefDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
@@ -5564,9 +5504,10 @@ MaybeDeclarator::~MaybeDeclarator() {
     delete maybeOf;
 }
 
-void MaybeDeclarator::addSymbols(Scope * _scope) {
+void MaybeDeclarator::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
-    getMaybeOf()->addSymbols(_scope);
+    getMaybeOf()->addSymbols(mod, _scope);
 }
 
 void MaybeDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
@@ -5650,10 +5591,11 @@ TupleDeclarator::~TupleDeclarator() {
         delete sd;
 }
 
-void TupleDeclarator::addSymbols(Scope * _scope) {
+void TupleDeclarator::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     for (ASTNode * sd : getSubDeclarators())
-        sd->addSymbols(_scope);
+        sd->addSymbols(mod, _scope);
 }
 
 void TupleDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
@@ -5788,12 +5730,13 @@ ProcedureDeclarator::~ProcedureDeclarator() {
     delete retDeclarator;
 }
 
-void ProcedureDeclarator::addSymbols(Scope * _scope) {
+void ProcedureDeclarator::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     for (ASTNode * pd : paramDeclarators)
-        pd->addSymbols(_scope);
+        pd->addSymbols(mod, _scope);
     BJOU_DEBUG_ASSERT(retDeclarator);
-    retDeclarator->addSymbols(_scope);
+    retDeclarator->addSymbols(mod, _scope);
 }
 
 void ProcedureDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
@@ -5906,7 +5849,10 @@ void PlaceholderDeclarator::analyze(bool force) {
 
 PlaceholderDeclarator::~PlaceholderDeclarator() {}
 
-void PlaceholderDeclarator::addSymbols(Scope * _scope) { setScope(_scope); }
+void PlaceholderDeclarator::addSymbols(std::string& _mod, Scope * _scope) { 
+    mod = _mod;
+    setScope(_scope);
+}
 
 void PlaceholderDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
     terminals.push_back(this);
@@ -6055,7 +6001,7 @@ void Constant::analyze(bool force) {
         }
 
         setTypeDeclarator(t->getGenericDeclarator());
-        getTypeDeclarator()->addSymbols(getScope());
+        getTypeDeclarator()->addSymbols(mod, getScope());
     }
 
     if (getTypeDeclarator()->getType()->isVoid())
@@ -6068,7 +6014,7 @@ void Constant::analyze(bool force) {
     if (!getInitialization()->getType()->isProcedure()) {
         ((Expression*)getInitialization())->setType(getTypeDeclarator()->getType()); // @hack
         ASTNode * folded = ((Expression *)getInitialization())->eval().toExpr();
-        folded->addSymbols(getScope());
+        folded->addSymbols(mod, getScope());
         folded->analyze();
         // @leak?
         setInitialization(folded);
@@ -6077,10 +6023,11 @@ void Constant::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void Constant::addSymbols(Scope * _scope) {
+void Constant::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     if (!getFlag(IS_TYPE_MEMBER)) {
-        _Symbol<Constant> * symbol = new _Symbol<Constant>(getName(), _scope->parent ? "" : mod, "", this);
+        _Symbol<Constant> * symbol = new _Symbol<Constant>(getName(), (_scope->parent && !_scope->is_module_scope) ? "" : mod, "", this);
 
         setLookupName(symbol->unmangled);
         setMangledName(symbol->real_mangled);
@@ -6088,8 +6035,8 @@ void Constant::addSymbols(Scope * _scope) {
         _scope->addSymbol(symbol, &getNameContext());
     }
     if (getTypeDeclarator())
-        getTypeDeclarator()->addSymbols(_scope);
-    getInitialization()->addSymbols(_scope);
+        getTypeDeclarator()->addSymbols(mod, _scope);
+    getInitialization()->addSymbols(mod, _scope);
 }
 
 void Constant::unwrap(std::vector<ASTNode *> & terminals) {
@@ -6294,7 +6241,7 @@ void VariableDeclaration::analyze(bool force) {
         } else {
             my_t = init_t = getInitialization()->getType();
             setTypeDeclarator(init_t->getGenericDeclarator());
-            getTypeDeclarator()->addSymbols(getScope());
+            getTypeDeclarator()->addSymbols(mod, getScope());
         }
 
         sym->initializedInScopes.insert(getScope());
@@ -6347,11 +6294,12 @@ void VariableDeclaration::analyze(bool force) {
                    "', which is an abstract type.");
 }
 
-void VariableDeclaration::addSymbols(Scope * _scope) {
+void VariableDeclaration::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     if (!getFlag(IS_TYPE_MEMBER)) {
         _Symbol<VariableDeclaration> * symbol =
-            new _Symbol<VariableDeclaration>(getName(), _scope->parent ? "" : mod, "", this);
+            new _Symbol<VariableDeclaration>(getName(), (_scope->parent && !_scope->is_module_scope) ? "" : mod, "", this);
 
         setLookupName(symbol->unmangled);
         setMangledName(symbol->real_mangled);
@@ -6364,9 +6312,9 @@ void VariableDeclaration::addSymbols(Scope * _scope) {
         _scope->addSymbol(symbol, &getNameContext());
     }
     if (getTypeDeclarator())
-        getTypeDeclarator()->addSymbols(_scope);
+        getTypeDeclarator()->addSymbols(mod, _scope);
     if (getInitialization())
-        getInitialization()->addSymbols(_scope);
+        getInitialization()->addSymbols(mod, _scope);
 }
 
 void VariableDeclaration::unwrap(std::vector<ASTNode *> & terminals) {
@@ -6460,10 +6408,11 @@ void Alias::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void Alias::addSymbols(Scope * _scope) {
+void Alias::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
 
-    getDeclarator()->addSymbols(_scope);
+    getDeclarator()->addSymbols(mod, _scope);
 
     setScope(_scope);
     _Symbol<Alias> * symbol = new _Symbol<Alias>(getName(), mod, "", this);
@@ -6690,7 +6639,8 @@ void Struct::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void Struct::preDeclare(Scope * _scope) {
+void Struct::preDeclare(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     _Symbol<Struct> * symbol = new _Symbol<Struct>(getName(), mod, "", this, inst, nullptr);
     setLookupName(symbol->unmangled);
@@ -6701,7 +6651,8 @@ void Struct::preDeclare(Scope * _scope) {
     StructType::get(symbol->unmangled, this, (TemplateInstantiation *)inst);
 }
 
-void Struct::addSymbols(Scope * _scope) {
+void Struct::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     /*
     setScope(_scope);
     _Symbol<Struct>* symbol = new _Symbol<Struct>(getName(), this, inst);
@@ -6714,16 +6665,16 @@ void Struct::addSymbols(Scope * _scope) {
     */
 
     if (extends)
-        extends->addSymbols(_scope);
+        extends->addSymbols(mod, _scope);
     for (ASTNode * mem : getMemberVarDecls())
-        mem->addSymbols(_scope);
+        mem->addSymbols(mod, _scope);
     for (ASTNode * constant : getConstantDecls())
-        constant->addSymbols(_scope);
+        constant->addSymbols(mod, _scope);
     for (ASTNode * proc : getMemberProcs())
-        proc->addSymbols(_scope);
+        proc->addSymbols(mod, _scope);
     for (ASTNode * tproc : getMemberTemplateProcs()) {
         ((Procedure*)((TemplateProc*)tproc)->_template)->desugarThis();
-        tproc->addSymbols(_scope);
+        tproc->addSymbols(mod, _scope);
     }
 }
 
@@ -6874,7 +6825,8 @@ void Enum::analyze(bool force) {
 
 ASTNode * Enum::clone() { return new Enum(*this); }
 
-void Enum::addSymbols(Scope * _scope) {
+void Enum::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     _Symbol<Enum> * symbol = new _Symbol<Enum>(getName(), mod, "", this);
 
@@ -6981,10 +6933,11 @@ void ArgList::desugar() {
         expr->desugar();
 }
 
-void ArgList::addSymbols(Scope * _scope) {
+void ArgList::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     for (ASTNode * expr : getExpressions())
-        expr->addSymbols(_scope);
+        expr->addSymbols(mod, _scope);
 }
 
 ArgList::~ArgList() {
@@ -7076,7 +7029,8 @@ void This::analyze(bool force) {
 
 ASTNode * This::clone() { return new This(*this); }
 
-void This::addSymbols(Scope * _scope) {
+void This::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     // and...
 }
@@ -7172,7 +7126,7 @@ void Procedure::desugarThis() {
     This * seen = nullptr;
     for (ASTNode * node : getParamVarDeclarations()) {
         if (node->nodeKind == ASTNode::THIS) {
-            if (!getParent() || getParent()->nodeKind != ASTNode::STRUCT)
+            if (!getParent() || getParentStruct()->nodeKind != ASTNode::STRUCT)
                 errorl(node->getContext(),
                        "'this' not allowed here."); // @bad error message
 
@@ -7192,7 +7146,7 @@ void Procedure::desugarThis() {
             Declarator * base = s->getType()->getGenericDeclarator();
 
             param->setTypeDeclarator(new RefDeclarator(base));
-            param->getTypeDeclarator()->addSymbols(
+            param->getTypeDeclarator()->addSymbols(mod, 
                 node->getScope()); // @bad. does this make sense?
 
             (*node->replace)(node->parent, node, param);
@@ -7254,20 +7208,34 @@ void Procedure::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void Procedure::addSymbols(Scope * _scope) {
+void Procedure::addSymbols(std::string& _mod, Scope * _scope) {
+    if (!getFlag(Procedure::IS_EXTERN)) {
+        mod = _mod;
+    }
     setScope(_scope);
 
     _Symbol<Procedure> * symbol = nullptr;
 
-    Struct * parent_struct = nullptr;
-    if (getParent() && getParent()->nodeKind == ASTNode::STRUCT)
-        parent_struct = getParentStruct();
-
-    if (parent_struct) {
-        symbol = new _Symbol<Procedure>(getName(), mod, parent_struct->getLookupName(), (Procedure *)this, inst, nullptr);
-    } else {
-        symbol = new _Symbol<Procedure>(getName(), mod, "", (Procedure *)this, inst, nullptr);
+    std::string t = "";
+    ASTNode * p_root = this;
+    if (p_root->getParent() && p_root->getParent()->nodeKind == ASTNode::TEMPLATE_PROC) {
+        p_root = p_root->getParent();
     }
+    if (p_root->getParent()) {
+        ASTNode * p = p_root->getParent();
+        if (p->nodeKind == ASTNode::STRUCT) {
+            Struct * s = (Struct*)p;
+            if (!p->getParent() || p->getParent()->nodeKind != ASTNode::TEMPLATE_STRUCT) {
+                t = string_sans_mod(s->getLookupName());
+            } else if (p->getParent() && p->getParent()->nodeKind == ASTNode::TEMPLATE_STRUCT) {
+                t = s->getName();
+            }
+        } else if (p->nodeKind == ASTNode::TEMPLATE_STRUCT) {
+            t         = ((Struct*)((TemplateStruct*)p_root->getParent())->_template)->getName();
+        }
+    }
+
+    symbol = new _Symbol<Procedure>(getName(), mod, t, (Procedure *)this, inst, nullptr);
 
     Scope * myScope = new Scope("", _scope);
     myScope->description =
@@ -7279,7 +7247,7 @@ void Procedure::addSymbols(Scope * _scope) {
         _scope->scopes.push_back(myScope);
     } else {
         Scope * walk = _scope;
-        while (walk->parent)
+        while (walk->parent && !walk->parent->is_module_scope)
             walk = walk->parent;
         walk->scopes.push_back(myScope);
     }
@@ -7288,13 +7256,13 @@ void Procedure::addSymbols(Scope * _scope) {
         desugarThis();
 
         for (ASTNode * param : getParamVarDeclarations())
-            param->addSymbols(myScope);
-        getRetDeclarator()->addSymbols(myScope);
+            param->addSymbols(mod, myScope);
+        getRetDeclarator()->addSymbols(mod, myScope);
         for (ASTNode * statement : getStatements())
-            statement->addSymbols(myScope);
+            statement->addSymbols(mod, myScope);
         // necessary if proc was imported
         if (procDeclarator)
-            procDeclarator->addSymbols(myScope);
+            procDeclarator->addSymbols(mod, myScope);
 
 
         setLookupName(symbol->proc_name);
@@ -7307,8 +7275,8 @@ void Procedure::addSymbols(Scope * _scope) {
         setMangledName(symbol->proc_name);
 
         for (ASTNode * param : getParamVarDeclarations())
-            param->addSymbols(myScope);
-        getRetDeclarator()->addSymbols(myScope);
+            param->addSymbols(mod, myScope);
+        getRetDeclarator()->addSymbols(mod, myScope);
 
         if (getLookupName() == "printf")
             compilation->frontEnd.printf_decl = this;
@@ -7447,13 +7415,13 @@ const Type * Procedure::getType() {
 
     for (ASTNode * p : getParamVarDeclarations()) {
         Declarator * d = p->getType()->getGenericDeclarator();
-        d->addSymbols(p->getScope());
+        d->addSymbols(mod, p->getScope());
         procDeclarator->addParamDeclarator(d);
     }
 
     procDeclarator->setRetDeclarator(
         getRetDeclarator()->getType()->getGenericDeclarator());
-    procDeclarator->addSymbols(getRetDeclarator()->getScope());
+    procDeclarator->addSymbols(mod, getRetDeclarator()->getScope());
     procDeclarator->setFlag(ProcedureDeclarator::eBitFlags::IS_VARARG,
                             getFlag(IS_VARARG));
     setProcDeclarator(procDeclarator);
@@ -7491,7 +7459,8 @@ void Import::analyze(bool force) {
 
 ASTNode * Import::clone() { return new Import(*this); }
 
-void Import::addSymbols(Scope * _scope) {
+void Import::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
 
     if (fileError) {
@@ -7505,7 +7474,7 @@ void Import::addSymbols(Scope * _scope) {
         errorl(getContext(), "Attempted import from this location.");
     }
 
-    if (getScope()->parent) {
+    if (getScope()->parent && !getScope()->is_module_scope) {
         errorl(getContext(), "Module imports must be made at global scope.",
                false);
         errorl(getContext(), "Attempting to import " + getModule() +
@@ -7544,6 +7513,52 @@ void Import::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
 Import::~Import() {}
 //
 
+// ~~~~~ Using ~~~~~
+
+Using::Using()
+    : module({}) {
+    nodeKind = USING;
+}
+
+std::string & Using::getModule() { return module; }
+void Using::setModule(std::string _module) { module = _module; }
+
+// Node interface
+void Using::unwrap(std::vector<ASTNode *> & terminals) {
+    terminals.push_back(this);
+}
+
+void Using::analyze(bool force) {
+    HANDLE_FORCE();
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * Using::clone() { return new Using(*this); }
+
+void Using::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    setScope(_scope);
+
+    if (compilation->frontEnd.modulesByID.count(getModule()) == 0) {
+        errorl(getContext(), "No module by the name '" + getModule() + "' was found.");
+    }
+
+    getScope()->usings.push_back(getModule());
+}
+
+void Using::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << std::string(4 * level, ' ');
+
+    stream << "using " << getModule();
+
+    stream << "\n";
+}
+
+Using::~Using() {}
+//
+
 // ~~~~~ Print ~~~~~
 
 Print::Print() : args(nullptr) { nodeKind = PRINT; }
@@ -7577,10 +7592,11 @@ void Print::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void Print::addSymbols(Scope * _scope) {
+void Print::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     BJOU_DEBUG_ASSERT(getArgs());
-    getArgs()->addSymbols(_scope);
+    getArgs()->addSymbols(mod, _scope);
 }
 
 void Print::unwrap(std::vector<ASTNode *> & terminals) {
@@ -7679,10 +7695,11 @@ void Return::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void Return::addSymbols(Scope * _scope) {
+void Return::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     if (expression)
-        expression->addSymbols(_scope);
+        expression->addSymbols(mod, _scope);
 }
 
 void Return::unwrap(std::vector<ASTNode *> & terminals) {
@@ -7752,7 +7769,8 @@ void Break::analyze(bool force) {
 
 ASTNode * Break::clone() { return new Break(*this); }
 
-void Break::addSymbols(Scope * _scope) {
+void Break::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     // and...
 }
@@ -7797,7 +7815,8 @@ void Continue::analyze(bool force) {
 
 ASTNode * Continue::clone() { return new Continue(*this); }
 
-void Continue::addSymbols(Scope * _scope) {
+void Continue::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     // and...
 }
@@ -7889,16 +7908,17 @@ void If::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void If::addSymbols(Scope * _scope) {
+void If::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     Scope * myScope = new Scope(
         "line " + std::to_string(getContext().begin.line) + " if", _scope);
     _scope->scopes.push_back(myScope);
-    conditional->addSymbols(_scope);
+    conditional->addSymbols(mod, _scope);
     for (ASTNode * statement : getStatements())
-        statement->addSymbols(myScope);
+        statement->addSymbols(mod, myScope);
     if (_else)
-        _else->addSymbols(_scope);
+        _else->addSymbols(mod, _scope);
 }
 
 void If::unwrap(std::vector<ASTNode *> & terminals) {
@@ -7999,13 +8019,14 @@ void Else::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void Else::addSymbols(Scope * _scope) {
+void Else::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     Scope * myScope = new Scope(
         "line " + std::to_string(getContext().begin.line) + " else", _scope);
     _scope->scopes.push_back(myScope);
     for (ASTNode *& statement : getStatements())
-        statement->addSymbols(myScope);
+        statement->addSymbols(mod, myScope);
 }
 
 void Else::unwrap(std::vector<ASTNode *> & terminals) {
@@ -8131,18 +8152,19 @@ void For::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void For::addSymbols(Scope * _scope) {
+void For::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     Scope * myScope = new Scope(
         "line " + std::to_string(getContext().begin.line) + " for", _scope);
     _scope->scopes.push_back(myScope);
     for (ASTNode * initialization : getInitializations())
-        initialization->addSymbols(myScope);
-    conditional->addSymbols(myScope);
+        initialization->addSymbols(mod, myScope);
+    conditional->addSymbols(mod, myScope);
     for (ASTNode * afterthought : getAfterthoughts())
-        afterthought->addSymbols(myScope);
+        afterthought->addSymbols(mod, myScope);
     for (ASTNode * statement : getStatements())
-        statement->addSymbols(myScope);
+        statement->addSymbols(mod, myScope);
 }
 
 void For::unwrap(std::vector<ASTNode *> & terminals) {
@@ -8297,14 +8319,15 @@ void Foreach::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void Foreach::addSymbols(Scope * _scope) {
+void Foreach::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     Scope * myScope = new Scope(
         "line " + std::to_string(getContext().begin.line) + " foreach", _scope);
     _scope->scopes.push_back(myScope);
-    getExpression()->addSymbols(myScope);
+    getExpression()->addSymbols(mod, myScope);
     for (ASTNode * statement : getStatements())
-        statement->addSymbols(myScope);
+        statement->addSymbols(mod, myScope);
 }
 
 void Foreach::unwrap(std::vector<ASTNode *> & terminals) {
@@ -8420,7 +8443,7 @@ void Foreach::desugar() {
     for (ASTNode * s : getStatements())
         _for->addStatement(s);
 
-    _for->addSymbols(getScope());
+    _for->addSymbols(mod, getScope());
 
     (*replace)(parent, this, _for);
 
@@ -8478,14 +8501,15 @@ void While::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void While::addSymbols(Scope * _scope) {
+void While::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     Scope * myScope = new Scope(
         "line " + std::to_string(getContext().begin.line) + " while", _scope);
     _scope->scopes.push_back(myScope);
-    conditional->addSymbols(_scope);
+    conditional->addSymbols(mod, _scope);
     for (ASTNode * statement : getStatements())
-        statement->addSymbols(myScope);
+        statement->addSymbols(mod, myScope);
 }
 
 void While::unwrap(std::vector<ASTNode *> & terminals) {
@@ -8595,14 +8619,15 @@ void DoWhile::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void DoWhile::addSymbols(Scope * _scope) {
+void DoWhile::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     Scope * myScope = new Scope(
         "line " + std::to_string(getContext().begin.line) + " if", _scope);
     _scope->scopes.push_back(myScope);
-    conditional->addSymbols(_scope);
+    conditional->addSymbols(mod, _scope);
     for (ASTNode * statement : getStatements())
-        statement->addSymbols(myScope);
+        statement->addSymbols(mod, myScope);
 }
 
 void DoWhile::unwrap(std::vector<ASTNode *> & terminals) {
@@ -8704,11 +8729,12 @@ void Match::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void Match::addSymbols(Scope * _scope) {
+void Match::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
-    getExpression()->addSymbols(_scope);
+    getExpression()->addSymbols(mod, _scope);
     for (ASTNode * with : getWiths())
-        with->addSymbols(_scope);
+        with->addSymbols(mod, _scope);
 }
 
 void Match::unwrap(std::vector<ASTNode *> & terminals) {
@@ -8805,14 +8831,15 @@ void With::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void With::addSymbols(Scope * _scope) {
+void With::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     Scope * myScope = new Scope(
         "line " + std::to_string(getContext().begin.line) + " with", _scope);
     _scope->scopes.push_back(myScope);
-    getExpression()->addSymbols(_scope);
+    getExpression()->addSymbols(mod, _scope);
     for (ASTNode * statement : getStatements())
-        statement->addSymbols(myScope);
+        statement->addSymbols(mod, myScope);
 }
 
 void With::unwrap(std::vector<ASTNode *> & terminals) {
@@ -8903,7 +8930,10 @@ void TemplateDefineList::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void TemplateDefineList::addSymbols(Scope * _scope) { setScope(_scope); }
+void TemplateDefineList::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    setScope(_scope);
+}
 
 void TemplateDefineList::unwrap(std::vector<ASTNode *> & terminals) {
     for (ASTNode * element : getElements())
@@ -8984,7 +9014,8 @@ void TemplateDefineTypeDescriptor::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void TemplateDefineTypeDescriptor::addSymbols(Scope * _scope) {
+void TemplateDefineTypeDescriptor::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
 }
 
@@ -9030,7 +9061,8 @@ ASTNode * TemplateDefineVariadicTypeArgs::clone() {
     return new TemplateDefineVariadicTypeArgs(*this);
 }
 
-void TemplateDefineVariadicTypeArgs::addSymbols(Scope * _scope) {
+void TemplateDefineVariadicTypeArgs::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
 }
 
@@ -9057,7 +9089,10 @@ void TemplateDefineExpression::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void TemplateDefineExpression::addSymbols(Scope * _scope) { setScope(_scope); }
+void TemplateDefineExpression::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    setScope(_scope);
+}
 
 void TemplateDefineExpression::unwrap(std::vector<ASTNode *> & terminals) {
     getVarDecl()->unwrap(terminals);
@@ -9105,10 +9140,11 @@ void TemplateInstantiation::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void TemplateInstantiation::addSymbols(Scope * _scope) {
+void TemplateInstantiation::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     for (ASTNode * element : getElements())
-        element->addSymbols(_scope);
+        element->addSymbols(mod, _scope);
 }
 
 void TemplateInstantiation::unwrap(std::vector<ASTNode *> & terminals) {
@@ -9195,7 +9231,8 @@ ASTNode * TemplateAlias::clone() {
     return c;
 }
 
-void TemplateAlias::addSymbols(Scope * _scope) {
+void TemplateAlias::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     Alias * typeTemplate = (Alias *)getTemplate();
     _Symbol<TemplateAlias> * symbol =
@@ -9265,11 +9302,12 @@ ASTNode * TemplateStruct::clone() {
     return c;
 }
 
-void TemplateStruct::addSymbols(Scope * _scope) {
+void TemplateStruct::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     Struct * typeTemplate = (Struct *)getTemplate();
     _Symbol<TemplateStruct> * symbol =
-        new _Symbol<TemplateStruct>(typeTemplate->getName(), mod, "", this, nullptr, nullptr);
+        new _Symbol<TemplateStruct>(typeTemplate->getName(), mod, "", this);
     _scope->addSymbol(symbol, &typeTemplate->getNameContext());
 
     BJOU_DEBUG_ASSERT(_template->nodeKind == ASTNode::STRUCT);
@@ -9280,6 +9318,8 @@ void TemplateStruct::addSymbols(Scope * _scope) {
         proc->setScope(getScope());
 
         TemplateProc * tproc = new TemplateProc;
+        tproc->parent = s;
+        tproc->mod = proc->mod = mod;
         tproc->setFlag(TemplateProc::FROM_THROUGH_TEMPLATE,
                 true);
         tproc->setFlag(TemplateProc::IS_TYPE_MEMBER, true);
@@ -9392,13 +9432,34 @@ ASTNode * TemplateProc::clone() {
     return c;
 }
 
-void TemplateProc::addSymbols(Scope * _scope) {
+void TemplateProc::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     Procedure * procedureTemplate = (Procedure *)getTemplate();
-    // procedureTemplate->addSymbols(_scope);
 
-    _Symbol<TemplateProc> * symbol =
-        new _Symbol<TemplateProc>(procedureTemplate->getName(), mod, "", this, nullptr, getTemplateDef());
+    Struct * parent_struct = nullptr;
+    if (getParent() && getParent()->nodeKind == ASTNode::STRUCT) {
+        parent_struct = (Struct*)getParent();
+    }
+
+    std::string t = "";
+    if (getParent()) {
+        ASTNode * p = getParent();
+        if (p->nodeKind == ASTNode::STRUCT) {
+            Struct * s = (Struct*)p;
+            if (!p->getParent() || p->getParent()->nodeKind != ASTNode::TEMPLATE_STRUCT) {
+                t = string_sans_mod(s->getLookupName());
+            } else if (p->getParent() && p->getParent()->nodeKind == ASTNode::TEMPLATE_STRUCT) {
+                t = s->getName();
+            }
+        } else if (p->nodeKind == ASTNode::TEMPLATE_STRUCT) {
+            t         = ((Struct*)((TemplateStruct*)getParent())->_template)->getName();
+        }
+    }
+
+            
+    _Symbol<TemplateProc> * symbol = new _Symbol<TemplateProc>(procedureTemplate->getName(), mod, t, this, nullptr, getTemplateDef());
+
     setLookupName(symbol->real_mangled);
     _scope->addSymbol(symbol, &procedureTemplate->getNameContext());
 }
@@ -9431,7 +9492,10 @@ void SLComment::analyze(bool force) {
 
 ASTNode * SLComment::clone() { return new SLComment(*this); }
 
-void SLComment::addSymbols(Scope * _scope) { setScope(_scope); }
+void SLComment::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    setScope(_scope);
+}
 
 void SLComment::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
@@ -9465,7 +9529,10 @@ void ModuleDeclaration::analyze(bool force) {
 
 ASTNode * ModuleDeclaration::clone() { return new ModuleDeclaration(*this); }
 
-void ModuleDeclaration::addSymbols(Scope * _scope) { setScope(_scope); }
+void ModuleDeclaration::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    setScope(_scope);
+}
 
 void ModuleDeclaration::dump(std::ostream & stream, unsigned int level,
                              bool dumpCT) {
@@ -9517,10 +9584,11 @@ void ExprBlockYield::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
-void ExprBlockYield::addSymbols(Scope * _scope) {
+void ExprBlockYield::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
     if (expression)
-        expression->addSymbols(_scope);
+        expression->addSymbols(mod, _scope);
 }
 
 void ExprBlockYield::unwrap(std::vector<ASTNode *> & terminals) {
@@ -9575,7 +9643,10 @@ void IgnoreNode::analyze(bool force) {
 
 ASTNode * IgnoreNode::clone() { return new IgnoreNode(*this); }
 
-void IgnoreNode::addSymbols(Scope * _scope) { setScope(_scope); }
+void IgnoreNode::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    setScope(_scope);
+}
 
 void * IgnoreNode::generate(BackEnd & backEnd, bool flag) { return nullptr; }
 
@@ -9655,7 +9726,8 @@ void MacroUse::unwrap(std::vector<ASTNode *> & terminals) {
         arg->unwrap(terminals);
 }
 
-void MacroUse::addSymbols(Scope * _scope) {
+void MacroUse::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
     setScope(_scope);
 
     bool fast_track = false;
@@ -9664,7 +9736,7 @@ void MacroUse::addSymbols(Scope * _scope) {
     for (ASTNode * arg : getArgs()) {
         if (arg->nodeKind != STRUCT) {
             if (compilation->frontEnd.macroManager.shouldAddSymbols(this, i))
-                arg->addSymbols(_scope);
+                arg->addSymbols(mod, _scope);
             else
                 fast_track = true;
         }

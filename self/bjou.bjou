@@ -5,14 +5,14 @@ main()
 import "cli.bjou"
 
 proc main() {
-    arg_parser := ArgParser.create(env.args()[0].c_str())
+    arg_parser := cli::ArgParser.create(env.args()[0].c_str())
     arg_parser.add_args_to_parser()
-    usage := arg_parser.help()
-    print "%", usage.c_str()
+    p := arg_parser.help()
+    print "%", p.c_str()
     arg_parser.free()
 }
 
-proc add_args_to_parser(arg_parser : ArgParser ref) {
+proc add_args_to_parser(arg_parser : cli::ArgParser ref) {
     arg_parser.addSwitch('O', "optimize")
         .withDesc("Run LLVM optimization passes.")
     arg_parser.addSwitch("emit-llvm")
@@ -41,4 +41,11 @@ proc add_args_to_parser(arg_parser : ArgParser ref) {
         .withDesc("Display version info and exit.")
     arg_parser.addSwitch('h', "help")
         .withDesc("Display usage info and exit.")
+
+    I := arg_parser.addValueString('I', "searchpath")
+        .withDesc("Add a path to search when looking for modules.")
+    arg_parser.addValueString('l', "link")
+        .withDesc("Add the name of a library to link.")
+    arg_parser.addValueString('o', "output")
+        .withDesc("Specify the name of the target output file.")
 }

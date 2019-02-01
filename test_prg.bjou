@@ -1,0 +1,25 @@
+# test_prg.bjou
+
+import "test_mod.bjou"
+
+using test_mod
+
+extern printf(char*, ...) : i32
+extern memcpy(void*, void*, u64) : void*
+
+proc p(i : i32) print "%", i
+
+main()
+
+proc main() {
+    print "hello"
+    # p("a string")
+    t   := test_mod::T.create(123)
+    t'  := test_mod::T.create(456)
+    t'' := test_mod::T$f32.create(7.89)
+    print "%", t
+    print "%", t'
+    print "%", t''
+    print "%", test_mod::PI
+    print "%", test_mod::pi
+}

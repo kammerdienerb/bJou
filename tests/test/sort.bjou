@@ -1,0 +1,25 @@
+# sort.bjou
+
+main()
+
+proc backwards_cmp(a : i32 ref, b : i32 ref) : i32 {
+    return b - a
+}
+
+proc main() {
+    _nums := { 29, 158, 531, 590, 192, 37, 945, 921, 92, 189, 985, 520, 886, 604, 80, 13, 29, 145, 980, 841, 848 }
+
+    nums  := [...i32]
+    foreach num in _nums    nums.push(num)
+    nums' := nums.copy()
+
+    nums.sort()
+    nums'.sort(backwards_cmp)
+
+    foreach num in nums     print "%", num
+    print "---"
+    foreach num in nums'    print "%", num
+
+    nums'.free()
+    nums.free()
+}

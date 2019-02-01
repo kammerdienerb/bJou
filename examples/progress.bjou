@@ -1,8 +1,11 @@
 # progress.bjou
 
 import "cli.bjou"
+using cli
 import "progressbar.bjou"
+using progressbar
 import "random.bjou"
+using random
 
 import "c/time.bjou"
 import "c/sleep.bjou"
@@ -12,11 +15,11 @@ import "c/sleep.bjou"
 # main()
 
 proc main() {
-    seedrand(time())
+    seedrand(c_time::time())
 
     print "processing things..."
 
-    pb := ProgressBar.create(12345, 45, nullptr$char(), cli.fgRGB(90, 150, 130))
+    pb := ProgressBar.create(12345, 45, nullptr$char(), fgRGB(90, 150, 130))
 
     i := 1
 

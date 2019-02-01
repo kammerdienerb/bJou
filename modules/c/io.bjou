@@ -3,6 +3,8 @@
 module c_io
 
 import "c/dlfcn.bjou"
+using c_dlfcn
+using null
 
 abstract type FILE { }
 extern fdopen(int, char*) : FILE*

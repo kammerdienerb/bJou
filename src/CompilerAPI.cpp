@@ -151,7 +151,8 @@ extern "C" void bjou_parseAndAppend(const char * str) {
     p();
     for (ASTNode * node : p.nodes) {
         // we are already in analysis stage, so we need to catch up
-        node->addSymbols(compilation->frontEnd.globalScope);
+        std::string empty_mod_string = "";
+        node->addSymbols(empty_mod_string, compilation->frontEnd.globalScope);
         // add the node
         compilation->frontEnd.deferredAST.push_back(node);
     }
@@ -175,12 +176,15 @@ extern "C" ASTNode * bjou_clone(ASTNode * node) { return node->clone(); }
 
 extern "C" void bjou_preDeclare(ASTNode * node, Scope * scope) {
     BJOU_DEBUG_ASSERT(node->nodeKind == ASTNode::STRUCT);
-    if (node->nodeKind == ASTNode::STRUCT && "node cannot be predeclared")
-        ((Struct *)node)->preDeclare(scope);
+    if (node->nodeKind == ASTNode::STRUCT && "node cannot be predeclared") {
+        std::string empty_mod_string = "";
+        ((Struct *)node)->preDeclare(empty_mod_string, scope);
+    }
 }
 
 extern "C" void bjou_addSymbols(ASTNode * node, Scope * scope) {
-    node->addSymbols(scope);
+    std::string empty_mod_string = "";
+    node->addSymbols(empty_mod_string, scope);
 }
 
 extern "C" void bjou_analyze(ASTNode * node) { node->analyze(); }

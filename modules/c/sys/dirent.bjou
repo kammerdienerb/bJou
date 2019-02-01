@@ -4,6 +4,8 @@ module c_sys_dirent
 
 import "c/sys/types.bjou"
 
+using c_sys_types
+
 type dirent {
     d_ino     : ino_t
     d_seekoff : u64
