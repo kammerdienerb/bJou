@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.0.1)
 
 project(bJou)
 
+add_subdirectory(gen_sys)
+
 # stolen from ldc https://github.com/ldc-developers/ldc/blob/master/cmake/Modules/FindLLVM.cmake
 set(llvm_config_names llvm-config-8.0 llvm-config80
                       llvm-config-7.0 llvm-config70
