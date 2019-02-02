@@ -13,8 +13,11 @@ set(llvm_config_names llvm-config-8.0 llvm-config80
                       llvm-config-3.9 llvm-config39
                       llvm-config)
 
-find_program(LLVM_CONFIG
+find_program(LLVM_CONFIG_SEARCH
     NAMES ${llvm_config_names})
+
+set(LLVM_CONFIG ${LLVM_CONFIG_SEARCH}
+    CACHE PATH "The path the llvm-config executable")
 
 execute_process(COMMAND "${LLVM_CONFIG}" "--prefix"
     OUTPUT_VARIABLE LLVM_ROOT

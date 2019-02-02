@@ -17,6 +17,11 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    -l|--llvm-config)
+    LLVM_CONFIG="$2"
+    shift # past argument
+    shift # past value
+    ;;
     *)    # unknown option
     echo "unknown option $1"
     exit
@@ -61,13 +66,28 @@ mkdir -p build
 cd build
 
 if [ -z ${INSTALL_PREFIX+x} ]; then
-    cmake                                        \
-        -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
-        ..
+    if [ -z ${LLVM_CONFIG+x} ]; then
+        cmake                                        \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
+            ..
+    else
+        cmake                                        \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
+            -DLLVM_CONFIG=${LLVM_CONFIG}             \
+            ..
+    fi
 else
-    cmake                                        \
-        -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
-        -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
-        ..
+    if [ -z ${LLVM_CONFIG+x} ]; then
+        cmake                                        \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
+            -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+            ..
+    else
+        cmake                                        \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
+            -DLLVM_CONFIG=${LLVM_CONFIG}             \
+            -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+            ..
+    fi
 fi
 make -j$CORES
