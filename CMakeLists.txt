@@ -18,7 +18,11 @@ execute_process(COMMAND "${LLVM_CONFIG}" "--prefix"
     OUTPUT_VARIABLE LLVM_ROOT
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-message(STATUS "Using LLVM from=${LLVM_ROOT}")
+execute_process(COMMAND "${LLVM_CONFIG}" "--version"
+    OUTPUT_VARIABLE LLVM_VER
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+message(STATUS "Using LLVM version ${LLVM_VER} from '${LLVM_ROOT}'")
 
 execute_process(COMMAND "${LLVM_CONFIG}" "--cmakedir"
     OUTPUT_VARIABLE LLVM_CMAKE_DIR
