@@ -3,7 +3,7 @@
 Compiler for the bJou programming language
 
 ## Building ##
-`./build.sh [--build-type <Debug|Release>] [--install-prefix <path>]`
+`./build.sh [--build-type <Debug|Release>] [--install-prefix <path>] [--llvm-config <path>]`
 
 ## Installing ##
 `./install.sh`
