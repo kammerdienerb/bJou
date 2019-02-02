@@ -14,6 +14,10 @@ set(llvm_config_names llvm-config-8.0 llvm-config80
 find_program(LLVM_CONFIG
     NAMES ${llvm_config_names})
 
+execute_process(COMMAND "${LLVM_CONFIG}" "--prefix"
+    OUTPUT_VARIABLE LLVM_ROOT
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 message(STATUS "Using LLVM from=${LLVM_ROOT}")
 
 execute_process(COMMAND "${LLVM_CONFIG}" "--cmakedir"
@@ -21,8 +25,6 @@ execute_process(COMMAND "${LLVM_CONFIG}" "--cmakedir"
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 include("${LLVM_CMAKE_DIR}/LLVMConfig.cmake")
-
-llvm_map_components_to_libnames(LLVM_LIBS all)
 
 execute_process(COMMAND "${LLVM_CONFIG}" "--cxxflags"
     OUTPUT_VARIABLE LLVM_CXX_FLAGS
@@ -66,7 +68,7 @@ target_include_directories(bjou PRIVATE ${LLVM_INCLUDE_DIRS})
 
 target_compile_options(bjou PRIVATE -fno-rtti -fno-exceptions -w)
 
-target_link_libraries(bjou ${LLVM_LIBS} ffi pthread ${LLVM_SYSTEM_LIBS})
+target_link_libraries(bjou LLVM ffi pthread ${LLVM_SYSTEM_LIBS})
 
 target_compile_definitions(bjou PRIVATE BJOU_USE_COLOR)
 target_compile_definitions(bjou PRIVATE $<$<CONFIG:Debug>:BJOU_DEBUG_BUILD>)
