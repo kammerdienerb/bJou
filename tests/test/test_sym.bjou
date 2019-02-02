@@ -9,7 +9,7 @@ proc printf(i : int)           print "%", i
 proc printf(f : float)         print "%", f
 proc printf(t : (int, int))    print "(%, %)", t.0, t.1
 
-proc p$T(t : T)                print "p$%()", \typetag{T}
+proc p$T(t : T)                print "p$T()"
 
 const F := 4.56
 G := "G\n"
@@ -26,7 +26,7 @@ type T {
     v : V ref
 
     proc create(i : i32, v : V ref) : T    return { T: .i = i, .v = v }
-    proc Print(this)                       print "{ .i = %, .v = % }", this.i, &this.v
+    proc Print(this)                       print "{ .i = %, .v = some ref }", this.i
 }
 
 type U$T {
@@ -63,8 +63,7 @@ proc takesTuple$(A, B, C)(tup : (A, B, C)) {
 }
 
 proc takesTuplePtr$(A, B, C)(ptr : (A, B, C)*) {
-    print "takesTuplePtr: @% = (%, %, %)",
-            ptr,
+    print "takesTuplePtr: @ptr = (%, %, %)",
             ptr.0,
             ptr.1,
             ptr.2
@@ -137,5 +136,5 @@ proc main() {
         print "dyn has % items", |dyn|
     }
 
-    foreach ref f in dyn    print "@% = %", &f, f
+    foreach ref f in dyn    print "%", f
 }

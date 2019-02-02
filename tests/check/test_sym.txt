@@ -1,0 +1,37 @@
+Testing new symbol system
+hello, world
+4.560000
+G
+123
+(8, 9)
+p$T()
+p$T()
+{ .i = 1, .v = some ref }
+{ .i = 4, .v = some ref }
+{ .i = 9, .v = some ref }
+{ .i = 16, .v = some ref }
+{ .i = 25, .v = some ref }
+U.print()
+{ .field = b }
+{ .field = j }
+{ .field = o }
+{ .field = u }
+t: j, u: 3.141590
+(123, 4.560000, c)
+takesTuple: (123, 4.560000, c)
+takesTuple: (We, Three, Strings)
+takesTuplePtr: @ptr = (p, t, r)
+takesTupleTemplateRef(): 123
+Party like it's 1999
+0.000000
+new string: 'a new string'
+dyn has 1 items
+dyn has 2 items
+dyn has 3 items
+dyn has 4 items
+dyn has 5 items
+-1.000000
+-2.000000
+-3.000000
+-4.000000
+-5.000000

@@ -1,3 +1,4 @@
+build
 lib
 *.o
 debug
@@ -19,3 +20,4 @@ tests/out
 berg
 .DS_Store
 .clang_complete
+nolibc_syscall

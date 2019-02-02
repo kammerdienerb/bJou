@@ -1,9 +1,0 @@
-# test.bjou
-
-\front{ true }
-\static_do{
-    print "hello"
-}
-\static_do{
-    print "hello"
-}
