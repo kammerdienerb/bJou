@@ -14,13 +14,11 @@ set(llvm_config_names llvm-config-8.0 llvm-config80
 find_program(LLVM_CONFIG
     NAMES ${llvm_config_names})
 
-message(STATUS "Using LLVM_CONFIG=${LLVM_CONFIG}")
+message(STATUS "Using LLVM from=${LLVM_ROOT}")
 
 execute_process(COMMAND "${LLVM_CONFIG}" "--cmakedir"
     OUTPUT_VARIABLE LLVM_CMAKE_DIR
     OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-message(STATUS "Using LLVM_CMAKE_DIR=${LLVM_CMAKE_DIR}")
 
 include("${LLVM_CMAKE_DIR}/LLVMConfig.cmake")
 
@@ -83,3 +81,5 @@ install(DIRECTORY modules
 
 install(TARGETS bjou
         RUNTIME DESTINATION bin)
+
+message(STATUS "Install prefix is '${CMAKE_INSTALL_PREFIX}'")

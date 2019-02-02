@@ -1,5 +1,34 @@
 #! /usr/bin/env bash
 
+BUILD_TYPE="Release"
+
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+    -i|--install-prefix)
+    INSTALL_PREFIX="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    -b|--build-type)
+    BUILD_TYPE="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    *)    # unknown option
+    echo "unknown option $1"
+    exit
+    ;;
+esac
+done
+
+if [ "${BUILD_TYPE}" != "Debug" ] && [ "${BUILD_TYPE}" != "Release" ]; then
+    echo "build type '${BUILD_TYPE}' is invalid -- must be 'Debug' or 'Release'"
+    exit
+fi
+
 function has_cmd() {
     HAS=$(command -v "$1" 2> /dev/null)
     if [[ "$HAS" != "" ]]; then
@@ -30,6 +59,15 @@ cd ..
 # build bJou
 mkdir -p build
 cd build
-cmake -DCMAKE_BUILD_TYPE="Release" \
-    ..
+
+if [ -z ${INSTALL_PREFIX+x} ]; then
+    cmake                                        \
+        -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
+        ..
+else
+    cmake                                        \
+        -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
+        -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+        ..
+fi
 make -j$CORES
