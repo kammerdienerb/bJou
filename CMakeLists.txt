@@ -80,11 +80,11 @@ target_compile_options(bjou PRIVATE -fno-rtti -fno-exceptions -w)
 target_link_libraries(bjou LLVM ffi pthread ${LLVM_SYSTEM_LIBS})
 
 target_compile_definitions(bjou PRIVATE BJOU_USE_COLOR)
+target_compile_definitions(bjou PRIVATE BJOU_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}")
 target_compile_definitions(bjou PRIVATE $<$<CONFIG:Debug>:BJOU_DEBUG_BUILD>)
 
-
 # installation
-install(FILES nolibc_syscall/nolibc_syscall.o
+install(FILES nolibc_syscall/libnolibc_syscall.a
         DESTINATION lib)
 
 install(DIRECTORY modules

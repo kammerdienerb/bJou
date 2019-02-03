@@ -25,6 +25,12 @@
 #define BJOU_DEBUG_BUILD
 #endif
 
+#ifdef BJOU_INSTALL_PREFIX
+    #define BJOU_DEFAULT_SEARCH BJOU_INSTALL_PREFIX "/lib/bjou/modules/"
+#else
+    #define BJOU_DEFAULT_SEARCH "/usr/local/lib/bjou/modules/"
+#endif
+
 namespace bjou {
 Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
                          ArgSet & _args)
@@ -78,7 +84,7 @@ Compilation::Compilation(FrontEnd & _frontEnd, BackEnd & _backEnd,
     module_search_paths.push_back("modules/");
 
 #ifndef _WIN32
-    module_search_paths.push_back("/usr/local/lib/bjou/modules/");
+    module_search_paths.push_back(BJOU_DEFAULT_SEARCH);
 #endif
 }
 

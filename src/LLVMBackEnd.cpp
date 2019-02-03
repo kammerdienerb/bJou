@@ -51,6 +51,12 @@
 #define BJOU_DEBUG_BUILD
 #endif
 
+#ifdef BJOU_INSTALL_PREFIX
+    #define NOLIBC_SYSCALL_SEARCH BJOU_INSTALL_PREFIX "/lib"
+#else
+    #define NOLIBC_SYSCALL_SEARCH "/usr/local/lib"
+#endif
+
 namespace bjou {
 
 StackFrame::StackFrame() : vals({}), namedVals({}) {}
@@ -1003,6 +1009,8 @@ milliseconds LLVMBackEnd::LinkingStage() {
 
     link_args.push_back("-ldl");
     link_args.push_back("-lm");
+    link_args.push_back("-L" NOLIBC_SYSCALL_SEARCH);
+    link_args.push_back("-lnolibc_syscall");
 
     bool use_system_linker = true;
 

@@ -16,6 +16,18 @@
 #include <cstring>
 #include <future>
 
+#define STR(x) _STR(x)
+#define _STR(x) #x
+
+#define CAT2(x, y) _CAT2(x, y)
+#define _CAT2(x, y) x##y
+
+#define CAT3(x, y, z) _CAT3(x, y, z)
+#define _CAT3(x, y, z) x##y##z
+
+#define CAT4(a, b, c, d) _CAT4(a, b, c, d)
+#define _CAT4(a, b, c, d) a##b##c##d
+
 #define B_MAX(a, b) ((a) > (b) ? (a) : (b))
 
 template <size_t N> bool s_in_a(const char * s, const char * (&a)[N]) {
