@@ -1,7 +1,7 @@
 import "build.bjou"
 
 \static_do {
-    sources := { "sorting.bjou", "/usr/local/lib/nolibc_syscall.o" }
+    sources := { "sorting.bjou" }
 
     options := build::BuildOptions.create()
 
