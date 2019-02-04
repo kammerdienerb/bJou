@@ -5,7 +5,9 @@
 module clang
 
 import "c/dlfcn.bjou"
+using c_dlfcn
 import "null.bjou"
+using null
 
 # global libclang object
 clang := { libclang: }

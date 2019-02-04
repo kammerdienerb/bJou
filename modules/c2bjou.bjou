@@ -15,19 +15,21 @@ extern dirname(char*) : char*
 const PRINT_AST := false
 
 import "null.bjou"
-
+using null
 import "dict.bjou"
+using dict
 
-# must be defined for clang.bjou to compile
-const libclang_path := "/usr/local/Cellar/llvm@6/6.0.1/lib/libclang.dylib"
 import "clang.bjou"
+using clang
 import "clangextras.bjou"
+using clangextras
 import "c2bjou/ClangWrapper.bjou"
+using c2bjou_ClangWrapper 
 import "c2bjou/visitors.bjou"
+using c2bjou_visitors
 
 import "compiler.bjou"
-
-# import "c/io.bjou"
+using compiler
 
 proc include(fname : char*) {# : c2bJou {
     init_clang()

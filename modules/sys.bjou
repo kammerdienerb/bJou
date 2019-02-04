@@ -10,7 +10,7 @@ import "os.bjou"
         print "attempting to create sys modules"
     } }
 
-\static_if{ os.IS_POSIX
+\static_if{ os::IS_POSIX
     \static_if{ \canfindmodule{ "sys/posix/aio.bjou" }
         import "sys/posix/aio.bjou"
         import "sys/posix/arpa/inet.bjou"
@@ -21,5 +21,5 @@ import "os.bjou"
         \static_do{
             createSysModules() } } }
 
-\static_if{ os.OS == os.WINDOWS
+\static_if{ os::OS == os.WINDOWS
     \error{ "'sys.bjou' not implemented for Windows yet." } }

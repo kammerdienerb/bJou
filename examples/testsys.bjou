@@ -1,9 +1,0 @@
-# testsys.bjou
-
-import "sys.bjou"
-
-\run{ main() }
-
-proc main() {
-    print "testsys.bjou"
-}

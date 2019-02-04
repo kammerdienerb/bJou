@@ -3,7 +3,14 @@
 module c2bjou_visitors
 
 import "clang.bjou"
+using clang
 import "compiler.bjou"
+using compiler
+
+import "c2bjou.bjou"
+using c2bjou
+using c2bjou_ClangWrapper
+using clangextras
 
 type visitor_t = <(CXCursor,      # cursor
                    CXCursor,      # parent

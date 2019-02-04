@@ -5,7 +5,10 @@
 
 module clangextras
 
+import "c/dlfcn.bjou"
+using c_dlfcn
 import "clang.bjou"
+using clang
 
 clangextras := { libclangextras: }
 

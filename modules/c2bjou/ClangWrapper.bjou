@@ -3,6 +3,8 @@
 module c2bjou_ClangWrapper
 
 import "clang.bjou"
+using clang
+using c2bjou_visitors
 
 type ClangWrapper {
     index    : CXIndex*
