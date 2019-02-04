@@ -13,7 +13,7 @@ using null
 clang := { libclang: }
 
 proc init_clang()
-    clang = libclang.create(libclang_path)
+    clang = libclang.create()
 
 const CXVisit_Break     := 0
 const CXVisit_Continue  := 1
@@ -639,8 +639,8 @@ type IndexerCallbacks {
 abstract type CXIndexAction { }
 
 type libclang {
-    _path       : char*
     _lib_handle : void*
+    _path       : char*
 
     # ---------------- symbols ----------------
     
@@ -913,11 +913,15 @@ type libclang {
 
     # ------------- end symbols --------------
    
-    proc _load(this, path : char*) {
-        handle := dlopen(libclang_path, RTLD_LAZY)
+    proc _load(this) {
+        \static_if{ os::OS == os::MACOS
+            const c := "libclang.dylib" }
+        \static_if{ os::OS != os::MACOS
+            const c := "libclang.so" }
+        handle := dlopen(c, RTLD_LAZY)
         if handle.isnull()
             \die{ dlerror() }
-        this._lib_handle = handle 
+        this._lib_handle = handle
     }
 
     proc _handleGetSymbol(this, sym : char*) : void* {
@@ -927,10 +931,9 @@ type libclang {
         return ptr
     }
 
-    proc create(path : char*) : libclang {
+    proc create() : libclang {
         lib := { libclang: }
-        lib._path = path
-        lib._load(path)
+        lib._load()
 
         # load symbols
          lib.getCString = (lib._handleGetSymbol("clang_getCString"))
@@ -1118,6 +1121,11 @@ type libclang {
 
         lib.getClangVersion = (lib._handleGetSymbol("clang_getClangVersion"))
             as <() : CXString>
+
+        # janky
+        handle_info := { Dl_info: }
+        dladdr(lib.getClangVersion as void*, &handle_info)
+        lib._path = cstrdup(handle_info.dli_fname)
 
         return lib
     }

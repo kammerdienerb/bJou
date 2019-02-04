@@ -337,6 +337,7 @@ milliseconds FrontEnd::SymbolsStage() {
     globalScope->usings.push_back("__string");
     globalScope->usings.push_back("__env");
     globalScope->usings.push_back("__panic");
+    globalScope->usings.push_back("__c_support");
 
     std::string empty_mod_string = "";
     for (ASTNode * s : structs)

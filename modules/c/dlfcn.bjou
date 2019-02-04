@@ -6,6 +6,8 @@
 
 module c_dlfcn
 
+import "os.bjou"
+
 # taken from /usr/include/dlfcn.h
 #define RTLD_LAZY       0x1
 #define RTLD_NOW        0x2
@@ -20,3 +22,12 @@ extern dlopen(char*, int) : void*
 extern dlclose(void*)
 extern dlsym(void*, char*) : void*
 extern dlerror() : char*
+
+type Dl_info {
+    dli_fname : char*
+    dli_fbase : void*
+    dli_sname : char*
+    dli_saddr : void*
+}
+
+extern dladdr(void*, Dl_info*) : i32
