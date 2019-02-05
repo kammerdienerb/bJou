@@ -6,6 +6,7 @@ extern bjou_StartDefaultCompilation(
     bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool,
     char**, int,
     char*,
+    char*,
     char**, int,
     char**, int)
 

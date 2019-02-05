@@ -161,7 +161,8 @@ template <> inline _Symbol<Procedure>::_Symbol(std::string name, std::string mod
         }
         unmangled += name;
 
-        if (proc->getFlag(Procedure::IS_EXTERN)) {
+        if (proc->getFlag(Procedure::IS_EXTERN)
+        ||  proc->getFlag(Procedure::NO_MANGLE)) {
             BJOU_DEBUG_ASSERT(type.empty());
             proc_name = name;
         } else {

@@ -30,6 +30,7 @@ type BuildOptions {
     emitllvm            : bool
     module_search_paths : char*[...]
     output_name         : char*
+    targettriple        : char*
     link                : char*[...]
     files               : char*[...]
     ################################
@@ -96,6 +97,7 @@ proc build(options : BuildOptions ref) {
         options.module_search_paths.data(),
         |options.module_search_paths|,
         options.output_name,
+        options.targettriple,
         options.link.data(),
         |options.link|,
         options.files.data(),

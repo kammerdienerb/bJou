@@ -81,7 +81,7 @@ ArgSet::ArgSet(bool _verbose_arg, bool _front_arg, bool _time_arg,
                bool _noabc_arg, bool _module_arg, bool _nopreload_arg,
                bool _lld_arg, bool _c_arg, bool _emitllvm_arg,
                const std::vector<std::string> & _module_search_path_arg,
-               const std::string & _output_arg,
+               const std::string & _output_arg, const std::string & _target_triple_arg,
                const std::vector<std::string> & _link_arg,
                const std::vector<std::string> & _files)
     : verbose_arg(_verbose_arg), front_arg(_front_arg), time_arg(_time_arg),
@@ -90,7 +90,7 @@ ArgSet::ArgSet(bool _verbose_arg, bool _front_arg, bool _time_arg,
       nopreload_arg(_nopreload_arg), lld_arg(_lld_arg), c_arg(_c_arg),
       emitllvm_arg(_emitllvm_arg),
       module_search_path_arg(_module_search_path_arg), output_arg(_output_arg),
-      link_arg(_link_arg), files(_files) {}
+      target_triple_arg(_target_triple_arg), link_arg(_link_arg), files(_files) { }
 
 void ArgSet::print() {
     printf("verbose             = %s\n", (verbose_arg ? "true" : "false"));
@@ -120,6 +120,7 @@ void ArgSet::print() {
     }
 
     printf("output              = %s\n", output_arg.c_str());
+    printf("targettriple        = %s\n", target_triple_arg.c_str());
 
     printf("link                = { ");
     if (link_arg.empty()) {

@@ -2583,7 +2583,7 @@ struct Procedure : ASTNode {
     ASTNode * inst; // not owned!
 
     enum eBitFlags E_BIT_FLAGS_AND(IS_ANONYMOUS, IS_TEMPLATE_DERIVED, IS_EXTERN,
-                                   IS_VARARG, IS_TYPE_MEMBER);
+                                   IS_VARARG, IS_TYPE_MEMBER, NO_MANGLE);
 
     std::string & getName();
     void setName(std::string _name);

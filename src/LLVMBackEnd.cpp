@@ -80,11 +80,14 @@ void LLVMBackEnd::init() {
 
     // llvm initialization for object code gen
     llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
     llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmPrinters();
+    llvm::InitializeAllAsmParsers();
 
-    llvm::InitializeNativeTarget();
-    llvm::InitializeNativeTargetAsmPrinter();
-    llvm::InitializeNativeTargetAsmParser();
+    /* llvm::InitializeNativeTarget(); */
+    /* llvm::InitializeNativeTargetAsmPrinter(); */
+    /* llvm::InitializeNativeTargetAsmParser(); */
 
     // initialize passes
     llvm::PassRegistry & Registry = *llvm::PassRegistry::getPassRegistry();
@@ -117,14 +120,16 @@ void LLVMBackEnd::init() {
     /* llvm::initializeUnreachableBlockElimLegacyPassPass(Registry); */
 
     // set up target and triple
-    defaultTriple = llvm::sys::getDefaultTargetTriple();
+    defaultTriple = compilation->args.target_triple_arg;
+    if (defaultTriple.empty()) {
+        defaultTriple = llvm::sys::getDefaultTargetTriple();
+    }
     std::string targetErr;
     defaultTarget =
         llvm::TargetRegistry::lookupTarget(defaultTriple, targetErr);
     if (!defaultTarget) {
-        error(Context(), "Could not create llvm default Target.", false,
-              targetErr);
-        internalError("There was an llvm error.");
+        error(Context(), "Could not create llvm Target.", true,
+              targetErr, "Did you compile LLVM with the desired target enabled?");
     }
 
     llvm::TargetOptions Options;
@@ -952,13 +957,23 @@ milliseconds LLVMBackEnd::CodeGenStage() {
     // for (ASTNode * node : global_vars_and_consts)
     // getOrGenNode(node);
 
-    llvm::Function * main = createMainEntryPoint();
+    if (compilation->args.c_arg) {
+        for (ASTNode * node : compilation->frontEnd.AST) {
+            getOrGenNode(node);
+        }
 
-    completeTypes();
-    completeGlobs();
-    completeProcs();
+        completeTypes();
+        completeGlobs();
+        completeProcs();
+    } else {
+        llvm::Function * main = createMainEntryPoint();
 
-    completeMainEntryPoint(main);
+        completeTypes();
+        completeGlobs();
+        completeProcs();
+
+        completeMainEntryPoint(main);
+    }
 
     popFrame();
 
@@ -1477,13 +1492,9 @@ llvm::Value * LLVMBackEnd::createGlobalStringVariable(std::string str) {
                                                 true);
 }
 
-/*
 void * ASTNode::generate(BackEnd & backEnd, bool flag) {
-    errorl(getContext(), "unimplemented generate()", false);
-    internalError("Code generation failed.");
     return nullptr;
 }
-*/
 
 void * MultiNode::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;

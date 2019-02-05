@@ -294,7 +294,7 @@ void Scope::addSymbol(Symbol * symbol, Context * context) {
     symbols[symbol->unmangled] = symbol;
 }
 
-void Scope::addProcSymbol(Symbol * symbol, bool is_extern, Context * context) {
+void Scope::addProcSymbol(Symbol * symbol, bool is_extern, bool no_mangle, Context * context) {
     Maybe<Symbol *> m_existing = getSymbol(this, symbol->proc_name, nullptr, true, false);
     Symbol * existing = nullptr;
     
@@ -314,7 +314,7 @@ void Scope::addProcSymbol(Symbol * symbol, bool is_extern, Context * context) {
 
         ProcSet * set = (ProcSet*)existing->node();
 
-        if (is_extern) {
+        if (is_extern || no_mangle) {
             for (auto & sym : set->procs) {
                 if (sym.second->isTemplateProc())
                     continue;
@@ -324,14 +324,18 @@ void Scope::addProcSymbol(Symbol * symbol, bool is_extern, Context * context) {
                 BJOU_DEBUG_ASSERT(symbol->node()->nodeKind == ASTNode::PROCEDURE);
                 Procedure * proc = (Procedure *)symbol->node();
 
-                if (existing_proc->getFlag(Procedure::IS_EXTERN)) {
+                if (existing_proc->getFlag(Procedure::IS_EXTERN)
+                ||  existing_proc->getFlag(Procedure::NO_MANGLE)) {
                     const Type * t = proc->getType();
                     const Type * existing_t = existing_proc->getType();
 
                     if (!equal(existing_t, t)) {
+                        std::string err_str = existing_proc->getFlag(Procedure::NO_MANGLE)
+                                                ? "no_mangle"
+                                                : "extern";
                         errorl(
                             proc->getNameContext(),
-                            "Conflicting declarations of extern procedure '" +
+                            "Conflicting declarations of " + err_str + " procedure '" +
                                 proc->getName() + "'.",
                             false,
                             "declared with type '" + t->getDemangledName() +
@@ -386,15 +390,16 @@ void Scope::addProcSymbol(Symbol * symbol, bool is_extern, Context * context) {
 void Scope::addSymbol(_Symbol<Procedure> * symbol, Context * context) {
     Procedure * proc = (Procedure *)symbol->node();
     bool is_extern = proc->getFlag(Procedure::IS_EXTERN);
+    bool no_mangle = proc->getFlag(Procedure::NO_MANGLE);
     if (is_extern) {
-        compilation->frontEnd.globalScope->addProcSymbol(symbol, is_extern, context);
+        compilation->frontEnd.globalScope->addProcSymbol(symbol, is_extern, no_mangle, context);
     } else {
-        addProcSymbol(symbol, is_extern, context);
+        addProcSymbol(symbol, is_extern, no_mangle, context);
     }
 }
 
 void Scope::addSymbol(_Symbol<TemplateProc> * symbol, Context * context) {
-    addProcSymbol(symbol, false, context);
+    addProcSymbol(symbol, false, false, context);
 }
 
 void Scope::printSymbols(int indent) const {

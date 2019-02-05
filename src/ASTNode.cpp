@@ -113,7 +113,6 @@ void ASTNode::setScope(Scope * _scope) {
 void ASTNode::unwrap(std::vector<ASTNode *> & terminals) {}
 ASTNode * ASTNode::clone() { return nullptr; }
 void ASTNode::desugar() {}
-void * ASTNode::generate(BackEnd & backEnd, bool flag) { return nullptr; }
 
 void ASTNode::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     BJOU_DEBUG_ASSERT(false);
@@ -7266,7 +7265,11 @@ void Procedure::addSymbols(std::string& _mod, Scope * _scope) {
 
 
         setLookupName(symbol->proc_name);
-        setMangledName(symbol->real_mangled);
+        if (getFlag(Procedure::NO_MANGLE)) {
+            setMangledName(symbol->proc_name);
+        } else {
+            setMangledName(symbol->real_mangled);
+        }
 
         if (getName() == "__bjou_rt_init")
             compilation->frontEnd.__bjou_rt_init_def = this;
@@ -9732,15 +9735,19 @@ void MacroUse::addSymbols(std::string& _mod, Scope * _scope) {
 
     bool fast_track = false;
 
-    int i = 0;
-    for (ASTNode * arg : getArgs()) {
-        if (arg->nodeKind != STRUCT) {
-            if (compilation->frontEnd.macroManager.shouldAddSymbols(this, i))
-                arg->addSymbols(mod, _scope);
-            else
-                fast_track = true;
+    if (getArgs().size() == 0) {
+        fast_track = true;
+    } else {
+        int i = 0;
+        for (ASTNode * arg : getArgs()) {
+            if (arg->nodeKind != STRUCT) {
+                if (compilation->frontEnd.macroManager.shouldAddSymbols(this, i))
+                    arg->addSymbols(mod, _scope);
+                else
+                    fast_track = true;
+            }
+            i += 1;
         }
-        i += 1;
     }
 
     if (!compilation->frontEnd.stop_tracking_macros) {

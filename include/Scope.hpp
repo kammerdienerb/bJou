@@ -53,7 +53,7 @@ struct Scope {
     void addSymbol(Symbol * symbol, Context * context);
     void addSymbol(_Symbol<Procedure> * symbol, Context * context);
     void addSymbol(_Symbol<TemplateProc> * symbol, Context * context);
-    void addProcSymbol(Symbol * symbol, bool is_extern, Context * context);
+    void addProcSymbol(Symbol * symbol, bool is_extern, bool no_mangle, Context * context);
     void printSymbols(int indent) const;
 };
 

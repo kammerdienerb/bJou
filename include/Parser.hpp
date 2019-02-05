@@ -104,6 +104,7 @@ MaybeString parser_at(StringViewableBuffer & buff);
 MaybeString parser_kwd_not(StringViewableBuffer & buff);
 MaybeString parser_kwd_new(StringViewableBuffer & buff);
 MaybeString parser_kwd_proc(StringViewableBuffer & buff);
+MaybeString parser_kwd___no_mangle__(StringViewableBuffer & buff);
 MaybeString parser_kwd_extern(StringViewableBuffer & buff);
 MaybeString parser_kwd_some(StringViewableBuffer & buff);
 MaybeString parser_kwd_bneg(StringViewableBuffer & buff);
@@ -218,6 +219,7 @@ enum TokenKind {
     KWD_NOT,
     KWD_NEW,
     KWD_PROC,
+    KWD___NO_MANGLE__,
     KWD_EXTERN,
     KWD_SOME,
     KWD_BNEG,

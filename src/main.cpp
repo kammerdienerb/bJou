@@ -82,6 +82,9 @@ int main(int argc, const char ** argv) {
     TCLAP::ValueArg<std::string> output_arg("o", "output",
                                             "Name of target output file.",
                                             false, "", "file name", cmd_line);
+    TCLAP::ValueArg<std::string> target_triple_arg("t", "targettriple",
+                                            "LLVM target triple string to target.",
+                                            false, "", "triple", cmd_line);
     TCLAP::MultiArg<std::string> link_arg("l", "link",
                                           "Name of libraries to link.", false,
                                           "library name", cmd_line);
@@ -107,18 +110,13 @@ int main(int argc, const char ** argv) {
                          emitllvm_arg.getValue(),
                          module_search_path_arg.getValue(),
                          output_arg.getValue(),
+                         target_triple_arg.getValue(),
                          link_arg.getValue(),
                          files.getValue()};
 
-    // args.print();
+    /* args.print(); */
 
     StartDefaultCompilation(args);
-
-    // bjou::FrontEnd frontEnd;
-    // bjou::LLVMBackEnd llvmBackEnd(frontEnd);
-
-    // // compilation = new bjou::Compilation(frontEnd, llvmBackEnd, args);
-    // compilation->go();
 
     return 0;
 }
