@@ -842,7 +842,7 @@ MacroManager::MacroManager() {
                              Macros::typetag,
                              {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
     macros["add_global_using"] = {"add_global_using", Macros::add_global_using, {{ASTNode::NodeKind::IDENTIFIER}}};
-    macros["volatile_r"] = {"volatile_r", Macros::volatile_r, {{ASTNode::NodeKind::ASSIGNMENT_EXPRESSION}}};
+    macros["volatile_r"] = {"volatile_r", Macros::volatile_r, {{ASTNode::NodeKind::DEREF_EXPRESSION}}};
     macros["volatile_w"] = {"volatile_w", Macros::volatile_w, {{ASTNode::NodeKind::ASSIGNMENT_EXPRESSION}}};
 }
 
