@@ -139,7 +139,7 @@ void LLVMBackEnd::init() {
                                    : llvm::CodeGenOpt::None);
 
     auto RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::PIC_);
-    if (strcmp(target->getShortDescription(), "RISCV") == 0) {
+    if (strstr(target->getShortDescription(), "RISC-V")) {
         RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::Static);
     }
     targetMachine = target->createTargetMachine(
@@ -214,7 +214,7 @@ void LLVMBackEnd::jit_reset() {
                                    : llvm::CodeGenOpt::None);
 
     auto RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::PIC_);
-    if (strcmp(target->getShortDescription(), "RISCV") == 0) {
+    if (strstr(target->getShortDescription(), "RISC-V")) {
         RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::Static);
     }
     targetMachine = target->createTargetMachine(
