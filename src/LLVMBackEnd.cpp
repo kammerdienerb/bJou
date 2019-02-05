@@ -138,18 +138,14 @@ void LLVMBackEnd::init() {
         (compilation->args.opt_arg ? llvm::CodeGenOpt::Aggressive
                                    : llvm::CodeGenOpt::None);
 
-    targetMachine = target->createTargetMachine(
-        genTriple, "generic", "", Options, llvm::None,
-        llvm::CodeModel::Small, OLvl);
-    layout = new llvm::DataLayout(targetMachine->createDataLayout());
-
-    // set up default target machine
-    std::string CPU = "generic";
-    std::string Features = "";
-    llvm::TargetOptions opt;
     auto RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::PIC_);
+    if (strcmp(target->getShortDescription(), "RISCV") == 0) {
+        RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::Static);
+    }
     targetMachine = target->createTargetMachine(
-        genTriple, CPU, Features, opt, RM);
+        genTriple, "", "", Options, RM,
+        llvm::None, OLvl);
+    layout = new llvm::DataLayout(targetMachine->createDataLayout());
 
     outModule = new llvm::Module(compilation->outputbasefilename, llContext);
     outModule->setDataLayout(targetMachine->createDataLayout());
@@ -217,9 +213,13 @@ void LLVMBackEnd::jit_reset() {
         (compilation->args.opt_arg ? llvm::CodeGenOpt::Aggressive
                                    : llvm::CodeGenOpt::None);
 
+    auto RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::PIC_);
+    if (strcmp(target->getShortDescription(), "RISCV") == 0) {
+        RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::Static);
+    }
     targetMachine = target->createTargetMachine(
-        nativeTriple, "generic", "", Options, llvm::None,
-        llvm::CodeModel::Small, OLvl);
+        nativeTriple, "", "", Options, RM,
+        llvm::None, OLvl, /* jit = */true);
     layout = new llvm::DataLayout(targetMachine->createDataLayout());
 
     jitModule->setDataLayout(targetMachine->createDataLayout());
