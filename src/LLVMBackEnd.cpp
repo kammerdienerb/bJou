@@ -3691,10 +3691,10 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         func_type = (llvm::FunctionType *)payload->fn_t;
         //
 
-        llvm::Function::LinkageTypes linkage =
-            getFlag(Procedure::IS_EXTERN) // || getFlag(Procedure::IS_ANONYMOUS)
-                ? llvm::Function::ExternalLinkage
-                : llvm::Function::InternalLinkage;
+        llvm::Function::LinkageTypes linkage = llvm::Function::ExternalLinkage;
+            /* ((getFlag(Procedure::IS_EXTERN) || (compilation->args.c_arg && llbe->mode != LLVMBackEnd::GEN_MODE::CT))) */
+            /*     ? llvm::Function::ExternalLinkage */
+            /*     : llvm::Function::InternalLinkage; */
 
         func = llvm::Function::Create(func_type, linkage, getMangledName(),
                                       llbe->llModule);
@@ -3705,8 +3705,11 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         // any recursive references do not cause problems
         llbe->generated_nodes[this] = func;
 
-        if (linkage == llvm::Function::LinkageTypes::InternalLinkage)
+        if (!getFlag(Procedure::IS_EXTERN)) {
             llbe->procs_need_completion.insert(this);
+        }
+        /* if (linkage == llvm::Function::LinkageTypes::InternalLinkage) */
+        /*     llbe->procs_need_completion.insert(this); */
 
         int i = 0;
         for (auto & arg : func->args()) {
