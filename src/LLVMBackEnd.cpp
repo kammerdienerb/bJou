@@ -1732,23 +1732,10 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
     if (lt->isStruct()) { // do memcpy
         rv = (llvm::Value *)getRight()->generate(backEnd, true);
 
-        static bool checked_memcpy = false;
-        if (!checked_memcpy) {
-            if (compilation->frontEnd.memcpy_decl) {
-                llbe->getOrGenNode(compilation->frontEnd.memcpy_decl);
-                checked_memcpy = true;
-            } else
-                errorl(
-                    getContext(), "bJou is missing a memcpy declaration.", true,
-                    "if using --nopreload, an extern declaration must be made "
-                    "available");
-        }
-
-        llvm::Function * func = llbe->llModule->getFunction("memcpy");
-        BJOU_DEBUG_ASSERT(func);
-
         llvm::PointerType * ll_byte_ptr_t =
             llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
+
+        auto align = llbe->layout->getABITypeAlignment(llbe->getOrGenType(lt));
 
         llvm::Value * dest = llbe->builder.CreateBitCast(lv, ll_byte_ptr_t);
         llvm::Value * src = llbe->builder.CreateBitCast(rv, ll_byte_ptr_t);
@@ -1756,9 +1743,11 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
             llvm::Type::getInt64Ty(llbe->llContext),
             llbe->layout->getTypeAllocSize(llbe->getOrGenType(lt)));
 
-        std::vector<llvm::Value *> args = {dest, src, size};
-
-        llbe->builder.CreateCall(func, args);
+#if LLVM_VERSION_MAJOR >= 7
+        llbe->builder.CreateMemCpy(dest, align, src, align, size);
+#else
+        llbe->builder.CreateMemCpy(dest, src, size, align);
+#endif
     } else {
         rv = (llvm::Value *)getRight()->generate(backEnd);
 
@@ -3062,18 +3051,7 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
             const Type * elem_t = uninit.second->under();
 
             llvm::PointerType * ll_byte_ptr_t =
-
                 llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
-            if (compilation->frontEnd.malloc_decl)
-                llbe->getOrGenNode(compilation->frontEnd.malloc_decl);
-            else
-                errorl(
-                    getContext(), "bJou is missing a memset declaration.", true,
-                    "if using --nopreload, an extern declaration must be made "
-                    "available");
-
-            llvm::Function * func = llbe->llModule->getFunction("memset");
-            BJOU_DEBUG_ASSERT(func);
 
             llvm::Value *Ptr = nullptr, *Val = nullptr, *Size = nullptr;
 
@@ -3083,19 +3061,20 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
                      llvm::IntegerType::getInt32Ty(llbe->llContext)),
                  llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext),
                                         uninit.first)});
+
             Ptr = llbe->builder.CreateBitCast(Ptr, ll_byte_ptr_t);
 
             Val = llvm::Constant::getNullValue(
-                llvm::IntegerType::getInt32Ty(llbe->llContext));
+                llvm::IntegerType::getInt8Ty(llbe->llContext));
 
             Size = llvm::ConstantInt::get(
                 llvm::Type::getInt64Ty(llbe->llContext),
                 uninit.second->width *
                     llbe->layout->getTypeAllocSize(llbe->getOrGenType(elem_t)));
 
-            std::vector<llvm::Value *> args = {Ptr, Val, Size};
+            auto Align = llbe->layout->getABITypeAlignment(llbe->getOrGenType(elem_t));
 
-            llbe->builder.CreateCall(func, args);
+            llbe->builder.CreateMemSet(Ptr, Val, Size, Align);
         }
 
         if (getAddr || x86::ABIClassForType(*llbe, myt) == x86::MEMORY)
@@ -3198,22 +3177,6 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
 
         if (getInitialization() && !getType()->isRef()) {
             if (getType()->isStruct()) {
-                static bool checked_memcpy = false;
-                if (!checked_memcpy) {
-                    if (compilation->frontEnd.memcpy_decl) {
-                        llbe->getOrGenNode(compilation->frontEnd.memcpy_decl);
-                        checked_memcpy = true;
-                    } else
-                        errorl(getContext(),
-                               "bJou is missing a memcpy declaration.", true,
-                               "if using --nopreload, an extern declaration "
-                               "must be made "
-                               "available");
-                }
-
-                llvm::Function * func = llbe->llModule->getFunction("memcpy");
-                BJOU_DEBUG_ASSERT(func);
-
                 llvm::Type * ll_t = llbe->getOrGenType(getType());
 
                 llvm::Value * init_v = (llvm::Value *)llbe->getOrGenNode(
