@@ -77,7 +77,7 @@ target_include_directories(bjou PRIVATE ${LLVM_INCLUDE_DIRS})
 
 target_compile_options(bjou PRIVATE -fno-rtti -fno-exceptions -w)
 
-target_link_libraries(bjou LLVM ffi pthread ${LLVM_SYSTEM_LIBS})
+target_link_libraries(bjou ${LLVM_LD_FLAGS} LLVM ffi pthread ${LLVM_SYSTEM_LIBS})
 
 target_compile_definitions(bjou PRIVATE BJOU_USE_COLOR)
 target_compile_definitions(bjou PRIVATE BJOU_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}")

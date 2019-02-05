@@ -67,8 +67,8 @@ LoopFrameInfo::LoopFrameInfo(StackFrame _frame, llvm::BasicBlock * _bb)
 LLVMBackEnd::LLVMBackEnd(FrontEnd & _frontEnd)
     : BackEnd(_frontEnd), generator(*this),
       abi_lowerer(ABILowerer<LLVMBackEnd>::get(*this)), builder(llContext) {
-    defaultTarget = nullptr;
-    defaultTargetMachine = nullptr;
+    target = nullptr;
+    targetMachine = nullptr;
     layout = nullptr;
     llModule = nullptr;
     outModule = nullptr;
@@ -120,14 +120,15 @@ void LLVMBackEnd::init() {
     /* llvm::initializeUnreachableBlockElimLegacyPassPass(Registry); */
 
     // set up target and triple
-    defaultTriple = compilation->args.target_triple_arg;
-    if (defaultTriple.empty()) {
-        defaultTriple = llvm::sys::getDefaultTargetTriple();
+    nativeTriple = llvm::sys::getDefaultTargetTriple();
+    genTriple = compilation->args.target_triple_arg;
+    if (genTriple.empty()) {
+        genTriple = nativeTriple; 
     }
     std::string targetErr;
-    defaultTarget =
-        llvm::TargetRegistry::lookupTarget(defaultTriple, targetErr);
-    if (!defaultTarget) {
+    target =
+        llvm::TargetRegistry::lookupTarget(genTriple, targetErr);
+    if (!target) {
         error(Context(), "Could not create llvm Target.", true,
               targetErr, "Did you compile LLVM with the desired target enabled?");
     }
@@ -137,22 +138,22 @@ void LLVMBackEnd::init() {
         (compilation->args.opt_arg ? llvm::CodeGenOpt::Aggressive
                                    : llvm::CodeGenOpt::None);
 
-    defaultTargetMachine = defaultTarget->createTargetMachine(
-        defaultTriple, "generic", "", Options, llvm::None,
+    targetMachine = target->createTargetMachine(
+        genTriple, "generic", "", Options, llvm::None,
         llvm::CodeModel::Small, OLvl);
-    layout = new llvm::DataLayout(defaultTargetMachine->createDataLayout());
+    layout = new llvm::DataLayout(targetMachine->createDataLayout());
 
     // set up default target machine
     std::string CPU = "generic";
     std::string Features = "";
     llvm::TargetOptions opt;
     auto RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::PIC_);
-    defaultTargetMachine = defaultTarget->createTargetMachine(
-        defaultTriple, CPU, Features, opt, RM);
+    targetMachine = target->createTargetMachine(
+        genTriple, CPU, Features, opt, RM);
 
     outModule = new llvm::Module(compilation->outputbasefilename, llContext);
-    outModule->setDataLayout(defaultTargetMachine->createDataLayout());
-    outModule->setTargetTriple(defaultTriple);
+    outModule->setDataLayout(targetMachine->createDataLayout());
+    outModule->setTargetTriple(genTriple);
 
     // setup pre defined passes
     pass_create_by_name["earlycse"] = []() {
@@ -202,8 +203,27 @@ void LLVMBackEnd::jit_reset() {
     jitModule = std::unique_ptr<llvm::Module>(
         new llvm::Module{compilation->outputbasefilename + "__jit", llContext});
     llModule = jitModule.get();
-    jitModule->setDataLayout(defaultTargetMachine->createDataLayout());
-    jitModule->setTargetTriple(defaultTriple);
+
+    std::string targetErr;
+    target =
+        llvm::TargetRegistry::lookupTarget(nativeTriple, targetErr);
+    if (!target) {
+        error(Context(), "Could not create llvm native Target.", true,
+              targetErr);
+    }
+
+    llvm::TargetOptions Options;
+    llvm::CodeGenOpt::Level OLvl =
+        (compilation->args.opt_arg ? llvm::CodeGenOpt::Aggressive
+                                   : llvm::CodeGenOpt::None);
+
+    targetMachine = target->createTargetMachine(
+        nativeTriple, "generic", "", Options, llvm::None,
+        llvm::CodeModel::Small, OLvl);
+    layout = new llvm::DataLayout(targetMachine->createDataLayout());
+
+    jitModule->setDataLayout(targetMachine->createDataLayout());
+    jitModule->setTargetTriple(nativeTriple);
 
     if (ee)
         delete ee;
@@ -356,9 +376,17 @@ milliseconds LLVMBackEnd::go() {
 }
 
 void * LLVMBackEnd::run(Procedure * proc, void * _val_args) {
+    void * ret;
+
     std::vector<Val> & val_args = *(std::vector<Val> *)_val_args;
 
     mode = GEN_MODE::CT;
+
+    /* save generation target info */
+    const llvm::Target * save_target         = target;
+    llvm::TargetMachine * save_targetMachine = targetMachine;
+    llvm::DataLayout * save_layout           = layout;
+    /*******************************/
 
     if (!ee)
         init_jit();
@@ -406,27 +434,27 @@ void * LLVMBackEnd::run(Procedure * proc, void * _val_args) {
         } else if (ret_t->isInt()) {
             if (((IntType *)ret_t)->width == 32) {
                 int (*fn_ptr)() = (int (*)())ptr;
-                return (void *)fn_ptr();
+                ret = (void *)fn_ptr();
             } else if (((IntType *)ret_t)->width == 64) {
                 long long (*fn_ptr)() = (long long (*)())ptr;
-                return (void *)fn_ptr();
+                ret = (void *)fn_ptr();
             }
         } else if (ret_t->isChar()) {
             char (*fn_ptr)() = (char (*)())ptr;
-            return (void *)fn_ptr();
+            ret = (void *)fn_ptr();
         } else if (ret_t->isFloat()) {
             if (((FloatType *)ret_t)->width == 32) {
                 float (*fn_ptr)() = (float (*)())ptr;
                 float r = fn_ptr();
-                return (void *)*((uint64_t *)&r);
+                ret = (void *)*((uint64_t *)&r);
             } else if (((FloatType *)ret_t)->width == 64) {
                 double (*fn_ptr)() = (double (*)())ptr;
                 double r = fn_ptr();
-                return (void *)*((uint64_t *)&r);
+                ret = (void *)*((uint64_t *)&r);
             }
         } else if (ret_t->isPointer() && ret_t->under()->isChar()) {
             char * (*fn_ptr)() = (char * (*)())ptr;
-            return (void *)fn_ptr();
+            ret = (void *)fn_ptr();
         }
     } else if (param_types.size() == 1) {
         const Type * param_t = param_types[0];
@@ -466,76 +494,76 @@ void * LLVMBackEnd::run(Procedure * proc, void * _val_args) {
                 if (param_t->isInt()) {
                     if (((IntType *)param_t)->width == 32) {
                         int (*fn_ptr)(int) = (int (*)(int))ptr;
-                        return (void *)fn_ptr(arg.as_i64);
+                        ret = (void *)fn_ptr(arg.as_i64);
                     } else if (((IntType *)param_t)->width == 64) {
                         int (*fn_ptr)(long long) = (int (*)(long long))ptr;
-                        return (void *)fn_ptr(arg.as_i64);
+                        ret = (void *)fn_ptr(arg.as_i64);
                     }
                 } else if (param_t->isChar()) {
                     int (*fn_ptr)(char) = (int (*)(char))ptr;
-                    return (void *)fn_ptr(arg.as_i64);
+                    ret = (void *)fn_ptr(arg.as_i64);
                 } else if (param_t->isFloat()) {
                     if (((FloatType *)param_t)->width == 32) {
                         int (*fn_ptr)(float) = (int (*)(float))ptr;
-                        return (void *)fn_ptr(arg.as_f64);
+                        ret = (void *)fn_ptr(arg.as_f64);
                     } else if (((FloatType *)param_t)->width == 64) {
                         int (*fn_ptr)(double) = (int (*)(double))ptr;
-                        return (void *)fn_ptr(arg.as_f64);
+                        ret = (void *)fn_ptr(arg.as_f64);
                     }
                 } else if (param_t->isPointer() && param_t->under()->isChar()) {
                     int (*fn_ptr)(char *) = (int (*)(char *))ptr;
-                    return (void *)fn_ptr((char *)arg.as_string.c_str());
+                    ret = (void *)fn_ptr((char *)arg.as_string.c_str());
                 }
             } else if (((IntType *)ret_t)->width == 64) {
                 if (param_t->isInt()) {
                     if (((IntType *)param_t)->width == 32) {
                         long long (*fn_ptr)(int) = (long long (*)(int))ptr;
-                        return (void *)fn_ptr(arg.as_i64);
+                        ret = (void *)fn_ptr(arg.as_i64);
                     } else if (((IntType *)param_t)->width == 64) {
                         long long (*fn_ptr)(long long) =
                             (long long (*)(long long))ptr;
-                        return (void *)fn_ptr(arg.as_i64);
+                        ret = (void *)fn_ptr(arg.as_i64);
                     }
                 } else if (param_t->isChar()) {
                     long long (*fn_ptr)(char) = (long long (*)(char))ptr;
-                    return (void *)fn_ptr(arg.as_i64);
+                    ret = (void *)fn_ptr(arg.as_i64);
                 } else if (param_t->isFloat()) {
                     if (((FloatType *)param_t)->width == 32) {
                         long long (*fn_ptr)(float) = (long long (*)(float))ptr;
-                        return (void *)fn_ptr(arg.as_f64);
+                        ret = (void *)fn_ptr(arg.as_f64);
                     } else if (((FloatType *)param_t)->width == 64) {
                         long long (*fn_ptr)(double) =
                             (long long (*)(double))ptr;
-                        return (void *)fn_ptr(arg.as_f64);
+                        ret = (void *)fn_ptr(arg.as_f64);
                     }
                 } else if (param_t->isPointer() && param_t->under()->isChar()) {
                     long long (*fn_ptr)(char *) = (long long (*)(char *))ptr;
-                    return (void *)fn_ptr((char *)arg.as_string.c_str());
+                    ret = (void *)fn_ptr((char *)arg.as_string.c_str());
                 }
             }
         } else if (ret_t->isChar()) {
             if (param_t->isInt()) {
                 if (((IntType *)param_t)->width == 32) {
                     char (*fn_ptr)(int) = (char (*)(int))ptr;
-                    return (void *)fn_ptr(arg.as_i64);
+                    ret = (void *)fn_ptr(arg.as_i64);
                 } else if (((IntType *)param_t)->width == 64) {
                     char (*fn_ptr)(long long) = (char (*)(long long))ptr;
-                    return (void *)fn_ptr(arg.as_i64);
+                    ret = (void *)fn_ptr(arg.as_i64);
                 }
             } else if (param_t->isChar()) {
                 char (*fn_ptr)(char) = (char (*)(char))ptr;
-                return (void *)fn_ptr(arg.as_i64);
+                ret = (void *)fn_ptr(arg.as_i64);
             } else if (param_t->isFloat()) {
                 if (((FloatType *)param_t)->width == 32) {
                     char (*fn_ptr)(float) = (char (*)(float))ptr;
-                    return (void *)fn_ptr(arg.as_f64);
+                    ret = (void *)fn_ptr(arg.as_f64);
                 } else if (((FloatType *)param_t)->width == 64) {
                     char (*fn_ptr)(double) = (char (*)(double))ptr;
-                    return (void *)fn_ptr(arg.as_f64);
+                    ret = (void *)fn_ptr(arg.as_f64);
                 }
             } else if (param_t->isPointer() && param_t->under()->isChar()) {
                 char (*fn_ptr)(char *) = (char (*)(char *))ptr;
-                return (void *)fn_ptr((char *)arg.as_string.c_str());
+                ret = (void *)fn_ptr((char *)arg.as_string.c_str());
             }
         } else if (ret_t->isFloat()) {
             if (((FloatType *)ret_t)->width == 32) {
@@ -543,91 +571,100 @@ void * LLVMBackEnd::run(Procedure * proc, void * _val_args) {
                     if (((IntType *)param_t)->width == 32) {
                         float (*fn_ptr)(int) = (float (*)(int))ptr;
                         float r = fn_ptr(arg.as_i64);
-                        return (void *)*((uint64_t *)&r);
+                        ret = (void *)*((uint64_t *)&r);
                     } else if (((IntType *)param_t)->width == 64) {
                         float (*fn_ptr)(long long) = (float (*)(long long))ptr;
                         float r = fn_ptr(arg.as_i64);
-                        return (void *)*((uint64_t *)&r);
+                        ret = (void *)*((uint64_t *)&r);
                     }
                 } else if (param_t->isChar()) {
                     float (*fn_ptr)(char) = (float (*)(char))ptr;
                     float r = fn_ptr(arg.as_i64);
-                    return (void *)*((uint64_t *)&r);
+                    ret = (void *)*((uint64_t *)&r);
                 } else if (param_t->isFloat()) {
                     if (((FloatType *)param_t)->width == 32) {
                         float (*fn_ptr)(float) = (float (*)(float))ptr;
                         float r = fn_ptr(arg.as_f64);
-                        return (void *)*((uint64_t *)&r);
+                        ret = (void *)*((uint64_t *)&r);
                     } else if (((FloatType *)param_t)->width == 64) {
                         float (*fn_ptr)(double) = (float (*)(double))ptr;
                         float r = fn_ptr(arg.as_f64);
-                        return (void *)*((uint64_t *)&r);
+                        ret = (void *)*((uint64_t *)&r);
                     }
                 } else if (param_t->isPointer() && param_t->under()->isChar()) {
                     float (*fn_ptr)(char *) = (float (*)(char *))ptr;
                     float r = fn_ptr((char *)arg.as_string.c_str());
-                    return (void *)*((uint64_t *)&r);
+                    ret = (void *)*((uint64_t *)&r);
                 }
             } else if (((FloatType *)ret_t)->width == 64) {
                 if (param_t->isInt()) {
                     if (((IntType *)param_t)->width == 32) {
                         double (*fn_ptr)(int) = (double (*)(int))ptr;
                         double r = fn_ptr(arg.as_i64);
-                        return (void *)*((uint64_t *)&r);
+                        ret = (void *)*((uint64_t *)&r);
                     } else if (((IntType *)param_t)->width == 64) {
                         double (*fn_ptr)(long long) =
                             (double (*)(long long))ptr;
                         double r = fn_ptr(arg.as_i64);
-                        return (void *)*((uint64_t *)&r);
+                        ret = (void *)*((uint64_t *)&r);
                     }
                 } else if (param_t->isChar()) {
                     double (*fn_ptr)(char) = (double (*)(char))ptr;
                     double r = fn_ptr(arg.as_i64);
-                    return (void *)*((uint64_t *)&r);
+                    ret = (void *)*((uint64_t *)&r);
                 } else if (param_t->isFloat()) {
                     if (((FloatType *)param_t)->width == 32) {
                         double (*fn_ptr)(float) = (double (*)(float))ptr;
                         double r = fn_ptr(arg.as_f64);
-                        return (void *)*((uint64_t *)&r);
+                        ret = (void *)*((uint64_t *)&r);
                     } else if (((FloatType *)param_t)->width == 64) {
                         double (*fn_ptr)(double) = (double (*)(double))ptr;
                         double r = fn_ptr(arg.as_f64);
-                        return (void *)*((uint64_t *)&r);
+                        ret = (void *)*((uint64_t *)&r);
                     }
                 } else if (param_t->isPointer() && param_t->under()->isChar()) {
                     double (*fn_ptr)(char *) = (double (*)(char *))ptr;
                     double r = fn_ptr((char *)arg.as_string.c_str());
-                    return (void *)*((uint64_t *)&r);
+                    ret = (void *)*((uint64_t *)&r);
                 }
             }
         } else if (ret_t->isPointer() && ret_t->under()->isChar()) {
             if (param_t->isInt()) {
                 if (((IntType *)param_t)->width == 32) {
                     char * (*fn_ptr)(int) = (char * (*)(int))ptr;
-                    return (void *)fn_ptr(arg.as_i64);
+                    ret = (void *)fn_ptr(arg.as_i64);
                 } else if (((IntType *)param_t)->width == 64) {
                     char * (*fn_ptr)(long long) = (char * (*)(long long))ptr;
-                    return (void *)fn_ptr(arg.as_i64);
+                    ret = (void *)fn_ptr(arg.as_i64);
                 }
             } else if (param_t->isChar()) {
                 char * (*fn_ptr)(char) = (char * (*)(char))ptr;
-                return (void *)fn_ptr(arg.as_i64);
+                ret = (void *)fn_ptr(arg.as_i64);
             } else if (param_t->isFloat()) {
                 if (((FloatType *)param_t)->width == 32) {
                     char * (*fn_ptr)(float) = (char * (*)(float))ptr;
-                    return (void *)fn_ptr(arg.as_f64);
+                    ret = (void *)fn_ptr(arg.as_f64);
                 } else if (((FloatType *)param_t)->width == 64) {
                     char * (*fn_ptr)(double) = (char * (*)(double))ptr;
-                    return (void *)fn_ptr(arg.as_f64);
+                    ret = (void *)fn_ptr(arg.as_f64);
                 }
             } else if (param_t->isPointer() && param_t->under()->isChar()) {
                 char * (*fn_ptr)(char *) = (char * (*)(char *))ptr;
-                return (void *)fn_ptr((char *)arg.as_string.c_str());
+                ret = (void *)fn_ptr((char *)arg.as_string.c_str());
             }
         }
     }
-    internalError("LLVMBackEnd::run(): For now, there is a limit to the type "
-                  "signatures of procedures that we can call.");
+    
+    /* restore generation target info */
+    target        = save_target;
+    targetMachine = save_targetMachine;
+    layout        = save_layout;
+    /*******************************/
+
+    /* internalError("LLVMBackEnd::run(): For now, there is a limit to the type " */
+    /*               "signatures of procedures that we can call."); */
+
+    return ret;
 }
 
 void LLVMBackEnd::addProcedurePass(Procedure * proc, std::string pass_name) {
@@ -645,16 +682,16 @@ void LLVMBackEnd::addProcedurePass(Procedure * proc, std::string pass_name) {
         fpass->add(new llvm::TargetLibraryInfoWrapperPass(
             llvm::Triple(outModule->getTargetTriple())));
         fpass->add(createTargetTransformInfoWrapperPass(
-            defaultTargetMachine->getTargetIRAnalysis()));
+            targetMachine->getTargetIRAnalysis()));
 
 #if LLVM_VERSION_MAJOR > 4
-        defaultTargetMachine->adjustPassManager(Builder);
+        targetMachine->adjustPassManager(Builder);
 #endif
 
         Builder.populateFunctionPassManager(*fpass);
 
 #if !LLVM_VERSION_MAJOR > 4
-        defaultTargetMachine->addEarlyAsPossiblePasses(*fpass);
+        targetMachine->addEarlyAsPossiblePasses(*fpass);
 #endif
 
         fpass->add(pass_create_by_name["earlycse"]());

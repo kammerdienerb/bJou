@@ -81,9 +81,10 @@ struct LLVMBackEnd : BackEnd {
     LLVMGenerator generator;
     ABILowerer<LLVMBackEnd> * abi_lowerer;
 
-    std::string defaultTriple;
-    const llvm::Target * defaultTarget;
-    llvm::TargetMachine * defaultTargetMachine;
+    std::string nativeTriple;
+    std::string genTriple;
+    const llvm::Target * target;
+    llvm::TargetMachine * targetMachine;
     llvm::DataLayout * layout;
 
     llvm::LLVMContext llContext;

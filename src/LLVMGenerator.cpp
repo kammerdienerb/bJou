@@ -86,12 +86,12 @@ void LLVMGenerator::generate() {
 
     pass.add(new llvm::TargetLibraryInfoWrapperPass(TLII));
     pass.add(createTargetTransformInfoWrapperPass(
-        backEnd.defaultTargetMachine->getTargetIRAnalysis()));
+        backEnd.targetMachine->getTargetIRAnalysis()));
 
     if (compilation->args.opt_arg) {
         fpass.add(createTargetTransformInfoWrapperPass(
-            backEnd.defaultTargetMachine->getTargetIRAnalysis()));
-        AddOptimizationPasses(pass, fpass, backEnd.defaultTargetMachine, 3, 0);
+            backEnd.targetMachine->getTargetIRAnalysis()));
+        AddOptimizationPasses(pass, fpass, backEnd.targetMachine, 3, 0);
     }
 
     llvm::raw_fd_ostream * dest = nullptr;
@@ -115,10 +115,10 @@ void LLVMGenerator::generate() {
                   "Could not open output file for object code emission.");
 
 #if LLVM_VERSION_MAJOR >= 7
-        if (backEnd.defaultTargetMachine->addPassesToEmitFile(pass, *dest, nullptr,
+        if (backEnd.targetMachine->addPassesToEmitFile(pass, *dest, nullptr,
                                                               ftype))
 #else
-        if (backEnd.defaultTargetMachine->addPassesToEmitFile(pass, *dest,
+        if (backEnd.targetMachine->addPassesToEmitFile(pass, *dest,
                                                               ftype))
 #endif
             error(Context(), "TargetMachine can't emit a file of this type");
