@@ -32,7 +32,7 @@ extern "C" void bjou_StartDefaultCompilation(
     for (int i = 0; i < n_module_search_path_arg; i += 1)
         _module_search_path_arg.push_back(module_search_path_arg[i]);
     std::string _output_arg = output_arg;
-    std::string _target_triple_arg = output_arg;
+    std::string _target_triple_arg = target_triple_arg;
     std::vector<std::string> _link_arg;
     for (int i = 0; i < n_link_arg; i += 1)
         _link_arg.push_back(link_arg[i]);

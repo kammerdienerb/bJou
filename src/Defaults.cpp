@@ -10,6 +10,8 @@
 
 namespace bjou {
 void StartDefaultCompilation(ArgSet & args) {
+    /* args.print(); */
+
     bjou::DEFAULT_FE frontEnd;
     bjou::DEFAULT_BE backEnd(frontEnd);
 
