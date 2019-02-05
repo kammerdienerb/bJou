@@ -420,7 +420,7 @@ struct Expression : ASTNode {
     ASTNode * left;
     ASTNode * right;
 
-    enum eBitFlags E_BIT_FLAGS_AND(PAREN, TERMINAL, IDENT);
+    enum eBitFlags E_BIT_FLAGS_AND(PAREN, TERMINAL, IDENT, VOLATILE_R, VOLATILE_W);
 
     std::string & getContents();
     void setContents(std::string _contents);

@@ -746,6 +746,18 @@ static ASTNode * add_global_using(MacroUse * use) {
     return nullptr;
 }
 
+static ASTNode * volatile_r(MacroUse * use) {
+    use->getArgs()[0]->setFlag(Expression::VOLATILE_R, true);
+
+    return use->getArgs()[0];
+}
+
+static ASTNode * volatile_w(MacroUse * use) {
+    use->getArgs()[0]->setFlag(Expression::VOLATILE_W, true);
+
+    return use->getArgs()[0];
+}
+
 } // namespace Macros
 
 Macro::Macro() : name(""), dispatch(nullptr), arg_kinds({}), isVararg(false) {}
@@ -830,6 +842,8 @@ MacroManager::MacroManager() {
                              Macros::typetag,
                              {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
     macros["add_global_using"] = {"add_global_using", Macros::add_global_using, {{ASTNode::NodeKind::IDENTIFIER}}};
+    macros["volatile_r"] = {"volatile_r", Macros::volatile_r, {{ASTNode::NodeKind::ASSIGNMENT_EXPRESSION}}};
+    macros["volatile_w"] = {"volatile_w", Macros::volatile_w, {{ASTNode::NodeKind::ASSIGNMENT_EXPRESSION}}};
 }
 
 ASTNode * MacroManager::invoke(MacroUse * use) {

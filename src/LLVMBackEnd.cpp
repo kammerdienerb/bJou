@@ -1755,6 +1755,9 @@ void * ModExpression::generate(BackEnd & backEnd, bool flag) {
 }
 
 void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
+    bool v_r = getFlag(Expression::VOLATILE_R);
+    bool v_w = getFlag(Expression::VOLATILE_W);
+
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
     llvm::Value *lv = (llvm::Value *)getLeft()->generate(backEnd, true),
@@ -1788,7 +1791,7 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
     } else {
         rv = (llvm::Value *)getRight()->generate(backEnd);
 
-        llvm::StoreInst * store = llbe->builder.CreateStore(rv, lv);
+        llvm::StoreInst * store = llbe->builder.CreateStore(rv, lv, v_w);
 
         if (getLeft()->getType()->isPointer())
             store->setAlignment(sizeof(void *));
@@ -1797,7 +1800,7 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
     if (getAddr || lt->isStruct())
         return lv;
 
-    return llbe->builder.CreateLoad(lv, "assign_load");
+    return llbe->builder.CreateLoad(lv, v_r, "assign_load");
 }
 
 void * AddAssignExpression::generate(BackEnd & backEnd, bool flag) {
