@@ -6010,13 +6010,30 @@ void Constant::analyze(bool force) {
     if (!((Expression *)getInitialization())->isConstant())
         errorl(getInitialization()->getContext(),
                "Value for '" + getName() + "' is not constant.");
-    if (!getInitialization()->getType()->isProcedure()) {
-        ((Expression*)getInitialization())->setType(getTypeDeclarator()->getType()); // @hack
-        ASTNode * folded = ((Expression *)getInitialization())->eval().toExpr();
+
+    Expression * init = (Expression *)getInitialization();
+    Expression * as = nullptr;
+    const Context& cxt = init->getContext();
+
+    /* @bad: this only works through one layer of 'as' */
+    if (getInitialization()->nodeKind == ASTNode::AS_EXPRESSION) {
+        as   = init;
+        init = (Expression *)as->getLeft();
+    }
+         
+    if (!init->getType()->isProcedure()) {
+        init->setType(getTypeDeclarator()->getType()); // @hack
+        ASTNode * folded = init->eval().toExpr();
+        folded->setContext(cxt);
         folded->addSymbols(mod, getScope());
         folded->analyze();
+            
         // @leak?
-        setInitialization(folded);
+        if (as) {
+            as->setLeft(folded); 
+        } else {
+            setInitialization(folded);
+        }
     }
 
     setFlag(ANALYZED, true);
