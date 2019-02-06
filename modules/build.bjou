@@ -132,7 +132,7 @@ type DefsFile {
 
     proc _add_def(this, name : char*, val : char*) {
         s := concat(str("const "), str(name), str(" := "), str(val))
-        s  = concat(s, str('\n'))
+        s  = concat(s, str("\n"))
         this.f.write(s)
         s.free()
     }
