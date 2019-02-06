@@ -10,7 +10,7 @@ __bjou_io_stdfileptrs  : file*[3]
 
 type file {
     const READ   := __sys::O_RDONLY
-    const WRITE  := __sys::O_WRONLY bxor __sys::O_CREAT
+    const WRITE  := __sys::O_WRONLY bxor __sys::O_CREAT bxor __sys::O_TRUNC
     const APPEND := __sys::O_WRONLY bxor __sys::O_CREAT bxor __sys::O_APPEND
 
     fd       : __sys::fd_t
