@@ -219,7 +219,7 @@ void LLVMBackEnd::jit_reset() {
     }
     targetMachine = target->createTargetMachine(
         nativeTriple, "", "", Options, RM,
-        llvm::None, OLvl, /* jit = */true);
+        llvm::None, OLvl);
     layout = new llvm::DataLayout(targetMachine->createDataLayout());
 
     jitModule->setDataLayout(targetMachine->createDataLayout());
@@ -1768,13 +1768,14 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
     else if (lt->isSlice())
         lt = ((SliceType *)lt)->getRealType();
 
+    auto align = llbe->layout->getABITypeAlignment(llbe->getOrGenType(lt));
+
     if (lt->isStruct()) { // do memcpy
         rv = (llvm::Value *)getRight()->generate(backEnd, true);
 
         llvm::PointerType * ll_byte_ptr_t =
             llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
 
-        auto align = llbe->layout->getABITypeAlignment(llbe->getOrGenType(lt));
 
         llvm::Value * dest = llbe->builder.CreateBitCast(lv, ll_byte_ptr_t);
         llvm::Value * src = llbe->builder.CreateBitCast(rv, ll_byte_ptr_t);
@@ -1792,8 +1793,9 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
 
         llvm::StoreInst * store = llbe->builder.CreateStore(rv, lv, v_w);
 
-        if (getLeft()->getType()->isPointer())
-            store->setAlignment(sizeof(void *));
+        if (getLeft()->getType()->isPointer()) {
+            store->setAlignment(llbe->layout->getABITypeAlignment(llbe->getOrGenType(lt->under())));
+        }
     }
 
     if (getAddr || lt->isStruct())
@@ -2278,10 +2280,7 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
                 0, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext,
                                                                 size));
         } else if (payload->t->getRetType()->isPointer() ||
-                   payload->t->getRetType()->isArray()) {
-            // callinst->addAttribute(0, llvm::Attribute::getWithAlignment(
-            //                               llbe->llContext, sizeof(void *)));
-        }
+                   payload->t->getRetType()->isArray()) { }
     }
 
     llvm::Value * ret = callinst;
@@ -2328,10 +2327,7 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
         callinst->setAttributes(attrs);
 #endif
     }
-    for (int al : ptralign) {
-        // callinst->addParamAttr(al, llvm::Attribute::getWithAlignment(
-        //                               llbe->llContext, sizeof(void *)));
-    }
+    for (int al : ptralign) {}
 
     if (!getAddr && payload->t->getRetType()->isRef())
         ret = llbe->builder.CreateLoad(ret, "ref");
@@ -2550,8 +2546,9 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
 
     llvm::LoadInst * load = llbe->builder.CreateLoad(access, name);
 
-    if (getType()->isPointer())
-        load->setAlignment(sizeof(void *));
+    if (getType()->isPointer()) {
+        load->setAlignment(llbe->layout->getABITypeAlignment(llbe->getOrGenType(getType()->under())));
+    }
 
     return load;
 }
@@ -2907,8 +2904,10 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
         return ptr;
 
     llvm::LoadInst * load = llbe->builder.CreateLoad(ptr, symAll());
-    if (getType()->isPointer() || getType()->isRef())
-        load->setAlignment(sizeof(void *));
+    if (getType()->isPointer() || getType()->isRef()) {
+        load->setAlignment(llbe->layout->getABITypeAlignment(llbe->getOrGenType(
+                        getType()->under())));
+    }
 
     return load;
 }
@@ -3082,8 +3081,10 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
                 llvm::StoreInst * store =
                     llbe->builder.CreateStore(vals[i], elem);
 
-                if (elem_t->isPointer() || elem_t->isRef())
-                    store->setAlignment(sizeof(void *));
+                if (elem_t->isPointer() || elem_t->isRef()) {
+                    store->setAlignment(llbe->layout->getABITypeAlignment(
+                        llbe->getOrGenType(elem_t->under())));
+                }
             }
         }
 
@@ -3113,7 +3114,7 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
                 uninit.second->width *
                     llbe->layout->getTypeAllocSize(llbe->getOrGenType(elem_t)));
 
-            auto Align = llbe->layout->getABITypeAlignment(llbe->getOrGenType(elem_t));
+            auto Align = llbe->layout->getABITypeAlignment(llbe->getOrGenType(elem_t->under()));
 
             llbe->builder.CreateMemSet(Ptr, Val, Size, Align);
         }
@@ -3737,11 +3738,7 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                     llvm::AttributeSet::get(llbe->llContext, i + 1, ab);
                 arg.addAttr(as);
 #endif
-            } else if (arg.getType()->isPointerTy()) {
-                // arg.addAttr(llvm::Attribute::getWithAlignment(llbe->llContext,
-                //                                               sizeof(void
-                //                                               *)));
-            }
+            } else if (arg.getType()->isPointerTy()) { }
             i += 1;
         }
 
@@ -3755,10 +3752,7 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                                    llvm::Attribute::getWithDereferenceableBytes(
                                        llbe->llContext, size));
             } else if (payload->t->getRetType()->isPointer() ||
-                       payload->t->getRetType()->isArray()) {
-                // func->addAttribute(0, llvm::Attribute::getWithAlignment(
-                //                           llbe->llContext, sizeof(void *)));
-            }
+                       payload->t->getRetType()->isArray()) { }
         }
 
         llbe->addNamedVal(getMangledName(), func, my_real_t);

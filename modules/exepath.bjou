@@ -2,9 +2,7 @@
 
 module exepath
 
-import "c/string.bjou"
-
-\ct{ import "os.bjou" }
+import "os.bjou"
 
 proc exepath() : string {
 
@@ -18,11 +16,11 @@ proc exepath() : string {
     len   : u32 = 512
 
     if _NSGetExecutablePath(buff, &len) == 0 {
-        s.__data.set([buff, 0:strlen(buff)])
+        s.__data.set([buff, 0:cstrlen(buff)])
     } else {
         buff = new char[len]
         _NSGetExecutablePath(buff, &len)
-        s.__data.set([buff, 0:strlen(buff)])
+        s.__data.set([buff, 0:cstrlen(buff)])
         delete buff
     }
     return s }
