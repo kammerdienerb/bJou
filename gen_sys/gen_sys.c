@@ -8,9 +8,11 @@
 #include <stdio.h>
 #include <sys/syscall.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
-#define PRINT_SYS_CONSTANT_DECL(NR) printf("const "#NR" := SYS_NR_MOD + %d\n", (NR))
+#define PRINT_SYS_NR_DECL(NR) printf("const "#NR" := SYS_NR_MOD + %d\n", (NR))
+#define PRINT_SYS_CONSTANT_DECL(C) printf("const "#C" := %d\n", (C))
 
 void pre() {
     printf(
@@ -65,13 +67,13 @@ void post() {
 int main() {
     pre();
 
-    PRINT_SYS_CONSTANT_DECL(SYS_write);
-    PRINT_SYS_CONSTANT_DECL(SYS_read);
-    PRINT_SYS_CONSTANT_DECL(SYS_open);
-    PRINT_SYS_CONSTANT_DECL(SYS_close);
-    PRINT_SYS_CONSTANT_DECL(SYS_lseek);
-    PRINT_SYS_CONSTANT_DECL(SYS_access);
-    PRINT_SYS_CONSTANT_DECL(SYS_getpid);
+    PRINT_SYS_NR_DECL(SYS_write);
+    PRINT_SYS_NR_DECL(SYS_read);
+    PRINT_SYS_NR_DECL(SYS_open);
+    PRINT_SYS_NR_DECL(SYS_close);
+    PRINT_SYS_NR_DECL(SYS_lseek);
+    PRINT_SYS_NR_DECL(SYS_access);
+    PRINT_SYS_NR_DECL(SYS_getpid);
 
     PRINT_SYS_CONSTANT_DECL(S_IRWXU);
     PRINT_SYS_CONSTANT_DECL(S_IRUSR);
