@@ -548,6 +548,20 @@ static ASTNode * typeispointer(MacroUse * use) {
     return lit;
 }
 
+static ASTNode * typeisarray(MacroUse * use) {
+    use->getArgs()[0]->analyze();
+    const Type * t = use->getArgs()[0]->getType();
+
+    bool isArray = t->isArray();
+
+    BooleanLiteral * lit = new BooleanLiteral();
+    lit->setContext(use->getContext());
+    lit->setScope(use->getScope());
+    lit->setContents(isArray ? "true" : "false");
+
+    return lit;
+}
+
 static ASTNode * typeisproc(MacroUse * use) {
     use->getArgs()[0]->analyze();
     const Type * t = use->getArgs()[0]->getType();
@@ -818,6 +832,10 @@ MacroManager::MacroManager() {
     macros["typeispointer"] = {
         "typeispointer",
         Macros::typeispointer,
+        {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
+    macros["typeisarray"] = {
+        "typeisarray",
+        Macros::typeisarray,
         {{ANY_DECLARATOR, ASTNode::NodeKind::IDENTIFIER}}};
     macros["typeisproc"] = {"typeisproc",
                             Macros::typeisproc,

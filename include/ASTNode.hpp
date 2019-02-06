@@ -1208,6 +1208,8 @@ struct SizeofExpression : UnaryPreExpression {
 
     bool isConstant();
 
+    Val eval();
+
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();

@@ -2853,6 +2853,14 @@ SizeofExpression::SizeofExpression() {
 
 bool SizeofExpression::isConstant() { return true; }
 
+Val SizeofExpression::eval() {
+    analyze();
+    Val a;
+    a.t = getType();
+    a.as_i64 = simpleSizer(getType());
+    return a;
+}
+
 void SizeofExpression::analyze(bool force) {
     HANDLE_FORCE();
 
