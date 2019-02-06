@@ -32,6 +32,10 @@ ASTNode * Val::toExpr() {
         }
         i->getContents() += std::to_string(int_t->width);
         return i;
+    } else if (t->isEnum()) {
+        IntegerLiteral * i = new IntegerLiteral;
+        i->setContents(std::to_string(as_i64) + "u64");
+        return i;
     } else if (t->isFloat()) {
         FloatLiteral * f = new FloatLiteral;
         f->setContents(std::to_string(as_f64));
