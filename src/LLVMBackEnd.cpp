@@ -2791,19 +2791,11 @@ void * IntegerLiteral::generate(BackEnd & backEnd, bool flag) {
     const Type * t = getType();
     llvm::Type * ll_t = llbe->getOrGenType(t);
 
-    std::stringstream ss(getContents());
-    uint64_t V;
-    int64_t Vi;
-    ss >> V;
-    if (!ss) {
-        ss.clear();
-        ss.str(getContents());
-        ss >> Vi;
-        V = Vi;
+    if (((IntType *)t)->sign == Type::Sign::SIGNED) {
+        return llvm::ConstantInt::get(ll_t, getAsSigned(), true);
+    } else {
+        return llvm::ConstantInt::get(ll_t, getAsUnsigned(), false);
     }
-
-    return llvm::ConstantInt::get(ll_t, V,
-                                  ((IntType *)t)->sign == Type::Sign::SIGNED);
 }
 
 void * FloatLiteral::generate(BackEnd & backEnd, bool flag) {
