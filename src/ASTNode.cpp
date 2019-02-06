@@ -22,6 +22,7 @@
 #include <iterator>
 #include <mutex>
 #include <sstream>
+#include <iomanip>
 #include <string.h> // bzero
 
 namespace bjou {
@@ -4141,16 +4142,27 @@ IntegerLiteral::IntegerLiteral()
 
 uint64_t IntegerLiteral::getAsUnsigned() {
     uint64_t u;
-    std::stringstream ss(getContents());
+    std::stringstream ss;
+    ss << getContents();
     ss >> u;
     return u;
 }
 
 int64_t IntegerLiteral::getAsSigned() {
-    int64_t i;
-    std::stringstream ss(getContents());
-    ss >> i;
-    return i;
+    int64_t  i;
+    uint64_t u;
+    std::stringstream ss;
+
+    if (is_hex) {
+        ss << getContents();
+        ss >> u;
+        return (int64_t)u;
+    } else {
+        ss << getContents();
+
+        ss >> i;
+        return i;
+    }
 }
 
 bool IntegerLiteral::isConstant() { return true; }
@@ -6022,7 +6034,7 @@ void Constant::analyze(bool force) {
     }
          
     if (!init->getType()->isProcedure()) {
-        init->setType(getTypeDeclarator()->getType()); // @hack
+        /* init->setType(getTypeDeclarator()->getType()); // @hack */
         ASTNode * folded = init->eval().toExpr();
         folded->setContext(cxt);
         folded->addSymbols(mod, getScope());
