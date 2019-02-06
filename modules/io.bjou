@@ -124,7 +124,8 @@ type file {
     }
 
     proc write(this, s : string ref) : u64 {
-        return this.write(s.__data.data(), s.len())
+        c_s := s.c_str()
+        return this.write(c_s, cstrlen(c_s))
     }
 
     proc read(this, dst : char*, nbytes : u64) : u64 {
