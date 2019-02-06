@@ -4158,7 +4158,7 @@ Val IntegerLiteral::eval() {
     Val v;
     analyze();
     v.t = getType();
-    v.as_i64 = atoll(getContents().c_str());
+    v.as_i64 = getAsSigned();
     return v;
 }
 

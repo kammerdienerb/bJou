@@ -2,7 +2,11 @@
 
 main()
 
+const HEX := 0x1234u32
+
 proc main() {
+    print "%", HEX
+
     b1 := 0x000000FF
     b2 := 0x0000FF00
     b3 := 0x00FF0000
