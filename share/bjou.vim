@@ -14,7 +14,7 @@ syn case match
 syn keyword     bjouFlowControl     return if else while do for foreach in match with and or break continue
 syn keyword     bjouTypes           u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 f128 void bool char short int long float double unsigned byte string file list dict
 syn keyword     bjouValWords        not true false nothing some
-syn keyword     bjouKeywords        const macro proc extern type extends abstract this ref enum print new mut delete as import module using sizeof bshl bshr band bor bxor bneg
+syn keyword     bjouKeywords        const macro proc __no_mangle__ extern type extends abstract this ref enum print new mut delete as import module using sizeof bshl bshr band bor bxor bneg
 
 hi def link     bjouFlowControl     Statement
 hi def link     bjouTypes           Type
