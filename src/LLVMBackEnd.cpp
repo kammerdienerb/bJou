@@ -2906,7 +2906,7 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     llvm::LoadInst * load = llbe->builder.CreateLoad(ptr, symAll());
     if (getType()->isPointer() || getType()->isRef()) {
         load->setAlignment(llbe->layout->getABITypeAlignment(llbe->getOrGenType(
-                        getType()->under())));
+                        getType())));
     }
 
     return load;
@@ -3083,7 +3083,7 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
 
                 if (elem_t->isPointer() || elem_t->isRef()) {
                     store->setAlignment(llbe->layout->getABITypeAlignment(
-                        llbe->getOrGenType(elem_t->under())));
+                        llbe->getOrGenType(elem_t)));
                 }
             }
         }
@@ -3836,7 +3836,7 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                     auto size = llbe->layout->getTypeAllocSize(
                         alloca->getType()->getPointerElementType());
                     auto align = llbe->layout->getABITypeAlignment(
-                        alloca->getType()->getPointerElementType());
+                        alloca->getType());
 #if LLVM_VERSION_MAJOR >= 7
                     llbe->builder.CreateMemCpy(alloca, align, val, align, size);
 #else
