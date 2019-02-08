@@ -351,6 +351,23 @@ milliseconds FrontEnd::SymbolsStage() {
             node->addSymbols(empty_mod_string, globalScope);
     }
 
+    for (Identifier * ident : idents_out_of_order) {
+        auto m_sym = ident->getScope()->getSymbol(ident->getScope(), ident, &ident->getContext(), true, false, false, false);
+        if (m_sym) {
+            Symbol * sym = nullptr;
+            m_sym.assignTo(sym);
+            BJOU_DEBUG_ASSERT(sym);
+            if ((sym->isVar() || sym->isConstant())
+            && (sym->node()->getScope()->parent && !sym->node()->getScope()->is_module_scope)) {
+                errorl(ident->getContext(), "Premature use of identifier '" + sym->unmangled + "'.", false);
+                errorl(sym->node()->getContext(), "'" + sym->unmangled + "' defined here.");
+            }
+        }
+    }
+
+    std::vector<Identifier*> empty;
+    idents_out_of_order.swap(empty);
+
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
 }

@@ -1408,6 +1408,7 @@ struct Identifier : Expression {
 
     // Node interface
     virtual void analyze(bool force = false);
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
     ASTNode * clone();
     virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,

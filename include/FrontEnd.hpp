@@ -31,6 +31,7 @@ struct FrontEnd {
 
     std::vector<ASTNode *> AST;
     std::vector<ASTNode *> deferredAST;
+    std::vector<Identifier*> idents_out_of_order;
     std::set<ASTNode *> macros_need_fast_tracked_analysis;
     std::set<ASTNode *> non_run_non_fast_tracked_macros;
     bool stop_tracking_macros = false;

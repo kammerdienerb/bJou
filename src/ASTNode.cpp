@@ -3439,6 +3439,24 @@ void Identifier::analyze(bool force) {
     setFlag(ANALYZED, true);
 }
 
+void Identifier::addSymbols(std::string& _mod, Scope * _scope) {
+    Expression::addSymbols(_mod, _scope);
+
+    ASTNode * p = getParent();
+    if (p) {
+        if (p->nodeKind == ASTNode::ACCESS_EXPRESSION) {
+            if (((AccessExpression*)p)->getRight() == this)
+                return;
+        }
+    }
+    Maybe<Symbol *> m_sym;
+    Symbol * sym = nullptr;
+    m_sym = getScope()->getSymbol(getScope(), this, &this->getContext(), true, false, false, false);
+    if (!m_sym) {
+        compilation->frontEnd.idents_out_of_order.push_back(this);
+    }
+}
+
 ASTNode * Identifier::clone() { return ExpressionClone(this); }
 
 void Identifier::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
