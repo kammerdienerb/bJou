@@ -140,7 +140,7 @@ void LLVMBackEnd::init() {
 
     auto RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::PIC_);
     if (strstr(target->getShortDescription(), "RISC-V")) {
-        RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::Static);
+        RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::DynamicNoPIC);
     }
     targetMachine = target->createTargetMachine(
         genTriple, "", "", Options, RM,
@@ -215,7 +215,7 @@ void LLVMBackEnd::jit_reset() {
 
     auto RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::PIC_);
     if (strstr(target->getShortDescription(), "RISC-V")) {
-        RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::Static);
+        RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::DynamicNoPIC);
     }
     targetMachine = target->createTargetMachine(
         nativeTriple, "", "", Options, RM,
@@ -1776,13 +1776,14 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
         llvm::PointerType * ll_byte_ptr_t =
             llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
 
+        llvm::Type * ll_t = llbe->getOrGenType(lt);
 
         llvm::Value * dest = llbe->builder.CreateBitCast(lv, ll_byte_ptr_t);
         llvm::Value * src = llbe->builder.CreateBitCast(rv, ll_byte_ptr_t);
         llvm::Value * size = llvm::ConstantInt::get(
             llvm::Type::getInt64Ty(llbe->llContext),
-            llbe->layout->getTypeAllocSize(llbe->getOrGenType(lt)));
-
+            llbe->layout->getTypeAllocSize(ll_t));
+        
 #if LLVM_VERSION_MAJOR >= 7
         llbe->builder.CreateMemCpy(dest, align, src, align, size);
 #else

@@ -1004,11 +1004,6 @@ static void convertAssignmentOperand(BinaryExpression * assign) {
 
     if (!equal(lt, rt) && conv(lt, rt))
         emplaceConversion((Expression *)assign->getRight(), lt);
-    /*
-    if (lt->isPrimative() && rt->isPrimative())
-        if (!equal(lt, rt))
-            emplaceConversion((Expression *)assign->getRight(), lt);
-    */
 }
 
 // ~~~~~ AssignmentExpression ~~~~~
