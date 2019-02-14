@@ -3179,6 +3179,10 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
     if (!getScope()->parent || getScope()->is_module_scope) {
         if (llbe->generated_nodes.find(this) == llbe->generated_nodes.end()) {
             llbe->globs_need_completion.insert(this);
+            /* @bad -- short circuit the getOrGenNode method so that 
+             * we don't get into a circular dependency if a global
+             * variable's type references the global itself. */
+            llbe->generated_nodes[this];
             return GenerateGlobalVariable(this, nullptr, backEnd);
         } else {
             llvm::Value * me = llbe->getOrGenNode(this);
