@@ -748,7 +748,7 @@ static void genDeps(ASTNode * node, LLVMBackEnd & llbe) {
                 if (r->nodeKind == ASTNode::PROCEDURE ||
                     r->nodeKind == ASTNode::CONSTANT ||
                     (r->nodeKind == ASTNode::VARIABLE_DECLARATION &&
-                     (!r->getScope()->parent))) {
+                     (!r->getScope()->parent || r->getScope()->is_module_scope))) {
 
                     llbe.getOrGenNode(r);
                 }
@@ -887,14 +887,14 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
             llvm::Type * ll_ptr_t = llbe->getOrGenType(ptr_t);
             gvar =
                 new llvm::GlobalVariable(*llbe->llModule, ll_ptr_t, false,
-                                         llvm::GlobalVariable::ExternalLinkage,
+                                         llvm::GlobalVariable::InternalLinkage,
                                          0, var->getMangledName());
         } else {
             gvar = new llvm::GlobalVariable(
                 /*Module=*/*llbe->llModule,
                 /*Type=*/ll_t,
                 /*isConstant=*/false,
-                /*Linkage=*/llvm::GlobalValue::ExternalLinkage,
+                /*Linkage=*/llvm::GlobalValue::InternalLinkage,
                 /*Initializer=*/0, // has initializer, specified below
                 /*Name=*/var->getMangledName());
         }
@@ -915,7 +915,7 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
 
             llvm::GlobalVariable * under = new llvm::GlobalVariable(
                 *llbe->llModule, ll_t, false,
-                llvm::GlobalVariable::ExternalLinkage, 0,
+                llvm::GlobalVariable::InternalLinkage, 0,
                 "__bjou_array_under_" + var->getMangledName());
             under->setAlignment(llbe->layout->getPreferredAlignment(under));
 
