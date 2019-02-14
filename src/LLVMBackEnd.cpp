@@ -881,7 +881,7 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
     const Type * t = var->getType();
     llvm::Type * ll_t = llbe->getOrGenType(t);
 
-    /* if (!gvar) { */
+    if (!gvar) {
         if (t->isArray()) {
             PointerType * ptr_t = (PointerType *)t->under()->getPointer();
             llvm::Type * ll_ptr_t = llbe->getOrGenType(ptr_t);
@@ -902,8 +902,8 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
 
         llbe->addNamedVal(var->getMangledName(), gvar, t);
 
-        /* return gvar; */
-    /* } else { */
+        return gvar;
+    } else {
         auto align = llbe->layout->getABITypeAlignment(ll_t);
 
         if (t->isArray()) {
@@ -943,7 +943,7 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
             else
                 gvar->setInitializer(llvm::Constant::getNullValue(ll_t));
         }
-    /* } */
+    }
 
     return gvar;
 }
@@ -996,6 +996,9 @@ milliseconds LLVMBackEnd::CodeGenStage() {
 
     if (compilation->args.c_arg) {
         for (ASTNode * node : compilation->frontEnd.AST) {
+            if (node->isStatement() && node->nodeKind != ASTNode::VARIABLE_DECLARATION && node->nodeKind != ASTNode::CONSTANT) {
+                errorl(node->getContext(), "Global statements are not allowed when compiling with -c.");
+            }
             getOrGenNode(node);
         }
 
@@ -1004,6 +1007,22 @@ milliseconds LLVMBackEnd::CodeGenStage() {
         completeProcs();
     } else {
         llvm::Function * main = createMainEntryPoint();
+        
+        for (ASTNode * node : compilation->frontEnd.AST) {
+            if (node->nodeKind == ASTNode::VARIABLE_DECLARATION) {
+                getOrGenNode(node);
+            } else if (node->nodeKind == ASTNode::MULTINODE) {
+                std::vector<ASTNode *> subNodes;
+
+                ((MultiNode *)node)->flatten(subNodes);
+
+                for (ASTNode * sub : subNodes) {
+                    if (sub->nodeKind == ASTNode::VARIABLE_DECLARATION) {
+                        getOrGenNode(node);
+                    }
+                }
+            }
+        }
 
         completeTypes();
         completeGlobs();
@@ -1779,9 +1798,9 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
 
         llvm::Value * dest = llbe->builder.CreateBitCast(lv, ll_byte_ptr_t);
         llvm::Value * src = llbe->builder.CreateBitCast(rv, ll_byte_ptr_t);
+        auto _size = llbe->layout->getTypeAllocSize((llbe->getOrGenType((lt))));
         llvm::Value * size = llvm::ConstantInt::get(
-            llvm::Type::getInt64Ty(llbe->llContext),
-            llbe->layout->getTypeAllocSize(llbe->getOrGenType(lt)));
+            llvm::Type::getInt64Ty(llbe->llContext), _size);
 
 #if LLVM_VERSION_MAJOR >= 7
         llbe->builder.CreateMemCpy(dest, align, src, align, size);
@@ -3158,15 +3177,15 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
     if (!getScope()->parent || getScope()->is_module_scope) {
+        if (llbe->generated_nodes.find(this) == llbe->generated_nodes.end()) {
+            llbe->globs_need_completion.insert(this);
             return GenerateGlobalVariable(this, nullptr, backEnd);
-        /* if (llbe->generated_nodes.find(this) == llbe->generated_nodes.end()) { */
-        /*     llbe->globs_need_completion.insert(this); */
-        /*     return GenerateGlobalVariable(this, nullptr, backEnd); */
-        /* } else { */
-        /*     llvm::Value * me = llbe->getOrGenNode(this); */
-        /*     return GenerateGlobalVariable(this, (llvm::GlobalVariable *)me, */
-        /*                                   backEnd); */
-        /* } */
+        } else {
+            llvm::Value * me = llbe->getOrGenNode(this);
+            BJOU_DEBUG_ASSERT(me);
+            return GenerateGlobalVariable(this, (llvm::GlobalVariable *)me,
+                                          backEnd);
+        }
     }
 
     llvm::Type * t = llbe->getOrGenType(getType());

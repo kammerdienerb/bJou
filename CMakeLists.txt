@@ -54,14 +54,7 @@ file(GLOB TCLAP_SOURCES tclap/*.cpp)
 set(BJOU_SOURCES
     ${CPP_FILES}
     ${C_FILES}
-    ${TCLAP_SOURCES}
-    nolibc_syscall/nolibc_syscall.o)
-
-SET_SOURCE_FILES_PROPERTIES(
-    nolibc_syscall/nolibc_syscall.o
-    PROPERTIES
-    EXTERNAL_OBJECT true
-    GENERATED true)
+    ${TCLAP_SOURCES})
 
 set(BJOU_INCLUDE
     include
@@ -77,7 +70,13 @@ target_include_directories(bjou PRIVATE ${LLVM_INCLUDE_DIRS})
 
 target_compile_options(bjou PRIVATE -fno-rtti -fno-exceptions -w)
 
-target_link_libraries(bjou ${LLVM_LD_FLAGS} LLVM ffi pthread ${LLVM_SYSTEM_LIBS})
+target_link_libraries(bjou
+        ${LLVM_LD_FLAGS}
+        ${PROJECT_SOURCE_DIR}/nolibc_syscall/nolibc_syscall.o
+        LLVM
+        ffi
+        pthread
+        ${LLVM_SYSTEM_LIBS})
 
 target_compile_definitions(bjou PRIVATE BJOU_USE_COLOR)
 target_compile_definitions(bjou PRIVATE BJOU_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}")

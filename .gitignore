@@ -21,3 +21,4 @@ berg
 .DS_Store
 .clang_complete
 nolibc_syscall
+cmake-build-debug
