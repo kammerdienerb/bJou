@@ -75,6 +75,27 @@ static bool terminalShouldReplace(ASTNode * term, ASTNode * d) {
     return false;
 }
 
+static void checkTemplateExpressionSubstitution(ASTNode * term) {
+    /* @hack -- this should be better and more robust */
+    if (IS_EXPRESSION(term)) {
+        bool okay = false;
+        if (term->getParent()) {
+            if (term->getParent()->nodeKind == ASTNode::MACRO_USE) {
+                okay = true;
+            } else if (term->getParent()->nodeKind == ASTNode::ACCESS_EXPRESSION) {
+                Expression * e_p = (Expression*)term->getParent();
+                if (e_p->getLeft() == term) {
+                    okay = true;
+                }
+            }
+        }
+
+        if (!okay) {
+            errorl(term->getContext(), "Invalid template substitution.", true, "Can't place type declarator where an expression is expected");
+        }
+    }
+}
+
 static void templateReplaceTerminals(ASTNode * _template, ASTNode * _def,
                                      ASTNode * _inst) {
     TemplateDefineList * def = (TemplateDefineList *)_def;
@@ -92,11 +113,7 @@ static void templateReplaceTerminals(ASTNode * _template, ASTNode * _def,
             ASTNode * i_clone = i->clone();
             i_clone->setContext(term->getContext());
             if (terminalShouldReplace(term, d)) {
-                // @hack -- this should be better and more robust
-                if (IS_EXPRESSION(term)
-                && (!term->getParent() || term->getParent()->nodeKind != ASTNode::MACRO_USE)) {
-                    errorl(term->getContext(), "Invalid template substitution.", true, "Can't place type declarator where an expression is expected");
-                }
+                checkTemplateExpressionSubstitution(term);
                 (*term->replace)(term->parent, term, i_clone);
             }
         }
@@ -116,11 +133,7 @@ static void templateReplaceTerminals(std::vector<ASTNode *> & terminals,
             ASTNode * i = inst->getElements()[idx];
             ASTNode * i_clone = i->clone();
             if (terminalShouldReplace(term, d)) {
-                // @hack -- this should be better and more robust
-                if (IS_EXPRESSION(term)
-                && (!term->getParent() || term->getParent()->nodeKind != ASTNode::MACRO_USE)) {
-                    errorl(term->getContext(), "Invalid template substitution.", true, "Can't place type declarator where an expression is expected");
-                }
+                checkTemplateExpressionSubstitution(term);
                 (*term->replace)(term->parent, term, i_clone);
             }
         }
