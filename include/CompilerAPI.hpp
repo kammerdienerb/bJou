@@ -18,7 +18,7 @@ extern "C" void bjou_StartDefaultCompilation(
     bool noparallel_arg, bool opt_arg, bool noabc_arg, bool module_arg,
     bool nopreload_arg, bool lld_arg, bool c_arg, bool emitllvm_arg,
     const char ** module_search_path_arg, int n_module_search_path_arg,
-    const char * output_arg, const char * target_triple_arg, const char ** link_arg, int n_link_arg,
+    const char * output_arg, const char * target_triple_arg, const char * march_arg, const char ** link_arg, int n_link_arg,
     const char ** files, int n_files);
 
 extern "C" void bjou_dump(ASTNode ** nodes, int n_nodes, const char * fname,

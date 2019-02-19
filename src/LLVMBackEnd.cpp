@@ -125,9 +125,11 @@ void LLVMBackEnd::init() {
     if (genTriple.empty()) {
         genTriple = nativeTriple; 
     }
+    genArch = compilation->args.march_arg;
+    llvm::Triple theTriple(genTriple);
     std::string targetErr;
     target =
-        llvm::TargetRegistry::lookupTarget(genTriple, targetErr);
+        llvm::TargetRegistry::lookupTarget(genArch, theTriple, targetErr);
     if (!target) {
         error(Context(), "Could not create llvm Target.", true,
               targetErr, "Did you compile LLVM with the desired target enabled?");

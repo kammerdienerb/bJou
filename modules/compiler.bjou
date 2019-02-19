@@ -7,6 +7,7 @@ extern bjou_StartDefaultCompilation(
     char**, int,
     char*,
     char*,
+    char*,
     char**, int,
     char**, int)
 

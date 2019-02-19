@@ -83,6 +83,7 @@ struct LLVMBackEnd : BackEnd {
 
     std::string nativeTriple;
     std::string genTriple;
+    std::string genArch;
     const llvm::Target * target;
     llvm::TargetMachine * targetMachine;
     llvm::DataLayout * layout;

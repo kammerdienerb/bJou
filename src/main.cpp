@@ -85,6 +85,8 @@ int main(int argc, const char ** argv) {
     TCLAP::ValueArg<std::string> target_triple_arg("t", "targettriple",
                                             "LLVM target triple string to target.",
                                             false, "", "triple", cmd_line);
+    TCLAP::ValueArg<std::string> march_arg("", "march",
+                                            "Architecture string to target.", false, "", "architecture", cmd_line);
     TCLAP::MultiArg<std::string> link_arg("l", "link",
                                           "Name of libraries to link.", false,
                                           "library name", cmd_line);
@@ -111,6 +113,7 @@ int main(int argc, const char ** argv) {
                          module_search_path_arg.getValue(),
                          output_arg.getValue(),
                          target_triple_arg.getValue(),
+                         march_arg.getValue(),
                          link_arg.getValue(),
                          files.getValue()};
 
