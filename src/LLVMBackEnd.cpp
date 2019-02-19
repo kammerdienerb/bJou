@@ -144,8 +144,9 @@ void LLVMBackEnd::init() {
     if (strstr(target->getShortDescription(), "RISC-V")) {
         RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::DynamicNoPIC);
     }
+    std::string targetFeatures = compilation->args.mfeat_arg;
     targetMachine = target->createTargetMachine(
-        genTriple, "", "", Options, RM,
+        genTriple, "", targetFeatures, Options, RM,
         llvm::None, OLvl);
     layout = new llvm::DataLayout(targetMachine->createDataLayout());
 

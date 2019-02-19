@@ -33,6 +33,7 @@ type BuildOptions {
     output_name         : char*
     targettriple        : char*
     march               : char*
+    mfeat               : char*
     link                : char*[...]
     files               : char*[...]
     ################################
@@ -101,6 +102,7 @@ proc build(options : BuildOptions ref) {
         options.output_name,
         options.targettriple,
         options.march,
+        options.mfeat,
         options.link.data(),
         |options.link|,
         options.files.data(),

@@ -25,7 +25,7 @@ extern "C" void bjou_StartDefaultCompilation(
     bool noparallel_arg, bool opt_arg, bool noabc_arg, bool module_arg,
     bool nopreload_arg, bool lld_arg, bool c_arg, bool emitllvm_arg,
     const char ** module_search_path_arg, int n_module_search_path_arg,
-    const char * output_arg, const char * target_triple_arg, const char * march_arg, const char ** link_arg, int n_link_arg,
+    const char * output_arg, const char * target_triple_arg, const char * march_arg, const char * mfeat_arg, const char ** link_arg, int n_link_arg,
     const char ** files, int n_files) {
 
     std::vector<std::string> _module_search_path_arg;
@@ -42,6 +42,10 @@ extern "C" void bjou_StartDefaultCompilation(
     std::string _march_arg;
     if (march_arg) {
         _march_arg = march_arg;
+    }
+    std::string _mfeat_arg;
+    if (mfeat_arg) {
+        _mfeat_arg = mfeat_arg;
     }
     std::vector<std::string> _link_arg;
     for (int i = 0; i < n_link_arg; i += 1)
@@ -66,6 +70,7 @@ extern "C" void bjou_StartDefaultCompilation(
                          _output_arg,
                          _target_triple_arg,
                          _march_arg,
+                         _mfeat_arg,
                          _link_arg,
                          _files};
 

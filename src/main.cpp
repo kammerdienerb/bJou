@@ -87,6 +87,8 @@ int main(int argc, const char ** argv) {
                                             false, "", "triple", cmd_line);
     TCLAP::ValueArg<std::string> march_arg("", "march",
                                             "Architecture string to target.", false, "", "architecture", cmd_line);
+    TCLAP::ValueArg<std::string> mfeat_arg("", "mfeat",
+                                            "Features to add to the target CPU.", false, "", "feature string", cmd_line);
     TCLAP::MultiArg<std::string> link_arg("l", "link",
                                           "Name of libraries to link.", false,
                                           "library name", cmd_line);
@@ -114,6 +116,7 @@ int main(int argc, const char ** argv) {
                          output_arg.getValue(),
                          target_triple_arg.getValue(),
                          march_arg.getValue(),
+                         mfeat_arg.getValue(),
                          link_arg.getValue(),
                          files.getValue()};
 

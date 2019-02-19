@@ -56,11 +56,12 @@ struct ArgSet {
     std::string output_arg;
     std::string target_triple_arg;
     std::string march_arg;
+    std::string mfeat_arg;
     std::vector<std::string> link_arg;
     std::vector<std::string> files;
 
     ArgSet(bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool,
-           bool, const std::vector<std::string> &, const std::string &, const std::string &, const std::string &,
+           bool, const std::vector<std::string> &, const std::string &, const std::string &, const std::string &, const std::string &,
            const std::vector<std::string> &, const std::vector<std::string> &);
 
     void print();
