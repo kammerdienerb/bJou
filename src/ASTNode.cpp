@@ -7569,10 +7569,12 @@ Import::~Import() {}
 // ~~~~~ Using ~~~~~
 
 Using::Using()
-    : module({}) {
+    : import(nullptr), module({}) {
     nodeKind = USING;
 }
 
+Import * Using::getImport() { return import; }
+void Using::setImport(Import * _import) { import = _import; }
 std::string & Using::getModule() { return module; }
 void Using::setModule(std::string _module) { module = _module; }
 
@@ -7591,6 +7593,11 @@ ASTNode * Using::clone() { return new Using(*this); }
 void Using::addSymbols(std::string& _mod, Scope * _scope) {
     mod = _mod;
     setScope(_scope);
+
+    if (getImport()) {
+        BJOU_DEBUG_ASSERT(getModule().empty());
+        setModule(getImport()->theModule->identifier);
+    }
 
     if (compilation->frontEnd.modulesByID.count(getModule()) == 0) {
         errorl(getContext(), "No module by the name '" + getModule() + "' was found.");

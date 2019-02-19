@@ -2127,12 +2127,23 @@ MaybeASTNode Parser::parseUsing() {
 
         eat("using");
 
-        std::string module = expect(IDENTIFIER, "module name");
-
-        result->setModule(module);
+        MaybeASTNode m_import = parseImport();
+        ASTNode * import;
+        if (m_import.assignTo(import)) {
+            result->setImport((Import*)import); 
+        } else {
+            std::string module = expect(IDENTIFIER, "module name");
+            result->setModule(module);
+        }
         
         result->getContext().finish(&currentContext, &justCleanedContext);
 
+        if (result->getImport()) {
+            std::vector<ASTNode*> nodes { result->getImport(), result };
+            MultiNode * multi = new MultiNode(nodes);
+
+            return MaybeASTNode(multi);
+        }
         return MaybeASTNode(result);
     }
     return MaybeASTNode();

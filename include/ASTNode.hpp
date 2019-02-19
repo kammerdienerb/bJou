@@ -2663,10 +2663,13 @@ struct Import : ASTNode {
 struct Using : ASTNode {
     Using();
 
+    Import * import;
     std::string module;
     
     enum eBitFlags E_BIT_FLAGS();
 
+    Import * getImport();
+    void setImport(Import * _import);
     std::string& getModule();
     void setModule(std::string _module);
     

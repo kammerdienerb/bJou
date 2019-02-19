@@ -20,8 +20,6 @@
         type T {} }
 ]
 
--- LLVM 7 isn't working
-
 -- should template define elements be checked against other symbols?
 [
     type A {}
