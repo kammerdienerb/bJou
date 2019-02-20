@@ -3572,14 +3572,22 @@ void InitializerList::analyze(bool force) {
 
         for (ASTNode * _mem : s_t->_struct->getMemberVarDecls()) {
             VariableDeclaration * mem = (VariableDeclaration *)_mem;
-            if (mem->getType()->isRef()) {
-                std::string & name = mem->getName();
-                auto search = std::find(names.begin(), names.end(), name);
-                if (search == names.end())
+            std::string & name = mem->getName();
+            auto search = std::find(names.begin(), names.end(), name);
+            if (search == names.end()) {
+                if (mem->getType()->isRef()) {
                     errorl(getContext(), "Member '" + name + "' of '" +
                                              s_t->getDemangledName() +
                                              "' must be explicitly initialized "
                                              "because it is a reference.");
+                } else if (mem->getType()->isStruct()) {
+                    if (((StructType*)mem->getType())->containsRefs()) {
+                        errorl(getContext(), "Member '" + name + "' of '" +
+                                                 s_t->getDemangledName() +
+                                                 "' must be explicitly initialized "
+                                                 "because it contains one or more references.");
+                    }
+                }
             }
         }
 
@@ -6295,20 +6303,30 @@ void VariableDeclaration::analyze(bool force) {
 
         sym->initializedInScopes.insert(getScope());
 
-        if (!getScope()->parent &&
-            !((Expression *)getInitialization())->isConstant())
-            errorl(getInitialization()->getContext(),
+        if (!getScope()->parent || getScope()->is_module_scope) {
+            if (!((Expression *)getInitialization())->isConstant()) {
+                errorl(getInitialization()->getContext(),
                    "Global variable initializations must be compile time "
                    "constants.");
+            }
+        }
     } else {
         my_t = getTypeDeclarator()->getType();
 
-        if (!getFlag(IS_PROC_PARAM) && !getFlag(IS_TYPE_MEMBER) &&
-            getTypeDeclarator()->getType()->isRef()) {
-
-            errorl(getContext(),
-                   "'" + getName() +
-                       "' is a reference and must be initialized.");
+        if (!getFlag(IS_PROC_PARAM) && !getFlag(IS_TYPE_MEMBER)) {
+            if (getTypeDeclarator()->getType()->isRef()) {
+                errorl(getContext(),
+                       "'" + getName() +
+                           "' is a reference and must be initialized.");
+            } else if (!getScope()->parent || getScope()->is_module_scope) {
+                if (my_t->isStruct()) {
+                    if (((StructType*)my_t)->containsRefs()) {
+                        errorl(getContext(),
+                               "'" + getName() +
+                                   "' must be initialized because it contains one or more reference.");
+                    }
+                }
+            }
         }
     }
 

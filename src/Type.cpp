@@ -528,6 +528,20 @@ void StructType::complete() {
 Declarator * StructType::getGenericDeclarator() const {
     return basicDeclarator(this);
 }
+    
+bool StructType::containsRefs() const {
+    for (auto mem_t : memberTypes) {
+        if (mem_t->isRef()) {
+            return true;
+        } else if (mem_t->isStruct()) {
+            if (((const StructType*)mem_t)->containsRefs()) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
 
 EnumType::EnumType(std::string & name, Enum * __enum)
     : Type(ENUM, name),

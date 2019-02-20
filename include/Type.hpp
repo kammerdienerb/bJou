@@ -276,6 +276,8 @@ struct StructType : Type {
     Declarator * getGenericDeclarator() const;
 
     void complete();
+
+    bool containsRefs() const;
 };
 
 struct EnumType : Type {

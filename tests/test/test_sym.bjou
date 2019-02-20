@@ -23,9 +23,9 @@ type V {
 
 type T {
     i : int
-    v : V ref
+    v : V*
 
-    proc create(i : i32, v : V ref) : T    return { T: .i = i, .v = v }
+    proc create(i : i32, v : V*) : T    return { T: .i = i, .v = v }
     proc Print(this)                       print "{ .i = %, .v = some ref }", this.i
 }
 
@@ -93,7 +93,7 @@ proc main() {
     array := { 1, 2, 3, 4, 5 }
     foreach i in array {
         v := { V: }
-        t := T.create(i * i, v)
+        t := T.create(i * i, &v)
         t.Print()
     }
 
@@ -103,7 +103,7 @@ proc main() {
     u'''  := { U$char: .field = 'u' }
     
     v'    := { V: }
-    u'''' := U.create(V.create(4.56, { T: .i = 0, .v = v' }))
+    u'''' := U.create(V.create(4.56, { T: .i = 0, .v = &v' }))
     u''''.Print()
     
     print "%", u

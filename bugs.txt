@@ -35,13 +35,6 @@
     p$i32(2)
 ]
 
--- check for uninitialized references in zero-initialized fields of a struct
-[
-    type A { field : int ref }
-    type B { a : A }
-    { B: }
-]
-
 -- not getting error for inability to deduce template args
 [
     type T$U {
