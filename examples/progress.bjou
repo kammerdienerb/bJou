@@ -14,21 +14,29 @@ import "c/sleep.bjou"
 \front{ true }
 # main()
 
+proc randRGBAttr() : char* {
+    r := getrand(255)
+    g := getrand(255)
+    b := getrand(255)
+
+    return fgRGB(r, g, b)
+}
+
 proc main() {
     seedrand(c_time::time())
 
     print "processing things..."
 
-    pb := ProgressBar.create(12345, 45, nullptr$char(), fgRGB(90, 150, 130))
+    pb := ProgressBar.create(12345, 45, nullptr$char(), randRGBAttr())
 
     i := 1
 
     while true {
         if i >= 12345 {
-            pb.progress(12345)
+            pb.progress(12345, randRGBAttr())
             break
         }
-        pb.progress(i)
+        pb.progress(i, randRGBAttr())
         i += getrand(100) 
         usleep(20000)
     }

@@ -35,6 +35,9 @@ proc __exec(cmd : char*, args : char*) : string[...] {
     return output
 }
 
+proc command(cmd : char*, args : char*) : string[...]
+    return __exec(cmd, args)
+
 proc ls() : string[...]
     return __exec("ls", "")
 proc ls(args : string) : string[...]

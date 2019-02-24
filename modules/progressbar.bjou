@@ -43,7 +43,7 @@ type ProgressBar {
             delete this.fill
     }
 
-    proc progress(this, n : u32) {
+    proc progress(this, n : u32, cli_attr : char*) {
         blocks := { "▏","▎","▍","▌","▋","▊","▉","█" }
 
         perc := (n as f32) / (this.total as f32)
@@ -52,7 +52,7 @@ type ProgressBar {
         if fill.isnull()
             fill = blocks[(perc * (|blocks| - 1)) as u32]
 
-        attr := this.cli_attr
+        attr := cli_attr
         if attr.isnull()
             attr = ""
 
@@ -69,5 +69,9 @@ type ProgressBar {
             printf("\n")
  
         stdout().fflush()
+    }
+
+    proc progress(this, n : u32) {
+        this.progress(n, this.cli_attr)
     }
 }
