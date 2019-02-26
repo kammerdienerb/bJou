@@ -2,19 +2,6 @@ cmake_minimum_required(VERSION 3.0.1)
 
 project(bJou)
 
-#######################################################################
-# Begin RPATH settings
-
-# use, i.e. don't skip the full RPATH for the build tree
-SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
-SET(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-# add the automatically determined parts of the RPATH
-# which point to directories outside the build tree to the install RPATH
-SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-
-# End RPATH settings
-#######################################################################
-
 
 add_subdirectory(gen_sys)
 
@@ -60,6 +47,20 @@ execute_process(COMMAND "${LLVM_CONFIG}" "--ldflags"
 execute_process(COMMAND "${LLVM_CONFIG}" "--system-libs"
     OUTPUT_VARIABLE LLVM_SYSTEM_LIBS
     OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+#######################################################################
+# Begin RPATH settings
+
+# use, i.e. don't skip the full RPATH for the build tree
+SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
+
+if(APPLE)
+    SET(MACOSX_RPATH 1)
+endif(APPLE)
+
+SET(CMAKE_INSTALL_RPATH "${LLVM_ROOT}/lib;${CMAKE_INSTALL_PREFIX}/lib")
+# End RPATH settings
+#######################################################################
 
 file(GLOB CPP_FILES src/*.cpp)
 file(GLOB C_FILES src/*.c)

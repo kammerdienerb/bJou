@@ -110,9 +110,10 @@ void LLVMGenerator::generate() {
 
         dest = new llvm::raw_fd_ostream(output, EC, llvm::sys::fs::F_None);
 
-        if (EC)
+        if (EC) {
             error(Context(),
-                  "Could not open output file for object code emission.");
+                  "Could not open output file '" + output + "' for object code emission.");
+        }
 
 #if LLVM_VERSION_MAJOR >= 7
         if (backEnd.targetMachine->addPassesToEmitFile(pass, *dest, nullptr,
