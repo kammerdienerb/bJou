@@ -147,7 +147,7 @@ void LLVMBackEnd::init() {
     std::string targetFeatures = compilation->args.mfeat_arg;
     targetMachine = target->createTargetMachine(
         genTriple, "", targetFeatures, Options, RM,
-        llvm::None, OLvl);
+        llvm::CodeModel::Small, OLvl);
     layout = new llvm::DataLayout(targetMachine->createDataLayout());
 
     outModule = new llvm::Module(compilation->outputbasefilename, llContext);
@@ -222,7 +222,7 @@ void LLVMBackEnd::jit_reset() {
     }
     targetMachine = target->createTargetMachine(
         nativeTriple, "", "", Options, RM,
-        llvm::None, OLvl);
+        llvm::CodeModel::Small, OLvl);
     layout = new llvm::DataLayout(targetMachine->createDataLayout());
 
     jitModule->setDataLayout(targetMachine->createDataLayout());

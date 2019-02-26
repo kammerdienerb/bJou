@@ -15,6 +15,7 @@ type ProgressBar {
     width    : u32
     fill     : char*
     cli_attr : char*
+    label    : char*
 
     proc create(total    : u32,
                 width    : u32,
@@ -32,7 +33,8 @@ type ProgressBar {
             .total    = total,
             .width    = width,
             .fill     = f,
-            .cli_attr = attr 
+            .cli_attr = attr,
+            .label    = strdup("")
         }
     }
 
@@ -41,6 +43,8 @@ type ProgressBar {
             delete this.cli_attr
         if not this.fill.isnull()
             delete this.fill
+
+        free(this.label)
     }
 
     proc progress(this, n : u32, cli_attr : char*) {
@@ -58,12 +62,13 @@ type ProgressBar {
 
         w : u32 = perc * (this.width as f32)
 
+        printf("                                                                                                                             \r")
         printf("::█")
         for i := 0; i < w; i += 1
             printf("%s%s%s", attr, fill, cli::RESET)
         for i := 0; i < this.width - w; i += 1
             printf(" ")
-        printf("█ %u%% (%u/%u)      \r", ((perc * 100) as u32), n, this.total)
+        printf("█ %u%% (%u/%u) %s\r", ((perc * 100) as u32), n, this.total, this.label)
 
         if n == this.total
             printf("\n")
@@ -73,5 +78,10 @@ type ProgressBar {
 
     proc progress(this, n : u32) {
         this.progress(n, this.cli_attr)
+    }
+
+    proc setlabel(this, new_label : char*) {
+        free(this.label)
+        this.label = strdup(new_label)
     }
 }
