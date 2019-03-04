@@ -20,6 +20,7 @@ const SYS_write := SYS_NR_MOD + 4
 const SYS_read := SYS_NR_MOD + 3
 const SYS_open := SYS_NR_MOD + 5
 const SYS_close := SYS_NR_MOD + 6
+const SYS_exit := SYS_NR_MOD + 1
 const SYS_lseek := SYS_NR_MOD + 199
 const SYS_access := SYS_NR_MOD + 33
 const SYS_getpid := SYS_NR_MOD + 20
@@ -61,6 +62,9 @@ proc open(path: char*, oflag : int, mode : mode_t) : i64
 
 proc close(fd : int) : i64
     return nolibc_syscall(SYS_close, 1, fd)
+
+proc exit(status : int) : i64
+    return nolibc_syscall(SYS_exit, 1, status)
 
 proc lseek(fd : int, offset : u64, whence : int) : u64
     return nolibc_syscall(SYS_lseek, 3, fd, offset, whence)

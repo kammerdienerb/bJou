@@ -12,6 +12,9 @@
 #include "ASTNode.hpp"
 #include "Maybe.hpp"
 
+#include "std_string_hasher.hpp"
+#include "hybrid_map.hpp"
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -31,7 +34,8 @@ struct Scope {
     Scope * parent;
     bool is_module_scope;
     std::string module_name;
-    std::unordered_map<std::string, Symbol *> symbols;
+    /* std::unordered_map<std::string, Symbol*, std_string_hasher> symbols; */
+    hybrid_map<std::string, Symbol*, std_string_hasher> symbols;
     std::vector<Scope *> scopes;
     std::vector<std::string> usings;
 

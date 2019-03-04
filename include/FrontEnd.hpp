@@ -16,6 +16,8 @@
 #include "Scope.hpp"
 #include "Symbol.hpp"
 #include "Type.hpp"
+#include "std_string_hasher.hpp"
+#include "hybrid_map.hpp"
 
 #include <map>
 #include <set>

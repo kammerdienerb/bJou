@@ -3,6 +3,8 @@
 main()
 
 import "cli.bjou"
+import "ui.bjou"
+using import "compilation.bjou"
 
 proc main() {
     arg_parser := cli::ArgParser.create(env.args()[0].c_str())
@@ -10,6 +12,12 @@ proc main() {
     p := arg_parser.help()
     print "%", p.c_str()
     arg_parser.free()
+   
+    args := ui::argset.create()
+
+    start_default_compilation(args)
+
+    print "bye!"
 }
 
 proc add_args_to_parser(arg_parser : cli::ArgParser ref) {

@@ -1,0 +1,42 @@
+# compilation.bjou
+
+module compilation
+
+import "ui.bjou"
+using import "globals.bjou"
+
+type compilation {
+    args : ui::argset ref
+
+    proc create(args : ui::argset ref) : compilation {
+        return { compilation: .args = args }
+    }
+
+    proc free(this) {
+    }
+
+    proc go(this) {
+        error_str  := str("this is an error")
+        ui::error(error_str, true)
+    }
+
+    proc abort(this) {
+        __sys::exit(1)
+    }
+}
+
+proc start_default_compilation(args : ui::argset ref) {
+    args.show()
+
+    # create a front end
+    # create a back end
+    
+    save_compil := compil
+    new_compil  := compilation.create(args)
+    compil       = &new_compil
+
+    new_compil.go()
+    new_compil.free()
+
+    compil = save_compil
+}

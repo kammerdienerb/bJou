@@ -1,0 +1,7 @@
+# globals.bjou
+
+module globals
+
+using import "compilation.bjou"
+
+compil : compilation* = NULL as compilation*

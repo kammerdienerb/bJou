@@ -11,6 +11,8 @@
 #include "FrontEnd.hpp"
 #include "Misc.hpp"
 #include "Parser.hpp"
+#include "std_string_hasher.hpp"
+#include "hybrid_map.hpp"
 
 #ifdef BJOU_DEBUG_BUILD
 #define SAVE_BJOU_DEBUG_BUILD
@@ -135,14 +137,14 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
     std::set<std::string> & modulesImported =
         compilation->frontEnd.modulesImported;
     std::set<std::string> filesSeen;
-    std::unordered_map<std::string, milliseconds> times;
-    std::unordered_map<std::string, milliseconds> peektimes;
+    hybrid_map<std::string, milliseconds, std_string_hasher> times;
+    hybrid_map<std::string, milliseconds, std_string_hasher> peektimes;
 
     unsigned int nthreaded = std::thread::hardware_concurrency() - 1;
 
     if (nthreaded > 0 && !compilation->args.noparallel_arg) {
         std::vector<ImportParser *> parserContainer;
-        std::unordered_map<std::string, std::future<milliseconds>> futureTimes;
+        std::unordered_map<std::string, std::future<milliseconds>, std_string_hasher> futureTimes;
         parserContainer.reserve(nthreaded);
 
         while (!imports.empty()) {

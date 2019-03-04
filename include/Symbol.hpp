@@ -11,6 +11,8 @@
 #include "Maybe.hpp"
 #include "Scope.hpp"
 #include "bJouDemangle.h"
+#include "std_string_hasher.hpp"
+#include "hybrid_map.hpp"
 
 #include <iostream>
 #include <set>
@@ -27,7 +29,8 @@ struct ProcSet : ASTNode {
     ProcSet();
     ProcSet(std::string _name);
 
-    std::unordered_map<std::string, Symbol *> procs;
+    /* std::unordered_map<std::string, Symbol *> procs; */
+    hybrid_map<std::string, Symbol*, std_string_hasher> procs;
     std::string name;
 
     // Node interface

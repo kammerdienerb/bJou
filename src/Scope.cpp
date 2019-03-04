@@ -17,6 +17,8 @@
 #include <sstream>
 #include <iterator>
 
+#define SYBMOL_TABLE_INITIAL_BUCKETS (7)
+
 namespace bjou {
 
 Scope::Scope(std::string _description, Scope * _parent, bool _is_module_scope, std::string mod)

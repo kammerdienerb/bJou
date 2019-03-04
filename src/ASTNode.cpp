@@ -7013,53 +7013,54 @@ ArgList::~ArgList() {
 }
 //
 
+static void searchUnreach(ASTNode *& the_node, std::vector<ASTNode *> & the_statements) {
+    auto search = std::find(the_statements.begin(),
+                            the_statements.end(), the_node);
+
+    auto end = the_statements.end();
+
+    BJOU_DEBUG_ASSERT(search != end);
+
+    search++;
+
+    for (; search != end; search++) {
+        ASTNode::NodeKind search_kind = (*search)->nodeKind;
+
+        if (search_kind != ASTNode::MACRO_USE &&
+            search_kind != ASTNode::IGNORE) {
+
+            std::string err_str;
+
+            if (the_node->nodeKind == ASTNode::RETURN)
+                err_str = "return";
+            else if (the_node->nodeKind == ASTNode::BREAK)
+                err_str = "break";
+            else if (the_node->nodeKind == ASTNode::CONTINUE)
+                err_str = "continue";
+
+            errorl(the_node->getContext(), "Code below this " +
+                                               err_str +
+                                               " will never execute.");
+        }
+    }
+}
+
 static void handleTerminators(ASTNode * statement,
                               std::vector<ASTNode *> & statements,
                               ASTNode *& node, bool from_multi = false,
                               MultiNode ** m = nullptr) {
-    if (node->nodeKind == ASTNode::MULTINODE) {
-        MultiNode * multi = (MultiNode *)node;
-        for (ASTNode * n : multi->nodes) {
-            handleTerminators(statement, statements, n, true,
-                              (MultiNode **)&node);
+
+    ASTNode::NodeKind n_k = node->nodeKind;
+
+    if (n_k == ASTNode::IF) {
+        if (((If *)node)->alwaysReturns()) {
+            statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
         }
-    } else if (node->nodeKind == ASTNode::RETURN ||
-               node->nodeKind == ASTNode::BREAK ||
-               node->nodeKind == ASTNode::CONTINUE) {
+    } else if (n_k == ASTNode::RETURN ||
+               n_k == ASTNode::BREAK  ||
+               n_k == ASTNode::CONTINUE) {
 
         statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
-
-        ////////////////////////////////////////// convenience lambda
-        /////////////////////////////////////////////////////////////
-        auto searchUnreach = [&](ASTNode *& the_node,
-                                 std::vector<ASTNode *> & the_statements) {
-            auto search = std::find(the_statements.begin(),
-                                    the_statements.end(), the_node);
-
-            BJOU_DEBUG_ASSERT(search != the_statements.end());
-
-            search++;
-
-            for (; search != the_statements.end(); search++) {
-                if ((*search)->nodeKind != ASTNode::MACRO_USE &&
-                    (*search)->nodeKind != ASTNode::IGNORE) {
-
-                    std::string err_str;
-
-                    if (the_node->nodeKind == ASTNode::RETURN)
-                        err_str = "return";
-                    else if (the_node->nodeKind == ASTNode::BREAK)
-                        err_str = "break";
-                    else if (the_node->nodeKind == ASTNode::CONTINUE)
-                        err_str = "continue";
-
-                    errorl(the_node->getContext(), "Code below this " +
-                                                       err_str +
-                                                       " will never execute.");
-                }
-            }
-        };
-        /////////////////////////////////////////////////////////////
 
         if (!from_multi) {
             searchUnreach(node, statements);
@@ -7075,11 +7076,13 @@ static void handleTerminators(ASTNode * statement,
                 searchUnreach(node, (*m)->nodes);
             }
         }
+    } else if (n_k == ASTNode::MULTINODE) {
+        MultiNode * multi = (MultiNode *)node;
+        for (ASTNode * n : multi->nodes) {
+            handleTerminators(statement, statements, n, true,
+                              (MultiNode **)&node);
+        }
     }
-
-    if (node->nodeKind == ASTNode::IF)
-        if (((If *)node)->alwaysReturns())
-            statement->setFlag(ASTNode::HAS_TOP_LEVEL_RETURN, true);
 }
 
 // ~~~~~ This ~~~~~
@@ -7175,16 +7178,14 @@ void Procedure::addStatement(ASTNode * _statement) {
 Struct * Procedure::getParentStruct() {
     Struct * s = nullptr;
 
-    BJOU_DEBUG_ASSERT(parent);
-
-    if (parent->nodeKind == ASTNode::STRUCT) {
-        s = (Struct *)parent;
-    } else if (parent->nodeKind == ASTNode::TEMPLATE_PROC &&
-               parent->getParent()->nodeKind == ASTNode::STRUCT) {
-        s = (Struct *)parent->getParent();
+    if (parent) {
+        if (parent->nodeKind == ASTNode::STRUCT) {
+            s = (Struct *)parent;
+        } else if (parent->nodeKind == ASTNode::TEMPLATE_PROC &&
+                   parent->getParent()->nodeKind == ASTNode::STRUCT) {
+            s = (Struct *)parent->getParent();
+        }
     }
-
-    BJOU_DEBUG_ASSERT(s);
 
     return s;
 }
@@ -7193,11 +7194,13 @@ void Procedure::desugarThis() {
     This * seen = nullptr;
     for (ASTNode * node : getParamVarDeclarations()) {
         if (node->nodeKind == ASTNode::THIS) {
-            if (!getParent() || getParentStruct()->nodeKind != ASTNode::STRUCT)
+            if (!getParentStruct() || getParentStruct()->nodeKind != ASTNode::STRUCT)
                 errorl(node->getContext(),
                        "'this' not allowed here."); // @bad error message
 
             Struct * s = getParentStruct();
+
+            BJOU_DEBUG_ASSERT(s);
 
             if (seen) {
                 errorl(node->getContext(), "'this' already declared.", false);
@@ -7964,24 +7967,29 @@ void If::analyze(bool force) {
 
     getConditional()->analyze(force);
 
-    if (!conv(BoolType::get(), getConditional()->getType()))
+    const Type * bool_type = BoolType::get();
+
+    if (!conv(bool_type, getConditional()->getType())) {
         errorl(
             getConditional()->getContext(),
             "Expression convertible to type 'bool' is required for conditionals.",
             true,
             "'" + getConditional()->getType()->getDemangledName() +
                 "' is invalid");
+    }
 
-    if (!equal(BoolType::get(), getConditional()->getType()))
-        emplaceConversion((Expression*)getConditional(), BoolType::get());
+    if (!equal(bool_type, getConditional()->getType())) {
+        emplaceConversion((Expression*)getConditional(), bool_type);
+    }
 
     for (ASTNode *& statement : getStatements()) {
         statement->analyze(force);
         handleTerminators(this, getStatements(), statement);
     }
 
-    if (getElse())
+    if (getElse()) {
         getElse()->analyze(force);
+    }
 
     setFlag(ANALYZED, true);
 }

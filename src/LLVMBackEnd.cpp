@@ -768,7 +768,7 @@ void LLVMBackEnd::genStructProcs(Struct * s) {
     for (auto & set : s_t->memberProcs) {
         for (auto & _proc : set.second->procs) {
             Procedure * proc = (Procedure *)_proc.second->node();
-            if (!_proc.second->isTemplateProc()) { //&& proc->getParentStruct() == s) {
+            if (!_proc.second->isTemplateProc()) {
                 getOrGenNode(proc);
             }
         }

@@ -90,4 +90,5 @@ else
             ..
     fi
 fi
-make -j$CORES
+
+time make -j$CORES

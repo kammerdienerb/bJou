@@ -11,6 +11,8 @@
 
 #include "Maybe.hpp"
 #include "Misc.hpp"
+#include "std_string_hasher.hpp"
+#include "hybrid_map.hpp"
 
 #include <set>
 #include <string>
@@ -261,10 +263,10 @@ struct StructType : Type {
     Struct * _struct;
     TemplateInstantiation * inst;
     Type * extends;
-    std::unordered_map<std::string, int> memberIndices;
+    hybrid_map<std::string, int, std_string_hasher> memberIndices;
     std::vector<const Type *> memberTypes;
-    std::unordered_map<std::string, Constant *> constantMap;
-    std::unordered_map<std::string, ProcSet *> memberProcs;
+    hybrid_map<std::string, Constant *, std_string_hasher> constantMap;
+    hybrid_map<std::string, ProcSet *, std_string_hasher> memberProcs;
 
     StructType(std::string & name, Struct * __struct = nullptr,
                TemplateInstantiation * _inst = nullptr);

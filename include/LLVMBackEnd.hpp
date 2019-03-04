@@ -21,6 +21,8 @@
 #include "BackEnd.hpp"
 #include "LLVMGenerator.hpp"
 #include "Type.hpp"
+#include "std_string_hasher.hpp"
+#include "hybrid_map.hpp"
 
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/Optional.h>
@@ -56,7 +58,7 @@ struct StackFrame {
     };
 
     std::vector<FrameVal> vals;
-    std::unordered_map<std::string, size_t> namedVals;
+    hybrid_map<std::string, size_t, std_string_hasher> namedVals;
 };
 
 struct LoopFrameInfo {
@@ -115,7 +117,6 @@ struct LLVMBackEnd : BackEnd {
     llvm::Value * getOrGenNode(ASTNode * node, bool getAddr = false);
     llvm::Type * getOrGenType(const Type * t);
 
-    std::unordered_map<std::string, llvm::GlobalVariable *> globaltypeinfos;
     std::unordered_map<Constant *, llvm::Value *> generatedTypeMemberConstants;
 
     std::stack<LoopFrameInfo> loop_break_stack;

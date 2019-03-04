@@ -54,6 +54,9 @@ void post() {
 "proc close(fd : int) : i64\n"
 "    return nolibc_syscall(SYS_close, 1, fd)\n"
 "\n"
+"proc exit(status : int) : i64\n"
+"    return nolibc_syscall(SYS_exit, 1, status)\n"
+"\n"
 "proc lseek(fd : int, offset : u64, whence : int) : u64\n"
 "    return nolibc_syscall(SYS_lseek, 3, fd, offset, whence)\n"
 "\n"
@@ -71,6 +74,7 @@ int main() {
     PRINT_SYS_NR_DECL(SYS_read);
     PRINT_SYS_NR_DECL(SYS_open);
     PRINT_SYS_NR_DECL(SYS_close);
+    PRINT_SYS_NR_DECL(SYS_exit);
     PRINT_SYS_NR_DECL(SYS_lseek);
     PRINT_SYS_NR_DECL(SYS_access);
     PRINT_SYS_NR_DECL(SYS_getpid);
