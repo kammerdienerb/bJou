@@ -6213,10 +6213,17 @@ void VariableDeclaration::analyze(bool force) {
     if (getInitialization()) {
         const Type * init_t = nullptr;
 
-        if (getFlag(IS_TYPE_MEMBER))
+        if (getFlag(IS_TYPE_MEMBER)) {
             errorl(getInitialization()->getContext(),
                    "Type member variables cannot be initialized.", true,
                    "did you mean to make '" + getName() + "' a constant?");
+        }
+        
+        if (getFlag(IS_EXTERN)) {
+            errorl(getInitialization()->getContext(),
+                   "External variable bindings cannot be initialized.");
+        }
+
 
         if (getTypeDeclarator()) {
             const Type * decl_t = getTypeDeclarator()->getType();
@@ -6369,12 +6376,11 @@ void VariableDeclaration::addSymbols(std::string& _mod, Scope * _scope) {
             new _Symbol<VariableDeclaration>(getName(), (_scope->parent && !_scope->is_module_scope) ? "" : mod, "", this);
 
         setLookupName(symbol->unmangled);
-        setMangledName(symbol->real_mangled);
-        /* if (_scope->parent) { */
-        /*     setMangledName(symbol->unmangled); */
-        /* } else { */
-        /*     setMangledName(symbol->real_mangled); */
-        /* } */
+        if (getFlag(VariableDeclaration::IS_EXTERN)) {
+            setMangledName(symbol->unmangled);
+        } else {
+            setMangledName(symbol->real_mangled);
+        }
 
         _scope->addSymbol(symbol, &getNameContext());
     }
@@ -9543,7 +9549,6 @@ void TemplateProc::addSymbols(std::string& _mod, Scope * _scope) {
         }
     }
 
-            
     _Symbol<TemplateProc> * symbol = new _Symbol<TemplateProc>(procedureTemplate->getName(), mod, t, this, nullptr, getTemplateDef());
 
     setLookupName(symbol->real_mangled);

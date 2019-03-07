@@ -44,7 +44,7 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_string_literal, parser_kwd_true, parser_kwd_false,
     parser_kwd_nothing, parser_kwd_as, parser_dot, parser_arrow, parser_l_arrow,
     parser_exclam, parser_kwd_sizeof, parser_amp, parser_tilde, parser_at,
-    parser_kwd_not, parser_kwd_new, parser_kwd_proc, parser_kwd___no_mangle__, parser_kwd_extern,
+    parser_kwd_not, parser_kwd_new, parser_kwd_proc, parser_kwd___no_mangle__, parser_kwd_extern, parser_kwd_externvar,
     parser_kwd_some, parser_kwd_bneg, parser_mult, parser_div, parser_mod,
     parser_plus, parser_minus, parser_kwd_bshl, parser_kwd_bshr, parser_lss,
     parser_leq, parser_gtr, parser_geq, parser_equ, parser_neq, parser_kwd_band,
@@ -88,7 +88,7 @@ const char * kwds[] = {
 
     "true",    "false",    "nothing",
 
-    "as",      "sizeof",   "not",       "new",        "proc", "__no_mangle__",    "extern",
+    "as",      "sizeof",   "not",       "new",        "proc", "__no_mangle__",    "extern", "externvar",
     "some",    "bneg",     "and",       "or",         "bshl",    "bshr",
     "band",    "bxor",     "bor"};
 
@@ -521,6 +521,9 @@ MaybeString parser_kwd___no_mangle__(StringViewableBuffer & buff) {
 }
 MaybeString parser_kwd_extern(StringViewableBuffer & buff) {
     return parse_kwd(buff, "extern");
+}
+MaybeString parser_kwd_externvar(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "externvar");
 }
 MaybeString parser_kwd_some(StringViewableBuffer & buff) {
     return parse_kwd(buff, "some");
@@ -2039,7 +2042,7 @@ MaybeASTNode Parser::parseTopLevelNode() {
 
     MaybeASTNode m_node;
     (m_node = parseModuleDeclaration()) || 
-        (m_node = parseProc()) || (m_node = parseExternSig()) ||
+        (m_node = parseProc()) || (m_node = parseExternSig()) || (m_node = parseExternVar()) ||
         (m_node = parseType()) || (m_node = parseEnum()) ||
         (m_node = parseConstant()) || (m_node = parseVariableDeclaration()) || 
         (m_node = parseAlias()) || (m_node = parseStatement()) ||
@@ -2060,7 +2063,7 @@ MaybeASTNode AsyncParser::parseTopLevelNode() {
 
     MaybeASTNode m_node;
     (m_node = parseModuleDeclaration()) ||
-        (m_node = parseProc()) || (m_node = parseExternSig()) ||
+        (m_node = parseProc()) || (m_node = parseExternSig()) || (m_node = parseExternVar()) ||
         (m_node = parseType()) || 
         (m_node = parseEnum()) || (m_node = parseConstant()) ||
         (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
@@ -2081,7 +2084,7 @@ MaybeASTNode ImportParser::parseTopLevelNode() {
 
     MaybeASTNode m_node;
     (m_node = parseModuleDeclaration()) ||
-        (m_node = parseProc()) || (m_node = parseExternSig()) ||
+        (m_node = parseProc()) || (m_node = parseExternSig()) || (m_node = parseExternVar()) ||
         (m_node = parseType()) || 
         (m_node = parseEnum()) || (m_node = parseConstant()) ||
         (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
@@ -2604,6 +2607,23 @@ MaybeASTNode Parser::parseProc(bool parse_body) {
         delete templateResult;
 
         return MaybeASTNode(result);
+    }
+    return MaybeASTNode();
+}
+
+MaybeASTNode Parser::parseExternVar() {
+    Context c;
+    c.start(&currentContext);
+    if (optional(KWD_EXTERNVAR)) {
+        MaybeASTNode result = parseVariableDeclaration();
+        VariableDeclaration * var = nullptr;
+
+        if (result.assignTo(var)) {
+            var->setFlag(VariableDeclaration::IS_EXTERN, true);
+            var->getContext().begin = c.begin;
+        }
+
+        return result;
     }
     return MaybeASTNode();
 }

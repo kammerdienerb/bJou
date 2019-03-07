@@ -98,25 +98,31 @@ template <typename T> struct _Symbol : Symbol {
         BJOU_DEBUG_ASSERT(!name.empty() && "can't create symbol without a name");
         BJOU_DEBUG_ASSERT(!_def);
 
-        { /* make the unmangled symbol */
-            const char * lazy_comma = "";
-            if (!mod.empty()) {
-                unmangled += mod + "::";
-            }
-            if (!type.empty()) {
-                unmangled += type + ".";
-            }
-            unmangled += name;
-            if (_inst) {
-                TemplateInstantiation * inst = (TemplateInstantiation*)_inst;
-                BJOU_DEBUG_ASSERT(!_def);
-                BJOU_DEBUG_ASSERT(inst->getElements().size() > 0);
-                unmangled += "$(";
-                for (ASTNode * elem : inst->getElements()) {
-                    unmangled += lazy_comma + elem->getType()->getDemangledName();
-                    lazy_comma = ", ";
+        {
+            if (__node && __node->nodeKind == ASTNode::VARIABLE_DECLARATION
+            &&  ((VariableDeclaration*)__node)->getFlag(VariableDeclaration::IS_EXTERN)) {
+                unmangled = name;
+            } else {
+                /* make the unmangled symbol */
+                const char * lazy_comma = "";
+                if (!mod.empty()) {
+                    unmangled += mod + "::";
                 }
-                unmangled += ")";
+                if (!type.empty()) {
+                    unmangled += type + ".";
+                }
+                unmangled += name;
+                if (_inst) {
+                    TemplateInstantiation * inst = (TemplateInstantiation*)_inst;
+                    BJOU_DEBUG_ASSERT(!_def);
+                    BJOU_DEBUG_ASSERT(inst->getElements().size() > 0);
+                    unmangled += "$(";
+                    for (ASTNode * elem : inst->getElements()) {
+                        unmangled += lazy_comma + elem->getType()->getDemangledName();
+                        lazy_comma = ", ";
+                    }
+                    unmangled += ")";
+                }
             }
         }
 

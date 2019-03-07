@@ -13,7 +13,7 @@ type argset {
     proc create() : argset {
         return { argset: }
     }
-
+    
     proc show(this) {
         print "no-color = %", this.no_color
     }

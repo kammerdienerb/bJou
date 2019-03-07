@@ -884,20 +884,26 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
     const Type * t = var->getType();
     llvm::Type * ll_t = llbe->getOrGenType(t);
 
+    auto linkage = llvm::GlobalValue::InternalLinkage;
+
+    if (var->getFlag(VariableDeclaration::IS_EXTERN)) {
+        linkage = llvm::GlobalValue::ExternalLinkage;
+    }
+
     if (!gvar) {
         if (t->isArray()) {
             PointerType * ptr_t = (PointerType *)t->under()->getPointer();
             llvm::Type * ll_ptr_t = llbe->getOrGenType(ptr_t);
             gvar =
                 new llvm::GlobalVariable(*llbe->llModule, ll_ptr_t, false,
-                                         llvm::GlobalVariable::InternalLinkage,
+                                         linkage,
                                          0, var->getMangledName());
         } else {
             gvar = new llvm::GlobalVariable(
                 /*Module=*/*llbe->llModule,
                 /*Type=*/ll_t,
                 /*isConstant=*/false,
-                /*Linkage=*/llvm::GlobalValue::InternalLinkage,
+                /*Linkage=*/linkage,
                 /*Initializer=*/0, // has initializer, specified below
                 /*Name=*/var->getMangledName());
         }
@@ -915,6 +921,10 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
 
             gvar->setAlignment(
                 (unsigned int)llbe->layout->getTypeAllocSize(ll_ptr_t));
+
+            if (var->getFlag(VariableDeclaration::IS_EXTERN)) {
+                return gvar;
+            }
 
             llvm::GlobalVariable * under = new llvm::GlobalVariable(
                 *llbe->llModule, ll_t, false,
@@ -940,6 +950,11 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
                          llvm::IntegerType::getInt32Ty(llbe->llContext))}));
         } else {
             gvar->setAlignment((unsigned int)align);
+            
+            if (var->getFlag(VariableDeclaration::IS_EXTERN)) {
+                return gvar;
+            }
+
             if (var->getInitialization())
                 gvar->setInitializer((llvm::Constant *)llbe->getOrGenNode(
                     var->getInitialization()));

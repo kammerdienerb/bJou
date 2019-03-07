@@ -264,6 +264,9 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope, ASTNode * _identifier,
 void Scope::addSymbol(Symbol * symbol, Context * context) {
     Maybe<Symbol *> m_existing = getSymbol(this, symbol->unmangled, nullptr, true, false);
     Symbol * existing = nullptr;
+    
+    Scope * gs = compilation->frontEnd.globalScope;
+
     if (m_existing.assignTo(existing) &&
         !symbol->node()->getFlag(ASTNode::SYMBOL_OVERWRITE)) {
         if (existing->node()->nodeKind == ASTNode::PROC_SET) {
@@ -293,7 +296,11 @@ void Scope::addSymbol(Symbol * symbol, Context * context) {
     if (symbol->isVar()
     &&  symbol->node()->getFlag(VariableDeclaration::IS_PROC_PARAM))
         symbol->initializedInScopes.insert(this);
-    symbols[symbol->unmangled] = symbol;
+    if (symbol->isVar() && ((VariableDeclaration*)symbol->node())->getFlag(VariableDeclaration::IS_EXTERN)) {
+        gs->symbols[symbol->unmangled] = symbol;
+    } else {
+        symbols[symbol->unmangled] = symbol;
+    }
 }
 
 void Scope::addProcSymbol(Symbol * symbol, bool is_extern, bool no_mangle, Context * context) {

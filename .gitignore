@@ -22,3 +22,4 @@ berg
 .clang_complete
 nolibc_syscall
 cmake-build-debug
+self/build

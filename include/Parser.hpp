@@ -106,6 +106,7 @@ MaybeString parser_kwd_new(StringViewableBuffer & buff);
 MaybeString parser_kwd_proc(StringViewableBuffer & buff);
 MaybeString parser_kwd___no_mangle__(StringViewableBuffer & buff);
 MaybeString parser_kwd_extern(StringViewableBuffer & buff);
+MaybeString parser_kwd_externvar(StringViewableBuffer & buff);
 MaybeString parser_kwd_some(StringViewableBuffer & buff);
 MaybeString parser_kwd_bneg(StringViewableBuffer & buff);
 MaybeString parser_mult(StringViewableBuffer & buff);
@@ -221,6 +222,7 @@ enum TokenKind {
     KWD_PROC,
     KWD___NO_MANGLE__,
     KWD_EXTERN,
+    KWD_EXTERNVAR,
     KWD_SOME,
     KWD_BNEG,
     MULT,
@@ -337,6 +339,7 @@ struct Parser {
     MaybeASTNode parseVariableDeclaration();
     MaybeASTNode parseThis();
     MaybeASTNode parseProc(bool parse_body = true);
+    MaybeASTNode parseExternVar();
     MaybeASTNode parseExternSig();
 
     MaybeASTNode parseStatement();
