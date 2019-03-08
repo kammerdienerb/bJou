@@ -2260,9 +2260,15 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
             val = llbe->getOrGenNode(arg, getArgAddr);
 
             if (arg->getType()->isRef() && arg->getType()->unRef()->isArray()) {
-                const Type * elem_t = arg->getType()->unRef()->under();
-                val = llbe->builder.CreateBitCast(
-                    val, llbe->getOrGenType(elem_t)->getPointerTo());
+                if (val->getType()->isArrayTy()) {
+                    val = llbe->builder.CreateInBoundsGEP(
+                            val,
+                            { llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0)});
+                } else {
+                    const Type * elem_t = arg->getType()->unRef()->under();
+                    val = llbe->builder.CreateBitCast(
+                        val, llbe->getOrGenType(elem_t)->getPointerTo());
+                }
             }
 
             if (!getArgAddr) {
