@@ -2265,6 +2265,9 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
 
             if (arg->getType()->isRef() && arg->getType()->unRef()->isArray()) {
                 if (val->getType()->isArrayTy()) {
+                    if (!getArgAddr) {
+                        val = llbe->getOrGenNode(arg, true);
+                    }
                     val = llbe->builder.CreateInBoundsGEP(
                             val,
                             { llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0),
@@ -2767,6 +2770,10 @@ void * AsExpression::generate(BackEnd & backEnd, bool flag) {
         rt = IntType::get(Type::Sign::UNSIGNED, 64);
 
     llvm::Value * val = (llvm::Value *)llbe->getOrGenNode(getLeft());
+    if (val->getType()->isArrayTy()) {
+        val = (llvm::Value *)llbe->getOrGenNode(getLeft(), true);
+    }
+
     llvm::Type * ll_rt = llbe->getOrGenType(rt);
 
     if (lt->isInt() && rt->isInt()) {
