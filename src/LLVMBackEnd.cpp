@@ -2264,19 +2264,9 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
             val = llbe->getOrGenNode(arg, getArgAddr);
 
             if (arg->getType()->isRef() && arg->getType()->unRef()->isArray()) {
-                if (val->getType()->isArrayTy()) {
-                    if (!getArgAddr) {
-                        val = llbe->getOrGenNode(arg, true);
-                    }
-                    val = llbe->builder.CreateInBoundsGEP(
-                            val,
-                            { llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0),
-                              llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0)});
-                } else {
-                    const Type * elem_t = arg->getType()->unRef()->under();
-                    val = llbe->builder.CreateBitCast(
-                        val, llbe->getOrGenType(elem_t)->getPointerTo());
-                }
+                const Type * elem_t = arg->getType()->unRef()->under();
+                val = llbe->builder.CreateBitCast(
+                    val, llbe->getOrGenType(elem_t)->getPointerTo());
             }
 
             if (!getArgAddr) {
@@ -2820,18 +2810,11 @@ void * AsExpression::generate(BackEnd & backEnd, bool flag) {
                rt->under() == VoidType::get()) {
         return llbe->builder.CreateBitCast(val, ll_rt);
     } else if (lt->isArray() && rt->isPointer()) {
-        if (val->getType()->isArrayTy()) {
-            return llbe->builder.CreateInBoundsGEP(
-                        val,
-                        { llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0),
-                          llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0)});
-        } else {
-            ArrayType * a_t = (ArrayType *)lt;
-            PointerType * p_t = (PointerType *)rt;
-            if (equal(a_t->under(), p_t->under()) ||
-                p_t->under() == VoidType::get())
-                return llbe->builder.CreateBitCast(val, ll_rt);
-        }
+        ArrayType * a_t = (ArrayType *)lt;
+        PointerType * p_t = (PointerType *)rt;
+        if (equal(a_t->under(), p_t->under()) ||
+            p_t->under() == VoidType::get())
+            return llbe->builder.CreateBitCast(val, ll_rt);
     }
 
     BJOU_DEBUG_ASSERT(false && "Did not create cast for AsExpression");
@@ -2955,6 +2938,13 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     // we shouldn't load direct function references
     else if (llvm::isa<llvm::Function>(ptr))
         getAddr = false;
+
+    if (ptr->getType()->isArrayTy()) {
+        return llbe->builder.CreateInBoundsGEP(
+                ptr,
+                { llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0),
+                  llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0)});
+    }
 
     if (getAddr)
         return ptr;
