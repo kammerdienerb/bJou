@@ -285,12 +285,49 @@ void Scope::addSymbol(Symbol * symbol, Context * context) {
         } else if (existing->node()->getScope()->parent ||
                    existing->node()->getScope() == symbol->node()->getScope()) {
             /* the existing symbol isn't a global or they are both global */
-            errorl(*context,
-                   "Redefinition of '" + symbol->unmangled + "'.",
-                   false);
-            Context econtext = existing->node()->getNameContext();
-            errorl(econtext,
-                   "'" + existing->unmangled + "' also defined here.");
+            bool extern_compat = false;
+
+            if (symbol->isVar() && existing->isVar()) {
+                VariableDeclaration * s_var = (VariableDeclaration*)symbol->node();
+                VariableDeclaration * e_var = (VariableDeclaration*)existing->node();
+
+                if (s_var->getFlag(VariableDeclaration::IS_EXTERN)
+                &&  e_var->getFlag(VariableDeclaration::IS_EXTERN)) {
+                    const Type * s_t = s_var->getType();
+                    const Type * e_t = e_var->getType();
+
+                    if (!equal(s_t, e_t)) {
+                        errorl(
+                            s_var->getNameContext(),
+                            "Conflicting declarations of extern variable '" +
+                                s_var->getName() + "'.",
+                            false,
+                            "declared with type '" + s_t->getDemangledName() +
+                                "'");
+                        errorl(e_var->getNameContext(),
+                               "'" + e_var->getName() +
+                                   "' previously declared here.",
+                               true,
+                               "declared with type '" +
+                                   e_t->getDemangledName() + "'");
+                    }
+                    
+                    if (!s_var->getFlag(ASTNode::CT)) {
+                        e_var->setFlag(ASTNode::CT, false);
+                    }
+
+                    extern_compat = true;
+                }
+            }
+
+            if (!extern_compat) {
+                errorl(*context,
+                       "Redefinition of '" + symbol->unmangled + "'.",
+                       false);
+                Context econtext = existing->node()->getNameContext();
+                errorl(econtext,
+                       "'" + existing->unmangled + "' also defined here.");
+            }
         }
     }
     if (symbol->isVar()

@@ -6210,6 +6210,12 @@ void VariableDeclaration::analyze(bool force) {
         BJOU_DEBUG_ASSERT(sym);
     }
 
+    if (!getFlag(IS_TYPE_MEMBER)
+    &&  getFlag(IS_EXTERN)
+    && (getScope()->parent && !getScope()->is_module_scope)) {
+        errorl(getNameContext(), "External variable bindings must be made at global scope.");
+    }
+
     if (getInitialization()) {
         const Type * init_t = nullptr;
 
@@ -6371,6 +6377,12 @@ void VariableDeclaration::analyze(bool force) {
 void VariableDeclaration::addSymbols(std::string& _mod, Scope * _scope) {
     mod = _mod;
     setScope(_scope);
+
+    if (getTypeDeclarator())
+        getTypeDeclarator()->addSymbols(mod, _scope);
+    if (getInitialization())
+        getInitialization()->addSymbols(mod, _scope);
+
     if (!getFlag(IS_TYPE_MEMBER)) {
         _Symbol<VariableDeclaration> * symbol =
             new _Symbol<VariableDeclaration>(getName(), (_scope->parent && !_scope->is_module_scope) ? "" : mod, "", this);
@@ -6384,10 +6396,6 @@ void VariableDeclaration::addSymbols(std::string& _mod, Scope * _scope) {
 
         _scope->addSymbol(symbol, &getNameContext());
     }
-    if (getTypeDeclarator())
-        getTypeDeclarator()->addSymbols(mod, _scope);
-    if (getInitialization())
-        getInitialization()->addSymbols(mod, _scope);
 }
 
 void VariableDeclaration::unwrap(std::vector<ASTNode *> & terminals) {

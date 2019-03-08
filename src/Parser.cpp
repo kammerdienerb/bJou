@@ -2701,7 +2701,7 @@ MaybeASTNode Parser::parseStatement() {
         (m_statement = parseFor()) || (m_statement = parseForeach()) ||
         (m_statement = parseWhile()) || (m_statement = parseDoWhile()) ||
         (m_statement = parseConstant()) || (m_statement = parseMatch()) ||
-        (m_statement = parseUsing());
+        (m_statement = parseUsing()) || (m_statement = parseExternVar());
 
     return m_statement;
 }
