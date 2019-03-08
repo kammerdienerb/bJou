@@ -2264,7 +2264,6 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
                     val = llbe->builder.CreateInBoundsGEP(
                             val,
                             { llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0),
-                              llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0),
                               llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0)});
                 } else {
                     const Type * elem_t = arg->getType()->unRef()->under();
@@ -2814,7 +2813,6 @@ void * AsExpression::generate(BackEnd & backEnd, bool flag) {
             return llbe->builder.CreateInBoundsGEP(
                         val,
                         { llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0),
-                          llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0),
                           llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0)});
         } else {
             ArrayType * a_t = (ArrayType *)lt;
