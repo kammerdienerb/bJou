@@ -331,8 +331,11 @@ void Scope::addSymbol(Symbol * symbol, Context * context) {
         }
     }
     if (symbol->isVar()
-    &&  symbol->node()->getFlag(VariableDeclaration::IS_PROC_PARAM))
+    && (symbol->node()->getFlag(VariableDeclaration::IS_PROC_PARAM)
+      ||symbol->node()->getFlag(VariableDeclaration::IS_EXTERN))) {
         symbol->initializedInScopes.insert(this);
+    }
+
     if (symbol->isVar() && ((VariableDeclaration*)symbol->node())->getFlag(VariableDeclaration::IS_EXTERN)) {
         gs->symbols[symbol->unmangled] = symbol;
     } else {

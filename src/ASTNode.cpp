@@ -6210,6 +6210,10 @@ void VariableDeclaration::analyze(bool force) {
         BJOU_DEBUG_ASSERT(sym);
     }
 
+    if (!getFlag(IS_TYPE_MEMBER) && getScope()->is_module_scope) {
+        sym->initializedInScopes.insert(compilation->frontEnd.globalScope);
+    }
+
     if (!getFlag(IS_TYPE_MEMBER)
     &&  getFlag(IS_EXTERN)
     && (getScope()->parent && !getScope()->is_module_scope)) {
