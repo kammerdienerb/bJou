@@ -75,6 +75,10 @@ LLVMBackEnd::LLVMBackEnd(FrontEnd & _frontEnd)
     ee = nullptr;
 }
 
+static void plv(llvm::Value * val) {
+    val->print(llvm::outs());
+}
+
 void LLVMBackEnd::init() {
     mode = GEN_MODE::CT;
 
