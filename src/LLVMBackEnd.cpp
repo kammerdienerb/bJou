@@ -2808,12 +2808,17 @@ void * AsExpression::generate(BackEnd & backEnd, bool flag) {
                rt->under() == VoidType::get()) {
         return llbe->builder.CreateBitCast(val, ll_rt);
     } else if (lt->isArray() && rt->isPointer()) {
-        ArrayType * a_t = (ArrayType *)lt;
-        PointerType * p_t = (PointerType *)rt;
-
-        if (equal(a_t->under(), p_t->under()) ||
-            p_t->under() == VoidType::get())
-            return llbe->builder.CreateBitCast(val, ll_rt);
+        if (val->getType()->isArrayTy()) {
+            val = llbe->builder.CreateInBoundsGEP(
+                    val,
+                    { llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0)});
+        } else {
+            ArrayType * a_t = (ArrayType *)lt;
+            PointerType * p_t = (PointerType *)rt;
+            if (equal(a_t->under(), p_t->under()) ||
+                p_t->under() == VoidType::get())
+                return llbe->builder.CreateBitCast(val, ll_rt);
+        }
     }
 
     BJOU_DEBUG_ASSERT(false && "Did not create cast for AsExpression");
