@@ -892,10 +892,16 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
 
     if (!gvar) {
         if (t->isArray()) {
-            PointerType * ptr_t = (PointerType *)t->under()->getPointer();
-            llvm::Type * ll_ptr_t = llbe->getOrGenType(ptr_t);
+            llvm::Type * the_llvm_t = nullptr;
+            if (var->getFlag(VariableDeclaration::IS_EXTERN)) {
+                ArrayType * array_t = (ArrayType*)t;
+                the_llvm_t          = llvm::ArrayType::get(llbe->getOrGenType(t->under()), array_t->width);
+            } else {
+                PointerType * ptr_t = (PointerType *)t->under()->getPointer();
+                the_llvm_t          = llbe->getOrGenType(ptr_t);
+            }
             gvar =
-                new llvm::GlobalVariable(*llbe->llModule, ll_ptr_t, false,
+                new llvm::GlobalVariable(*llbe->llModule, the_llvm_t, false,
                                          linkage,
                                          0, var->getMangledName());
         } else {
@@ -916,11 +922,8 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
         auto align = llbe->layout->getABITypeAlignment(ll_t);
 
         if (t->isArray()) {
-            PointerType * ptr_t = (PointerType *)t->under()->getPointer();
-            llvm::Type * ll_ptr_t = llbe->getOrGenType(ptr_t);
-
             gvar->setAlignment(
-                (unsigned int)llbe->layout->getTypeAllocSize(ll_ptr_t));
+                (unsigned int)llbe->layout->getTypeAllocSize(gvar->getType()));
 
             if (var->getFlag(VariableDeclaration::IS_EXTERN)) {
                 return gvar;
