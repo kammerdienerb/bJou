@@ -79,6 +79,10 @@ static void plv(llvm::Value * val) {
     val->print(llvm::outs());
 }
 
+static void plt(llvm::Type * ty) {
+    ty->print(llvm::outs());
+}
+
 void LLVMBackEnd::init() {
     mode = GEN_MODE::CT;
 
@@ -2939,7 +2943,7 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     else if (llvm::isa<llvm::Function>(ptr))
         getAddr = false;
 
-    if (ptr->getType()->isArrayTy()) {
+    if (ptr->getType()->getPointerElementType()->isArrayTy()) {
         return llbe->builder.CreateInBoundsGEP(
                 ptr,
                 { llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0),
