@@ -2943,7 +2943,8 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     else if (llvm::isa<llvm::Function>(ptr))
         getAddr = false;
 
-    if (ptr->getType()->getPointerElementType()->isArrayTy()) {
+    if (ptr->getType()->isPointerTy()
+    &&  ptr->getType()->getPointerElementType()->isArrayTy()) {
         return llbe->builder.CreateInBoundsGEP(
                 ptr,
                 { llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0),
