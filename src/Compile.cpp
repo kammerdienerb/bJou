@@ -12,6 +12,7 @@
 #include "FrontEnd.hpp"
 #include "Parser.hpp"
 #include "StringViewableBuffer.hpp"
+#include "getRSS.h"
 
 #include <mutex>
 #include <stdlib.h>
@@ -112,6 +113,9 @@ void Compilation::go() {
         float s = RunTimeToSeconds(compile_time);
         float per_s = ((float)frontEnd.n_lines) / s;
         printf("*** %u lines @ %g lines/s\n", frontEnd.n_lines, per_s);
+        char * mem_size = calculateSize(getPeakRSS());
+        printf("*** Max memory usage: %s\n", mem_size);
+        free(mem_size);
         bjouResetColor();
         fflush(stdout);
     }

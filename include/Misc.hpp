@@ -30,6 +30,8 @@
 
 #define B_MAX(a, b) ((a) > (b) ? (a) : (b))
 
+char * calculateSize(size_t size);
+
 template <size_t N> bool s_in_a(const char * s, const char * (&a)[N]) {
     for (auto elem : a)
         if (std::strcmp(elem, s) == 0)
