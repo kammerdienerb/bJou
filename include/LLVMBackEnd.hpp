@@ -161,6 +161,7 @@ struct LLVMBackEnd : BackEnd {
     llvm::Value * createGlobaltypeinfo(Struct * s);
     llvm::Value * getGlobaltypeinfo(Struct * s);
 
+    milliseconds IRGenStage();
     milliseconds CodeGenStage();
     milliseconds LinkingStage();
 };

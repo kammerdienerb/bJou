@@ -105,12 +105,16 @@ void Compilation::go() {
     }
 
     auto end = Clock::now();
-    auto compile_time = duration_cast<milliseconds>(end - start);
-    if (args.time_arg)
-        prettyPrintTimeMaj(compile_time, "Grand total");
+
     if (args.time_arg) {
+        auto compile_time = duration_cast<milliseconds>(end - start);
         bjouSetColor(LIGHTCYAN);
         float s = RunTimeToSeconds(compile_time);
+        if (s > 0) {
+            printf("*** Grand total: %gs\n", s);
+        } else {
+            printf("*** Grand total: %lldms\n", compile_time.count());
+        }
         float per_s = ((float)frontEnd.n_lines) / s;
         printf("*** %u lines @ %g lines/s\n", frontEnd.n_lines, per_s);
         char * mem_size = calculateSize(getPeakRSS());

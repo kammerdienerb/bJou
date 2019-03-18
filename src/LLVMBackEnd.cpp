@@ -369,12 +369,17 @@ LLVMBackEnd::~LLVMBackEnd() {
 milliseconds LLVMBackEnd::go() {
     auto start = Clock::now();
 
-    auto cg_time = CodeGenStage();
-    if (compilation->args.time_arg)
+    auto ir_time = IRGenStage();
+    if (compilation->args.time_arg) {
         prettyPrintTimeMin(
-            cg_time,
-            std::string("Code Generation") +
+            ir_time, "IR Generation");
+    }
+    
+    auto cg_time = CodeGenStage();
+    if (compilation->args.time_arg) {
+        prettyPrintTimeMin(cg_time, std::string("Code Generation") +
                 (compilation->args.opt_arg ? " and Optimization" : ""));
+    }
 
     if (!compilation->args.c_arg) {
         auto l_time = LinkingStage();
@@ -977,7 +982,7 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
     return gvar;
 }
 
-milliseconds LLVMBackEnd::CodeGenStage() {
+milliseconds LLVMBackEnd::IRGenStage() {
     auto start = Clock::now();
 
     mode = GEN_MODE::RT;
@@ -1070,11 +1075,16 @@ milliseconds LLVMBackEnd::CodeGenStage() {
         internalError("There was an llvm error.");
     }
 
-    generator.generate();
-
     if (compilation->args.verbose_arg)
         llModule->print(llvm::errs(), nullptr);
 
+    auto end = Clock::now();
+    return duration_cast<milliseconds>(end - start);
+}
+
+milliseconds LLVMBackEnd::CodeGenStage() {
+    auto start = Clock::now();
+    generator.generate();
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
 }
