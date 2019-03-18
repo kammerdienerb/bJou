@@ -3309,8 +3309,14 @@ void Identifier::setSymType(std::string _type) {
 std::string Identifier::symAll() const {
     std::string r;
 
-    if (!sym_mod.empty())     r += sym_mod  + "::";
-    if (!sym_type.empty())    r += sym_type + ".";
+    if (!sym_mod.empty()) {
+        r += sym_mod;
+        r += "::";
+    }
+    if (!sym_type.empty()) {
+        r += sym_type;
+        r += ".";
+    }
     r += sym_name;
 
     return r;
@@ -5828,10 +5834,13 @@ void ProcedureDeclarator::desugar() {
 const Type * ProcedureDeclarator::getType() {
     std::vector<ASTNode *> & paramDeclarators = getParamDeclarators();
     std::vector<const Type *> paramTypes;
-    std::transform(paramDeclarators.begin(), paramDeclarators.end(),
-                   std::back_inserter(paramTypes), [](ASTNode * declarator) {
-                       return ((Declarator *)declarator)->getType();
-                   });
+    paramTypes.reserve(paramDeclarators.size());
+
+    for (ASTNode * node : paramDeclarators) {
+        Declarator * decl = (Declarator*)node;
+        paramTypes.push_back(decl->getType());
+    }
+
     const Type * retType = ((Declarator *)getRetDeclarator())->getType();
     bool isVararg = getFlag(IS_VARARG);
 

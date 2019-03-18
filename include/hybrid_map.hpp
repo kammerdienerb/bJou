@@ -88,7 +88,7 @@ struct hybrid_map {
     hybrid_map()
         : n_static(0),
           using_static(true),
-          hash_table(2 * HYBRID_MAP_N) { }
+          hash_table(HYBRID_MAP_N * 2) { }
 
     size_t size() const {
         if (using_static) {
@@ -133,12 +133,13 @@ struct hybrid_map {
             n_static += 1;
 
             if (n_static == HYBRID_MAP_N) {
-                for (int i = 0; i < n_static; i += 1) {
+                for (int i = 0; i < n_static - 1; i += 1) {
                     hash_table.insert({ static_key_storage[i], static_val_storage[i] });
                 }
+                auto pair = hash_table.insert({ static_key_storage[n_static - 1], static_val_storage[n_static - 1] });
 
                 using_static = false;
-                return hash_table[key];
+                return pair.first->second;
             }
 
             return ret;

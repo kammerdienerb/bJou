@@ -203,13 +203,14 @@ Maybe<Symbol *> Scope::getSymbolSingleScope(Scope * startingScope,
     auto search = symbols.find(qualifiedIdentifier);
     auto end    = symbols.end();
     if (search != end) {
+        Symbol * sym = search->second;
         if (checkUninit) {
-            checkUninitialized(startingScope, search->second, *context);
+            checkUninitialized(startingScope, sym, *context);
         }
         if (countAsReference) {
-            search->second->referenced = true;
+            sym->referenced = true;
         }
-        return Maybe<Symbol *>(search->second);
+        return Maybe<Symbol *>(sym);
     }
 
     return Maybe<Symbol *>();
@@ -248,8 +249,13 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope,
     }
 
     if (!has_mod) {
+        std::string mod_postfix = "::" + qualifiedIdentifier;
+        std::string qual;
         for (auto it = usings.rbegin(); it != usings.rend(); it++) {
-            auto m_sym = getModuleSymbol(startingScope, *it, *it + "::" + qualifiedIdentifier, context);
+            qual.clear();
+            qual += *it;
+            qual += mod_postfix;
+            auto m_sym = getModuleSymbol(startingScope, *it, qual, context);
 
             if (m_sym)    { return m_sym; }
         }
