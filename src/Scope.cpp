@@ -22,10 +22,12 @@
 namespace bjou {
 
 Scope::Scope(std::string _description, Scope * _parent, bool _is_module_scope, std::string mod)
-    : description(_description), parent(_parent), is_module_scope(_is_module_scope) {
+    : description(_description), parent(_parent), is_module_scope(_is_module_scope), module_scopes(nullptr) {
 
     if (parent) {
         usings.insert(usings.end(), parent->usings.begin(), parent->usings.end());
+    } else {
+        module_scopes = new hybrid_map<std::string, Scope*, std_string_hasher>();
     }
 
     if (is_module_scope) {
@@ -37,6 +39,11 @@ Scope::Scope(std::string _description, Scope * _parent, bool _is_module_scope, s
 Scope::~Scope() {
     for (Scope * scope : scopes)
         delete scope;
+    
+    if (module_scopes) {
+        delete module_scopes;
+    }
+
     for (auto & symbol : symbols)
         delete symbol.second;
 }
@@ -155,11 +162,10 @@ static void checkUninitialized(Scope * startingScope, Symbol * sym,
 static Maybe<Symbol *> getModuleSymbol(Scope * startingScope, const std::string& m, const std::string& s,
                                     Context * context) {
     Scope * global_scope = compilation->frontEnd.globalScope;
+    Scope * module_scope = (*global_scope->module_scopes)[m];
 
-    for (Scope * scope : global_scope->scopes) {
-        if (scope->is_module_scope && scope->module_name == m) {
-            return scope->getSymbolSingleScope(startingScope, s, context, /* checkUninit =*/ false, /* countAsReference =*/ true);
-        }
+    if (module_scope) {
+        return module_scope->getSymbolSingleScope(startingScope, s, context, /* checkUninit =*/ false, /* countAsReference =*/ true);
     }
 
     return Maybe<Symbol *>();
@@ -194,13 +200,16 @@ Maybe<Symbol *> Scope::getSymbolSingleScope(Scope * startingScope,
                                             bool checkUninit,
                                             bool countAsReference) {
 
-    if (symbols.count(qualifiedIdentifier) > 0) {
-        if (checkUninit)
-            checkUninitialized(startingScope, symbols[qualifiedIdentifier],
-                               *context);
-        if (countAsReference)
-            symbols[qualifiedIdentifier]->referenced = true;
-        return Maybe<Symbol *>(symbols[qualifiedIdentifier]);
+    auto search = symbols.find(qualifiedIdentifier);
+    auto end    = symbols.end();
+    if (search != end) {
+        if (checkUninit) {
+            checkUninitialized(startingScope, search->second, *context);
+        }
+        if (countAsReference) {
+            search->second->referenced = true;
+        }
+        return Maybe<Symbol *>(search->second);
     }
 
     return Maybe<Symbol *>();

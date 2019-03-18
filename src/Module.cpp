@@ -101,6 +101,7 @@ void Module::activate(Import * source, bool ct) {
         module_scope->description =
             "scope opened by module '" + identifier + "'";
         compilation->frontEnd.globalScope->scopes.push_back(module_scope);
+        (*compilation->frontEnd.globalScope->module_scopes)[identifier] = module_scope;
 
         for (ASTNode * s : structs)
             ((Struct *)s)->preDeclare(identifier, module_scope);

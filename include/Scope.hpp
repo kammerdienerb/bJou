@@ -36,6 +36,7 @@ struct Scope {
     std::string module_name;
     /* std::unordered_map<std::string, Symbol*, std_string_hasher> symbols; */
     hybrid_map<std::string, Symbol*, std_string_hasher> symbols;
+    hybrid_map<std::string, Scope*, std_string_hasher> * module_scopes;
     std::vector<Scope *> scopes;
     std::vector<std::string> usings;
 
