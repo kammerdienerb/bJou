@@ -31,7 +31,7 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_dbl_question, parser_template_begin, parser_kwd_const,
     parser_kwd_type, parser_kwd_abstract, parser_kwd_extends,
     parser_kwd_from,
-    parser_kwd_enum, parser_kwd_print, parser_kwd_raw, parser_kwd_immut,
+    parser_kwd_enum, parser_kwd_print, parser_kwd_immut,
     parser_kwd_coerce, parser_kwd_this, parser_kwd_ref, parser_kwd_delete,
     parser_kwd_import, parser_kwd_using, parser_kwd_module,
     parser_kwd_alias, parser_kwd_operator, parser_kwd_return, parser_kwd_if,
@@ -80,7 +80,7 @@ parser_end_of_line
 
 const char * kwds[] = {
     "type",    "abstract", "extends", "from",
-    "enum",    "print",    "raw",       "immut",      "delete", 
+    "enum",    "print",    "immut",      "delete", 
     "import",  "using", "alias",    "operator",  "coerce",     "this",    "ref",
 
     "return",  "if",       "else",      "while",      "do",      "for",
@@ -254,9 +254,6 @@ MaybeString parser_kwd_enum(StringViewableBuffer & buff) {
 }
 MaybeString parser_kwd_print(StringViewableBuffer & buff) {
     return parse_kwd(buff, "print");
-}
-MaybeString parser_kwd_raw(StringViewableBuffer & buff) {
-    return parse_kwd(buff, "raw");
 }
 MaybeString parser_kwd_immut(StringViewableBuffer & buff) {
     return parse_kwd(buff, "immut");
@@ -860,7 +857,7 @@ MaybeASTNode Parser::parseDeclarator(bool base_only) {
     while (true) {
         MaybeString m_spec;
         std::string spec;
-        (m_spec = optional(KWD_RAW)) || (m_spec = optional(KWD_IMMUT));
+        m_spec = optional(KWD_IMMUT);
         if (m_spec.assignTo(spec))
             specs.push_back(spec);
         else

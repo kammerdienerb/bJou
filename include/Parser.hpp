@@ -54,7 +54,6 @@ MaybeString parser_kwd_extends(StringViewableBuffer & buff);
 MaybeString parser_kwd_from(StringViewableBuffer & buff);
 MaybeString parser_kwd_enum(StringViewableBuffer & buff);
 MaybeString parser_kwd_print(StringViewableBuffer & buff);
-MaybeString parser_kwd_raw(StringViewableBuffer & buff);
 MaybeString parser_kwd_immut(StringViewableBuffer & buff);
 MaybeString parser_kwd_coerce(StringViewableBuffer & buff);
 MaybeString parser_kwd_this(StringViewableBuffer & buff);
@@ -170,7 +169,6 @@ enum TokenKind {
     KWD_FROM,
     KWD_ENUM,
     KWD_PRINT,
-    KWD_RAW,
     KWD_IMMUT,
     KWD_COERCE,
     KWD_THIS,
