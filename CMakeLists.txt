@@ -49,6 +49,14 @@ execute_process(COMMAND "${LLVM_CONFIG}" "--system-libs"
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 
+if(EXISTS "${LLVM_INCLUDE_DIR}/lld")
+    set(BJOU_HAS_LLD TRUE)
+    message(STATUS "Using lld")
+else()
+    message(STATUS "Did not find lld")
+endif()
+
+
 # - Find Tcmalloc
 # Find the native Tcmalloc includes and library
 #
@@ -141,7 +149,9 @@ target_link_libraries(bjou
         ${PROJECT_SOURCE_DIR}/nolibc_syscall/nolibc_syscall.o
         ffi
         pthread
-        ${LLVM_SYSTEM_LIBS}
+        ${LLVM_SYSTEM_LIBS})
+if(BJOU_HAS_LLD)
+    target_link_libraries(bjou
         lldCOFF
         lldCommon
         lldCore
@@ -151,12 +161,17 @@ target_link_libraries(bjou
         lldMinGW
         lldReaderWriter
         lldWasm
-        lldYAML
+        lldYAML)
+endif()
+target_link_libraries(bjou
         ${Tcmalloc_LIBRARIES})
 
 target_compile_definitions(bjou PRIVATE BJOU_USE_COLOR)
 target_compile_definitions(bjou PRIVATE BJOU_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}")
 target_compile_definitions(bjou PRIVATE $<$<CONFIG:Debug>:BJOU_DEBUG_BUILD>)
+if(BJOU_HAS_LLD)
+    target_compile_definitions(bjou PRIVATE BJOU_HAS_LLD)
+endif()
 
 # installation
 install(FILES nolibc_syscall/libnolibc_syscall.a

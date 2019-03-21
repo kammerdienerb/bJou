@@ -1121,6 +1121,7 @@ milliseconds LLVMBackEnd::LinkingStage() {
 
     bool use_system_linker = true;
 
+#ifdef BJOU_HAS_LLD
     if (!compilation->args.nolld_arg) {
         llvm::Triple trip(genTriple);
         std::string arch_str = trip.getArchName();
@@ -1165,6 +1166,7 @@ milliseconds LLVMBackEnd::LinkingStage() {
             use_system_linker = true;
         }
     }
+#endif
 
     int fds[2];
     int status;
