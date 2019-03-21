@@ -7371,7 +7371,9 @@ void Procedure::addSymbols(std::string& _mod, Scope * _scope) {
 
         if (getName() == "__bjou_rt_init")
             compilation->frontEnd.__bjou_rt_init_def = this;
-    } else {
+    }
+
+    if (getFlag(Procedure::IS_EXTERN) || getFlag(Procedure::NO_MANGLE)) {
         setLookupName(symbol->proc_name);
         setMangledName(symbol->proc_name);
 
