@@ -29,7 +29,9 @@
 
 #include <llvm/Config/llvm-config.h>
 
+#ifdef BJOU_HAS_LLD
 #include <lld/Common/Driver.h>
+#endif
 
 #include "ASTNode.hpp"
 #include "CLI.hpp"
