@@ -137,11 +137,21 @@ target_compile_options(bjou PRIVATE -fno-rtti -fno-exceptions -w)
 
 target_link_libraries(bjou
         ${LLVM_LD_FLAGS}
-        ${PROJECT_SOURCE_DIR}/nolibc_syscall/nolibc_syscall.o
         LLVM
+        ${PROJECT_SOURCE_DIR}/nolibc_syscall/nolibc_syscall.o
         ffi
         pthread
         ${LLVM_SYSTEM_LIBS}
+        lldCOFF
+        lldCommon
+        lldCore
+        lldDriver
+        lldELF
+        lldMachO
+        lldMinGW
+        lldReaderWriter
+        lldWasm
+        lldYAML
         ${Tcmalloc_LIBRARIES})
 
 target_compile_definitions(bjou PRIVATE BJOU_USE_COLOR)

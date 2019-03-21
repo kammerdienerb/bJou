@@ -29,6 +29,8 @@
 
 #include <llvm/Config/llvm-config.h>
 
+#include <lld/Common/Driver.h>
+
 #include "ASTNode.hpp"
 #include "CLI.hpp"
 #include "Compile.hpp"
@@ -1124,44 +1126,46 @@ milliseconds LLVMBackEnd::LinkingStage() {
 
     bool use_system_linker = true;
 
-    if (compilation->args.lld_arg) {
-        internalError("No lld support at this time.");
-
-        /*
+    if (!compilation->args.nolld_arg) {
+        llvm::Triple trip(genTriple);
+        std::string arch_str = trip.getArchName();
         std::string errstr;
         llvm::raw_string_ostream errstream(errstr);
 
-        std::vector<const char *> more_args = {
-            "-demangle",
-            "-dynamic",
-            "-arch",
-            "x86_64",
-            "-macosx_version_min",
-            "10.12.0",
-            "-lSystem",
-            "/Applications/Xcode.app/Contents/Developer/Toolchains/"
-            "XcodeDefault.xctoolchain/usr/bin/../lib/clang/8.1.0/lib/darwin/"
-            "libclang_rt.osx.a"};
+        std::vector<const char *> lld_args{"lld"};
+        for (const char * arg : link_args) {
+            lld_args.push_back(arg);
+        }
 
-        for (auto arg : more_args)
-            link_args.push_back(arg);
+        bool success = false;
 
-        bool success = lld::mach_o::link(link_args, errstream);
+#if LLVM_VERSION_MAJOR >= 7
+        if (trip.isOSBinFormatMachO()) {
+            success = lld::mach_o::link(lld_args, false, errstream);
+        } else if (trip.isOSBinFormatELF()) {
+            success = lld::elf::link(lld_args, false, errstream);
+        } else internalError("Could not determine output binary format for linking.");
+#else
+        if (trip.isOSBinFormatMachO()) {
+            success = lld::mach_o::link(lld_args, errstream);
+        } else if (trip.isOSBinFormatELF()) {
+            success = lld::elf::link(lld_args, errstream);
+        } else internalError("Could not determine output binary format for linking.");
+#endif
 
-        if (!success) {
+        if (success) {
+            use_system_linker = false;
+        } else {
             if (errstream.str().find("warning") == 0) {
-                warning(COMPILER_SRC_CONTEXT(), "LLD:", errstream.str());
+                warning(COMPILER_SRC_CONTEXT(), "lld:", errstream.str());
             } else {
-                error(COMPILER_SRC_CONTEXT(), "LLD:", false, errstream.str());
+                error(COMPILER_SRC_CONTEXT(), "lld:", false, errstream.str());
                 // internalError("There was an lld error.");
             }
             warning(COMPILER_SRC_CONTEXT(),
                     "lld failed. Falling back to system linker.");
             use_system_linker = true;
-        } else
-            use_system_linker = false;
-
-        */
+        }
     }
 
     int fds[2];

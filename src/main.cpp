@@ -72,9 +72,9 @@ int main(int argc, const char ** argv) {
     TCLAP::SwitchArg nopreload_arg(
         "", "nopreload", "Do not automatically import preload modules.",
         cmd_line);
-    TCLAP::SwitchArg lld_arg(
-        "", "lld",
-        "Attempt to use lld to link. If unsuccessful, use system linker.",
+    TCLAP::SwitchArg nolld_arg(
+        "", "nolld",
+        "Use the system linker instead of attempting to use lld.",
         cmd_line);
     TCLAP::SwitchArg c_arg("c", "nolink", "Compile but do not link.", cmd_line);
     TCLAP::SwitchArg emitllvm_arg("", "emitllvm",
@@ -109,7 +109,7 @@ int main(int argc, const char ** argv) {
                          noabc_arg.getValue(),
                          module_arg.getValue(),
                          nopreload_arg.getValue(),
-                         lld_arg.getValue(),
+                         nolld_arg.getValue(),
                          c_arg.getValue(),
                          emitllvm_arg.getValue(),
                          module_search_path_arg.getValue(),

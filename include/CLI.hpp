@@ -51,7 +51,7 @@ struct Parser;
 
 struct ArgSet {
     bool verbose_arg, front_arg, time_arg, symbols_arg, noparallel_arg, opt_arg,
-        noabc_arg, module_arg, nopreload_arg, lld_arg, c_arg, emitllvm_arg;
+        noabc_arg, module_arg, nopreload_arg, nolld_arg, c_arg, emitllvm_arg;
     std::vector<std::string> module_search_path_arg;
     std::string output_arg;
     std::string target_triple_arg;

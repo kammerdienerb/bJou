@@ -26,7 +26,7 @@ type BuildOptions {
     noabc               : bool
     mod                 : bool
     nopreload           : bool
-    lld                 : bool
+    nolld               : bool
     c                   : bool
     emitllvm            : bool
     module_search_paths : char*[...]
@@ -94,7 +94,7 @@ proc build(options : BuildOptions ref) {
         options.noabc,
         options.mod,
         options.nopreload,
-        options.lld,
+        options.nolld,
         options.c,
         options.emitllvm,
         options.module_search_paths.data(),
