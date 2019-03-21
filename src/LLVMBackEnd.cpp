@@ -1114,11 +1114,6 @@ milliseconds LLVMBackEnd::LinkingStage() {
     link_args.push_back("-o");
     link_args.push_back(dest.c_str());
 
-    for (auto & l : compilation->args.link_arg) {
-        link_args.push_back("-l");
-        link_args.push_back(l.c_str());
-    }
-
     link_args.push_back("-ldl");
     link_args.push_back("-lm");
     link_args.push_back("-L" NOLIBC_SYSCALL_SEARCH);
@@ -1135,6 +1130,9 @@ milliseconds LLVMBackEnd::LinkingStage() {
         std::vector<const char *> lld_args{"lld"};
         for (const char * arg : link_args) {
             lld_args.push_back(arg);
+        }
+        for (auto & l : compilation->args.link_arg) {
+            lld_args.push_back(("-l" + l).c_str());
         }
 
         bool success = false;
@@ -1173,6 +1171,11 @@ milliseconds LLVMBackEnd::LinkingStage() {
     pid_t childpid;
 
     if (use_system_linker) {
+        for (auto & l : compilation->args.link_arg) {
+            link_args.push_back("-l");
+            link_args.push_back(l.c_str());
+        }
+
         const char * cc = getenv("CC");
         if (!cc)
             cc = "cc";
