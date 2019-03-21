@@ -988,47 +988,31 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
                 for (ASTNode * _mem : td->getMemberVarDecls()) {
                     VariableDeclaration * mem = (VariableDeclaration *)_mem;
                     mem->getTypeDeclarator()->analyze();
-                    Declarator * decl = (Declarator *)mem->getTypeDeclarator();
 
-                    if (((Declarator *)decl->getBase())
-                            ->getType()
-                            ->isStruct()) {
-                        const StructType * s_t =
-                            (StructType *)((Declarator *)decl->getBase())
-                                ->getType();
-                        if (s_t->_struct->getFlag(Struct::IS_TEMPLATE_DERIVED))
-                            availableByKey.insert(s_t->key);
-                    }
+                    std::vector<ASTNode*> mem_terms;
+                    mem->unwrap(mem_terms);
 
-                    // declarators with a pointer ANYWHERE in them imply that we
-                    // don't need to know the size of the base type
-                    // PointerDeclarator handles this on construction and sets a
-                    // flag in their respective base Declarator
-                    if (decl && decl->getBase()->getFlag(
-                                    Declarator::IMPLIES_COMPLETE)) {
+                    for (ASTNode * _mem_term : mem_terms) {
+                        if (IS_DECLARATOR(_mem_term)) {
+                            Declarator * decl = (Declarator *)_mem_term;
 
-                        terms.push_back(decl);
-                    }
+                            if (((Declarator*)decl->getBase())->getType()->isStruct()) {
+                                const StructType * s_t =
+                                    (StructType *)((Declarator*)decl->getBase())->getType();
+                                if (s_t->_struct->getFlag(Struct::IS_TEMPLATE_DERIVED))
+                                    availableByKey.insert(s_t->key);
+                            }
 
-                    // look out for expressions also
-                    // ex. of a something we have to account for:
-                    // type A {
-                    //      a := { B: 12345 }
-                    // }
-                    // type B {
-                    //      i : int
-                    // }
+                            // declarators with a pointer ANYWHERE in them imply that we
+                            // don't need to know the size of the base type
+                            // PointerDeclarator handles this on construction and sets a
+                            // flag in their respective base Declarator
+                            if (decl && decl->getBase()->getFlag(
+                                            Declarator::IMPLIES_COMPLETE)) {
 
-                    if (mem->getInitialization()) {
-                        std::vector<ASTNode *> init_sub_nodes;
-                        mem->getInitialization()->unwrap(init_sub_nodes);
-                        for (ASTNode * term : init_sub_nodes)
-                            if (term->nodeKind >= ASTNode::DECLARATOR &&
-                                term->nodeKind < ASTNode::_END_DECLARATORS)
-                                if (((Declarator *)term)
-                                        ->getBase()
-                                        ->getFlag(Declarator::IMPLIES_COMPLETE))
-                                    terms.push_back(term);
+                                terms.push_back(decl);
+                            }
+                        }
                     }
                 }
             } /* else if (t->isAlias()) {

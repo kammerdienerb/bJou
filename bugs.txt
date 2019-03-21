@@ -46,3 +46,10 @@
 
     t := T.create()
 ]
+
+-- no error for:
+[ 
+    type T {
+        array : int[sizeof T]
+    }
+]
