@@ -2439,7 +2439,7 @@ void * SubscriptExpression::generate(BackEnd & backEnd, bool getAddr) {
     }
 
     if (lt->isArray()) {
-        lv = llbe->getOrGenNode(getLeft(), true);
+        lv = llbe->getOrGenNode(getLeft());
         rv = llbe->getOrGenNode(getRight());
         std::vector<unsigned int> widths;
         const Type * walking_t = lt->under();
