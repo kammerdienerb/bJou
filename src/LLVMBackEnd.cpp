@@ -2680,6 +2680,13 @@ void * NewExpression::generate(BackEnd & backEnd, bool flag) {
 void * DeleteExpression::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
+    if (compilation->frontEnd.free_decl) {
+        llbe->getOrGenNode(compilation->frontEnd.free_decl);
+    } else {
+        errorl(getContext(), "bJou is missing a free declaration.", true,
+               "if using --nopreload, an extern declaration must be made "
+               "available");
+    }
     llvm::Function * func = llbe->llModule->getFunction("free");
     BJOU_DEBUG_ASSERT(func);
 
