@@ -7371,16 +7371,16 @@ void Procedure::addSymbols(std::string& _mod, Scope * _scope) {
 
         if (getName() == "__bjou_rt_init")
             compilation->frontEnd.__bjou_rt_init_def = this;
-    }
-
-    if (getFlag(Procedure::IS_EXTERN) || getFlag(Procedure::NO_MANGLE)) {
+    } else {
         setLookupName(symbol->proc_name);
         setMangledName(symbol->proc_name);
 
         for (ASTNode * param : getParamVarDeclarations())
             param->addSymbols(mod, myScope);
         getRetDeclarator()->addSymbols(mod, myScope);
+    }
 
+    if (getFlag(Procedure::IS_EXTERN) || getFlag(Procedure::NO_MANGLE)) {
         if (getLookupName() == "printf")
             compilation->frontEnd.printf_decl = this;
         else if (getLookupName() == "malloc")
