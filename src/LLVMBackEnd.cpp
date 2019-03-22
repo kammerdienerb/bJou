@@ -79,12 +79,14 @@ LLVMBackEnd::LLVMBackEnd(FrontEnd & _frontEnd)
     ee = nullptr;
 }
 
+__attribute__((used))
 static void plv(llvm::Value * val) {
-    val->print(llvm::outs());
+    llvm::outs() << *val << "\n";
 }
 
+__attribute__((used))
 static void plt(llvm::Type * ty) {
-    ty->print(llvm::outs());
+    llvm::outs() << *ty << "\n";
 }
 
 void LLVMBackEnd::init() {
@@ -1424,8 +1426,9 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
                     IntType::get(Type::UNSIGNED, 8)->getPointer());
             return getOrGenType(t->under())->getPointerTo();
         case Type::REF:
-            if (t->under()->isArray())
-                return getOrGenType(t->under()->under())->getPointerTo()->getPointerTo();
+            if (t->under()->isArray()) {
+                return getOrGenType(t->under())->getArrayElementType()->getPointerTo();
+            }
             return getOrGenType(t->under())->getPointerTo();
         /*
         case Type::MAYBE:
@@ -2398,8 +2401,11 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
     }
     for (int al : ptralign) {}
 
-    if (!getAddr && payload->t->getRetType()->isRef())
+    if (!getAddr
+    &&  payload->t->getRetType()->isRef()
+    &&  !payload->t->getRetType()->unRef()->isArray()) {
         ret = llbe->builder.CreateLoad(ret, "ref");
+    }
 
     delete payload;
 
@@ -2433,6 +2439,20 @@ void * SubscriptExpression::generate(BackEnd & backEnd, bool getAddr) {
     }
 
     if (lt->isArray()) {
+        lv = llbe->getOrGenNode(getLeft(), true);
+        rv = llbe->getOrGenNode(getRight());
+        std::vector<unsigned int> widths;
+        const Type * walking_t = lt->under();
+        while (walking_t && walking_t->isArray()) {
+            widths.push_back(((ArrayType*)walking_t)->width);
+            walking_t = walking_t->under();
+        }
+        if (widths.size() > 0) {
+            unsigned m_sum = 1;
+            for (unsigned w : widths)    m_sum *= w;
+            rv = llbe->builder.CreateMul(rv, llbe->builder.getInt32(m_sum));
+        }
+#if 0
         std::vector<unsigned int> widths,
             steps; // number of steps per dimension
                    // int[2][2][3] -> { 1, 3, 6 }
@@ -2509,6 +2529,7 @@ void * SubscriptExpression::generate(BackEnd & backEnd, bool getAddr) {
         }
 
         rv = sum_value;
+#endif
     } else {
         lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
         rv = (llvm::Value *)llbe->getOrGenNode(getRight());
@@ -3270,7 +3291,8 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
 
         if (getType()->unRef()->isArray()) {
             val = llbe->allocNamedVal(
-                val_name, getType()->unRef()->under()->getPointer());
+                val_name, getType());
+                /* val_name, getType()->unRef()->under()->getPointer()); */
             llbe->builder.CreateStore(
                 llbe->getOrGenNode(getInitialization(), true), val);
         } else {

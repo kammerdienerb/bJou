@@ -2100,6 +2100,8 @@ void SubscriptExpression::desugar() {
         call->analyze();
     } else if (getLeft()->getType()->unRef()->isArray() &&
                compilation->frontEnd.abc) {
+        const ArrayType * array_t = (const ArrayType*)getLeft()->getType()->unRef();
+
         CallExpression * call = new CallExpression;
         call->setContext(getContext());
 
@@ -2112,8 +2114,7 @@ void SubscriptExpression::desugar() {
         // (array, len, index, filename, line, col)
         r->addExpression(getLeft());
         IntegerLiteral * len = new IntegerLiteral;
-        len->setContents(
-            std::to_string(((ArrayType *)getLeft()->getType())->width));
+        len->setContents(std::to_string(array_t->width));
         r->addExpression(len);
         r->addExpression(getRight());
 

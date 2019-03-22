@@ -270,7 +270,7 @@ static ASTNode * add_llvm_passes(MacroUse * use) {
 static ASTNode * ct(MacroUse * use) {
     MultiNode * multi = new MultiNode(use->getArgs());
 
-    printf("!!! CT\n");
+    /* printf("!!! CT\n"); */
 
     for (ASTNode * node : multi->nodes) {
         if (use->leaveMeAloneArgs.find(node) == use->leaveMeAloneArgs.end())
