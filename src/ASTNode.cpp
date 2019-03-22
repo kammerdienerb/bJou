@@ -2308,9 +2308,8 @@ bool AccessExpression::isConstant() { return false; }
 
 // T.ident
 static Identifier * createIdentifierFromAccess(AccessExpression * access,
-                                               Declarator * decl,
+                                               const Type * t,
                                                Identifier * ident) {
-    const Type * t = decl->getType();
     StructType * struct_t = nullptr;
 
     if (t->isStruct()) {
@@ -2425,7 +2424,7 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
                 } else if (struct_t->memberProcs.count(r_id->getSymName()) >
                            0) {
                     Identifier * proc_ident = createIdentifierFromAccess(
-                        this, (Declarator *)getLeft(), r_id);
+                        this, struct_t, r_id);
                     (*this->replace)(parent, this, proc_ident);
                     proc_ident->addSymbols(mod, getScope());
                     proc_ident->setFlag(ASTNode::CT, isCT(this));
@@ -2518,7 +2517,22 @@ int AccessExpression::handleContainerAccess() {
             } else if (struct_t->memberProcs.count(r_id->getSymName()) >
                        0) {
                 Identifier * proc_ident = createIdentifierFromAccess(
-                    this, (Declarator *)getLeft(), r_id);
+                    this, struct_t, r_id);
+                (*getRight()->replace)(this, getRight(),
+                                       proc_ident); // @lol this works
+                proc_ident->addSymbols(mod, getScope());
+                proc_ident->setFlag(ASTNode::CT, isCT(this));
+                proc_ident->analyze();
+                if (!nextCall())
+                    setType(proc_ident->getType());
+                // don't return.. fall to check handleInjection()
+                return 1;
+            } else if (struct_t->inheritedProcsToBaseStructType.count(r_id->getSymName()) > 0) {
+                const StructType * extends_t = struct_t->inheritedProcsToBaseStructType[r_id->getSymName()];
+                BJOU_DEBUG_ASSERT(extends_t);
+
+                Identifier * proc_ident = createIdentifierFromAccess(
+                    this, extends_t, r_id);
                 (*getRight()->replace)(this, getRight(),
                                        proc_ident); // @lol this works
                 proc_ident->addSymbols(mod, getScope());

@@ -1,15 +1,3 @@
--- member procs don't work through extended types...
-[
-    type A {
-        proc p() {}
-    }
-
-    type B extends A {}
-
-    b := { B: }
-    b.p()
-]
-
 -- 'run' macro should call __bjou_rt_init or at least complete the same tasks before executing code
 
 -- Need a better way to manage when macros are executed and when/if their children are analyzed
@@ -45,11 +33,4 @@
     }
 
     t := T.create()
-]
-
--- no error for:
-[ 
-    type T {
-        array : int[sizeof T]
-    }
 ]

@@ -267,6 +267,7 @@ struct StructType : Type {
     std::vector<const Type *> memberTypes;
     hybrid_map<std::string, Constant *, std_string_hasher> constantMap;
     hybrid_map<std::string, ProcSet *, std_string_hasher> memberProcs;
+    hybrid_map<std::string, const StructType*, std_string_hasher> inheritedProcsToBaseStructType;
 
     StructType(std::string & name, Struct * __struct = nullptr,
                TemplateInstantiation * _inst = nullptr);

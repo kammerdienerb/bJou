@@ -470,9 +470,10 @@ static void insertProcSet(StructType * This, Procedure * proc) {
 }
 
 void StructType::complete() {
-    // With aliases, there may be multiple entries in the table that point to
-    // the same struct type. This makes sure that we don't screw up an already
-    // completed type.
+    /* With aliases, there may be multiple entries in the table that point to
+     * the same struct type. This makes sure that we don't screw up an already
+     * completed type.
+     */
     if (isComplete)
         return;
 
@@ -482,15 +483,22 @@ void StructType::complete() {
         StructType * extends_s = (StructType *)extends;
         memberIndices = extends_s->memberIndices;
         memberTypes = extends_s->memberTypes;
-        /* @here -- We should probably not do this next line. *
-         * Instead, I think we should add a map to StructType
-         * that maps inherited procs to the originating struct
-         * type. Then, in AccessExpression::handleContainerAccess(), 
+
+        /* Map to StructType that maps inherited procs to the originating
+         * struct type. Then, in AccessExpression::handleContainerAccess(), 
          * when we don't find the proc name in 'memberProcs', we can
          * look in the map and create an identifier with the left
          * side being the name of the struct that the proc maps to.
          */
-        memberProcs = extends_s->memberProcs;
+        const StructType * extends_t = extends_s;
+        BJOU_DEBUG_ASSERT(extends_t->isComplete);
+        for (auto& it : extends_s->inheritedProcsToBaseStructType) {
+            inheritedProcsToBaseStructType[it.first] = it.second;
+        }
+        for (auto& it : extends_s->memberProcs) {
+            inheritedProcsToBaseStructType[it.first] = extends_t;
+        }
+
         i += memberTypes.size();
     }
     for (ASTNode * _mem : _struct->getMemberVarDecls()) {
