@@ -162,6 +162,7 @@ void LLVMBackEnd::init() {
     targetMachine = target->createTargetMachine(
         genTriple, "", targetFeatures, Options, RM,
         llvm::CodeModel::Small, OLvl);
+    targetMachine->setFastISel(!compilation->args.opt_arg);
     layout = new llvm::DataLayout(targetMachine->createDataLayout());
 
     outModule = new llvm::Module(compilation->outputbasefilename, llContext);

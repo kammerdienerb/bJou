@@ -21,6 +21,10 @@ proc __exec(cmd : char*, args : char*) : string[...] {
 
     output := [...string]
 
+    if stream == NULL {
+        return output
+    }
+
     c := 0
     line := str() 
     while (c = stream.fgetc()) >= 0 {
