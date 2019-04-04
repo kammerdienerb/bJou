@@ -430,6 +430,7 @@ void * LLVMBackEnd::run(Procedure * proc, void * _val_args) {
     std::string name = fn->getName().str();
 
     completeTypes();
+    completeSumTypes();
     completeGlobs();
     completeProcs();
 
@@ -753,6 +754,16 @@ static void genDeps(ASTNode * node, LLVMBackEnd & llbe) {
     node->unwrap(terms);
     for (ASTNode * term : terms) {
         if (IS_DECLARATOR(term)) {
+            /* look for sum declarators */
+            ASTNode * p = term->getParent();
+            while (p && IS_DECLARATOR(p)) {
+                if (p->nodeKind == ASTNode::SUM_DECLARATOR) {
+                    llbe.getOrGenType(p->getType());
+                    break;
+                }
+                p = p->getParent();
+            }
+
             const Type * t = term->getType();
             llbe.getOrGenType(t);
             std::vector<Declarator *> slices_and_das;
@@ -834,6 +845,19 @@ void LLVMBackEnd::completeTypes() {
 
         for (ASTNode * node : copy)
             node->generate(*this);
+    }
+}
+
+void LLVMBackEnd::completeSumTypes() {
+    while (!sum_types_need_completion.empty()) {
+        std::vector<const SumType*> copy;
+        copy.insert(copy.begin(), sum_types_need_completion.begin(),
+                    sum_types_need_completion.end());
+        sum_types_need_completion.clear();
+
+        for (const SumType * s_t : copy) {
+            completeSumType(s_t);
+        }
     }
 }
 
@@ -1044,6 +1068,7 @@ milliseconds LLVMBackEnd::IRGenStage() {
         }
 
         completeTypes();
+        completeSumTypes();
         completeGlobs();
         completeProcs();
     } else {
@@ -1066,6 +1091,7 @@ milliseconds LLVMBackEnd::IRGenStage() {
         }
 
         completeTypes();
+        completeSumTypes();
         completeGlobs();
         completeProcs();
 
@@ -1436,6 +1462,8 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
             // @incomplete
             break;
         */
+        case Type::SUM:
+            return createSumStructType(t);
         case Type::TUPLE:
             return createTupleStructType(t);
         case Type::PROCEDURE: {
@@ -1465,6 +1493,42 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
 llvm::Type * LLVMBackEnd::createOrLookupDefinedType(const bjou::Type * t) {
     // @incomplete
     return nullptr;
+}
+
+llvm::StructType * LLVMBackEnd::createSumStructType(const Type * t) {
+    BJOU_DEBUG_ASSERT(t->isSum());
+
+    SumType * s_t = (SumType *)t;
+    std::string name = compilation->frontEnd.makeUID("sum");
+    llvm::StructType * ll_t = llvm::StructType::create(llContext, name);
+
+    sum_types_need_completion.insert(s_t);
+    return ll_t;
+}
+
+void LLVMBackEnd::completeSumType(const SumType * t) {
+    llvm::Type * _ll_t = getOrGenType(t); 
+    BJOU_DEBUG_ASSERT(_ll_t->isStructTy());
+    llvm::StructType * ll_t = (llvm::StructType*)_ll_t;
+
+    std::vector<llvm::Type *> sub_types;
+    sub_types.push_back(builder.getInt8Ty()); /* tag type */
+   
+    uint64_t sub_size     = 0;
+    llvm::Type * max_type = nullptr;
+    for (const Type * sub_t : t->types) {
+        llvm::Type * ll_sub_t = getOrGenType(sub_t);
+        auto sz = layout->getTypeAllocSize(ll_sub_t);
+        if (sz >= sub_size) {
+            sub_size = sz;
+            max_type = ll_sub_t;
+        }
+    }
+    BJOU_DEBUG_ASSERT(max_type);
+
+    sub_types.push_back(max_type);
+
+    ll_t->setBody(sub_types);
 }
 
 llvm::StructType * LLVMBackEnd::createTupleStructType(const bjou::Type * t) {
@@ -2802,7 +2866,35 @@ void * RefExpression::generate(BackEnd & backEnd, bool flag) {
 }
 #endif
 
-void * AsExpression::generate(BackEnd & backEnd, bool flag) {
+static uint64_t get_static_sum_tag(const Type * dest_t, const SumType * sum_t) {
+    uint64_t tag = 0;
+    for (const Type * option : sum_t->getTypes()) {
+        if (equal(option, dest_t)) {
+            break;
+        }
+        if (dest_t->isRef() && option->isRef()) {
+            if (equal(dest_t->unRef(), option->unRef())) {
+                break;
+            }
+        }
+        if (dest_t->isRef()) {
+            if (equal(dest_t->unRef(), option)) {
+                break;
+            }
+        }
+        if (option->isRef()) {
+            if (equal(dest_t, option->unRef())) {
+                break;
+            }
+        }
+        tag += 1;
+    }
+    BJOU_DEBUG_ASSERT(tag != sum_t->getTypes().size());
+
+    return tag;
+}
+
+void * AsExpression::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
     const Type * lt = getLeft()->getType()->unRef();
@@ -2852,6 +2944,36 @@ void * AsExpression::generate(BackEnd & backEnd, bool flag) {
         return llbe->builder.CreateIntToPtr(val, ll_rt);
     } else if (lt->isPointer() && lt->under()->isVoid() && rt->isInt()) {
         return llbe->builder.CreatePtrToInt(val, ll_rt);
+    }
+
+    if (rt->isSum()) {
+        const SumType    *sum_t     = (const SumType*)getType();
+        auto tag                    = get_static_sum_tag(lt, sum_t);
+        llvm::StructType *ll_t      = (llvm::StructType *)llbe->getOrGenType(sum_t);
+        const Type       *dest_t    = sum_t->getTypes()[tag];
+        llvm::Type       *ll_dest_t = llbe->getOrGenType(dest_t);
+
+        llvm::Value * alloca = llbe->allocUnnamedVal(sum_t);
+
+        /* get the tag value */
+        bool is_ref = dest_t->isRef();
+        /* store the tag */
+        llvm::Value * tag_elem = llbe->builder.CreateInBoundsGEP(
+            ll_t, alloca, { llbe->builder.getInt32(0), llbe->builder.getInt32(0) });
+        llbe->builder.CreateStore(llbe->builder.getInt8(tag), tag_elem);
+
+        /* store the value */
+        llvm::Value * val_elem = llbe->builder.CreateInBoundsGEP(
+            ll_t, alloca, { llbe->builder.getInt32(0), llbe->builder.getInt32(1) });
+        val_elem = llbe->builder.CreateBitCast(val_elem, ll_dest_t->getPointerTo());
+        /* @bad @hack -- shouldn't have to override like this */
+        llvm::Value * the_value = (llvm::Value *)getLeft()->generate(*llbe, is_ref);
+        llbe->builder.CreateStore(the_value, val_elem);
+
+        if (getAddr) {
+            return alloca;
+        }
+        return llbe->builder.CreateLoad(alloca, "sum_value");
     }
 
     // @incomplete
@@ -3500,6 +3622,63 @@ void * Print::generate(BackEnd & backEnd, bool flag) {
     return val;
 }
 
+static llvm::Value * generate_destructure_condition(LLVMBackEnd& llbe, VariableDeclaration * var_decl) {
+    const Type * dest_t = var_decl->getTypeDeclarator()->getType();
+    const Type * _sum_t = var_decl->getInitialization()->getType()->unRef();
+    BJOU_DEBUG_ASSERT(_sum_t->isSum());
+    const SumType * sum_t = (const SumType*)_sum_t;
+
+    /* get the expected tag value */
+    auto tag = get_static_sum_tag(dest_t, sum_t);
+    /* get the actual tag value */
+    llvm::Value * sum_val  = llbe.getOrGenNode(var_decl->getInitialization(), true);
+    llvm::Value * real_tag = llbe.builder.CreateInBoundsGEP(sum_val,
+            { llbe.builder.getInt32(0), llbe.builder.getInt32(0) });
+    real_tag = llbe.builder.CreateLoad(real_tag, "sum_tag");
+
+    return llbe.builder.CreateICmpEQ(llbe.builder.getInt8(tag), real_tag);
+}
+
+static llvm::Value * generate_destructure_var(LLVMBackEnd& llbe, VariableDeclaration * var_decl) {
+    const Type * dest_t = var_decl->getTypeDeclarator()->getType();
+    const Type * _sum_t  = var_decl->getInitialization()->getType()->unRef();
+    BJOU_DEBUG_ASSERT(_sum_t->isSum());
+    const SumType * sum_t = (const SumType*)_sum_t;
+
+    /* @hack */
+    ASTNode * init = var_decl->getInitialization();
+    var_decl->initialization = nullptr;
+
+    bool is_ref = dest_t->isRef();
+
+    llvm::Value * sum_val  = llbe.getOrGenNode(init, true);
+
+    llvm::Value * val = llbe.builder.CreateInBoundsGEP(sum_val,
+            { llbe.builder.getInt32(0), llbe.builder.getInt32(1) });
+    val = llbe.builder.CreateBitCast(val, llbe.getOrGenType(dest_t)->getPointerTo());
+    val = llbe.builder.CreateLoad(val, "sum_val");
+
+    llvm::Value * ret = nullptr; 
+
+    if (dest_t->isRef()) {
+        if (dest_t->unRef()->isArray()) {
+            ret = llbe.allocNamedVal(var_decl->getMangledName(), dest_t);
+            llbe.builder.CreateStore(val, ret);
+        } else {
+            ret = llbe.addNamedVal(var_decl->getMangledName(), val, dest_t);
+        }
+    } else {
+        llvm::Value * alloca = llbe.getOrGenNode(var_decl);
+        llbe.builder.CreateStore(val, alloca, "sum_destructure");
+        ret = alloca;
+    }
+
+    /* restore init node */
+    var_decl->setInitialization(init);
+
+    return ret;
+}
+
 void * If::generate(BackEnd & backEnd, bool flag) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
 
@@ -3507,7 +3686,13 @@ void * If::generate(BackEnd & backEnd, bool flag) {
 
     bool hasElse = (bool)getElse();
 
-    llvm::Value * cond = (llvm::Value *)llbe->getOrGenNode(getConditional());
+    llvm::Value * cond = nullptr;
+    if (getFlag(If::HAS_DESTRUCTURE)) {
+        cond = generate_destructure_condition(*llbe, (VariableDeclaration*)getConditional());
+    } else {
+        cond = (llvm::Value *)llbe->getOrGenNode(getConditional());
+    }
+    BJOU_DEBUG_ASSERT(cond);
     // Convert condition to a bool by comparing equal to 1.
     cond = llbe->builder.CreateICmpEQ(
         cond, llvm::ConstantInt::get(llbe->llContext, llvm::APInt(1, 1, true)),
@@ -3539,6 +3724,11 @@ void * If::generate(BackEnd & backEnd, bool flag) {
 
     // Emit then value.
     llbe->builder.SetInsertPoint(then);
+
+    if (getFlag(If::HAS_DESTRUCTURE)) {
+        VariableDeclaration * destr_var_decl = (VariableDeclaration*)getConditional();
+        generate_destructure_var(*llbe, destr_var_decl);
+    }
 
     for (ASTNode * statement : getStatements())
         llbe->getOrGenNode(statement);

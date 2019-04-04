@@ -843,6 +843,11 @@ std::string Parser::expect(TokenKind tok, std::string err, bool skipEat,
 }
 
 MaybeASTNode Parser::parseDeclarator(bool base_only) {
+    char *tuple_or_sum_err_strs1[] = { "tuple or sum", "sum", "tuple" };
+    char *tuple_or_sum_err_strs2[] = { "Sum", "Tuple" };
+    int tuple_or_sum_kind = 0;
+    bool tuple_or_sum_sub_err = false;
+
     auto m_use = parseMacroUse();
     if (m_use)
         return m_use;
@@ -850,8 +855,6 @@ MaybeASTNode Parser::parseDeclarator(bool base_only) {
     Declarator * result = nullptr;
     Context context;
     context.start(&currentContext);
-
-    bool tuple_sub_err = false;
 
     std::vector<std::string> specs;
     while (true) {
@@ -905,25 +908,65 @@ MaybeASTNode Parser::parseDeclarator(bool base_only) {
         result = procDeclarator;
         context.finish(&currentContext, &justCleanedContext);
         result->setContext(context);
-    } else if (!base_only && optional(L_PAREN)) { // Tuple
-        TupleDeclarator * tupleDeclarator = new TupleDeclarator();
+    } else if (!base_only && optional(L_PAREN)) { // Tuple or Sum
+        std::vector<ASTNode*> subDeclarators;        
         int n_subs = 0;
         while (!optional(R_PAREN)) {
             MaybeASTNode m_subDeclarator = parseDeclarator();
             ASTNode * subDeclarator = nullptr;
-            if (!m_subDeclarator.assignTo(subDeclarator))
-                errornext(*this, "Expected type declarator as sub type in "
-                                 "tuple declarator.");
-            tupleDeclarator->addSubDeclarator(subDeclarator);
-            n_subs += 1;
-            if (!optional(COMMA)) {
-                expect(R_PAREN, "')'");
-                break;
+            if (!m_subDeclarator.assignTo(subDeclarator)) {
+                errornext(*this, "Expected type declarator as sub type in " +
+                                 std::string(tuple_or_sum_err_strs1[tuple_or_sum_kind]) + " declarator.");
             }
+            subDeclarators.push_back(subDeclarator);
+            n_subs += 1;
+            bool exit_loop = false;
+            switch (tuple_or_sum_kind) {
+                case 0:
+                    if (optional(VERT)) {
+                        tuple_or_sum_kind = 1;
+                    } else if (optional(COMMA)) {
+                        tuple_or_sum_kind = 2;
+                    } else {
+                        expect(R_PAREN, "')'");
+                        exit_loop = true;
+                    }
+                    break;
+                case 1:
+                    if (!optional(VERT)) {
+                        expect(R_PAREN, "')'");
+                        exit_loop = true;
+                    }
+                    break;
+                case 2:
+                    if (!optional(COMMA)) {
+                        expect(R_PAREN, "')'");
+                        exit_loop = true;
+                    }
+                    break;
+            }
+
+            if (exit_loop)    break;
         }
+
+        BJOU_DEBUG_ASSERT(tuple_or_sum_kind);
+
         if (n_subs < 2)
-            tuple_sub_err = true;
-        result = tupleDeclarator;
+            tuple_or_sum_sub_err = true;
+
+        if (tuple_or_sum_kind == 1) {
+            SumDeclarator * s = new SumDeclarator();
+            for (ASTNode * s_d : subDeclarators) {
+                s->addSubDeclarator(s_d);
+            }
+            result = s;
+        } else if (tuple_or_sum_kind == 2) {
+            TupleDeclarator * t = new TupleDeclarator();
+            for (ASTNode * s_d : subDeclarators) {
+                t->addSubDeclarator(s_d);
+            }
+            result = t;
+        }
         context.finish(&currentContext, &justCleanedContext);
         result->setContext(context);
     } else if ((m_identifier = parseQualifiedIdentifier(true))) { // Base
@@ -953,8 +996,9 @@ MaybeASTNode Parser::parseDeclarator(bool base_only) {
         result = new PlaceholderDeclarator;
         context.finish(&currentContext, &justCleanedContext);
         result->setContext(context);
-    } else
+    } else {
         return MaybeASTNode();
+    }
 
     // Array, Pointer, Maybe, Ref
     //                array/slice - [         pointer - *
@@ -997,9 +1041,10 @@ MaybeASTNode Parser::parseDeclarator(bool base_only) {
 
     BJOU_DEBUG_ASSERT(result);
 
-    if (tuple_sub_err)
-        errorl(result->getContext(),
-               "Tuple types must have at least 2 sub types.");
+    if (tuple_or_sum_sub_err) {
+        errorl(result->getContext(), std::string(tuple_or_sum_err_strs2[tuple_or_sum_kind]) +
+               " types must have at least 2 sub types.");
+    }
 
     return MaybeASTNode(result);
 }
@@ -2710,12 +2755,23 @@ MaybeASTNode Parser::parseIf() {
 
         eat("if");
 
-        MaybeASTNode m_conditional = parseExpression();
-        ASTNode * conditional = nullptr;
-        if (!m_conditional.assignTo(conditional))
-            errornext(*this,
-                      "Invalid conditional expression for 'if' statement.");
-        result->setConditional(conditional);
+        if (optional(VAR_DECL_BEG, true)) {
+            MaybeASTNode m_destructure = parseVariableDeclaration();
+            ASTNode * destructure = nullptr;
+            if (!m_destructure.assignTo(destructure))
+                errornext(*this,
+                          "Invalid destructuring conditional expression for 'if' statement.");
+            destructure->setFlag(VariableDeclaration::IS_DESTRUCTURE, true);
+            result->setConditional(destructure);
+            result->setFlag(If::HAS_DESTRUCTURE, true);
+        } else {
+            MaybeASTNode m_conditional = parseExpression();
+            ASTNode * conditional = nullptr;
+            if (!m_conditional.assignTo(conditional))
+                errornext(*this,
+                          "Invalid conditional expression for 'if' statement.");
+            result->setConditional(conditional);
+        }
 
         MaybeASTNode m_statement;
         ASTNode * statement;

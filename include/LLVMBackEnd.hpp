@@ -102,9 +102,10 @@ struct LLVMBackEnd : BackEnd {
 
     std::map<ASTNode *, llvm::Value *> generated_nodes;
     std::map<const Type *, llvm::Type *> generated_types;
-    std::set<ASTNode *> types_need_completion;
-    std::set<ASTNode *> globs_need_completion;
-    std::set<ASTNode *> procs_need_completion;
+    std::set<ASTNode *>       types_need_completion;
+    std::set<const SumType *> sum_types_need_completion;
+    std::set<ASTNode *>       globs_need_completion;
+    std::set<ASTNode *>       procs_need_completion;
 
     std::map<Procedure *, void *> proc_abi_info;
 
@@ -127,6 +128,8 @@ struct LLVMBackEnd : BackEnd {
 
     milliseconds go();
     void completeTypes();
+    void completeSumType(const SumType * s_t);
+    void completeSumTypes();
     void completeGlobs();
     void completeProcs();
     void * run(Procedure * proc, void * _val_args);
@@ -144,6 +147,7 @@ struct LLVMBackEnd : BackEnd {
 
     llvm::Type * bJouTypeToLLVMType(const bjou::Type * t);
     llvm::Type * createOrLookupDefinedType(const bjou::Type * t);
+    llvm::StructType * createSumStructType(const bjou::Type * t);
     llvm::StructType * createTupleStructType(const bjou::Type * t);
 
     llvm::Function * createMainEntryPoint();

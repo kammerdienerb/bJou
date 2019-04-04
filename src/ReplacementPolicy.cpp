@@ -59,6 +59,8 @@ void init_replacementPolicies() {
         ANY_DECLARATOR};
     rpget<replacementPolicy_MaybeDeclarator_MaybeOf>()->allowed_nodeKinds = {
         ANY_DECLARATOR};
+    rpget<replacementPolicy_SumDeclarator_subDeclarator>()
+        ->allowed_nodeKinds = {ANY_DECLARATOR};
     rpget<replacementPolicy_TupleDeclarator_subDeclarator>()
         ->allowed_nodeKinds = {ANY_DECLARATOR};
     rpget<replacementPolicy_ProcedureDeclarator_ParamDeclarators>()
@@ -327,6 +329,21 @@ RP_FUNCTOR_IMPL(MaybeDeclarator_MaybeOf,
                                   old_node);
                 ((MaybeDeclarator *)parent)->setMaybeOf(new_node);
                 return new_node;);
+RP_FUNCTOR_IMPL(
+    SumDeclarator_subDeclarator,
+    SumDeclarator * parent_tuple_decl = (SumDeclarator *)parent;
+    auto found_node = std::find(parent_tuple_decl->getSubDeclarators().begin(),
+                                parent_tuple_decl->getSubDeclarators().end(),
+                                old_node);
+    if (found_node == parent_tuple_decl->getSubDeclarators().end())
+        internalError("node to replace not found in "
+                      "replacementPolicy_SumDeclarator_subDeclarator()");
+
+    *found_node = new_node; new_node->parent = parent;
+    new_node->replace =
+        rpget<replacementPolicy_SumDeclarator_subDeclarator>();
+
+    return new_node;);
 RP_FUNCTOR_IMPL(
     TupleDeclarator_subDeclarator,
     TupleDeclarator * parent_tuple_decl = (TupleDeclarator *)parent;

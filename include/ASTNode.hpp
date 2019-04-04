@@ -130,6 +130,7 @@ struct ASTNode {
         DYNAMIC_ARRAY_DECLARATOR,
         POINTER_DECLARATOR,
         MAYBE_DECLARATOR,
+        SUM_DECLARATOR,
         TUPLE_DECLARATOR,
         PROCEDURE_DECLARATOR,
         REF_DECLARATOR,
@@ -2170,6 +2171,43 @@ struct MaybeDeclarator : Declarator {
 
 /* ============================================================================
  *
+ *                              SumDeclarator
+ *  Describes a sum type.
+ *
+ * ===========================================================================*/
+
+struct SumDeclarator : Declarator {
+    SumDeclarator();
+
+    std::vector<ASTNode *> subDeclarators;
+
+    std::vector<ASTNode *> & getSubDeclarators();
+    void setSubDeclarators(std::vector<ASTNode *> _subDeclarators);
+    void addSubDeclarator(ASTNode * _subDeclarator);
+
+    // Node interface
+    void addSymbols(std::string& _mod, Scope * _scope);
+    void unwrap(std::vector<ASTNode *> & terminals);
+    ASTNode * clone();
+    void desugar();
+    virtual void analyze(bool force = false);
+    virtual const Type * getType();
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+    virtual ~SumDeclarator();
+    //
+
+    // Declarator interface
+    virtual std::string asString();
+    virtual const ASTNode * getBase() const;
+    void propagateScope(Scope * _scope);
+
+    //
+};
+
+
+/* ============================================================================
+ *
  *                              TupleDeclarator
  *  Describes a tuple type. Tuples are multiple types grouped together as a
  *  package, i.e. (int, double)
@@ -2346,7 +2384,7 @@ struct VariableDeclaration : ASTNode {
     ASTNode * typeDeclarator;
     ASTNode * initialization;
 
-    enum eBitFlags E_BIT_FLAGS_AND(IS_EXTERN, IS_TYPE_MEMBER, IS_PROC_PARAM);
+    enum eBitFlags E_BIT_FLAGS_AND(IS_EXTERN, IS_TYPE_MEMBER, IS_PROC_PARAM, IS_DESTRUCTURE);
 
     std::string & getName();
     void setName(std::string _name);
@@ -2358,6 +2396,8 @@ struct VariableDeclaration : ASTNode {
     void setTypeDeclarator(ASTNode * _typeDeclarator);
     ASTNode * getInitialization() const;
     void setInitialization(ASTNode * _initialization);
+
+    void analyze_destructure(Symbol * sym);
 
     // Node interface
     const Type * getType();
@@ -2849,7 +2889,7 @@ struct If : ASTNode {
     ASTNode * _else;
     bool shouldEmitMerge;
 
-    enum eBitFlags E_BIT_FLAGS();
+    enum eBitFlags E_BIT_FLAGS_AND(HAS_DESTRUCTURE);
 
     ASTNode * getConditional() const;
     void setConditional(ASTNode * _conditional);

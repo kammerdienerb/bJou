@@ -1,0 +1,63 @@
+# sum.bjou
+
+main()
+
+proc takes_nullable$T(arg : (T | None)) {
+    if t : T = arg    print "%", t
+}
+
+proc p(arg : (int | char*)) {
+    if s : char* = arg {
+        print "arg is a string: %", s
+    } else if i : int = arg {
+        print "arg is an int:   %", i
+    }
+}
+
+type None {}
+
+proc q(arg : bool) : (float[...] | None) {
+    if arg {
+        array := [...float]
+        for i := 0; i < 10; i += 1 {
+            array.push((i as float) * i)
+        }
+        return array
+    }
+
+    return { None: }
+}
+
+proc r(option : (float[...] | None) ref) {
+    if array : float[...] = option {
+        foreach f in array    print "%", f
+    } else {
+        print "No array.. got None"
+    }
+}
+
+proc main() {
+    sum : (int | char*) = "a string"
+    p(sum)
+    sum = 123
+    p(sum)
+
+    i := 0
+    print "i = %", i
+    thing : (float ref | int ref) = i
+    if my_i : int ref = thing {
+        my_i = 456
+    }
+    print "i = %", i
+
+    option1 : (int   | None) = 789
+    option2 : (char* | None) = "my char*"
+    takes_nullable(option1)
+    takes_nullable(option2)
+
+    
+    option3 := q(true)
+    option4 := q(false)
+    r(option3)
+    r(option4)
+}

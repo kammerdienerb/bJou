@@ -50,8 +50,9 @@ struct Type {
         DYNAMIC_ARRAY = 10,
         STRUCT        = 11,
         ENUM          = 12,
-        TUPLE         = 13,
-        PROCEDURE     = 14
+        SUM           = 13,
+        TUPLE         = 14,
+        PROCEDURE     = 15
     };
 
     enum Sign { UNSIGNED = 0, SIGNED = 1 };
@@ -77,6 +78,7 @@ struct Type {
     bool isDynamicArray() const;
     bool isStruct() const;
     bool isEnum() const;
+    bool isSum() const;
     bool isTuple() const;
     bool isProcedure() const;
 
@@ -295,6 +297,20 @@ struct EnumType : Type {
     Declarator * getGenericDeclarator() const;
 
     IntegerLiteral * getValueLiteral(std::string& identifier, Context & context, Scope * scope) const;
+};
+
+struct SumType : Type {
+    std::vector<const Type *> types;
+
+    SumType(const std::vector<const Type *> & _types);
+
+    static const Type * get(const std::vector<const Type *> & types);
+
+    const std::vector<const Type *> & getTypes() const;
+
+    Declarator * getGenericDeclarator() const;
+
+    const Type * replacePlaceholders(const Type * t) const;
 };
 
 struct TupleType : Type {

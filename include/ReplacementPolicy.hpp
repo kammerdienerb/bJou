@@ -69,6 +69,7 @@ RP_FUNCTOR_DECL(DynamicArrayDeclarator_ArrayOf);
 RP_FUNCTOR_DECL(PointerDeclarator_PointerOf);
 RP_FUNCTOR_DECL(RefDeclarator_RefOf);
 RP_FUNCTOR_DECL(MaybeDeclarator_MaybeOf);
+RP_FUNCTOR_DECL(SumDeclarator_subDeclarator);
 RP_FUNCTOR_DECL(TupleDeclarator_subDeclarator);
 RP_FUNCTOR_DECL(ProcedureDeclarator_ParamDeclarators);
 RP_FUNCTOR_DECL(ProcedureDeclarator_RetDeclarator);

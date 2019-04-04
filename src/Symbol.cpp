@@ -168,7 +168,7 @@ Procedure * ProcSet::get(Scope * scope, ASTNode * args, ASTNode * inst, Context 
             return (Procedure *)sym->node();
 
         TemplateProc * tproc = (TemplateProc *)sym->node();
-        return makeTemplateProc(tproc, args, inst, context);
+        return makeTemplateProc(tproc, args, inst, context, fail);
     }
 
     return nullptr;
@@ -227,8 +227,9 @@ std::vector<Symbol *> ProcSet::getCandidates(Scope * scope, ProcedureType * comp
                 // don't fail with the check when we are just gathering
                 // candidates
                 if (checkTemplateProcInstantiation(tproc, args, inst, context,
-                                                   false) != -1)
+                                                   false) != -1) {
                     candidates.push_back(p.second);
+                }
             }
         }
     }

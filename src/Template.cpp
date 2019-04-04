@@ -254,6 +254,24 @@ static Declarator * patternMatchType(Declarator * pattern, Declarator * subject,
         return patternMatchType((Declarator *)pattern->under(),
                                 (Declarator *)subject->under(), name);
 
+    case ASTNode::SUM_DECLARATOR: {
+        SumDeclarator * p_sum = (SumDeclarator *)pattern;
+        SumDeclarator * s_sum = (SumDeclarator *)subject;
+
+        if (p_sum->getSubDeclarators().size() !=
+            s_sum->getSubDeclarators().size())
+            return nullptr;
+
+        for (int i = 0; i < (int)p_sum->getSubDeclarators().size(); i += 1) {
+            Declarator * match = patternMatchType(
+                (Declarator *)p_sum->getSubDeclarators()[i],
+                (Declarator *)s_sum->getSubDeclarators()[i], name);
+            if (match)
+                return match;
+        }
+        break;
+    }
+
     case ASTNode::TUPLE_DECLARATOR: {
         TupleDeclarator * p_tup = (TupleDeclarator *)pattern;
         TupleDeclarator * s_tup = (TupleDeclarator *)subject;

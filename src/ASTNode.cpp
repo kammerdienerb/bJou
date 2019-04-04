@@ -470,6 +470,15 @@ static void emplaceConversion(Expression * expr, const Type * dest_t) {
     conversion->setLeft(expr);
     conversion->setRight(dest_t->getGenericDeclarator());
     conversion->getRight()->setContext(conversion->getContext());
+    if (conversion->getRight()->nodeKind == ASTNode::SUM_DECLARATOR) {
+        for (ASTNode * sd : ((SumDeclarator*)conversion->getRight())->getSubDeclarators()) {
+            sd->setContext(conversion->getContext());
+        }
+    } else if (conversion->getRight()->nodeKind == ASTNode::TUPLE_DECLARATOR) {
+        for (ASTNode * sd : ((TupleDeclarator*)conversion->getRight())->getSubDeclarators()) {
+            sd->setContext(conversion->getContext());
+        }
+    }
     conversion->getRight()->setScope(conversion->getScope());
 
     conversion->analyze(true);
@@ -5619,6 +5628,125 @@ void MaybeDeclarator::propagateScope(Scope * _scope) {
 }
 //
 
+// ~~~~~ SumDeclarator ~~~~~
+
+SumDeclarator::SumDeclarator() : subDeclarators({}) {
+    nodeKind = SUM_DECLARATOR;
+}
+
+std::vector<ASTNode *> & SumDeclarator::getSubDeclarators() {
+    return subDeclarators;
+}
+void SumDeclarator::setSubDeclarators(
+    std::vector<ASTNode *> _subDeclarators) {
+    subDeclarators = _subDeclarators;
+}
+void SumDeclarator::addSubDeclarator(ASTNode * _subDeclarator) {
+    _subDeclarator->parent = this;
+    _subDeclarator->replace =
+        rpget<replacementPolicy_SumDeclarator_subDeclarator>();
+    subDeclarators.push_back(_subDeclarator);
+}
+
+// Node interface
+void SumDeclarator::analyze(bool force) {
+    HANDLE_FORCE();
+    for (ASTNode * sd : getSubDeclarators()) {
+        ((Declarator *)sd)->analyze();
+        if (equal(VoidType::get(), sd->getType())) {
+            errorl(sd->getContext(), "'void' type is invalid in sum types.");
+        }
+    }
+    setFlag(ANALYZED, true);
+}
+
+SumDeclarator::~SumDeclarator() {
+    for (ASTNode * sd : getSubDeclarators())
+        delete sd;
+}
+
+void SumDeclarator::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    setScope(_scope);
+    for (ASTNode * sd : getSubDeclarators())
+        sd->addSymbols(mod, _scope);
+}
+
+void SumDeclarator::unwrap(std::vector<ASTNode *> & terminals) {
+    for (ASTNode * sd : getSubDeclarators())
+        sd->unwrap(terminals);
+}
+
+ASTNode * SumDeclarator::clone() {
+    SumDeclarator * c = DeclaratorClone(this);
+    std::vector<ASTNode *> & my_subDeclarators = c->getSubDeclarators();
+    std::vector<ASTNode *> declarators = my_subDeclarators;
+
+    my_subDeclarators.clear();
+    for (ASTNode * d : declarators)
+        c->addSubDeclarator(d->clone());
+
+    return c;
+}
+
+void SumDeclarator::dump(std::ostream & stream, unsigned int level,
+                           bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << "(";
+    std::string comma = " | ";
+    for (ASTNode *& sub : getSubDeclarators()) {
+        sub->dump(stream, level, dumpCT);
+        if (&sub == &getSubDeclarators().back())
+            comma = "";
+        stream << comma;
+    }
+    stream << ")";
+}
+
+void SumDeclarator::desugar() {
+    for (ASTNode * decl : getSubDeclarators())
+        decl->desugar();
+}
+
+const Type * SumDeclarator::getType() {
+    std::vector<ASTNode *> & subDeclarators = getSubDeclarators();
+    std::vector<const Type *> types;
+
+    std::transform(subDeclarators.begin(), subDeclarators.end(),
+                   std::back_inserter(types), [](ASTNode * declarator) {
+                       return ((Declarator *)declarator)->getType();
+                   });
+
+    return SumType::get(types);
+}
+
+//
+
+// Declarator interface
+std::string SumDeclarator::asString() {
+    const char * lazy_comma = "";
+    std::string mangled = "(";
+    std::vector<ASTNode *> & subDeclarators = getSubDeclarators();
+    for (ASTNode * sd : subDeclarators) {
+        mangled += lazy_comma + ((Declarator *)sd)->asString();
+        lazy_comma = " | ";
+    }
+    mangled += ")";
+
+    return mangled;
+}
+
+const ASTNode * SumDeclarator::getBase() const { return this; }
+
+void SumDeclarator::propagateScope(Scope * _scope) {
+    scope = _scope;
+    for (ASTNode * sd : getSubDeclarators())
+        ((Declarator *)sd)->propagateScope(_scope);
+}
+//
+
+
 // ~~~~~ TupleDeclarator ~~~~~
 
 TupleDeclarator::TupleDeclarator() : subDeclarators({}) {
@@ -5642,8 +5770,12 @@ void TupleDeclarator::addSubDeclarator(ASTNode * _subDeclarator) {
 // Node interface
 void TupleDeclarator::analyze(bool force) {
     HANDLE_FORCE();
-    for (ASTNode * sd : getSubDeclarators())
+    for (ASTNode * sd : getSubDeclarators()) {
         ((Declarator *)sd)->analyze();
+        if (equal(VoidType::get(), sd->getType())) {
+            errorl(sd->getContext(), "'void' type is invalid in tuple types.");
+        }
+    }
     setFlag(ANALYZED, true);
 }
 
@@ -6218,6 +6350,74 @@ void VariableDeclaration::setInitialization(ASTNode * _initialization) {
         rpget<replacementPolicy_VariableDeclaration_Initialization>();
 }
 
+void VariableDeclaration::analyze_destructure(Symbol * sym) {
+    if (!getTypeDeclarator()) {
+        errorl(getContext(), "Missing type declarator in destructuring.");
+    }
+    if (!getInitialization()) {
+        errorl(getContext(), "Missing expression to destructure.");
+    }
+
+    const Type * decl_t = getTypeDeclarator()->getType();
+    const Type * init_t = getInitialization()->getType();
+
+    std::stack<const Type *> & lValStack =
+        compilation->frontEnd.lValStack;
+
+    lValStack.push(decl_t);
+
+    if (!init_t->unRef()->isSum()) {
+        errorl(getInitialization()->getContext(),
+               "Attempting to destructure an expression that is not a sum.");
+    }
+
+    bool good = false;
+    for (const Type * s_t : ((const SumType*)init_t->unRef())->getTypes()) {
+        if (equal(decl_t, s_t)) {
+            good = true;
+            break;
+        }
+    }
+    if (!good) {
+        errorl(getTypeDeclarator()->getContext(),
+               "Type '" + decl_t->getDemangledName() +
+               "' is not an option for sum type '" +
+               init_t->unRef()->getDemangledName() + "'.");
+    }
+
+    sym->initializedInScopes.insert(getScope());
+
+    if (!getScope()->parent || getScope()->is_module_scope) {
+        if (!((Expression *)getInitialization())->isConstant()) {
+            errorl(getInitialization()->getContext(),
+               "Global variable initializations must be compile time "
+               "constants.");
+        }
+    }
+
+    if (decl_t->isVoid()) {
+        if (getInitialization()) {
+            errorl(getInitialization()->getContext(),
+                   "Cannot initialize variable '" + getName() +
+                       "' with expression resulting in type 'void'.");
+        } else {
+            BJOU_DEBUG_ASSERT(getTypeDeclarator());
+            errorl(getTypeDeclarator()->getContext(),
+                   "Cannot declare variable '" + getName() +
+                       "' with type 'void'.");
+        }
+    }
+
+    BJOU_DEBUG_ASSERT(decl_t);
+
+    decl_t = decl_t->unRef();
+
+    if (decl_t->isStruct() && ((StructType *)decl_t)->isAbstract)
+        errorl(getTypeDeclarator()->getContext(),
+               "Can't instantiate '" + decl_t->getDemangledName() +
+                   "', which is an abstract type.");
+}
+
 // Node interface
 void VariableDeclaration::analyze(bool force) {
     HANDLE_FORCE();
@@ -6238,10 +6438,20 @@ void VariableDeclaration::analyze(bool force) {
         sym->initializedInScopes.insert(compilation->frontEnd.globalScope);
     }
 
+    if (getFlag(IS_DESTRUCTURE)) {
+        analyze_destructure(sym);
+        return;
+    }
+
     if (!getFlag(IS_TYPE_MEMBER)
     &&  getFlag(IS_EXTERN)
     && (getScope()->parent && !getScope()->is_module_scope)) {
         errorl(getNameContext(), "External variable bindings must be made at global scope.");
+    }
+
+    /* better for error reporting if this comes first */
+    if (getTypeDeclarator()) {
+        getTypeDeclarator()->analyze();
     }
 
     if (getInitialization()) {
@@ -8011,19 +8221,21 @@ void If::analyze(bool force) {
 
     getConditional()->analyze(force);
 
-    const Type * bool_type = BoolType::get();
+    if (!getFlag(HAS_DESTRUCTURE)) {
+        const Type * bool_type = BoolType::get();
 
-    if (!conv(bool_type, getConditional()->getType())) {
-        errorl(
-            getConditional()->getContext(),
-            "Expression convertible to type 'bool' is required for conditionals.",
-            true,
-            "'" + getConditional()->getType()->getDemangledName() +
-                "' is invalid");
-    }
+        if (!conv(bool_type, getConditional()->getType())) {
+            errorl(
+                getConditional()->getContext(),
+                "Expression convertible to type 'bool' is required for conditionals.",
+                true,
+                "'" + getConditional()->getType()->getDemangledName() +
+                    "' is invalid");
+        }
 
-    if (!equal(bool_type, getConditional()->getType())) {
-        emplaceConversion((Expression*)getConditional(), bool_type);
+        if (!equal(bool_type, getConditional()->getType())) {
+            emplaceConversion((Expression*)getConditional(), bool_type);
+        }
     }
 
     for (ASTNode *& statement : getStatements()) {
@@ -8044,7 +8256,11 @@ void If::addSymbols(std::string& _mod, Scope * _scope) {
     Scope * myScope = new Scope(
         "line " + std::to_string(getContext().begin.line) + " if", _scope);
     _scope->scopes.push_back(myScope);
-    conditional->addSymbols(mod, _scope);
+    if (getFlag(HAS_DESTRUCTURE)) {
+        conditional->addSymbols(mod, myScope);
+    } else {
+        conditional->addSymbols(mod, _scope);
+    }
     for (ASTNode * statement : getStatements())
         statement->addSymbols(mod, myScope);
     if (_else)

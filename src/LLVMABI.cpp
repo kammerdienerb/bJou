@@ -50,7 +50,7 @@ ParamClass ABIClassForType(LLVMBackEnd & backEnd, const Type * t) {
         return ABIClassForType(backEnd, ((SliceType *)t)->getRealType());
     } else if (t->isDynamicArray()) {
         return ABIClassForType(backEnd, ((DynamicArrayType *)t)->getRealType());
-    } else if (t->isStruct() || t->isTuple()) {
+    } else if (t->isStruct() || t->isSum() || t->isTuple()) {
         if (size > MEM_THRESH)
             return MEMORY;
 

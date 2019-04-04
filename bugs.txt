@@ -22,15 +22,3 @@
     p$int(1)
     p$i32(2)
 ]
-
--- not getting error for inability to deduce template args
-[
-    type T$U {
-        field : U
-        proc create() : T$U {
-            return { T$U: }
-        }
-    }
-
-    t := T.create()
-]

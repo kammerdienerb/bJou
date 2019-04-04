@@ -45,6 +45,7 @@ bool Type::isSlice() const { return kind == SLICE; }
 bool Type::isDynamicArray() const { return kind == DYNAMIC_ARRAY; }
 bool Type::isStruct() const { return kind == STRUCT; }
 bool Type::isEnum() const { return kind == ENUM; }
+bool Type::isSum() const { return kind == SUM; }
 bool Type::isTuple() const { return kind == TUPLE; }
 bool Type::isProcedure() const { return kind == PROCEDURE; }
 
@@ -110,6 +111,17 @@ static inline std::string akey(const Type * t, int width) {
 static inline std::string skey(const Type * t) { return t->key + "[]"; }
 
 static inline std::string dkey(const Type * t) { return t->key + "[...]"; }
+
+static inline std::string smkey(const std::vector<const Type *> & types) {
+    std::string key = "(";
+    for (const Type * const & t : types) {
+        key += t->key;
+        if (&t != &types.back())
+            key += " | ";
+    }
+
+    return key + ")";
+}
 
 static inline std::string tkey(const std::vector<const Type *> & types) {
     std::string key = "(";
@@ -594,6 +606,32 @@ IntegerLiteral * EnumType::getValueLiteral(std::string& identifier, Context & co
     return lit;
 }
 
+SumType::SumType(const std::vector<const Type *> & _types)
+    : Type(SUM, smkey(_types)), types(_types) {
+    BJOU_DEBUG_ASSERT(!types.empty());
+}
+
+const Type * SumType::get(const std::vector<const Type *> & types) {
+    return getOrAddType<SumType>(smkey(types), types);
+}
+
+const std::vector<const Type *> & SumType::getTypes() const { return types; }
+
+Declarator * SumType::getGenericDeclarator() const {
+    SumDeclarator * decl = new SumDeclarator();
+    for (const Type * st : types)
+        decl->addSubDeclarator(st->getGenericDeclarator());
+    decl->createdFromType = true;
+    return decl;
+}
+
+const Type * SumType::replacePlaceholders(const Type * t) const {
+    std::vector<const Type *> newTypes;
+    for (auto st : types)
+        newTypes.push_back(st->replacePlaceholders(t));
+    return SumType::get(newTypes);
+}
+
 TupleType::TupleType(const std::vector<const Type *> & _types)
     : Type(TUPLE, tkey(_types)), types(_types) {
     BJOU_DEBUG_ASSERT(!types.empty());
@@ -730,6 +768,18 @@ bool equal(const Type * t1, const Type * t2) {
     }
     case Type::STRUCT:
         return t1 == t2;
+    case Type::SUM: {
+        const SumType * s1 = (const SumType *)t1;
+        const SumType * s2 = (const SumType *)t2;
+
+        if (s1->getTypes().size() != s2->getTypes().size())
+            return false;
+
+        for (int i = 0; i < (int)s1->getTypes().size(); i += 1)
+            if (!equal(s1->getTypes()[i], s2->getTypes()[i]))
+                return false;
+        return true;
+    }
     case Type::TUPLE: {
         const TupleType * tp1 = (const TupleType *)t1;
         const TupleType * tp2 = (const TupleType *)t2;
@@ -888,6 +938,21 @@ const Type * conv(const Type * t1, const Type * t2) {
     case Type::ARRAY: {
         if (t2->isPointer() && equal(t1->under(), t2->under()))
             return t2;
+        break;
+    }
+    case Type::SUM: {
+        const SumType * sum_type = (const SumType*)t1;
+        bool good = false;
+        for (const Type * sub_t : sum_type->getTypes()) {
+            if (conv(sub_t, t2)) {
+                good = true;
+            }
+        }
+        
+        if (good) {
+            return t1;
+        }
+
         break;
     }
     case Type::SLICE: {
@@ -1160,6 +1225,14 @@ unsigned int simpleSizer(const Type * t) {
             size += simpleSizer(m_t);
     } else if (t->isEnum()) {
         size = 8;
+    } else if (t->isSum()) {
+        unsigned max = 0;
+        SumType * sm_t = (SumType *)t;
+        for (const Type * s_t : sm_t->getTypes()) {
+            unsigned s = simpleSizer(s_t);
+            if (s > max)    max = s;
+        }
+        size = max + 1; /* +1 for tag byte */
     } else if (t->isTuple()) {
         TupleType * t_t = (TupleType *)t;
         for (const Type * s_t : t_t->getTypes())
