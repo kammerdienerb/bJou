@@ -383,8 +383,10 @@ milliseconds FrontEnd::TypesStage() {
             nonPrimatives.push_back(t.second);
     }
 
-    nonPrimatives = typesSortedByDepencencies(nonPrimatives);
+    /* nonPrimatives = typesSortedByDepencencies(nonPrimatives); */
     for (const Type * t : nonPrimatives) {
+        ((StructType*)t)->checkForCycles();
+
         if (t->isStruct())
             ((StructType *)t)->complete();
         /*

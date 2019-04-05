@@ -3617,6 +3617,11 @@ void InitializerList::analyze(bool force) {
                                                  "' must be explicitly initialized "
                                                  "because it contains one or more references.");
                     }
+                } else if (mem->getType()->isSum()) {
+                    errorl(getContext(), "Member '" + name + "' of '" +
+                                             s_t->getDemangledName() +
+                                             "' must be explicitly initialized "
+                                             "because it is a sum type.");
                 }
             }
         }
@@ -4698,7 +4703,7 @@ void TupleLiteral::analyze(bool force) {
         types.push_back(getSubExpressions()[i]->getType());
     }
 
-    setType(TupleType::get(types));
+    setType(TupleType::get(types, nullptr));
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);
@@ -5160,6 +5165,7 @@ SliceDeclarator::SliceDeclarator() : sliceOf(nullptr) {
 SliceDeclarator::SliceDeclarator(ASTNode * _sliceOf) {
     nodeKind = SLICE_DECLARATOR;
     setSliceOf(_sliceOf);
+    ((Declarator *)getBase())->setFlag(IMPLIES_COMPLETE, false);
 }
 
 ASTNode * SliceDeclarator::getSliceOf() const { return sliceOf; }
@@ -5263,6 +5269,7 @@ DynamicArrayDeclarator::DynamicArrayDeclarator() : arrayOf(nullptr) {
 DynamicArrayDeclarator::DynamicArrayDeclarator(ASTNode * _arrayOf) {
     nodeKind = DYNAMIC_ARRAY_DECLARATOR;
     setArrayOf(_arrayOf);
+    ((Declarator *)getBase())->setFlag(IMPLIES_COMPLETE, false);
 }
 
 ASTNode * DynamicArrayDeclarator::getArrayOf() const { return arrayOf; }
@@ -5718,7 +5725,7 @@ const Type * SumDeclarator::getType() {
                        return ((Declarator *)declarator)->getType();
                    });
 
-    return SumType::get(types);
+    return SumType::get(types, this);
 }
 
 //
@@ -5837,7 +5844,7 @@ const Type * TupleDeclarator::getType() {
                        return ((Declarator *)declarator)->getType();
                    });
 
-    return TupleType::get(types);
+    return TupleType::get(types, this);
 }
 
 //

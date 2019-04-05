@@ -82,6 +82,37 @@ std::string Type::getDemangledName() const { return key; }
 
 const Type * Type::replacePlaceholders(const Type * t) const { return this; }
 
+static void cycleError(std::vector<CycleDetectEdge>& path) {
+    const Type *a, *b;
+
+    a = path.front().from;
+    b = path.front().to;
+
+    for (auto& edge : path) {
+        errorl(edge.decl->getContext(),
+               "'" + edge.from->key + "' depends on '" + edge.to->key + "'", false);
+    }
+
+    error("Definition of type '" + a->key +
+          "' creates a circular dependency with type '" +
+          b->key + "'.", true, "Did you mean to declare a reference or pointer to '" +
+               b->key + "'?");
+}
+
+bool Type::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const { return false; }
+void Type::checkForCycles() const {
+    if (!isStruct() && !isSum() && !isTuple()) {
+        return;
+    }
+
+    std::set<const Type*>        visited;
+    std::vector<CycleDetectEdge> path;
+
+    if (_checkForCycles(visited, path)) {
+        cycleError(path);
+    }
+}
+
 const std::string PlaceholderType::plkey = "_";
 
 const std::string VoidType::vkey = "void";
@@ -492,9 +523,13 @@ void StructType::complete() {
     int i = 0;
     if (_struct->getExtends()) {
         extends = (Type *)_struct->getExtends()->getType();
-        StructType * extends_s = (StructType *)extends;
-        memberIndices = extends_s->memberIndices;
-        memberTypes = extends_s->memberTypes;
+        StructType * extends_t = (StructType *)extends;
+        if (extends_t == this) {
+            errorl(_struct->getExtends()->getContext(), "Types may not extend themselves.");
+        }
+        extends_t->complete();
+        memberIndices = extends_t->memberIndices;
+        memberTypes = extends_t->memberTypes;
 
         /* Map to StructType that maps inherited procs to the originating
          * struct type. Then, in AccessExpression::handleContainerAccess(), 
@@ -502,12 +537,11 @@ void StructType::complete() {
          * look in the map and create an identifier with the left
          * side being the name of the struct that the proc maps to.
          */
-        const StructType * extends_t = extends_s;
-        BJOU_DEBUG_ASSERT(extends_t->isComplete);
-        for (auto& it : extends_s->inheritedProcsToBaseStructType) {
+
+        for (auto& it : extends_t->inheritedProcsToBaseStructType) {
             inheritedProcsToBaseStructType[it.first] = it.second;
         }
-        for (auto& it : extends_s->memberProcs) {
+        for (auto& it : extends_t->memberProcs) {
             inheritedProcsToBaseStructType[it.first] = extends_t;
         }
 
@@ -563,6 +597,49 @@ bool StructType::containsRefs() const {
     return false;
 }
 
+bool StructType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const {
+    visited.insert(this);
+    
+    for (ASTNode * _mem : _struct->getMemberVarDecls()) {
+        VariableDeclaration * mem = (VariableDeclaration *)_mem;
+        mem->getTypeDeclarator()->analyze();
+
+        std::vector<ASTNode*> mem_terms;
+        mem->unwrap(mem_terms);
+
+        for (ASTNode * _mem_term : mem_terms) {
+            if (IS_DECLARATOR(_mem_term)) {
+                Declarator *decl = (Declarator *)_mem_term;
+                const Type *t    = decl->getType();
+
+                /* declarators with a pointer ANYWHERE in them imply that we
+                   don't need to know the size of the base type
+                   PointerDeclarator (and RefDeclarator) handle this on
+                   construction and set a flag in their respective base Declarator
+                */
+                if (decl && decl->getBase()->getFlag(Declarator::IMPLIES_COMPLETE)) {
+                    if (visited.find(t) == visited.end()) {
+                        path.emplace_back(this, t, decl);
+                        if (t->_checkForCycles(visited, path)) {
+                            return true;
+                        }
+                        path.pop_back();
+                    } else {
+                        for (auto& edge : path) {
+                            if (edge.to == this) {
+                                path.emplace_back(this, t, decl);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 EnumType::EnumType(std::string & name, Enum * __enum)
     : Type(ENUM, name),
       _enum(__enum) {
@@ -606,13 +683,13 @@ IntegerLiteral * EnumType::getValueLiteral(std::string& identifier, Context & co
     return lit;
 }
 
-SumType::SumType(const std::vector<const Type *> & _types)
-    : Type(SUM, smkey(_types)), types(_types) {
+SumType::SumType(const std::vector<const Type *> & _types, Declarator * _first_decl)
+    : Type(SUM, smkey(_types)), first_decl(_first_decl), types(_types)  {
     BJOU_DEBUG_ASSERT(!types.empty());
 }
 
-const Type * SumType::get(const std::vector<const Type *> & types) {
-    return getOrAddType<SumType>(smkey(types), types);
+const Type * SumType::get(const std::vector<const Type *> & types, Declarator * first_decl) {
+    return getOrAddType<SumType>(smkey(types), types, first_decl);
 }
 
 const std::vector<const Type *> & SumType::getTypes() const { return types; }
@@ -629,16 +706,61 @@ const Type * SumType::replacePlaceholders(const Type * t) const {
     std::vector<const Type *> newTypes;
     for (auto st : types)
         newTypes.push_back(st->replacePlaceholders(t));
-    return SumType::get(newTypes);
+    return SumType::get(newTypes, nullptr);
 }
 
-TupleType::TupleType(const std::vector<const Type *> & _types)
-    : Type(TUPLE, tkey(_types)), types(_types) {
+bool SumType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const {
+    visited.insert(this);
+   
+    BJOU_DEBUG_ASSERT(first_decl);
+    SumDeclarator * sum_decl = (SumDeclarator*)first_decl;
+
+    for (ASTNode * _sub_decl : sum_decl->getSubDeclarators()) {
+        Declarator * sub_decl = (Declarator*)_sub_decl;
+
+        std::vector<ASTNode*> decl_terms;
+        sub_decl->unwrap(decl_terms);
+
+        for (ASTNode * _decl_term : decl_terms) {
+            if (IS_DECLARATOR(_decl_term)) {
+                Declarator *decl = (Declarator *)_decl_term;
+                const Type *t    = decl->getType();
+
+                /* declarators with a pointer ANYWHERE in them imply that we
+                   don't need to know the size of the base type
+                   PointerDeclarator (and RefDeclarator) handle this on
+                   construction and set a flag in their respective base Declarator
+                */
+                if (decl && decl->getBase()->getFlag(Declarator::IMPLIES_COMPLETE)) {
+                    if (visited.find(t) == visited.end()) {
+                        path.emplace_back(this, t, decl);
+                        if (t->_checkForCycles(visited, path)) {
+                            return true;
+                        }
+                        path.pop_back();
+                    } else {
+                        for (auto& edge : path) {
+                            if (edge.to == this) {
+                                path.emplace_back(this, t, decl);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    return false;
+}
+
+TupleType::TupleType(const std::vector<const Type *> & _types, Declarator * _first_decl)
+    : Type(TUPLE, tkey(_types)), first_decl(_first_decl), types(_types) {
     BJOU_DEBUG_ASSERT(!types.empty());
 }
 
-const Type * TupleType::get(const std::vector<const Type *> & types) {
-    return getOrAddType<TupleType>(tkey(types), types);
+const Type * TupleType::get(const std::vector<const Type *> & types, Declarator * first_decl) {
+    return getOrAddType<TupleType>(tkey(types), types, first_decl);
 }
 
 const std::vector<const Type *> & TupleType::getTypes() const { return types; }
@@ -655,7 +777,52 @@ const Type * TupleType::replacePlaceholders(const Type * t) const {
     std::vector<const Type *> newTypes;
     for (auto st : types)
         newTypes.push_back(st->replacePlaceholders(t));
-    return TupleType::get(newTypes);
+    return TupleType::get(newTypes, nullptr);
+}
+
+bool TupleType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const {
+    visited.insert(this);
+   
+    BJOU_DEBUG_ASSERT(first_decl);
+    TupleDeclarator * tup_decl = (TupleDeclarator*)first_decl;
+
+    for (ASTNode * _sub_decl : tup_decl->getSubDeclarators()) {
+        Declarator * sub_decl = (Declarator*)_sub_decl;
+
+        std::vector<ASTNode*> decl_terms;
+        sub_decl->unwrap(decl_terms);
+
+        for (ASTNode * _decl_term : decl_terms) {
+            if (IS_DECLARATOR(_decl_term)) {
+                Declarator *decl = (Declarator *)_decl_term;
+                const Type *t    = decl->getType();
+
+                /* declarators with a pointer ANYWHERE in them imply that we
+                   don't need to know the size of the base type
+                   PointerDeclarator (and RefDeclarator) handle this on
+                   construction and set a flag in their respective base Declarator
+                */
+                if (decl && decl->getBase()->getFlag(Declarator::IMPLIES_COMPLETE)) {
+                    if (visited.find(t) == visited.end()) {
+                        path.emplace_back(this, t, decl);
+                        if (t->_checkForCycles(visited, path)) {
+                            return true;
+                        }
+                        path.pop_back();
+                    } else {
+                        for (auto& edge : path) {
+                            if (edge.to == this) {
+                                path.emplace_back(this, t, decl);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    return false;
 }
 
 ProcedureType::ProcedureType(const std::vector<const Type *> & _paramTypes,
@@ -1024,6 +1191,7 @@ void addTypeToTable(const Type * t, const std::string & key) {
     compilation->frontEnd.typeTable[key] = t;
 }
 
+#if 0
 // @fun
 std::vector<const Type *>
 typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
@@ -1051,7 +1219,7 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
             std::vector<ASTNode *> terms;
             ASTNode * extends_term = nullptr;
             // break it down to the declarators and expressions that would
-            // require knowledge of a certain type beyond its name
+            // require knowledge of a certain type beyond its name (i.e. its size)
             if (t->isStruct()) {
                 Struct * td = ((const StructType *)t)->_struct;
                 if (td->getExtends()) {
@@ -1088,12 +1256,8 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
                         }
                     }
                 }
-            } /* else if (t->isAlias()) {
-                // @todo
-                // what should happen here is that we should have access to the
-                // underlying declarator and unwrap that
             }
-            */
+
             for (ASTNode * term : terms) {
                 const Type * t = term->getType();
                 BJOU_DEBUG_ASSERT(t);
@@ -1169,6 +1333,7 @@ typesSortedByDepencencies(std::vector<const Type *> nonPrimatives) {
 
     return sorted;
 }
+#endif
 
 void compilationAddPrimativeTypes() {
     const Type * primatives[] = {VoidType::get(),

@@ -35,6 +35,16 @@ struct Symbol;
 struct Scope;
 struct ProcSet;
 
+struct Type;
+
+struct CycleDetectEdge {
+    const Type *from, *to;
+    Declarator * decl;
+
+    CycleDetectEdge(const Type *_from, const Type *_to, Declarator *_decl)
+        : from(_from), to(_to), decl(_decl) { }
+};
+
 struct Type {
     enum Kind {
         PLACEHOLDER   = 0,
@@ -97,6 +107,8 @@ struct Type {
     virtual Declarator * getGenericDeclarator() const = 0;
     virtual std::string getDemangledName() const;
     virtual const Type * replacePlaceholders(const Type * t) const;
+    virtual void checkForCycles() const;
+    virtual bool _checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const;
 };
 
 struct PlaceholderType : Type {
@@ -283,6 +295,8 @@ struct StructType : Type {
     void complete();
 
     bool containsRefs() const;
+    
+    bool _checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const;
 };
 
 struct EnumType : Type {
@@ -300,31 +314,39 @@ struct EnumType : Type {
 };
 
 struct SumType : Type {
+    Declarator * first_decl;
+
     std::vector<const Type *> types;
 
-    SumType(const std::vector<const Type *> & _types);
+    SumType(const std::vector<const Type *> & _types, Declarator * _first_decl);
 
-    static const Type * get(const std::vector<const Type *> & types);
+    static const Type * get(const std::vector<const Type *> & types, Declarator * _first_decl);
 
     const std::vector<const Type *> & getTypes() const;
 
     Declarator * getGenericDeclarator() const;
 
     const Type * replacePlaceholders(const Type * t) const;
+    
+    bool _checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const;
 };
 
 struct TupleType : Type {
+    Declarator * first_decl;
+
     std::vector<const Type *> types;
 
-    TupleType(const std::vector<const Type *> & _types);
+    TupleType(const std::vector<const Type *> & _types, Declarator * _first_decl);
 
-    static const Type * get(const std::vector<const Type *> & types);
+    static const Type * get(const std::vector<const Type *> & types, Declarator * _first_decl);
 
     const std::vector<const Type *> & getTypes() const;
 
     Declarator * getGenericDeclarator() const;
 
     const Type * replacePlaceholders(const Type * t) const;
+    
+    bool _checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const;
 };
 
 struct ProcedureType : Type {
