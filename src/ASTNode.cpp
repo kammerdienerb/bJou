@@ -6417,12 +6417,29 @@ void VariableDeclaration::analyze_destructure(Symbol * sym) {
 
     BJOU_DEBUG_ASSERT(decl_t);
 
+    const Type * decl_t_save = decl_t;
+
     decl_t = decl_t->unRef();
 
     if (decl_t->isStruct() && ((StructType *)decl_t)->isAbstract)
         errorl(getTypeDeclarator()->getContext(),
                "Can't instantiate '" + decl_t->getDemangledName() +
                    "', which is an abstract type.");
+
+
+    if (decl_t_save->isRef()) {
+        setFlag(DESTRUCTURE_REF, true);
+    } else {
+        Declarator * decl = (Declarator*)getTypeDeclarator();
+
+        RefDeclarator * ref_decl = new RefDeclarator(decl);
+        ref_decl->setContext(decl->getContext());
+        ref_decl->setScope(decl->getScope());
+        setTypeDeclarator(ref_decl);
+        ref_decl->analyze();
+
+        decl_t = getTypeDeclarator()->getType();
+    }
 }
 
 // Node interface

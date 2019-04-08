@@ -36,6 +36,13 @@ proc r(option : (float[...] | None) ref) {
     }
 }
 
+type Error { code : int message : char* }
+type result = (float | Error)
+
+proc s() : result {
+    return { Error: .code = 1, .message = "there was an error" }
+}
+
 proc main() {
     sum : (int | char*) = "a string"
     p(sum)
@@ -60,4 +67,7 @@ proc main() {
     option4 := q(false)
     r(option3)
     r(option4)
+
+    if err : Error = s()
+        print "[ error ](%): %", err.code, err.message
 }

@@ -2428,7 +2428,10 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
         else
             ret = sret;
     } else {
-        if (payload->t->getRetType()->isStruct() && getAddr) {
+        if ((   payload->t->getRetType()->isStruct()
+             || payload->t->getRetType()->isSum()
+             || payload->t->getRetType()->isTuple())
+        &&   getAddr) {
             llvm::Value * tmp_ret =
                 llbe->allocUnnamedVal(payload->t->getRetType());
             llbe->builder.CreateStore(ret, tmp_ret);
@@ -2715,8 +2718,8 @@ void * NewExpression::generate(BackEnd & backEnd, bool flag) {
         llbe->getOrGenNode(compilation->frontEnd.malloc_decl);
     else
         errorl(getContext(), "bJou is missing a malloc declaration.", true,
-               "if using --nopreload, an extern declaration must be made "
-               "available");
+               "if using --nopreload, an extern declaration must be made"
+               "available.");
 
     llvm::Function * func = llbe->llModule->getFunction("malloc");
     BJOU_DEBUG_ASSERT(func);
@@ -2865,34 +2868,6 @@ void * RefExpression::generate(BackEnd & backEnd, bool flag) {
     return compilation->frontEnd.typeTable[buf];
 }
 #endif
-
-static uint64_t get_static_sum_tag(const Type * dest_t, const SumType * sum_t) {
-    uint64_t tag = 0;
-    for (const Type * option : sum_t->getTypes()) {
-        if (equal(option, dest_t)) {
-            break;
-        }
-        if (dest_t->isRef() && option->isRef()) {
-            if (equal(dest_t->unRef(), option->unRef())) {
-                break;
-            }
-        }
-        if (dest_t->isRef()) {
-            if (equal(dest_t->unRef(), option)) {
-                break;
-            }
-        }
-        if (option->isRef()) {
-            if (equal(dest_t, option->unRef())) {
-                break;
-            }
-        }
-        tag += 1;
-    }
-    BJOU_DEBUG_ASSERT(tag != sum_t->getTypes().size());
-
-    return tag;
-}
 
 void * AsExpression::generate(BackEnd & backEnd, bool getAddr) {
     LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
@@ -3109,7 +3084,8 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
     // @update unless it is a reference
     if (!llvm::isa<llvm::AllocaInst>(ptr) &&
         !llvm::isa<llvm::GlobalVariable>(ptr) &&
-        !llvm::isa<llvm::Argument>(ptr) && !getType()->isRef())
+        !llvm::isa<llvm::Argument>(ptr) &&
+        !getType()->isRef())
         getAddr = true;
     // we shouldn't load direct function references
     else if (llvm::isa<llvm::Function>(ptr))
@@ -3640,6 +3616,10 @@ static llvm::Value * generate_destructure_condition(LLVMBackEnd& llbe, VariableD
 }
 
 static llvm::Value * generate_destructure_var(LLVMBackEnd& llbe, VariableDeclaration * var_decl) {
+    Declarator * decl = (Declarator*)var_decl->getTypeDeclarator();
+    
+    bool is_ref = var_decl->getFlag(VariableDeclaration::DESTRUCTURE_REF);
+
     const Type * dest_t = var_decl->getTypeDeclarator()->getType();
     const Type * _sum_t  = var_decl->getInitialization()->getType()->unRef();
     BJOU_DEBUG_ASSERT(_sum_t->isSum());
@@ -3647,34 +3627,20 @@ static llvm::Value * generate_destructure_var(LLVMBackEnd& llbe, VariableDeclara
 
     /* @hack */
     ASTNode * init = var_decl->getInitialization();
-    var_decl->initialization = nullptr;
-
-    bool is_ref = dest_t->isRef();
 
     llvm::Value * sum_val  = llbe.getOrGenNode(init, true);
 
     llvm::Value * val = llbe.builder.CreateInBoundsGEP(sum_val,
             { llbe.builder.getInt32(0), llbe.builder.getInt32(1) });
-    val = llbe.builder.CreateBitCast(val, llbe.getOrGenType(dest_t)->getPointerTo());
-    val = llbe.builder.CreateLoad(val, "sum_val");
 
-    llvm::Value * ret = nullptr; 
-
-    if (dest_t->isRef()) {
-        if (dest_t->unRef()->isArray()) {
-            ret = llbe.allocNamedVal(var_decl->getMangledName(), dest_t);
-            llbe.builder.CreateStore(val, ret);
-        } else {
-            ret = llbe.addNamedVal(var_decl->getMangledName(), val, dest_t);
-        }
+    if (is_ref) {
+        val = llbe.builder.CreateBitCast(val, llbe.getOrGenType(dest_t)->getPointerTo());
+        val = llbe.builder.CreateLoad(val, "sum_ref");
     } else {
-        llvm::Value * alloca = llbe.getOrGenNode(var_decl);
-        llbe.builder.CreateStore(val, alloca, "sum_destructure");
-        ret = alloca;
+        val = llbe.builder.CreateBitCast(val, llbe.getOrGenType(dest_t));
     }
 
-    /* restore init node */
-    var_decl->setInitialization(init);
+    llvm::Value * ret = llbe.addNamedVal(var_decl->getMangledName(), val, dest_t);
 
     return ret;
 }

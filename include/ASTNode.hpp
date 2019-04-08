@@ -226,6 +226,7 @@ struct ASTNode {
         ASTNode::NodeKind::DYNAMIC_ARRAY_DECLARATOR,                           \
         ASTNode::NodeKind::POINTER_DECLARATOR,                                 \
         ASTNode::NodeKind::MAYBE_DECLARATOR,                                   \
+        ASTNode::NodeKind::SUM_DECLARATOR,                                     \
         ASTNode::NodeKind::TUPLE_DECLARATOR,                                   \
         ASTNode::NodeKind::PROCEDURE_DECLARATOR,                               \
         ASTNode::NodeKind::REF_DECLARATOR,                                     \
@@ -302,6 +303,7 @@ struct ASTNode {
         ASTNode::NodeKind::DYNAMIC_ARRAY_DECLARATOR,                           \
         ASTNode::NodeKind::POINTER_DECLARATOR,                                 \
         ASTNode::NodeKind::MAYBE_DECLARATOR,                                   \
+        ASTNode::NodeKind::SUM_DECLARATOR,                                     \
         ASTNode::NodeKind::TUPLE_DECLARATOR,                                   \
         ASTNode::NodeKind::PROCEDURE_DECLARATOR,                               \
         ASTNode::NodeKind::REF_DECLARATOR,                                     \
@@ -2384,7 +2386,7 @@ struct VariableDeclaration : ASTNode {
     ASTNode * typeDeclarator;
     ASTNode * initialization;
 
-    enum eBitFlags E_BIT_FLAGS_AND(IS_EXTERN, IS_TYPE_MEMBER, IS_PROC_PARAM, IS_DESTRUCTURE);
+    enum eBitFlags E_BIT_FLAGS_AND(IS_EXTERN, IS_TYPE_MEMBER, IS_PROC_PARAM, IS_DESTRUCTURE, DESTRUCTURE_REF);
 
     std::string & getName();
     void setName(std::string _name);

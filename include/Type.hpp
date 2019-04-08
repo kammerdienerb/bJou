@@ -331,6 +331,8 @@ struct SumType : Type {
     bool _checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const;
 };
 
+uint64_t get_static_sum_tag(const Type * dest_t, const SumType * sum_t);
+
 struct TupleType : Type {
     Declarator * first_decl;
 

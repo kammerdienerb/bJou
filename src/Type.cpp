@@ -754,6 +754,34 @@ bool SumType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleD
     return false;
 }
 
+uint64_t get_static_sum_tag(const Type * dest_t, const SumType * sum_t) {
+    uint64_t tag = 0;
+    for (const Type * option : sum_t->getTypes()) {
+        if (equal(option, dest_t)) {
+            break;
+        }
+        if (dest_t->isRef() && option->isRef()) {
+            if (equal(dest_t->unRef(), option->unRef())) {
+                break;
+            }
+        }
+        if (dest_t->isRef()) {
+            if (equal(dest_t->unRef(), option)) {
+                break;
+            }
+        }
+        if (option->isRef()) {
+            if (equal(dest_t, option->unRef())) {
+                break;
+            }
+        }
+        tag += 1;
+    }
+    BJOU_DEBUG_ASSERT(tag != sum_t->getTypes().size());
+
+    return tag;
+}
+
 TupleType::TupleType(const std::vector<const Type *> & _types, Declarator * _first_decl)
     : Type(TUPLE, tkey(_types)), first_decl(_first_decl), types(_types) {
     BJOU_DEBUG_ASSERT(!types.empty());
@@ -1110,9 +1138,28 @@ const Type * conv(const Type * t1, const Type * t2) {
     case Type::SUM: {
         const SumType * sum_type = (const SumType*)t1;
         bool good = false;
-        for (const Type * sub_t : sum_type->getTypes()) {
-            if (conv(sub_t, t2)) {
+        for (const Type * option : sum_type->getTypes()) {
+            if (equal(option, t2)) {
                 good = true;
+                break;
+            }
+            if (t2->isRef() && option->isRef()) {
+                if (equal(t2->unRef(), option->unRef())) {
+                    good = true;
+                    break;
+                }
+            }
+            if (t2->isRef()) {
+                if (equal(t2->unRef(), option)) {
+                    good = true;
+                    break;
+                }
+            }
+            if (option->isRef()) {
+                if (equal(t2, option->unRef())) {
+                    good = true;
+                    break;
+                }
             }
         }
         
