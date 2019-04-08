@@ -2152,7 +2152,7 @@ void * NeqExpression::generate(BackEnd & backEnd, bool flag) {
     llvm::Value * lv = (llvm::Value *)llbe->getOrGenNode(getLeft());
     llvm::Value * rv = (llvm::Value *)llbe->getOrGenNode(getRight());
 
-    if (lt->isInt() || lt->isChar() || lt->isEnum()) {
+    if (lt->isBool() || lt->isInt() || lt->isChar() || lt->isEnum()) {
         return llbe->builder.CreateICmpNE(lv, rv);
     } else if (lt->isFloat()) {
         return llbe->builder.CreateFCmpUNE(lv, rv);
