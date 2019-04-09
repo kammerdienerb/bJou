@@ -85,8 +85,7 @@ const Type * Type::replacePlaceholders(const Type * t) const { return this; }
 static void cycleError(std::vector<CycleDetectEdge>& path) {
     const Type *a, *b;
 
-    a = path.front().from;
-    b = path.front().to;
+    a = path.back().from;
 
     for (auto& edge : path) {
         errorl(edge.decl->getContext(),
@@ -94,9 +93,8 @@ static void cycleError(std::vector<CycleDetectEdge>& path) {
     }
 
     error("Definition of type '" + a->key +
-          "' creates a circular dependency with type '" +
-          b->key + "'.", true, "Did you mean to declare a reference or pointer to '" +
-               b->key + "'?");
+          "' creates a circular dependency. Did you mean to declare a reference or pointer to '" +
+               a->key + "'?");
 }
 
 bool Type::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const { return false; }
@@ -625,6 +623,10 @@ bool StructType::_checkForCycles(std::set<const Type*>& visited, std::vector<Cyc
                         }
                         path.pop_back();
                     } else {
+                        if (path.empty() && this == t) {
+                            path.emplace_back(this, t, decl);
+                            return true;
+                        }
                         for (auto& edge : path) {
                             if (edge.to == this) {
                                 path.emplace_back(this, t, decl);
@@ -739,6 +741,10 @@ bool SumType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleD
                         }
                         path.pop_back();
                     } else {
+                        if (path.empty() && this == t) {
+                            path.emplace_back(this, t, decl);
+                            return true;
+                        }
                         for (auto& edge : path) {
                             if (edge.to == this) {
                                 path.emplace_back(this, t, decl);
@@ -838,6 +844,10 @@ bool TupleType::_checkForCycles(std::set<const Type*>& visited, std::vector<Cycl
                         }
                         path.pop_back();
                     } else {
+                        if (path.empty() && this == t) {
+                            path.emplace_back(this, t, decl);
+                            return true;
+                        }
                         for (auto& edge : path) {
                             if (edge.to == this) {
                                 path.emplace_back(this, t, decl);

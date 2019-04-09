@@ -4921,6 +4921,8 @@ void Declarator::analyze(bool force) {
                 new_decl->setScope(getScope());
                 new_decl->setContext(getContext());
                 (*replace)(parent, this, new_decl);
+                new_decl->setFlag(Declarator::IMPLIES_COMPLETE,
+                        getFlag(Declarator::IMPLIES_COMPLETE));
                 new_decl->templateInst = nullptr;
                 new_decl->analyze(true);
                 type = new_decl->getType();

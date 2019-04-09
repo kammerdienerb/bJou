@@ -182,6 +182,7 @@ Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst) {
         mem->analyze(false);
 
     ((StructType *)clone->getType())->complete();
+    ((StructType *)clone->getType())->checkForCycles();
 
     clone->analyze(true);
 
