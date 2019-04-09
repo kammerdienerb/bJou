@@ -8231,7 +8231,8 @@ bool If::alwaysReturns() const {
 
         if (_else->getFlag(ASTNode::HAS_TOP_LEVEL_RETURN) && me) {
             return true;
-        } else if (_else->getStatements()[0]->nodeKind == ASTNode::IF) {
+        } else if (_else->getStatements().size() > 0
+        &&         _else->getStatements()[0]->nodeKind == ASTNode::IF) {
             if (((If *)_else->getStatements()[0])->alwaysReturns() && me)
                 return true;
         }

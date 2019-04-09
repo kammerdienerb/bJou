@@ -22,3 +22,5 @@
     p$int(1)
     p$i32(2)
 ]
+
+-- expression blocks can cause code to be executed unexpectedly
