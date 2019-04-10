@@ -1930,7 +1930,7 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
 
         llvm::StoreInst * store = llbe->builder.CreateStore(rv, lv, v_w);
 
-        if (getLeft()->getType()->isPointer()) {
+        if (getLeft()->getType()->isPointer() && !lt->under()->isVoid()) {
             store->setAlignment(llbe->layout->getABITypeAlignment(llbe->getOrGenType(lt->under())));
         }
     }
