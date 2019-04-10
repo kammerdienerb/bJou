@@ -469,7 +469,9 @@ void Scope::addSymbol(_Symbol<TemplateProc> * symbol, Context * context) {
 void Scope::addUsing(std::string& mod) {
     usings.push_back(mod);
     for (Scope * s : scopes) {
-        s->addUsing(mod);
+        if (!s->is_module_scope) {
+            s->addUsing(mod);
+        }
     }
 }
 
