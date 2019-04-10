@@ -60,8 +60,6 @@ struct Scope {
     void addSymbol(_Symbol<TemplateProc> * symbol, Context * context);
     void addProcSymbol(Symbol * symbol, bool is_extern, bool no_mangle, Context * context);
     void printSymbols(int indent) const;
-
-    void addUsing(std::string& mod);
 };
 
 void printSymbolTables();

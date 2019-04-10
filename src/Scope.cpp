@@ -221,6 +221,8 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope,
                                  Context * context, bool traverse, bool fail,
                                  bool checkUninit, bool countAsReference, std::string mod) {
 
+    Maybe<Symbol*> global_m_sym;
+
     bool has_mod = !mod.empty();
     if (this == startingScope && !has_mod) {
         if (auto m_mod = get_mod_from_string(qualifiedIdentifier)) {
@@ -241,7 +243,7 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope,
         return m_sym;
     }
 
-    if (traverse && parent) {
+    if (traverse && !is_module_scope && parent) {
         auto m_sym = parent->getSymbol(startingScope, qualifiedIdentifier, context,
                                  traverse, fail, checkUninit, countAsReference, mod);
 
@@ -261,6 +263,15 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope,
         }
     }
 
+    /* finally, check global scope */
+    if (this != compilation->frontEnd.globalScope) {
+        global_m_sym =
+            compilation->frontEnd.globalScope->getSymbol(
+                    startingScope, qualifiedIdentifier, context,
+                    false, fail, checkUninit, countAsReference, mod);
+
+        if (global_m_sym)    { return global_m_sym; }
+    }
 out:
     if (fail && this == startingScope)    { symbol_error(startingScope, qualifiedIdentifier, context); }
 
@@ -464,15 +475,6 @@ void Scope::addSymbol(_Symbol<Procedure> * symbol, Context * context) {
 
 void Scope::addSymbol(_Symbol<TemplateProc> * symbol, Context * context) {
     addProcSymbol(symbol, false, false, context);
-}
-
-void Scope::addUsing(std::string& mod) {
-    usings.push_back(mod);
-    for (Scope * s : scopes) {
-        if (!s->is_module_scope) {
-            s->addUsing(mod);
-        }
-    }
 }
 
 void Scope::printSymbols(int indent) const {

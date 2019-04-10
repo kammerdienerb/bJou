@@ -7591,14 +7591,15 @@ void Procedure::addSymbols(std::string& _mod, Scope * _scope) {
 
     // open scope normally unless it is a local proc
     // if so, put it in the global scope
-    if (!_scope->parent) {
-        _scope->scopes.push_back(myScope);
-    } else {
-        Scope * walk = _scope;
-        while (walk->parent && !walk->parent->is_module_scope)
-            walk = walk->parent;
-        walk->scopes.push_back(myScope);
-    }
+    _scope->scopes.push_back(myScope);
+    /* if (!_scope->parent) { */
+    /*     _scope->scopes.push_back(myScope); */
+    /* } else { */
+    /*     Scope * walk = _scope; */
+    /*     while (walk->parent && !walk->parent->is_module_scope) */
+    /*         walk = walk->parent; */
+    /*     walk->scopes.push_back(myScope); */
+    /* } */
 
     if (!getFlag(Procedure::IS_EXTERN)) {
         desugarThis();
@@ -7904,8 +7905,7 @@ void Using::addSymbols(std::string& _mod, Scope * _scope) {
         errorl(getContext(), "No module by the name '" + getModule() + "' was found.");
     }
 
-    getScope()->addUsing(getModule());
-    /* getScope()->usings.push_back(getModule()); */
+    getScope()->usings.push_back(getModule());
 }
 
 void Using::dump(std::ostream & stream, unsigned int level, bool dumpCT) {

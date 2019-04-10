@@ -33,13 +33,15 @@ void ProcSet::addSymbols(std::string& _mod, Scope * scope) { BJOU_DEBUG_ASSERT(f
 
 static bool can_use_module_node(ASTNode * node, Scope * scope) {
     const std::string& m = node->mod;
-    if (!m.empty()) {
-        auto search = std::find(scope->usings.begin(), scope->usings.end(), m);
-        if (search == scope->usings.end()) {
-            return false;
-        }
+
+    if (m.empty()) { return true; }
+
+    auto search = std::find(scope->usings.begin(), scope->usings.end(), m);
+    if (search != scope->usings.end()) {
+        return true;
     }
-    return true;
+
+    return false;
 }
 
 static void printProcSetGetError(ProcSet * set, ASTNode * args, Context * context, Scope * scope, bool set_is_in_module) {
