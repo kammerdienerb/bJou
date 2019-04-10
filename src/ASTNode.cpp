@@ -4898,6 +4898,12 @@ void Declarator::analyze(bool force) {
     Symbol * sym = nullptr;
 
     if (m_sym.assignTo(sym)) {
+        if (sym->isProcSet()) {
+            errorl(getContext(),
+                   "Reference to procedure(s) named '" + sym->unmangled +
+                       "' is not a type.");
+        }
+
         if (!sym->isAlias()) {
             const Type * t = sym->node()->getType();
             BJOU_DEBUG_ASSERT(t);
