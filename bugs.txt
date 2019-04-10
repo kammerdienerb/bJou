@@ -24,3 +24,5 @@
 ]
 
 -- expression blocks can cause code to be executed unexpectedly
+
+-- can cause LLVM errors when trying to assign to an array (maybe only externvar?)

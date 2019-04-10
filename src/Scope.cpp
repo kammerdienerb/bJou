@@ -466,6 +466,13 @@ void Scope::addSymbol(_Symbol<TemplateProc> * symbol, Context * context) {
     addProcSymbol(symbol, false, false, context);
 }
 
+void Scope::addUsing(std::string& mod) {
+    usings.push_back(mod);
+    for (Scope * s : scopes) {
+        s->addUsing(mod);
+    }
+}
+
 void Scope::printSymbols(int indent) const {
     static const char * side = "\xE2\x95\x91";
     printf("%s %-76s %s\n", side,
@@ -513,4 +520,5 @@ void printSymbolTables() {
     printf("%s", br_corner);
     printf("\n");
 }
+
 } // namespace bjou

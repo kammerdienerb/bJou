@@ -7904,7 +7904,8 @@ void Using::addSymbols(std::string& _mod, Scope * _scope) {
         errorl(getContext(), "No module by the name '" + getModule() + "' was found.");
     }
 
-    getScope()->usings.push_back(getModule());
+    getScope()->addUsing(getModule());
+    /* getScope()->usings.push_back(getModule()); */
 }
 
 void Using::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
@@ -7912,7 +7913,13 @@ void Using::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
         return;
     stream << std::string(4 * level, ' ');
 
-    stream << "using " << getModule();
+    stream << "using ";
+
+    if (getImport()) {
+        getImport()->dump(stream, level, dumpCT);
+    } else {
+        stream << getModule();
+    }
 
     stream << "\n";
 }
