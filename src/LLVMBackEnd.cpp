@@ -2704,7 +2704,7 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
 
     llvm::LoadInst * load = llbe->builder.CreateLoad(access, name);
 
-    if (getType()->isPointer()) {
+    if (getType()->isPointer() && !getType()->under()->isVoid()) {
         load->setAlignment(llbe->layout->getABITypeAlignment(llbe->getOrGenType(getType()->under())));
     }
 
@@ -3103,7 +3103,7 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
         return ptr;
 
     llvm::LoadInst * load = llbe->builder.CreateLoad(ptr, symAll());
-    if (getType()->isPointer() || getType()->isRef()) {
+    if (getType()->isPointer() || getType()->isRef() && !getType()->under()->isVoid()) {
         load->setAlignment(llbe->layout->getABITypeAlignment(llbe->getOrGenType(
                         getType())));
     }
@@ -3280,7 +3280,7 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
                 llvm::StoreInst * store =
                     llbe->builder.CreateStore(vals[i], elem);
 
-                if (elem_t->isPointer() || elem_t->isRef()) {
+                if (elem_t->isPointer() || elem_t->isRef() && !elem_t->under()->isVoid()) {
                     store->setAlignment(llbe->layout->getABITypeAlignment(
                         llbe->getOrGenType(elem_t)));
                 }
