@@ -299,6 +299,10 @@ bool Expression::canBeLVal() {
     if (getType()->isRef())
         return true;
 
+    if (getType()->unRef()->isArray()) {
+        return false;
+    }
+
     if (nodeKind == EXPR_BLOCK) {
         return false;
     }
