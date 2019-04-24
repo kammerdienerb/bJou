@@ -38,7 +38,7 @@ ParamClass ABIClassForType(LLVMBackEnd & backEnd, const Type * t) {
 
     if (t->isPointer() || t->isRef() || t->isProcedure()) {
         return POINTER;
-    } else if (t->isInt() || t->isBool() || t->isChar()) {
+    } else if (t->isInt() || t->isBool() || t->isChar() || t->isEnum()) {
         return INTEGER;
     } else if (t->isFloat()) {
         return SSE;
