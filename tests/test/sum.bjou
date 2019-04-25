@@ -6,6 +6,10 @@ proc takes_nullable$T(arg : (T | None)) {
     if t : T = arg    print "%", t
 }
 
+proc takes_nullable_ptr$T(arg : (T* | None)) {
+    if ptr : T* = arg    print "%", @ptr
+}
+
 proc p(arg : (int | char*)) {
     if s : char* = arg {
         print "arg is a string: %", s
@@ -70,4 +74,8 @@ proc main() {
 
     if err : Error = s()
         print "[ error ](%): %", err.code, err.message
+    
+    f := 1.23
+    option5 : (float* | None) = &f
+    takes_nullable_ptr(option5)
 }

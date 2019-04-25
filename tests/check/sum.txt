@@ -16,3 +16,4 @@ my char*
 81.000000
 No array.. got None
 [ error ](1): there was an error
+1.230000
