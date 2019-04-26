@@ -53,16 +53,17 @@ struct Type {
         INT           = 3,
         FLOAT         = 4,
         CHAR          = 5,
-        POINTER       = 6,
-        REF           = 7,
-        ARRAY         = 8,
-        SLICE         = 9,
-        DYNAMIC_ARRAY = 10,
-        STRUCT        = 11,
-        ENUM          = 12,
-        SUM           = 13,
-        TUPLE         = 14,
-        PROCEDURE     = 15
+        NONE          = 6,
+        POINTER       = 7,
+        REF           = 8,
+        ARRAY         = 9,
+        SLICE         = 10,
+        DYNAMIC_ARRAY = 11,
+        STRUCT        = 12,
+        ENUM          = 13,
+        SUM           = 14,
+        TUPLE         = 15,
+        PROCEDURE     = 16
     };
 
     enum Sign { UNSIGNED = 0, SIGNED = 1 };
@@ -80,6 +81,7 @@ struct Type {
     bool isInt() const;
     bool isFloat() const;
     bool isChar() const;
+    bool isNone() const;
     bool isPointer() const;
     bool isRef() const;
     bool isMaybe() const;
@@ -178,6 +180,18 @@ struct CharType : Type {
     static const std::string ckey;
 
     CharType();
+
+    static const Type * get();
+
+    Declarator * getGenericDeclarator() const;
+
+    std::string getDemangledName() const;
+};
+
+struct NoneType : Type {
+    static const std::string nkey;
+
+    NoneType();
 
     static const Type * get();
 

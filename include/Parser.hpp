@@ -90,6 +90,7 @@ MaybeString parser_char_literal(StringViewableBuffer & buff);
 MaybeString parser_string_literal(StringViewableBuffer & buff);
 MaybeString parser_kwd_true(StringViewableBuffer & buff);
 MaybeString parser_kwd_false(StringViewableBuffer & buff);
+MaybeString parser_kwd_none(StringViewableBuffer & buff);
 MaybeString parser_kwd_nothing(StringViewableBuffer & buff);
 MaybeString parser_kwd_as(StringViewableBuffer & buff);
 MaybeString parser_dot(StringViewableBuffer & buff);
@@ -205,6 +206,7 @@ enum TokenKind {
     STRING_LITERAL,
     KWD_TRUE,
     KWD_FALSE,
+    KWD_NONE,
     KWD_NOTHING,
     KWD_AS,
     DOT,

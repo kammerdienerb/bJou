@@ -4639,16 +4639,7 @@ bool NothingLiteral::isConstant() { return true; }
 void NothingLiteral::analyze(bool force) {
     HANDLE_FORCE();
 
-    std::stack<const Type *> & lValStack = compilation->frontEnd.lValStack;
-
-    if (lValStack.empty())
-        errorl(getContext(),
-               "No l-val to deduce maybe type 'nothing' literal.");
-    else if (!lValStack.top()->isMaybe())
-        errorl(getContext(), "Relevant l-val does not describe a maybe type. "
-                             "Type of 'nothing' literal could not be deduced.");
-
-    setType(compilation->frontEnd.lValStack.top());
+    setType(NoneType::get());
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
     setFlag(ANALYZED, true);

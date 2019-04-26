@@ -34,6 +34,7 @@ bool Type::isBool() const { return kind == BOOL; }
 bool Type::isInt() const { return kind == INT; }
 bool Type::isFloat() const { return kind == FLOAT; }
 bool Type::isChar() const { return kind == CHAR; }
+bool Type::isNone() const { return kind == NONE; }
 bool Type::isPointer() const { return kind == POINTER; }
 bool Type::isRef() const { return kind == REF; }
 bool Type::isMaybe() const {
@@ -51,7 +52,7 @@ bool Type::isProcedure() const { return kind == PROCEDURE; }
 
 bool Type::isPrimative() const {
     return kind == VOID || kind == BOOL || kind == INT || kind == FLOAT ||
-           kind == CHAR;
+           kind == CHAR || kind == NONE;
 }
 
 const Type * Type::getPointer() const { return PointerType::get(this); }
@@ -126,6 +127,8 @@ static inline std::string fkey(int width) {
 }
 
 const std::string CharType::ckey = "char";
+
+const std::string NoneType::nkey = "none";
 
 static inline std::string pkey(const Type * elem_t) {
     return elem_t->key + "*";
@@ -274,6 +277,18 @@ Declarator * CharType::getGenericDeclarator() const {
 }
 
 std::string CharType::getDemangledName() const { return key; }
+
+
+NoneType::NoneType() : Type(NONE, NoneType::nkey) {}
+
+const Type * NoneType::get() { return getOrAddType<NoneType>(NoneType::nkey); }
+
+Declarator * NoneType::getGenericDeclarator() const {
+    return basicDeclarator(this);
+}
+
+std::string NoneType::getDemangledName() const { return key; }
+
 
 PointerType::PointerType(const Type * _elem_t)
     : Type(POINTER, pkey(_elem_t)), elem_t(_elem_t) {}
@@ -939,6 +954,8 @@ bool equal(const Type * t1, const Type * t2) {
     }
     case Type::CHAR:
         return t1 == t2;
+    case Type::NONE:
+        return t1 == t2;
     case Type::POINTER:
         if (t2->isPointer())
             return equal(t1->under(), t2->under());
@@ -1406,7 +1423,8 @@ void compilationAddPrimativeTypes() {
                                  FloatType::get(32),
                                  FloatType::get(64),
                                  FloatType::get(128),
-                                 CharType::get()};
+                                 CharType::get(),
+                                 NoneType::get()};
 
     for (const Type * p : primatives) {
         compilation->frontEnd.primativeTypeTable[p->key] = p;
@@ -1420,7 +1438,7 @@ void compilationAddPrimativeTypes() {
 unsigned int simpleSizer(const Type * t) {
     unsigned int size = 0;
 
-    if (t->isVoid()) {
+    if (t->isVoid() || t->isNone()) {
         size = 0;
     } else if (t->isBool()) {
         size = 1;

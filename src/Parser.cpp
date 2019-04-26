@@ -42,7 +42,7 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_l_paren, parser_r_paren, parser_dbl_lt, parser_dbl_gt,
     parser_integer, parser_floating_pt, parser_char_literal,
     parser_string_literal, parser_kwd_true, parser_kwd_false,
-    parser_kwd_nothing, parser_kwd_as, parser_dot, parser_arrow, parser_l_arrow,
+    parser_kwd_none, parser_kwd_nothing, parser_kwd_as, parser_dot, parser_arrow, parser_l_arrow,
     parser_exclam, parser_kwd_sizeof, parser_amp, parser_tilde, parser_at,
     parser_kwd_not, parser_kwd_new, parser_kwd_proc, parser_kwd___no_mangle__, parser_kwd_extern, parser_kwd_externvar,
     parser_kwd_some, parser_kwd_bneg, parser_mult, parser_div, parser_mod,
@@ -473,6 +473,9 @@ MaybeString parser_kwd_true(StringViewableBuffer & buff) {
 }
 MaybeString parser_kwd_false(StringViewableBuffer & buff) {
     return parse_kwd(buff, "false");
+}
+MaybeString parser_kwd_none(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "none");
 }
 MaybeString parser_kwd_nothing(StringViewableBuffer & buff) {
     return parse_kwd(buff, "nothing");

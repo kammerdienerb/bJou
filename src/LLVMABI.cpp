@@ -33,7 +33,7 @@ static ParamClass ABIClassForField(ParamClass c, ParamClass _8b) {
 ParamClass ABIClassForType(LLVMBackEnd & backEnd, const Type * t) {
     unsigned int size = simpleSizer(t);
 
-    if (t->isVoid())
+    if (t->isVoid() || t->isNone())
         return NO_CLASS;
 
     if (t->isPointer() || t->isRef() || t->isProcedure()) {

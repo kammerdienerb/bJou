@@ -1,0 +1,329 @@
+# rbtree.bjou
+#
+# Generic red-black tree implementation.
+# Supports insertion, deletion, and lookup.
+# Keeps track of node with lowest key for constant
+# time priority functionality.
+
+module rbtree
+
+type rbtree_node$(K_T, V_T) {
+    const NULL_NODE := NULL as rbtree_node$(K_T, V_T)*
+
+
+    red      : bool
+    children : rbtree_node$(K_T, V_T)*[2]
+    parent   : rbtree_node$(K_T, V_T)*
+    key      : K_T
+    val      : V_T
+
+
+    proc child(this, dir : bool) : rbtree_node$(K_T, V_T)* ref {
+        return this.children[dir as u32]
+    }
+    proc child(this : rbtree_node$(K_T, V_T)*, dir : bool) : rbtree_node$(K_T, V_T)* ref {
+        return this.children[dir as u32]
+    }
+
+    proc isred(this) : bool { return this.red }
+    proc isred(this : rbtree_node$(K_T, V_T)*) : bool {
+        return (not this.isnull()) and this.red
+    }
+
+    proc create(key : K_T, val : V_T) : rbtree_node$(K_T, V_T)* {
+        node := new rbtree_node$(K_T, V_T)
+
+        @node = { rbtree_node$(K_T, V_T):
+                    .red = true,
+                    .key = key,
+                    .val = val }
+
+        return node
+    }
+
+    proc destroy(this) {
+        if not this.child(0).isnull()
+            (@this.child(0)).destroy()
+        if not this.child(1).isnull()
+            (@this.child(1)).destroy()
+
+        delete &this
+    }
+
+    proc rotate(node : rbtree_node$(K_T, V_T)*, dir : u32) : rbtree_node$(K_T, V_T)* {
+        result := rbtree_node$(K_T, V_T).NULL_NODE
+
+        if not node.isnull() {
+            result = node.child(not dir)
+
+            node.child(not dir) = result.child(dir)
+            if not node.child(not dir).isnull() {
+                node.child(not dir).parent = node
+            }
+
+            result.child(dir) = node
+            if not result.child(dir).isnull() {
+                result.child(dir).parent = result
+            }
+
+            node.red   = true
+            result.red = false
+        }
+
+        return result
+    }
+    
+    proc rotate2(node : rbtree_node$(K_T, V_T)*, dir : u32) : rbtree_node$(K_T, V_T)* {
+        result := rbtree_node$(K_T, V_T).NULL_NODE
+
+        if not node.isnull() {
+            node.child(not dir) = node.child(not dir).rotate(not dir)
+            if not node.child(not dir).isnull() {
+                node.child(not dir).parent = node
+            }
+
+            result = node.rotate(dir)
+        }
+
+        return result
+    }
+}
+
+type rbtree$(K_T, V_T) {
+    const NULL_NODE := NULL as rbtree_node$(K_T, V_T)*
+
+
+    root : rbtree_node$(K_T, V_T)*
+    beg  : rbtree_node$(K_T, V_T)*
+    len  : u32
+
+
+    proc create() : rbtree$(K_T, V_T) { return { rbtree$(K_T, V_T): } }
+
+    proc destroy(this) {
+        if not this.root.isnull() {
+            (@this.root).destroy()
+            this = { rbtree$(K_T, V_T): }
+        }
+    }
+
+    proc insert(this, key : K_T, val : V_T) {
+        node       := this.NULL_NODE
+        made_new   := false
+        only_lefts := 1u32
+
+        if this.root.isnull() {
+            this.root = rbtree_node.create(key, val)
+            this.beg  = this.root
+            node      = this.root
+            made_new  = true
+        } else {
+            head := { rbtree_node$(K_T, V_T): } # False tree root
+
+            g := this.NULL_NODE # Grandparent
+            h := &head          # Parent
+            p := this.NULL_NODE # Iterator
+            q := this.root      # Parent
+
+            h.child(1) = this.root
+            dir  := 0u32
+            last := 0u32
+
+            # Search down tree for a place to insert.
+            while true {
+                if q.isnull() {
+                    # Insert node at the first null link
+                    q            = rbtree_node.create(key, val)
+                    p.child(dir) = q
+                    q.parent     = p
+                    made_new     = true
+                } else if q.child(0).isred() and q.child(1).isred() {
+                    # Simple red violation: color flip 
+                    q.red          = true
+                    q.child(0).red = false
+                    q.child(1).red = false
+                }
+
+                if q.isred() and p.isred() {
+                    # Hard red violation: rotations necessary
+                    dir2 := (h.child(1) == g) as u32
+                    if q == p.child(last) {
+                        h.child(dir2) = g.rotate(not last)
+                    } else {
+                        h.child(dir2) = g.rotate2(not last)
+                    }
+                    if not h.child(dir2).isnull() {
+                        h.child(dir2).parent = h
+                    }
+                }
+
+                # Stop working if we inserted a node.
+                # This check also disallows duplicates in the tree.
+                if key == q.key {
+                    if not made_new {
+                        q.val = val
+                    }
+                    node = q
+                    break
+                }
+
+                last       = dir
+                dir        = (q.key < key) as u32
+                only_lefts = only_lefts band (((not dir) != 0) as u32)
+
+                # Move the helpers down
+                if not g.isnull() { h = g }
+                g = p
+                p = q
+                q = q.child(dir)
+            }
+            
+            # Update the root (it may be different)
+            this.root = head.child(1)
+            if not this.root.isnull() {
+                this.root.parent = this.NULL_NODE
+            }
+        }
+
+        this.root.red = false
+        if made_new {
+            this.len += 1
+            if only_lefts {
+                this.beg = node
+            }
+        }
+    }
+
+    proc lookup(this, key : K_T) : ((K_T ref, V_T ref) | none) {
+        node := this.root
+
+        while not node.isnull() {
+            if node.key == key {
+                break
+            } else {
+                dir := (node.key < key) as u32
+                node = node.child(dir)
+            }
+        }
+
+        if not node.isnull() {
+            return (getref(node.key), getref(node.val))
+        }
+        return nothing
+    }
+
+    proc remove(this, key : K_T) : bool {
+        if this.root.isnull()    { return false }
+
+        if  this.len == 1
+        and this.root.key == key {
+            (@this.root).destroy()
+            this = { rbtree$(K_T, V_T): }
+            return true
+        }
+
+        head := { rbtree_node$(K_T, V_T): } 
+
+        # Helpers
+        q := &head
+        p := this.NULL_NODE
+        g := this.NULL_NODE
+        f := this.NULL_NODE
+
+        q.child(1) = this.root
+
+        dir := 1
+    
+        # Search and push a red node down
+        # to fix red violations as we go.
+        while not q.child(dir).isnull() {
+            last := dir
+
+            # Move the helpers down.
+            g = p
+            p = q
+            q = q.child(dir)
+
+            dir = (q.key < key) as u32
+
+            # Save the node with matching value and keep
+            # going; we'll do removal tasks at the end
+            if q.key == key    { f = q }
+                
+            # Push the red node down with rotations and color flips
+            if not q.isred() and not q.child(dir).isred() {
+                if q.child(not dir).isred() {
+                    p.child(last) = q.rotate(dir)
+                    if not p.child(last).isnull() {
+                        p.child(last).parent = p
+                    }
+                    p = p.child(last)
+                } else {
+                    s := p.child(not last)
+                    if not s.isnull() {
+                        if  not s.child(last).isred()
+                        and not s.child(not last).isred() {
+                            # Color flip
+                            p.red = false
+                            s.red = q.red = true
+                        } else {
+                            dir2 := (g.child(1) == p) as u32
+                            if s.child(last).isred() {
+                                g.child(dir2) = p.rotate2(last)
+                            } else if s.child(not last).isred() {
+                                g.child(dir2) = p.rotate(last)
+                            }
+                            if not g.child(dir2).isnull() {
+                                g.child(dir2).parent = g
+                            }
+
+                            # Ensure correct coloring
+                            q.red = g.child(dir2).red = true
+                            g.child(dir2).child(0).red = g.child(dir2).child(1).red = false
+                        }
+                    }
+                }
+            }
+        }
+
+        # Replace and remove the saved node.
+        if not f.isnull() {
+            tmp_k := f.key
+            tmp_v := f.val
+            f.key  = q.key
+            f.val  = q.val
+            q.key  = tmp_k
+            q.val  = tmp_v
+
+            p.child(p.child(1) == q)
+                = q.child(q.child(0).isnull())
+
+            if not p.child(p.child(1) == q).isnull() {
+                p.child(p.child(1) == q).parent = p
+            }
+
+            if q == this.beg    { this.beg = p }
+
+            (@q).destroy()
+            q = this.NULL_NODE
+        }
+
+        # Update the root (it may be different).
+        this.root        = head.child(1)
+        this.root.parent = this.NULL_NODE
+
+        # Make the root black for simplified logic.
+        if not this.root.isnull()     { this.root.red = false }
+
+        this.len -= 1
+        return true
+    }
+
+    proc first(this) : ((K_T ref, V_T ref) | none) {
+        if not this.beg.isnull() {
+            return (getref(this.beg.key), getref(this.beg.val))
+        }
+
+        return nothing
+    }
+}

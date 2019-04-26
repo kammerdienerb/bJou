@@ -1409,6 +1409,8 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
             return llvm::Type::getDoubleTy(llContext);*/ }
         case Type::CHAR:
             return llvm::IntegerType::get(llContext, 8);
+        case Type::NONE:
+            return llvm::StructType::get(llContext, {});
         case Type::STRUCT: {
             Struct * s = ((StructType *)t)->_struct;
             llvm::Type * ll_t = llvm::StructType::create(llContext, s->getMangledName());
@@ -3011,6 +3013,12 @@ void * CharLiteral::generate(BackEnd & backEnd, bool flag) {
 void * StringLiteral::generate(BackEnd & backEnd, bool flag) {
     std::string str = getContents();
     return ((LLVMBackEnd *)&backEnd)->createGlobalStringVariable(str);
+}
+
+void * NothingLiteral::generate(BackEnd & backEnd, bool flag) {
+    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+    llvm::Type * ll_t = llbe->getOrGenType(getType());
+    return llvm::ConstantStruct::get((llvm::StructType*)ll_t, {});
 }
 
 void * TupleLiteral::generate(BackEnd & backEnd, bool getAddr) {

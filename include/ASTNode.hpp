@@ -1789,6 +1789,7 @@ struct NothingLiteral : Expression {
     // Node interface
     virtual void analyze(bool force = false);
     ASTNode * clone();
+    virtual void * generate(BackEnd & backEnd, bool flag = false);
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     // virtual ~NothingLiteral();
