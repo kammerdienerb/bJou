@@ -4900,17 +4900,22 @@ void Declarator::analyze(bool force) {
         }
 
         if (!sym->isAlias()) {
-            const Type * t = sym->node()->getType();
-            BJOU_DEBUG_ASSERT(t);
+            if (sym->isTemplateType()) {
+                /*
+                 * @bad @hack
+                 * We've got a bit of an issue here where the type
+                 * of this declarator can be queried somewhere in the
+                 * template instantiation process.
+                 *
+                 * The problem is that Declarator::getType() calls
+                 * analyze(), so we end up going through here again and
+                 * doing a replacement before we get to the first one.
+                 *
+                 * This prevents that
+                 */
+                setFlag(ANALYZED, true);
 
-            type = t;
 
-            if (t->isStruct() || t->isEnum()) {
-                if (getTemplateInst())
-                    errorl(getTemplateInst()->getContext(),
-                           "'" + sym->unmangled +
-                               "' is not a template type.");
-            } else if (sym->isTemplateType()) {
                 if (!getTemplateInst())
                     errorl(getContext(),
                            "Missing template instantiation arguments for template type.");
@@ -4921,13 +4926,25 @@ void Declarator::analyze(bool force) {
                         ->getGenericDeclarator();
                 new_decl->setScope(getScope());
                 new_decl->setContext(getContext());
-                (*replace)(parent, this, new_decl);
+                (*replace)(getParent(), this, new_decl);
                 new_decl->setFlag(Declarator::IMPLIES_COMPLETE,
                         getFlag(Declarator::IMPLIES_COMPLETE));
                 new_decl->templateInst = nullptr;
                 new_decl->analyze(true);
                 type = new_decl->getType();
                 return;
+            }
+
+            const Type * t = sym->node()->getType();
+            BJOU_DEBUG_ASSERT(t);
+
+            type = t;
+
+            if (t->isStruct() || t->isEnum()) {
+                if (getTemplateInst())
+                    errorl(getTemplateInst()->getContext(),
+                           "'" + sym->unmangled +
+                               "' is not a template type.");
             } else if (!t->isPrimative()) {
                 errorl(getContext(),
                        "'" + sym->unmangled + "' is not a type.");
