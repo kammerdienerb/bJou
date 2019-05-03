@@ -184,7 +184,7 @@ Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst) {
     ((StructType *)clone->getType())->complete();
     ((StructType *)clone->getType())->checkForCycles();
 
-    clone->analyze(true);
+    clone->analyze();//true);
 
     compilation->frontEnd.deferredAST.push_back(clone);
 
@@ -551,7 +551,7 @@ Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args,
 
     clone->addSymbols(tproc->mod, scope);
 
-    clone->analyze(true);
+    clone->analyze();//true);
     clone->setFlag(Procedure::IS_TEMPLATE_DERIVED, true);
     compilation->frontEnd.deferredAST.push_back(clone);
 

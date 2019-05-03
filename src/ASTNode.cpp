@@ -485,7 +485,7 @@ static void emplaceConversion(Expression * expr, const Type * dest_t) {
     }
     conversion->getRight()->setScope(conversion->getScope());
 
-    conversion->analyze(true);
+    conversion->analyze();
 }
 
 static void convertOperands(BinaryExpression * expr, const Type * dest_t) {
@@ -4901,24 +4901,11 @@ void Declarator::analyze(bool force) {
 
         if (!sym->isAlias()) {
             if (sym->isTemplateType()) {
-                /*
-                 * @bad @hack
-                 * We've got a bit of an issue here where the type
-                 * of this declarator can be queried somewhere in the
-                 * template instantiation process.
-                 *
-                 * The problem is that Declarator::getType() calls
-                 * analyze(), so we end up going through here again and
-                 * doing a replacement before we get to the first one.
-                 *
-                 * This prevents that
-                 */
-                setFlag(ANALYZED, true);
-
-
-                if (!getTemplateInst())
+                if (!getTemplateInst()) {
                     errorl(getContext(),
                            "Missing template instantiation arguments for template type.");
+                }
+
                 TemplateStruct * ttype = (TemplateStruct *)sym->node();
                 Declarator * new_decl =
                     makeTemplateStruct(ttype, getTemplateInst())
@@ -4926,12 +4913,16 @@ void Declarator::analyze(bool force) {
                         ->getGenericDeclarator();
                 new_decl->setScope(getScope());
                 new_decl->setContext(getContext());
-                (*replace)(getParent(), this, new_decl);
                 new_decl->setFlag(Declarator::IMPLIES_COMPLETE,
                         getFlag(Declarator::IMPLIES_COMPLETE));
                 new_decl->templateInst = nullptr;
-                new_decl->analyze(true);
+                new_decl->analyze();
+
                 type = new_decl->getType();
+
+                (*replace)(getParent(), this, new_decl);
+
+                setFlag(ANALYZED, true);
                 return;
             }
 
@@ -4981,6 +4972,9 @@ void Declarator::desugar() {
 }
 
 const Type * Declarator::getType() {
+    if (type)
+        return type;
+
     analyze();
 
     if (type)
@@ -4989,17 +4983,14 @@ const Type * Declarator::getType() {
     if (compilation->frontEnd.primativeTypeTable.count(asString()) > 0)
         return compilation->frontEnd.primativeTypeTable[asString()];
 
-    // Maybe<Symbol*> m_sym = getScope()->getSymbol(getScope(), identifier,
-    // &getContext());
     Maybe<Symbol *> m_sym =
         getScope()->getSymbol(getScope(), getIdentifier(), &getContext());
     Symbol * sym = nullptr;
     m_sym.assignTo(sym);
     BJOU_DEBUG_ASSERT(sym);
 
-    if (sym->isTemplateType())
-        return PlaceholderType::get(); // @bad -- not intended use of
-                                       // PlaceholderType
+    if (sym->isTemplateType())    { BJOU_DEBUG_ASSERT(false); }
+
     return sym->node()->getType();
 }
 
