@@ -44,8 +44,21 @@ static bool can_use_module_node(ASTNode * node, Scope * scope) {
     return false;
 }
 
+static ProcSet * get_global_set(ProcSet * set, Scope * scope, Context * context) {
+    Symbol * sym = nullptr;
+    auto m_sym = compilation->frontEnd.globalScope->getSymbolSingleScope(scope, set->name, context, false, false);
+
+    m_sym.assignTo(sym);
+    BJOU_DEBUG_ASSERT(sym);
+    BJOU_DEBUG_ASSERT(sym->isProcSet());
+
+    return (ProcSet*)sym->node();
+}
+
 static void printProcSetGetError(ProcSet * set, ASTNode * args, Context * context, Scope * scope, bool set_is_in_module) {
     std::vector<std::string> help;
+
+    set = get_global_set(set, scope, context);    
 
     if (args) {
         std::string passedTypes = "Note: recieved argument types: (";
@@ -95,6 +108,16 @@ static void printProcSetGetError(ProcSet * set, ASTNode * args, Context * contex
     errorl(*context, "No matching call for '" + set->name + "' found.", true, help);
 }
 
+Procedure * ProcSet::try_global_set(Scope * scope, ASTNode * args, ASTNode * inst, Context * context, bool fail) {
+    ProcSet * global_set = get_global_set(this, scope, context);
+
+    if (this == global_set) {
+        return nullptr;
+    }
+
+    return global_set->get(scope, args, inst, context, fail);
+}
+
 Procedure * ProcSet::get(Scope * scope, ASTNode * args, ASTNode * inst, Context * context,
                          bool fail) {
     BJOU_DEBUG_ASSERT(procs.size());
@@ -111,10 +134,14 @@ Procedure * ProcSet::get(Scope * scope, ASTNode * args, ASTNode * inst, Context 
             ProcedureType * compare_type =
                 (ProcedureType *)ProcedureType::get(arg_types, VoidType::get());
             if (!argMatch((ProcedureType*)procs.begin()->second->node()->getType(), compare_type)) {
+                Procedure * from_global = try_global_set(scope, args, inst, context, fail);
+                if (from_global)    { return from_global; }
+
                 if (fail) {
                     printProcSetGetError(this, args, context, scope, set_is_in_module);
-                } else
+                } else {
                     return nullptr;
+                }
             }
         }
         return (Procedure *)procs.begin()->second->node();
@@ -159,6 +186,9 @@ Procedure * ProcSet::get(Scope * scope, ASTNode * args, ASTNode * inst, Context 
     resolve(candidates, resolved, compare_type, args, inst, context, fail);
 
     if (resolved.empty()) {
+        Procedure * from_global = try_global_set(scope, args, inst, context, fail);
+        if (from_global)    { return from_global; }
+
         if (fail) {
             BJOU_DEBUG_ASSERT(args);
             printProcSetGetError(this, args, context, scope, set_is_in_module);

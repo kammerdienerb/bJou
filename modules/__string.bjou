@@ -133,6 +133,23 @@ type string {
         this.__data.push('\0')
     }
 
+    proc substr(this, start : u64) : string {
+        s := str()
+        l := this.len()
+        for i := start; i < l; i += 1 {
+            s.append(this[i])
+        }
+        return s
+    }
+    
+    proc substr(this, start : u64, take : u64) : string {
+        s := str()
+        for i := 0u64; i < take; i += 1 {
+            s.append(this[start + i])
+        }
+        return s
+    }
+
     proc find(this, c : char) : i64 {
         l := this.len()
         for i := 0i64; i < l; i += 1

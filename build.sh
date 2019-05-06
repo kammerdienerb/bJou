@@ -24,14 +24,14 @@ case $key in
     ;;
     *)    # unknown option
     echo "unknown option $1"
-    exit
+    exit 1
     ;;
 esac
 done
 
 if [ "${BUILD_TYPE}" != "Debug" ] && [ "${BUILD_TYPE}" != "Release" ]; then
     echo "build type '${BUILD_TYPE}' is invalid -- must be 'Debug' or 'Release'"
-    exit
+    exit 1
 fi
 
 function has_cmd() {

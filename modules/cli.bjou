@@ -7,6 +7,7 @@ __cli_fg_buff : char[64]
 __cli_bg_buff : char[64]
 
 extern sprintf(char*, char* , ...) : i32
+extern sscanf(char*, char* , ...) : i32
 
 enum ArgKind {
     BASE,
@@ -24,6 +25,7 @@ abstract type Arg {
     set     : bool
     desc    : char*
     kind    : ArgKind
+    val     : (int | float | string | none)
 
     parser  : ArgParser*
 
@@ -32,6 +34,8 @@ abstract type Arg {
             delete this.long
         if this.desc == NULL as char*
             delete this.desc
+
+        if s : string = this.val    s.free()
     }
 
     proc isSet(this) : bool
@@ -135,8 +139,6 @@ type ArgSwitch extends Arg {
 }
 
 type ArgValue$T extends Arg {
-    val : T
-
     proc create(parser : ArgParser ref) : ArgValue$T
         return { ArgValue$T:
             .kind   = ArgKind.UNKNOWN_VAL,
@@ -345,6 +347,157 @@ type ArgParser {
             h = concat(h, (@arg).help(), str("\n"))
 
         return concat(this.usage(), str("\n\n"), h)
+    }
+
+    proc parse(this, argv: string[...] ref) : bool {
+        foreach ref s in argv {
+            if s.len() >= 2 {
+                if s[0] == '-' {
+                    if s[1] == '-' {
+                        if s.len() == 2    { break }
+
+                        s'       := str(s.c_str() + 2)
+                        arg_name := { string: }
+                        val_str  := { string: }
+                        val_idx  := s'.find('=')
+                        has_val  := false
+
+                        if val_idx == -1 {
+                            arg_name = s'.copy()
+                        } else {
+                            arg_name = s'.substr(0, val_idx)
+                            val_str  = s'.substr(val_idx + 1)
+                            has_val = true
+                        }
+                        s'.free()
+
+                        success := false
+
+                        if has_val {
+                            success = this.handleLongVal(arg_name, val_str)
+                        } else {
+                            success = this.handleLong(arg_name)
+                        }
+                        
+                        if has_val    val_str.free()
+                        arg_name.free()
+
+                        if not success
+                            return false
+                    } else if not this.parseShort(s) {
+                        return false
+                    }
+                }
+            } else {
+                # @incomplete
+            }
+        }
+
+        return true
+    }
+
+    proc parseShort(this, s: string ref) : bool {
+        for c := 1; c < s.len(); c += 1 {
+            found := false
+            foreach ref arg in this.all {
+                if arg.short == s[c] {
+                    found   = true
+                    arg.set = true
+                    break
+                }
+            }
+            if not found {
+                this.report_ill_error(s[c])
+                return false
+            }
+        }
+
+        return true
+    }
+    
+    proc handleLong(this, arg_name: string ref) : bool {
+        found : (Arg* | none) = nothing
+        foreach ref arg in this.all {
+            if not arg.long.isnull() {
+                if cstrcmp(arg.long, arg_name.c_str()) == 0 {
+                    found   = arg
+                    arg.set = true
+                    break
+                }
+            }
+        }
+
+        if arg : Arg* = found {
+            if arg.kind == ArgKind.INT_VAL
+            or arg.kind == ArgKind.FLOAT_VAL
+            or arg.kind == ArgKind.STRING_VAL {
+                this.report_needs_val_error(arg_name.c_str())
+                return false
+            }
+            return true 
+        }
+        
+        this.report_ill_error(arg_name.c_str())
+        return false
+    }
+
+    proc handleLongVal(this, arg_name: string ref, val_str: string ref) : bool {
+        found : (Arg* | none) = nothing
+        foreach ref arg in this.all {
+            if not arg.long.isnull() {
+                if cstrcmp(arg.long, arg_name.c_str()) == 0 {
+                    found   = arg
+                    arg.set = true
+                    break
+                }
+            }
+        }
+
+        if arg : Arg* = found {
+            if arg.kind == ArgKind.INT_VAL {
+                i := 0
+                sscanf(val_str.c_str(), "%d", &i)
+                arg.val = i
+            } else if arg.kind == ArgKind.FLOAT_VAL {
+                f := 0.0
+                sscanf(val_str.c_str(), "%f", &f)
+                arg.val = f
+            } else if arg.kind == ArgKind.STRING_VAL {
+                arg.val = val_str.copy()
+            } else {
+                this.report_not_val_error(arg_name.c_str())
+                return false
+            }
+            return true 
+        }
+        
+        this.report_ill_error(arg_name.c_str())
+        return false
+    }
+
+    proc report_ill_error(this, c: char) {
+        print "illegal argument: '%'", c
+    }
+    proc report_ill_error(this, s: char*) {
+        print "illegal argument: '%'", s
+    }
+    proc report_req_error(this, c: char) {
+        print "argument required: '%'", c
+    }
+    proc report_req_error(this, s: char*) {
+        print "argument required: '%'", s
+    }
+    proc report_not_val_error(this, c: char) {
+        print "argument does not take a value: '%'", c
+    }
+    proc report_not_val_error(this, s: char*) {
+        print "argument does not take a value: '%'", s
+    }
+    proc report_needs_val_error(this, c: char) {
+        print "argument requires a value: '%'", c
+    }
+    proc report_needs_val_error(this, s: char*) {
+        print "argument requires a value: '%'", s
     }
 }
 

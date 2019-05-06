@@ -29,3 +29,6 @@
    the template parameter is expanded to a non-fully-qualified form
 
 -- \static_if and 'using' statements don't exactly work..
+
+-- bug in pointer declarator (probably all similar) replacement policies for template stuff
+    -- check junk/bad_cli.bjou

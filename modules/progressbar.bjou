@@ -8,8 +8,6 @@ import "c/io.bjou"
 
 using c_io
 
-extern strdup(char*) : char*
-
 type ProgressBar {
     total    : u32
     width    : u32
@@ -23,18 +21,18 @@ type ProgressBar {
                 cli_attr : char*) : ProgressBar {
         f := fill
         if not f.isnull()
-            f = f.strdup()
+            f = f.cstrdup()
 
         attr := cli_attr 
         if not attr.isnull()
-            attr = attr.strdup()
+            attr = attr.cstrdup()
 
         return { ProgressBar:
             .total    = total,
             .width    = width,
             .fill     = f,
             .cli_attr = attr,
-            .label    = strdup("")
+            .label    = cstrdup("")
         }
     }
 
@@ -44,7 +42,7 @@ type ProgressBar {
         if not this.fill.isnull()
             delete this.fill
 
-        free(this.label)
+        delete this.label
     }
 
     proc progress(this, n : u32, cli_attr : char*) {
@@ -81,7 +79,7 @@ type ProgressBar {
     }
 
     proc setlabel(this, new_label : char*) {
-        free(this.label)
-        this.label = strdup(new_label)
+        delete this.label
+        this.label = cstrdup(new_label)
     }
 }

@@ -40,6 +40,7 @@ struct ProcSet : ASTNode {
     ~ProcSet();
     //
 
+    Procedure * try_global_set(Scope * scope, ASTNode * args, ASTNode * inst, Context * context, bool fail);
     Procedure * get(Scope * scope, ASTNode * args = nullptr, ASTNode * inst = nullptr,
                     Context * context = nullptr, bool fail = true);
     Procedure * getTemplate(std::vector<const Type *> & arg_types,
