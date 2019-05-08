@@ -1,0 +1,14 @@
+# measure_time.bjou
+#
+# measure execution time
+
+module measure_time
+
+proc measure_time_now_ms() : u64 {
+    tv := { __sys::timeval: }
+    __sys::gettimeofday(&tv, NULL as __sys::timezone*)
+
+    ms := 1000u64 * tv.tv_sec + (tv.tv_usec / 1000u64)
+
+    return ms
+}
