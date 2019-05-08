@@ -31,8 +31,19 @@ void pre() {
 "\\static_if{ os::OS == os::MACOS\n"
 "    const SYS_NR_MOD := 0x2000000 }\n"
 "\n"
-"type fd_t   = int\n"
-"type mode_t = u16\n"
+"type fd_t        = int\n"
+"type mode_t      = u16\n"
+"type time_t      = i64\n"
+"type suseconds_t = i32\n"
+"\n"
+"type timeval {\n"
+"    tv_sec  : time_t\n"
+"    tv_usec : suseconds_t\n"
+"}\n"
+"type timezone {\n"
+"    tz_minuteswest : i32\n"
+"    tz_dsttime     : i32\n"
+"}\n"
 "\n");
 }
 
@@ -64,7 +75,10 @@ void post() {
 "    return nolibc_syscall(SYS_access, 2, path, mode)\n"
 "\n"
 "proc getpid() : i64\n"
-"    return nolibc_syscall(SYS_getpid, 0)\n");
+"    return nolibc_syscall(SYS_getpid, 0)\n"
+"\n"
+"proc gettimeofday(tv : timeval*, tz : timezone*) : i64\n"
+"    return nolibc_syscall(SYS_gettimeofday, 2, tv, tz)\n");
 }
 
 int main() {
@@ -78,6 +92,7 @@ int main() {
     PRINT_SYS_NR_DECL(SYS_lseek);
     PRINT_SYS_NR_DECL(SYS_access);
     PRINT_SYS_NR_DECL(SYS_getpid);
+    PRINT_SYS_NR_DECL(SYS_gettimeofday);
 
     PRINT_SYS_CONSTANT_DECL(S_IRWXU);
     PRINT_SYS_CONSTANT_DECL(S_IRUSR);

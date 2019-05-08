@@ -13,8 +13,19 @@ extern nolibc_syscall(i64, i32, ...) : i32
 \static_if{ os::OS == os::MACOS
     const SYS_NR_MOD := 0x2000000 }
 
-type fd_t   = int
-type mode_t = u16
+type fd_t        = int
+type mode_t      = u16
+type time_t      = i64
+type suseconds_t = i32
+
+type timeval {
+    tv_sec  : time_t
+    tv_usec : suseconds_t
+}
+type timezone {
+    tz_minuteswest : i32
+    tz_dsttime     : i32
+}
 
 const SYS_write := SYS_NR_MOD + 4
 const SYS_read := SYS_NR_MOD + 3
@@ -24,6 +35,7 @@ const SYS_exit := SYS_NR_MOD + 1
 const SYS_lseek := SYS_NR_MOD + 199
 const SYS_access := SYS_NR_MOD + 33
 const SYS_getpid := SYS_NR_MOD + 20
+const SYS_gettimeofday := SYS_NR_MOD + 116
 const S_IRWXU := 448
 const S_IRUSR := 256
 const S_IWUSR := 128
@@ -74,3 +86,6 @@ proc access(path : char*, mode : int) : i64
 
 proc getpid() : i64
     return nolibc_syscall(SYS_getpid, 0)
+
+proc gettimeofday(tv : timeval*, tz : timezone*) : i64
+    return nolibc_syscall(SYS_gettimeofday, 2, tv, tz)

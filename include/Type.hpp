@@ -23,6 +23,7 @@ namespace bjou {
 struct ASTNode;
 struct Procedure;
 struct Constant;
+struct VariableDeclaration;
 struct Struct;
 struct Enum;
 struct Alias;
@@ -293,6 +294,7 @@ struct StructType : Type {
     Type * extends;
     hybrid_map<std::string, int, std_string_hasher> memberIndices;
     std::vector<const Type *> memberTypes;
+    std::vector<VariableDeclaration*> memberVarDecls;
     hybrid_map<std::string, Constant *, std_string_hasher> constantMap;
     hybrid_map<std::string, ProcSet *, std_string_hasher> memberProcs;
     hybrid_map<std::string, const StructType*, std_string_hasher> inheritedProcsToBaseStructType;

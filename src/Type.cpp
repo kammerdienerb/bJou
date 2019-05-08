@@ -87,6 +87,7 @@ static void cycleError(std::vector<CycleDetectEdge>& path) {
     const Type *a, *b;
 
     a = path.back().from;
+    b = path.back().to;
 
     for (auto& edge : path) {
         errorl(edge.decl->getContext(),
@@ -95,7 +96,7 @@ static void cycleError(std::vector<CycleDetectEdge>& path) {
 
     error("Definition of type '" + a->key +
           "' creates a circular dependency. Did you mean to declare a reference or pointer to '" +
-               a->key + "'?");
+               b->key + "'?");
 }
 
 bool Type::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const { return false; }
@@ -543,6 +544,7 @@ void StructType::complete() {
         extends_t->complete();
         memberIndices = extends_t->memberIndices;
         memberTypes = extends_t->memberTypes;
+        memberVarDecls = extends_t->memberVarDecls;
 
         /* Map to StructType that maps inherited procs to the originating
          * struct type. Then, in AccessExpression::handleContainerAccess(), 
@@ -562,6 +564,7 @@ void StructType::complete() {
     }
     for (ASTNode * _mem : _struct->getMemberVarDecls()) {
         VariableDeclaration * mem = (VariableDeclaration *)_mem;
+        memberVarDecls.push_back(mem);
         const std::string & name = mem->getName();
 
         memberIndices[name] = i;
@@ -613,7 +616,7 @@ bool StructType::containsRefs() const {
 bool StructType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const {
     visited.insert(this);
     
-    for (ASTNode * _mem : _struct->getMemberVarDecls()) {
+    for (ASTNode * _mem : memberVarDecls) {
         VariableDeclaration * mem = (VariableDeclaration *)_mem;
         mem->getTypeDeclarator()->analyze();
 
@@ -643,7 +646,7 @@ bool StructType::_checkForCycles(std::set<const Type*>& visited, std::vector<Cyc
                             return true;
                         }
                         for (auto& edge : path) {
-                            if (edge.to == this) {
+                            if (edge.from == t || edge.to == t) {
                                 path.emplace_back(this, t, decl);
                                 return true;
                             }
@@ -761,7 +764,7 @@ bool SumType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleD
                             return true;
                         }
                         for (auto& edge : path) {
-                            if (edge.to == this) {
+                            if (edge.from == t || edge.to == t) {
                                 path.emplace_back(this, t, decl);
                                 return true;
                             }
@@ -864,7 +867,7 @@ bool TupleType::_checkForCycles(std::set<const Type*>& visited, std::vector<Cycl
                             return true;
                         }
                         for (auto& edge : path) {
-                            if (edge.to == this) {
+                            if (edge.from == t || edge.to == t) {
                                 path.emplace_back(this, t, decl);
                                 return true;
                             }

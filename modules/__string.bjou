@@ -228,6 +228,12 @@ proc str(i : i64) : string {
     return string.create(buff)
 }
 
+proc str(f : f32) : string {
+    buff : char[128]
+    sprintf(buff, "%f", f)
+    return string.create(buff)
+}
+
 proc str(f : f64) : string {
     buff : char[128]
     sprintf(buff, "%f", f)
