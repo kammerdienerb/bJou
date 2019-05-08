@@ -259,7 +259,7 @@ bool Expression::opOverload() {
         }
 
         ProcSet * set = (ProcSet *)sym->node();
-        Procedure * proc = set->get(getScope(), args, nullptr, nullptr, false);
+        Procedure * proc = set->get(getScope(), false, args, nullptr, nullptr, false);
         if (proc) {
             // need to check args here since there may only be one
             // overload that is returned without checking
@@ -2193,7 +2193,7 @@ void CallExpression::analyze(bool force) {
         BJOU_DEBUG_ASSERT(sym);
         if (sym->node()->nodeKind == PROC_SET) {
             procSet = (ProcSet *)sym->node();
-            proc = procSet->get(getScope(), args, l->getRight(), &args->getContext());
+            proc = procSet->get(getScope(), !((Identifier*)l)->getSymMod().empty(), args, l->getRight(), &args->getContext());
             /* ((Identifier *)getLeft())->qualified = proc->getLookupName(); */
             if (l->getRight())      // TemplateInstantiation
                 l->right = nullptr; // l->setRight(nullptr);
@@ -3363,7 +3363,7 @@ const Type * Identifier::getType() {
 
         if (sym->isProcSet()) {
             ProcSet * set = (ProcSet *)sym->node();
-            ASTNode * proc = set->get(getScope(), nullptr, getRight(), &getContext());
+            ASTNode * proc = set->get(getScope(), !getSymMod().empty(), nullptr, getRight(), &getContext());
             BJOU_DEBUG_ASSERT(proc && proc->nodeKind == ASTNode::PROCEDURE);
             setType(proc->getType());
         } else {
@@ -3429,8 +3429,7 @@ void Identifier::analyze(bool force) {
         }
 
         Procedure * proc =
-            set->get(getScope(), nullptr, getRight(), &getContext(),
-                     call_independent);
+            set->get(getScope(), !getSymMod().empty(), nullptr, getRight(), &getContext(), call_independent);
         if (proc) {
             resolved = proc;
             setType(proc->getType());
@@ -3604,24 +3603,25 @@ void InitializerList::analyze(bool force) {
                 emplaceConversion((Expression *)expressions[i], mt);
         }
 
-        for (ASTNode * _mem : s_t->_struct->getMemberVarDecls()) {
-            VariableDeclaration * mem = (VariableDeclaration *)_mem;
-            std::string & name = mem->getName();
+        for (auto pair : s_t->memberIndices) {
+            const std::string& name = pair.first;
+            const Type * t          = s_t->memberTypes[pair.second];
+
             auto search = std::find(names.begin(), names.end(), name);
             if (search == names.end()) {
-                if (mem->getType()->isRef()) {
+                if (t->isRef()) {
                     errorl(getContext(), "Member '" + name + "' of '" +
                                              s_t->getDemangledName() +
                                              "' must be explicitly initialized "
                                              "because it is a reference.");
-                } else if (mem->getType()->isStruct()) {
-                    if (((StructType*)mem->getType())->containsRefs()) {
+                } else if (t->isStruct()) {
+                    if (((StructType*)t)->containsRefs()) {
                         errorl(getContext(), "Member '" + name + "' of '" +
                                                  s_t->getDemangledName() +
                                                  "' must be explicitly initialized "
                                                  "because it contains one or more references.");
                     }
-                } else if (mem->getType()->isSum()) {
+                } else if (t->isSum()) {
                     errorl(getContext(), "Member '" + name + "' of '" +
                                              s_t->getDemangledName() +
                                              "' must be explicitly initialized "
@@ -6432,10 +6432,10 @@ void VariableDeclaration::analyze_destructure(Symbol * sym) {
 
     decl_t = decl_t->unRef();
 
-    if (decl_t->isStruct() && ((StructType *)decl_t)->isAbstract)
-        errorl(getTypeDeclarator()->getContext(),
-               "Can't instantiate '" + decl_t->getDemangledName() +
-                   "', which is an abstract type.");
+    /* if (decl_t->isStruct() && ((StructType *)decl_t)->isAbstract) */
+    /*     errorl(getTypeDeclarator()->getContext(), */
+    /*            "Can't instantiate '" + decl_t->getDemangledName() + */
+    /*                "', which is an abstract type."); */
 
 
     if (decl_t_save->isRef()) {

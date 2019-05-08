@@ -64,9 +64,9 @@ void bJouOutput::usage(TCLAP::CmdLineInterface & c) {
 
 void bJouOutput::version(TCLAP::CmdLineInterface & c) {
     bjouSetColor(BJOU_VER_COLOR);
-    std::cout << "bJou \t" << BJOU_VER_COLOR_STR;
+    std::cout << "bJou    " << BJOU_VER_COLOR_STR;
     bjouResetColor();
-    std::cout << "\t(ver " << c.getVersion() << ")" << std::endl;
+    std::cout << "    (ver " << c.getVersion() << ")" << std::endl;
 #ifdef BJOU_DEBUG_BUILD
     std::cout << "(debug)\n";
 #endif

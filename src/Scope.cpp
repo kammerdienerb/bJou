@@ -441,13 +441,24 @@ void Scope::addProcSymbol(Symbol * symbol, bool is_extern, bool no_mangle, Conte
 
         set->procs[symbol->unmangled] = symbol;
     } else {
-        if (this != gs) {
-            BJOU_DEBUG_ASSERT(symbols.count(symbol->proc_name) == 0);
-            ProcSet * set = new ProcSet(pn);
-            symbols[symbol->proc_name] = new _Symbol<ProcSet>(symbol->proc_name, set);
-            set->setScope(this);
-            set->procs[symbol->unmangled] = symbol;
+        /* if (this != gs) { */
+        /* } */
+    }
+
+    if (this->is_module_scope) {
+        ProcSet * module_set = nullptr;
+        auto search = symbols.find(symbol->proc_name);
+        auto end    = symbols.end();
+        if (search == end) {
+            BJOU_DEBUG_ASSERT(this != gs);
+            module_set = new ProcSet(pn);
+            symbols[symbol->proc_name] = new _Symbol<ProcSet>(symbol->proc_name, module_set);
+            module_set->setScope(this);
+        } else {
+            module_set = (ProcSet*)symbols[symbol->proc_name]->node();
         }
+        BJOU_DEBUG_ASSERT(module_set);
+        module_set->procs[symbol->unmangled] = symbol;
     }
 
     ProcSet * set = nullptr;
@@ -459,6 +470,7 @@ void Scope::addProcSymbol(Symbol * symbol, bool is_extern, bool no_mangle, Conte
         BJOU_DEBUG_ASSERT(gs->symbols[pn]->node()->nodeKind == ASTNode::PROC_SET);
         set = (ProcSet*)gs->symbols[pn]->node();
     }
+    BJOU_DEBUG_ASSERT(set);
     set->procs[symbol->unmangled] = symbol;
 }
 

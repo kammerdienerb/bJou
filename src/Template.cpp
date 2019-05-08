@@ -448,7 +448,8 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
             // the declarator via getTypeDeclarator() because if the declarator
             // is a template, it will be replaced.
 
-            var->getTypeDeclarator()->analyze(true);
+            /* var->getTypeDeclarator()->analyze(true); */
+            var->getTypeDeclarator()->analyze();
             new_param_types.push_back(var->getTypeDeclarator()->getType());
             delete _var;
         }

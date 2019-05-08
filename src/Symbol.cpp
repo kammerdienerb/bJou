@@ -58,7 +58,7 @@ static ProcSet * get_global_set(ProcSet * set, Scope * scope, Context * context)
 static void printProcSetGetError(ProcSet * set, ASTNode * args, Context * context, Scope * scope, bool set_is_in_module) {
     std::vector<std::string> help;
 
-    set = get_global_set(set, scope, context);    
+    ProcSet * gset = get_global_set(set, scope, context);    
 
     if (args) {
         std::string passedTypes = "Note: recieved argument types: (";
@@ -76,11 +76,11 @@ static void printProcSetGetError(ProcSet * set, ASTNode * args, Context * contex
 
     int n_options = 0;
 
-    for (auto & p : set->procs) {
+        for (auto & p : gset->procs) {
         if (!set_is_in_module && !can_use_module_node(p.second->node(), scope)) {
             continue;
         }
-        std::string option = "\t";
+        std::string option = "    ";
         option += p.second->unmangled;
         help.push_back(option);
         n_options += 1;
@@ -89,10 +89,10 @@ static void printProcSetGetError(ProcSet * set, ASTNode * args, Context * contex
     if (n_options == 0) {
         help.clear();
         help.push_back("No viable option is in scope");
-        help.push_back("Note: '" + set->name + "' has other options in the following modules:");
+        help.push_back("Note: '" + gset->name + "' has other options in the following modules:");
 
         std::set<std::string> mods;
-        for (auto & p : set->procs) {
+        for (auto & p : gset->procs) {
             ASTNode * n = p.second->node();
             const std::string& mod = n->mod;
             if (!mod.empty()) {
@@ -105,20 +105,18 @@ static void printProcSetGetError(ProcSet * set, ASTNode * args, Context * contex
         }
     }
 
-    errorl(*context, "No matching call for '" + set->name + "' found.", true, help);
+    errorl(*context, "No matching call for '" + gset->name + "' found.", true, help);
 }
 
 Procedure * ProcSet::try_global_set(Scope * scope, ASTNode * args, ASTNode * inst, Context * context, bool fail) {
     ProcSet * global_set = get_global_set(this, scope, context);
 
-    if (this == global_set) {
-        return nullptr;
-    }
+    if (this == global_set)    { return nullptr; }
 
-    return global_set->get(scope, args, inst, context, fail);
+    return global_set->get(scope, false, args, inst, context, fail);
 }
 
-Procedure * ProcSet::get(Scope * scope, ASTNode * args, ASTNode * inst, Context * context,
+Procedure * ProcSet::get(Scope * scope, bool is_module_qualified, ASTNode * args, ASTNode * inst, Context * context,
                          bool fail) {
     BJOU_DEBUG_ASSERT(procs.size());
 
@@ -134,7 +132,10 @@ Procedure * ProcSet::get(Scope * scope, ASTNode * args, ASTNode * inst, Context 
             ProcedureType * compare_type =
                 (ProcedureType *)ProcedureType::get(arg_types, VoidType::get());
             if (!argMatch((ProcedureType*)procs.begin()->second->node()->getType(), compare_type)) {
-                Procedure * from_global = try_global_set(scope, args, inst, context, fail);
+                Procedure * from_global = nullptr;
+                if (!is_module_qualified)
+                    from_global = try_global_set(scope, args, inst, context, fail);
+
                 if (from_global)    { return from_global; }
 
                 if (fail) {
@@ -175,7 +176,7 @@ Procedure * ProcSet::get(Scope * scope, ASTNode * args, ASTNode * inst, Context 
     if (fail && !compare_type) {
         std::string help1 =
             "Note: overloads are selected based on current l-value type.";
-        std::string help2 = "\te.g. 'var : <(int, int) : int> = sum' will be "
+        std::string help2 = "    e.g. 'var : <(int, int) : int> = sum' will be "
                             "able to select the correct overload if it exists";
         errorl(*context, "Reference to '" + name + "' is ambiguous.", true,
                help1, help2);
@@ -186,7 +187,10 @@ Procedure * ProcSet::get(Scope * scope, ASTNode * args, ASTNode * inst, Context 
     resolve(candidates, resolved, compare_type, args, inst, context, fail);
 
     if (resolved.empty()) {
-        Procedure * from_global = try_global_set(scope, args, inst, context, fail);
+        Procedure * from_global = nullptr;
+        if (!is_module_qualified)
+            try_global_set(scope, args, inst, context, fail);
+
         if (from_global)    { return from_global; }
 
         if (fail) {
