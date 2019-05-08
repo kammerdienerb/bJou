@@ -333,7 +333,6 @@ milliseconds FrontEnd::SymbolsStage() {
     globalScope->usings.push_back("__array");
     globalScope->usings.push_back("__slice");
     globalScope->usings.push_back("__dynamic_array");
-    globalScope->usings.push_back("__dynamic_array");
     globalScope->usings.push_back("__string");
     globalScope->usings.push_back("__env");
     globalScope->usings.push_back("__panic");

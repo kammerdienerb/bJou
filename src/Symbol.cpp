@@ -189,7 +189,7 @@ Procedure * ProcSet::get(Scope * scope, bool is_module_qualified, ASTNode * args
     if (resolved.empty()) {
         Procedure * from_global = nullptr;
         if (!is_module_qualified)
-            try_global_set(scope, args, inst, context, fail);
+            from_global = try_global_set(scope, args, inst, context, fail);
 
         if (from_global)    { return from_global; }
 
