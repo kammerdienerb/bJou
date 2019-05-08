@@ -1,8 +1,5 @@
 # stdio.bjou
 
-# must be defined for clang.bjou to compile
-# const libclang_path := "/usr/local/Cellar/llvm/7.0.1/lib/libclang.dylib"
-
 import "c2bjou.bjou"
 \run{ c2bjou::include("/usr/include/stdio.h") }
 

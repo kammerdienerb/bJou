@@ -15,7 +15,10 @@ enum ArgKind {
     UNKNOWN_VAL,
     INT_VAL,
     FLOAT_VAL,
-    STRING_VAL
+    STRING_VAL,
+    INT_MULTI_VAL,
+    FLOAT_MULTI_VAL,
+    STRING_MULTI_VAL
 }
 
 abstract type Arg {
@@ -25,7 +28,8 @@ abstract type Arg {
     set     : bool
     desc    : char*
     kind    : ArgKind
-    val     : (int | float | string | none)
+    val     : (i32 | f32 | string | none)
+    vals    : (i32[...] | f32[...] | string[...] | none)
 
     parser  : ArgParser*
 
@@ -36,22 +40,14 @@ abstract type Arg {
             delete this.desc
 
         if s : string = this.val    s.free()
+
+        if      i : i32[...]    = this.vals    { i.free() }
+        else if f : f32[...]    = this.vals    { f.free() }
+        else if s : string[...] = this.vals    { s.free() }
     }
 
     proc isSet(this) : bool
         return this.set
-
-    proc required(this) : Arg ref {
-        if this.kind == ArgKind.SWITCH
-            \die{ "Switch args can't be required." }
-        this.req = true
-        return this
-    }
-       
-    proc withDesc(this, desc : char*) : Arg ref {
-        this.desc = cstrdup(desc)
-        return this
-    }
 
     proc help(this) : string {
         if this.kind == ArgKind.SWITCH {
@@ -66,12 +62,15 @@ abstract type Arg {
             } else {
                 s = concat(s, str("--"), str(this.long))
             }
+            
+            if this.req    { s = concat(s, str(" (required)")) }
 
             if this.desc != NULL as char*
                 s = concat(s, str("\n    "), str(this.desc))
 
             return s
-        } else if this.kind == ArgKind.INT_VAL {
+        } else if this.kind == ArgKind.INT_VAL
+          or      this.kind == ArgKind.INT_MULTI_VAL {
             has_short := this.short != '\0'
             has_long  := this.long != NULL as char*
 
@@ -84,11 +83,15 @@ abstract type Arg {
                 s = concat(s, str("--"), str(this.long), str("=<integer>"))
             }
 
+            if this.req                              { s = concat(s, str(" (required)")) }
+            if this.kind == ArgKind.INT_MULTI_VAL    { s = concat(s, str(" (accepted multiple times)")) }
+
             if this.desc != NULL as char*
                 s = concat(s, str("\n    "), str(this.desc))
 
             return s
-        } else if this.kind == ArgKind.FLOAT_VAL {
+        } else if this.kind == ArgKind.FLOAT_VAL
+          or      this.kind == ArgKind.FLOAT_MULTI_VAL {
             has_short := this.short != '\0'
             has_long  := this.long != NULL as char*
 
@@ -101,11 +104,15 @@ abstract type Arg {
                 s = concat(s, str("--"), str(this.long), str("=<float>"))
             }
 
+            if this.req                                { s = concat(s, str(" (required)")) }
+            if this.kind == ArgKind.FLOAT_MULTI_VAL    { s = concat(s, str(" (accepted multiple times)")) }
+
             if this.desc != NULL as char*
                 s = concat(s, str("\n    "), str(this.desc))
 
             return s
-        } else if this.kind == ArgKind.STRING_VAL {
+        } else if this.kind == ArgKind.STRING_VAL
+          or      this.kind == ArgKind.STRING_MULTI_VAL {
             has_short := this.short != '\0'
             has_long  := this.long != NULL as char*
 
@@ -117,6 +124,9 @@ abstract type Arg {
             } else {
                 s = concat(s, str("--"), str(this.long), str("=<string>"))
             }
+
+            if this.req                                 { s = concat(s, str(" (required)")) }
+            if this.kind == ArgKind.STRING_MULTI_VAL    { s = concat(s, str(" (accepted multiple times)")) }
 
             if this.desc != NULL as char*
                 s = concat(s, str("\n    "), str(this.desc))
@@ -134,7 +144,9 @@ type ArgSwitch extends Arg {
     proc create(parser : ArgParser ref) : ArgSwitch
         return { ArgSwitch:
             .kind   = ArgKind.SWITCH,
-            .parser = &parser
+            .parser = &parser,
+            .val    = nothing,
+            .vals   = nothing
         }
 }
 
@@ -142,22 +154,79 @@ type ArgValue$T extends Arg {
     proc create(parser : ArgParser ref) : ArgValue$T
         return { ArgValue$T:
             .kind   = ArgKind.UNKNOWN_VAL,
-            .parser = &parser
+            .parser = &parser,
+            .val    = nothing,
+            .vals   = nothing
         }
 }
 
+type ArgMultiValue$T extends Arg {
+    proc create(parser : ArgParser ref) : ArgMultiValue$T
+        return { ArgMultiValue$T:
+            .kind   = ArgKind.UNKNOWN_VAL,
+            .parser = &parser,
+            .val    = nothing,
+            .vals   = [...T]
+        }
+}
+
+proc required$T(this : ArgValue$T ref) : ArgValue$T ref {
+    this.req = true
+    return this
+}
+
+proc required$T(this : ArgMultiValue$T ref) : ArgMultiValue$T ref {
+    this.req = true
+    return this
+}
+
+proc withDesc(this : ArgSwitch ref, desc : char*) : ArgSwitch ref {
+    this.desc = cstrdup(desc)
+    return this
+}
+
+proc withDesc$T(this : ArgValue$T ref, desc : char*) : ArgValue$T ref {
+    this.desc = cstrdup(desc)
+    return this
+}
+
+proc withDesc$T(this : ArgMultiValue$T ref, desc : char*) : ArgMultiValue$T ref {
+    this.desc = cstrdup(desc)
+    return this
+}
+
+proc value$T(this : ArgValue$T ref) : (T ref | none) {
+    if not this.set        { return nothing }
+    if v : T = this.val    { return v       }
+    return nothing
+}
+
+proc values$T(this : ArgMultiValue$T ref) : (T[...] ref | none) {
+    if not this.set              { return nothing }
+    if v : T[...] = this.vals    { return v       }
+    return nothing
+}
+
 type ArgParser {
-    prg      : char*
-    all      : Arg*[...]
-    switches : ArgSwitch*[...]
-    val_args : Arg*[...]
+    prg             : char*
+    unlabelled_name : char*
+    unlabelled_desc : char*
+    all             : Arg*[...]
+    switches        : ArgSwitch*[...]
+    val_args        : Arg*[...]
+    unlabelled      : string[...]
+    ignored         : string[...]
 
     proc create(prg : char*) : ArgParser {
         return { ArgParser:
-            .prg      = cstrdup(prg),
-            .all      = [...Arg*],
-            .switches = [...ArgSwitch*],
-            .val_args = [...Arg*]
+            .prg             = cstrdup(prg),
+            .unlabelled_name = NULL as char*,
+            .unlabelled_desc = NULL as char*,
+            .all             = [...Arg*],
+            .switches        = [...ArgSwitch*],
+            .val_args        = [...Arg*],
+            .unlabelled      = [...string],
+            .ignored         = [...string]
         }
     }
 
@@ -167,10 +236,24 @@ type ArgParser {
             delete arg
         }
 
+        this.all.free()
+        this.switches.free()
+        this.val_args.free()
+        this.unlabelled.free()
+        this.ignored.free()
+        if not this.unlabelled_desc.isnull()
+            delete this.unlabelled_desc
+        if not this.unlabelled_name.isnull()
+            delete this.unlabelled_name
         delete this.prg
     }
 
-    proc _addSwitch(this, short : char, long : char*) : Arg ref {
+    proc setUnlabelled(this, name : char*, desc : char*) {
+        this.unlabelled_name = cstrdup(name)
+        this.unlabelled_desc = cstrdup(desc)
+    }
+
+    proc _addSwitch(this, short : char, long : char*) : ArgSwitch ref {
         switch := new ArgSwitch
         @switch = ArgSwitch.create(this)
 
@@ -185,20 +268,20 @@ type ArgParser {
         return @switch
     }
 
-    proc addSwitch(this, short : char) : Arg ref {
+    proc addSwitch(this, short : char) : ArgSwitch ref {
         if short == '\0'
             \die{ "Can't use '\\0' for switch argument." }
 
         return this._addSwitch(short, NULL as char*)
     }
 
-    proc addSwitch(this, long : char*) : Arg ref {
+    proc addSwitch(this, long : char*) : ArgSwitch ref {
         if cstrlen(long) == 0
             \die{ "Empty long name for switch argument." }
         return this._addSwitch('\0', long)
     }
     
-    proc addSwitch(this, short : char, long : char*) : Arg ref {
+    proc addSwitch(this, short : char, long : char*) : ArgSwitch ref {
         if short == '\0'
             \die{ "Can't use '\\0' for switch argument." }
         if cstrlen(long) == 0
@@ -207,7 +290,7 @@ type ArgParser {
         return this._addSwitch(short, long)
     }
 
-    proc _addValue$T(this, short : char, long : char*) : Arg ref {
+    proc _addValue$T(this, short : char, long : char*) : ArgValue$T ref {
         arg := new ArgValue$T
         @arg = ArgValue$T.create(this)
         \static_if{ \same_type{ T i32 }
@@ -216,7 +299,7 @@ type ArgParser {
             arg.kind = ArgKind.FLOAT_VAL }
         \static_if{ \same_type{ T string }
             arg.kind = ArgKind.STRING_VAL }
-
+        
         arg.short = short
         has_long := long != NULL as char*
         arg.long  = << if has_long
@@ -228,20 +311,20 @@ type ArgParser {
         return @arg
     }
     
-    proc addValueInt(this, short : char) : Arg ref {
+    proc addValueInt(this, short : char) : ArgValue$i32 ref {
         if short == '\0'
             \die{ "Can't use '\\0' for value argument." }
 
         return this._addValue$i32(short, NULL as char*)
     }
 
-    proc addValueInt(this, long : char*) : Arg ref {
+    proc addValueInt(this, long : char*) : ArgValue$i32 ref {
         if cstrlen(long) == 0
             \die{ "Empty long name for value argument." }
         return this._addValue$i32('\0', long)
     }
     
-    proc addValueInt(this, short : char, long : char*) : Arg ref {
+    proc addValueInt(this, short : char, long : char*) : ArgValue$i32 ref {
         if short == '\0'
             \die{ "Can't use '\\0' for value argument." }
         if cstrlen(long) == 0
@@ -250,20 +333,20 @@ type ArgParser {
         return this._addValue$i32(short, long)
     }
 
-    proc addValueFloat(this, short : char) : Arg ref {
+    proc addValueFloat(this, short : char) : ArgValue$f32 ref {
         if short == '\0'
             \die{ "Can't use '\\0' for value argument." }
 
         return this._addValue$f32(short, NULL as char*)
     }
 
-    proc addValueFloat(this, long : char*) : Arg ref {
+    proc addValueFloat(this, long : char*) : ArgValue$f32 ref {
         if cstrlen(long) == 0
             \die{ "Empty long name for value argument." }
         return this._addValue$f32('\0', long)
     }
     
-    proc addValueFloat(this, short : char, long : char*) : Arg ref {
+    proc addValueFloat(this, short : char, long : char*) : ArgValue$f32 ref {
         if short == '\0'
             \die{ "Can't use '\\0' for value argument." }
         if cstrlen(long) == 0
@@ -272,26 +355,113 @@ type ArgParser {
         return this._addValue$f32(short, long)
     }
 
-    proc addValueString(this, short : char) : Arg ref {
+    proc addValueString(this, short : char) : ArgValue$string ref {
         if short == '\0'
             \die{ "Can't use '\\0' for value argument." }
 
         return this._addValue$string(short, NULL as char*)
     }
 
-    proc addValueString(this, long : char*) : Arg ref {
+    proc addValueString(this, long : char*) : ArgValue$string ref {
         if cstrlen(long) == 0
             \die{ "Empty long name for value argument." }
         return this._addValue$string('\0', long)
     }
     
-    proc addValueString(this, short : char, long : char*) : Arg ref {
+    proc addValueString(this, short : char, long : char*) : ArgValue$string ref {
         if short == '\0'
             \die{ "Can't use '\\0' for value argument." }
         if cstrlen(long) == 0
             \die{ "Empty long name for value argument." }
 
         return this._addValue$string(short, long)
+    }
+
+    proc _addMultiValue$T(this, short : char, long : char*) : ArgMultiValue$T ref {
+        arg := new ArgMultiValue$T
+        @arg = ArgMultiValue$T.create(this)
+        \static_if{ \same_type{ T i32 }
+            arg.kind = ArgKind.INT_MULTI_VAL }
+        \static_if{ \same_type{ T f32 }
+            arg.kind = ArgKind.FLOAT_MULTI_VAL }
+        \static_if{ \same_type{ T string }
+            arg.kind = ArgKind.STRING_MULTI_VAL }
+        
+        arg.short = short
+        has_long := long != NULL as char*
+        arg.long  = << if has_long
+                            <-cstrdup(long)
+                       else <-NULL as char* >>
+        
+        this.all.push(arg)
+        this.val_args.push(arg)
+        return @arg
+    }
+    
+    proc addMultiValueInt(this, short : char) : ArgMultiValue$i32 ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
+
+        return this._addMultiValue$i32(short, NULL as char*)
+    }
+
+    proc addMultiValueInt(this, long : char*) : ArgMultiValue$i32 ref {
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+        return this._addMultiValue$i32('\0', long)
+    }
+    
+    proc addMultiValueInt(this, short : char, long : char*) : ArgMultiValue$i32 ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+
+        return this._addMultiValue$i32(short, long)
+    }
+
+    proc addMultiValueFloat(this, short : char) : ArgMultiValue$f32 ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
+
+        return this._addMultiValue$f32(short, NULL as char*)
+    }
+
+    proc addMultiValueFloat(this, long : char*) : ArgMultiValue$f32 ref {
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+        return this._addMultiValue$f32('\0', long)
+    }
+    
+    proc addMultiValueFloat(this, short : char, long : char*) : ArgMultiValue$f32 ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+
+        return this._addMultiValue$f32(short, long)
+    }
+
+    proc addMultiValueString(this, short : char) : ArgMultiValue$string ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
+
+        return this._addMultiValue$string(short, NULL as char*)
+    }
+
+    proc addMultiValueString(this, long : char*) : ArgMultiValue$string ref {
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+        return this._addMultiValue$string('\0', long)
+    }
+    
+    proc addMultiValueString(this, short : char, long : char*) : ArgMultiValue$string ref {
+        if short == '\0'
+            \die{ "Can't use '\\0' for value argument." }
+        if cstrlen(long) == 0
+            \die{ "Empty long name for value argument." }
+
+        return this._addMultiValue$string(short, long)
     }
 
     proc usage(this) : string {
@@ -313,10 +483,13 @@ type ArgParser {
 
                 u.append(va.short)
                 if      va.kind == ArgKind.INT_VAL
+                or      va.kind == ArgKind.INT_MULTI_VAL
                     u.append(str(" <int>"))
                 else if va.kind == ArgKind.FLOAT_VAL
+                or      va.kind == ArgKind.FLOAT_MULTI_VAL
                     u.append(str(" <float>"))
                 else if va.kind == ArgKind.STRING_VAL
+                or      va.kind == ArgKind.STRING_MULTI_VAL
                     u.append(str(" <string>"))
 
                 if not va.req    u.append(']')
@@ -327,14 +500,22 @@ type ArgParser {
 
                 u.append(va.long)
                 if      va.kind == ArgKind.INT_VAL
+                or      va.kind == ArgKind.INT_MULTI_VAL
                     u.append(str("=<int>"))
                 else if va.kind == ArgKind.FLOAT_VAL
+                or      va.kind == ArgKind.FLOAT_MULTI_VAL
                     u.append(str("=<float>"))
                 else if va.kind == ArgKind.STRING_VAL
+                or      va.kind == ArgKind.STRING_MULTI_VAL
                     u.append(str("=<string>"))
 
                 if not va.req    u.append(']')
             }
+        }
+        
+        if not this.unlabelled_name.isnull() {
+            u.append(' ')
+            u.append(this.unlabelled_name)
         }
 
         return u 
@@ -346,73 +527,167 @@ type ArgParser {
         foreach arg in this.all
             h = concat(h, (@arg).help(), str("\n"))
 
+        if not this.unlabelled_name.isnull() {
+            h.append(this.unlabelled_name)
+            h.append('\n')
+            if not this.unlabelled_desc.isnull() {
+                h.append("    ")
+                h.append(this.unlabelled_desc)
+                h.append('\n')
+            }
+        }
+
         return concat(this.usage(), str("\n\n"), h)
     }
 
     proc parse(this, argv: string[...] ref) : bool {
+        last_short : (Arg ref | none) = nothing
+        ignoring   := false
         foreach ref s in argv {
-            if s.len() >= 2 {
+            if ignoring {
+                this.ignored.push(s)
+                continue
+            }
+
+            if val_arg_short : Arg ref = last_short {
+                if not this.parse_short_val(val_arg_short, s)    { return false }
+                last_short = nothing
+            } else if s.len() >= 2 {
                 if s[0] == '-' {
                     if s[1] == '-' {
-                        if s.len() == 2    { break }
-
-                        s'       := str(s.c_str() + 2)
-                        arg_name := { string: }
-                        val_str  := { string: }
-                        val_idx  := s'.find('=')
-                        has_val  := false
-
-                        if val_idx == -1 {
-                            arg_name = s'.copy()
+                        if s.len() == 2    {
+                            ignoring = true
+                            continue
                         } else {
-                            arg_name = s'.substr(0, val_idx)
-                            val_str  = s'.substr(val_idx + 1)
-                            has_val = true
+                            s'       := str(s.c_str() + 2)
+                            arg_name := { string: }
+                            val_str  := { string: }
+                            val_idx  := s'.find('=')
+                            has_val  := false
+
+                            if val_idx == -1 {
+                                arg_name = s'.copy()
+                            } else {
+                                arg_name = s'.substr(0, val_idx)
+                                val_str  = s'.substr(val_idx + 1)
+                                has_val = true
+                            }
+                            s'.free()
+
+                            success := false
+
+                            if has_val {
+                                success = this.handleLongVal(arg_name, val_str)
+                            } else {
+                                success = this.handleLong(arg_name)
+                            }
+                            
+                            if has_val    val_str.free()
+                            arg_name.free()
+
+                            if not success
+                                return false
                         }
-                        s'.free()
-
-                        success := false
-
-                        if has_val {
-                            success = this.handleLongVal(arg_name, val_str)
+                    } else {
+                        if short_arg : Arg ref = this.parseShort(s) {
+                            if short_arg.kind == ArgKind.INT_VAL
+                            or short_arg.kind == ArgKind.INT_MULTI_VAL
+                            or short_arg.kind == ArgKind.FLOAT_VAL
+                            or short_arg.kind == ArgKind.FLOAT_MULTI_VAL
+                            or short_arg.kind == ArgKind.STRING_VAL
+                            or short_arg.kind == ArgKind.STRING_MULTI_VAL {
+                                last_short = short_arg
+                            }
                         } else {
-                            success = this.handleLong(arg_name)
-                        }
-                        
-                        if has_val    val_str.free()
-                        arg_name.free()
-
-                        if not success
                             return false
-                    } else if not this.parseShort(s) {
-                        return false
+                        }
                     }
+                } else {
+                    if &s != &argv[0]
+                        this.unlabelled.push(s)
                 }
             } else {
-                # @incomplete
+                if &s != &argv[0]
+                    this.unlabelled.push(s)
             }
         }
 
-        return true
-    }
+        if sh_arg : Arg ref = last_short {
+            this.report_needs_val_error(sh_arg.short)
+            return false
+        }
 
-    proc parseShort(this, s: string ref) : bool {
-        for c := 1; c < s.len(); c += 1 {
-            found := false
-            foreach ref arg in this.all {
-                if arg.short == s[c] {
-                    found   = true
-                    arg.set = true
-                    break
-                }
-            }
-            if not found {
-                this.report_ill_error(s[c])
+        foreach ref arg in this.all {
+            if arg.req and not arg.set {
+                if arg.short
+                    this.report_req_error(arg.short)
+                else this.report_req_error(arg.long)
+
                 return false
             }
         }
 
         return true
+    }
+
+    proc parseShort(this, s: string ref) : (Arg ref | none) {
+        found : (Arg ref | none) = nothing
+        for c := 1; c < s.len(); c += 1 {
+            found = nothing
+            foreach ref arg in this.all {
+                if arg.short == s[c] {
+                    found   = @arg
+                    arg.set = true
+                    break
+                }
+            }
+            if n : none = found {
+                this.report_ill_error(s[c])
+                return nothing
+            }
+        }
+
+        return found
+    }
+                
+    proc parse_short_val(this, val_arg_short : Arg ref, s : string ref) : bool {
+        if val_arg_short.kind == ArgKind.INT_VAL
+        or val_arg_short.kind == ArgKind.INT_MULTI_VAL {
+            i := 0
+            if sscanf(s.c_str(), "%d", &i) != 1 {
+                this.report_invalid_val_error(val_arg_short.short)
+                return false
+            }
+            if val_arg_short.kind == ArgKind.INT_MULTI_VAL {
+                if is : i32[...] = val_arg_short.vals    { is.push(i) }
+            } else if val_arg_short.kind == ArgKind.INT_VAL {
+                val_arg_short.val = i
+            }
+        } else if val_arg_short.kind == ArgKind.FLOAT_VAL
+          or val_arg_short.kind == ArgKind.FLOAT_MULTI_VAL {
+            f := 0.0
+            if sscanf(s.c_str(), "%f", &f) != 1 {
+                this.report_invalid_val_error(val_arg_short.short)
+                return false
+            }
+            if val_arg_short.kind == ArgKind.FLOAT_MULTI_VAL {
+                if fs : f32[...] = val_arg_short.vals    { fs.push(f) }
+            } else if val_arg_short.kind == ArgKind.FLOAT_VAL {
+                val_arg_short.val = f
+            }
+        } else if val_arg_short.kind == ArgKind.STRING_VAL
+          or val_arg_short.kind == ArgKind.STRING_MULTI_VAL {
+            if val_arg_short.kind == ArgKind.STRING_MULTI_VAL {
+                if ss : string[...] = val_arg_short.vals    { ss.push(s.copy()) }
+            } else if val_arg_short.kind == ArgKind.STRING_VAL {
+                val_arg_short.val = s.copy()
+            }
+        } else {
+            this.report_not_val_error(val_arg_short.short)
+            return false
+        }
+
+        return true 
     }
     
     proc handleLong(this, arg_name: string ref) : bool {
@@ -454,20 +729,42 @@ type ArgParser {
         }
 
         if arg : Arg* = found {
-            if arg.kind == ArgKind.INT_VAL {
+            if arg.kind == ArgKind.INT_VAL
+            or arg.kind == ArgKind.INT_MULTI_VAL {
                 i := 0
-                sscanf(val_str.c_str(), "%d", &i)
-                arg.val = i
-            } else if arg.kind == ArgKind.FLOAT_VAL {
+                if sscanf(val_str.c_str(), "%d", &i) != 1 {
+                    this.report_invalid_val_error(arg.short)
+                    return false
+                }
+                if arg.kind == ArgKind.INT_MULTI_VAL {
+                    if is : i32[...] = arg.vals    { is.push(i) }
+                } else if arg.kind == ArgKind.INT_VAL {
+                    arg.val = i
+                }
+            } else if arg.kind == ArgKind.FLOAT_VAL
+              or arg.kind == ArgKind.FLOAT_MULTI_VAL {
                 f := 0.0
-                sscanf(val_str.c_str(), "%f", &f)
-                arg.val = f
-            } else if arg.kind == ArgKind.STRING_VAL {
-                arg.val = val_str.copy()
+                if sscanf(val_str.c_str(), "%f", &f) != 1 {
+                    this.report_invalid_val_error(arg.short)
+                    return false
+                }
+                if arg.kind == ArgKind.FLOAT_MULTI_VAL {
+                    if fs : f32[...] = arg.vals    { fs.push(f) }
+                } else if arg.kind == ArgKind.FLOAT_VAL {
+                    arg.val = f
+                }
+            } else if arg.kind == ArgKind.STRING_VAL
+              or arg.kind == ArgKind.STRING_MULTI_VAL {
+                if arg.kind == ArgKind.STRING_MULTI_VAL {
+                    if ss : string[...] = arg.vals    { ss.push(val_str.copy()) }
+                } else if arg.kind == ArgKind.STRING_VAL {
+                    arg.val = val_str.copy()
+                }
             } else {
                 this.report_not_val_error(arg_name.c_str())
                 return false
             }
+
             return true 
         }
         
@@ -498,6 +795,12 @@ type ArgParser {
     }
     proc report_needs_val_error(this, s: char*) {
         print "argument requires a value: '%'", s
+    }
+    proc report_invalid_val_error(this, c: char) {
+        print "invalid value for argument: '%'", c
+    }
+    proc report_invalid_val_error(this, s: char*) {
+        print "invalid value for argument: '%'", s
     }
 }
 

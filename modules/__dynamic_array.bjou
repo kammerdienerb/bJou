@@ -102,6 +102,10 @@ proc len$T(da : T[...] ref) : u64 {
     return |da|    
 }
 
+proc as_slice$T(da : T[...] ref) : T[] {
+    return [ \__da_data{da}, 0:\__da_used{da} ]
+}
+
 # push by val
 proc push$T(da : T[...] ref, item : T) {
     _d := __ref::getref(\__da_data{da})
