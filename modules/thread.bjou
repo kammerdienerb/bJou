@@ -2,19 +2,38 @@
 
 module thread
 
-import "pthread.bjou"
+using import "__pthread.bjou"
+using import "os.bjou"
 
 type routine_t = <(void*) : void*>
 
-type Thread {
+proc hw_threads() : u64 {
+# \static_if{ os.OS == os.MACOS
+#     count := 0u64
+#     size  := 8
+#     sysctlbyname("hw.ncpu", &count, &size, NULL, 0)
+#     if count >= 0
+#         return count
+#     return 0 }
+
+# \static_if{ os.OS == os.LINUX
+    return sysconf(__sys::_SC_NPROCESSORS_ONLN) # }
+}
+
+proc exit(v : void*)
+    pthread_exit(v)
+proc self() : u64
+    return (pthread_self() as void*) as u64
+
+type thread {
     tid : pthread_t
 
-    proc create(routine : routine_t, arg : void*) : Thread {
+    proc create(routine : routine_t, arg : void*) : thread {
         tid := NULL as pthread_t
         err := pthread_create(&tid, NULL as pthread_attr_t*, routine, arg)
         if err != 0
             \die{ err }
-        return { Thread: .tid = tid }
+        return { thread: .tid = tid }
     }
 
     proc join(this) : void* {
@@ -24,4 +43,46 @@ type Thread {
             \die{ err }
         return ret 
     }
+}
+
+type mutex {
+    mtx : pthread_mutex_t
+
+    proc create() : mutex {
+        mtx := { pthread_mutex_t: }
+        err := pthread_mutex_init(&mtx, NULL as pthread_mutexattr_t*)
+        if err != 0
+            \die{ err }
+        return { mutex: .mtx = mtx }
+    }
+
+    proc destroy(this) : i32
+        return pthread_mutex_destroy(&this.mtx)
+    proc lock(this) : i32
+        return pthread_mutex_lock(&this.mtx)
+    proc trylock(this) : i32
+        return pthread_mutex_trylock(&this.mtx)
+    proc unlock(this) : i32
+        return pthread_mutex_unlock(&this.mtx)
+}
+
+type cond {
+    cnd : pthread_cond_t
+
+    proc create() : cond {
+        cnd := { pthread_cond_t: }
+        err := pthread_cond_init(&cnd, NULL as pthread_condattr_t*)
+        if err != 0
+            \die{ err }
+        return { cond: .cnd = cnd }
+    }
+
+    proc destroy(this) : i32
+        return pthread_cond_destroy(&this.cnd)
+    proc signal(this) : i32
+        return pthread_cond_signal(&this.cnd)
+    proc broadcast(this) : i32
+        return pthread_cond_broadcast(&this.cnd)
+    proc wait(this, m : mutex ref) : i32
+        return pthread_cond_wait(&this.cnd, &m.mtx)
 }

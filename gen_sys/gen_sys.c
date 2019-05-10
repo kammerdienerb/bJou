@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define PRINT_SYS_NR_DECL(NR) printf("const "#NR" := SYS_NR_MOD + %d\n", (NR))
 #define PRINT_SYS_CONSTANT_DECL(C) printf("const "#C" := %d\n", (C))
@@ -43,8 +44,49 @@ void pre() {
 "type timezone {\n"
 "    tz_minuteswest : i32\n"
 "    tz_dsttime     : i32\n"
+"}\n");
+    printf(
+"type timespec {\n"
+"    tv_sec  : time_t\n"
+"    tv_nsec : i%lu\n"
+"}\n", 8 * sizeof(long));
+    printf(
+"proc time(t_p : time_t*) : time_t {\n"
+"    tv := { timeval: }\n"
+"    s  := gettimeofday(&tv, NULL as timezone*)\n"
+"    if not t_p.isnull()    { @t_p = tv.tv_sec }\n"
+"    return tv.tv_sec\n"
 "}\n"
-"\n");
+"proc sleep(s : u32) {\n"
+"    elapsed := 0u32\n"
+"    tv_beg := { timeval: }\n"
+"    tv_now := { timeval: }\n"
+"    gettimeofday(&tv_beg, NULL as timezone*)\n"
+"    while elapsed < s {\n"
+"        gettimeofday(&tv_now, NULL as timezone*)\n"
+"        elapsed = tv_now.tv_sec - tv_beg.tv_sec\n"
+"    }\n"
+"}\n"
+"proc usleep(u : u64) {\n"
+"    elapsed := 0u64\n"
+"    tv_beg := { timeval: }\n"
+"    tv_now := { timeval: }\n"
+"    gettimeofday(&tv_beg, NULL as timezone*)\n"
+"    while elapsed < u {\n"
+"        gettimeofday(&tv_now, NULL as timezone*)\n"
+"        elapsed = ((tv_now.tv_sec * 1000000) + tv_now.tv_usec) - ((tv_beg.tv_sec * 1000000) + tv_beg.tv_usec)\n"
+"    }\n"
+"}\n"
+);
+    printf(
+"type _sigaction {\n"
+"    bytes : char[%lu]\n"
+"}\n", sizeof(struct sigaction));
+    printf(
+"\n"
+"extern nolibc_syscall_sigaction_sa_handler(_sigaction*) : <(int)>*\n"
+"extern nolibc_syscall_sigaction_sa_flags(_sigaction*) : int*\n");
+    printf("\n");
 }
 
 void post() {
@@ -78,7 +120,25 @@ void post() {
 "    return nolibc_syscall(SYS_getpid, 0)\n"
 "\n"
 "proc gettimeofday(tv : timeval*, tz : timezone*) : i64\n"
-"    return nolibc_syscall(SYS_gettimeofday, 2, tv, tz)\n");
+"    return nolibc_syscall(SYS_gettimeofday, 2, tv, tz)\n"
+"\n"
+"proc sigaction(signum : int, act : _sigaction*, oldact : _sigaction*) : i64\n"
+"    return nolibc_syscall(SYS_sigaction, 3, signum, act, oldact)\n"
+"\n");
+
+    printf("\n");
+
+#ifdef __APPLE__
+    printf(
+"extern sysctlbyname(char*, void*, u%lu, void*, u%lu) : int\n",
+    8 * sizeof(size_t), 8 * sizeof(size_t));
+#endif
+    printf(
+"extern sysconf(int) : i%lu\n",
+    8 * sizeof(long));
+
+    printf("\n");
+
 }
 
 int main() {
@@ -93,6 +153,7 @@ int main() {
     PRINT_SYS_NR_DECL(SYS_access);
     PRINT_SYS_NR_DECL(SYS_getpid);
     PRINT_SYS_NR_DECL(SYS_gettimeofday);
+    PRINT_SYS_NR_DECL(SYS_sigaction);
 
     PRINT_SYS_CONSTANT_DECL(S_IRWXU);
     PRINT_SYS_CONSTANT_DECL(S_IRUSR);
@@ -117,6 +178,44 @@ int main() {
     PRINT_SYS_CONSTANT_DECL(SEEK_CUR);
     PRINT_SYS_CONSTANT_DECL(SEEK_END);
     PRINT_SYS_CONSTANT_DECL(F_OK);
+
+    PRINT_SYS_CONSTANT_DECL(SIGHUP);
+    PRINT_SYS_CONSTANT_DECL(SIGINT);
+    PRINT_SYS_CONSTANT_DECL(SIGQUIT);
+    PRINT_SYS_CONSTANT_DECL(SIGILL);
+    PRINT_SYS_CONSTANT_DECL(SIGTRAP);
+    PRINT_SYS_CONSTANT_DECL(SIGABRT);
+#ifdef SIGPOLL
+    PRINT_SYS_CONSTANT_DECL(SIGPOLL);
+#endif
+    PRINT_SYS_CONSTANT_DECL(SIGIOT);
+    PRINT_SYS_CONSTANT_DECL(SIGEMT);
+    PRINT_SYS_CONSTANT_DECL(SIGFPE);
+    PRINT_SYS_CONSTANT_DECL(SIGKILL);
+    PRINT_SYS_CONSTANT_DECL(SIGBUS);
+    PRINT_SYS_CONSTANT_DECL(SIGSEGV);
+    PRINT_SYS_CONSTANT_DECL(SIGSYS);
+    PRINT_SYS_CONSTANT_DECL(SIGPIPE);
+    PRINT_SYS_CONSTANT_DECL(SIGALRM);
+    PRINT_SYS_CONSTANT_DECL(SIGTERM);
+    PRINT_SYS_CONSTANT_DECL(SIGURG);
+    PRINT_SYS_CONSTANT_DECL(SIGSTOP);
+    PRINT_SYS_CONSTANT_DECL(SIGTSTP);
+    PRINT_SYS_CONSTANT_DECL(SIGCONT);
+    PRINT_SYS_CONSTANT_DECL(SIGCHLD);
+    PRINT_SYS_CONSTANT_DECL(SIGTTIN);
+    PRINT_SYS_CONSTANT_DECL(SIGTTOU);
+    PRINT_SYS_CONSTANT_DECL(SIGIO);
+    PRINT_SYS_CONSTANT_DECL(SIGXCPU);
+    PRINT_SYS_CONSTANT_DECL(SIGXFSZ);
+    PRINT_SYS_CONSTANT_DECL(SIGVTALRM);
+    PRINT_SYS_CONSTANT_DECL(SIGPROF);
+    PRINT_SYS_CONSTANT_DECL(SIGWINCH);
+    PRINT_SYS_CONSTANT_DECL(SIGINFO);
+    PRINT_SYS_CONSTANT_DECL(SIGUSR1);
+    PRINT_SYS_CONSTANT_DECL(SIGUSR2);
+
+    PRINT_SYS_CONSTANT_DECL(_SC_NPROCESSORS_ONLN);
 
     post();
 

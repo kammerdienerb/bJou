@@ -187,7 +187,8 @@ type file {
 
         while this.good() {
             l := this.readline()
-            ret.push(l)
+            if l.len() > 0
+                ret.push(l)
         }
 
         return ret

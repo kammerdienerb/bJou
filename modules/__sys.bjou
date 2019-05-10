@@ -26,6 +26,42 @@ type timezone {
     tz_minuteswest : i32
     tz_dsttime     : i32
 }
+type timespec {
+    tv_sec  : time_t
+    tv_nsec : i64
+}
+proc time(t_p : time_t*) : time_t {
+    tv := { timeval: }
+    s  := gettimeofday(&tv, NULL as timezone*)
+    if not t_p.isnull()    { @t_p = tv.tv_sec }
+    return tv.tv_sec
+}
+proc sleep(s : u32) {
+    elapsed := 0u32
+    tv_beg := { timeval: }
+    tv_now := { timeval: }
+    gettimeofday(&tv_beg, NULL as timezone*)
+    while elapsed < s {
+        gettimeofday(&tv_now, NULL as timezone*)
+        elapsed = tv_now.tv_sec - tv_beg.tv_sec
+    }
+}
+proc usleep(u : u64) {
+    elapsed := 0u64
+    tv_beg := { timeval: }
+    tv_now := { timeval: }
+    gettimeofday(&tv_beg, NULL as timezone*)
+    while elapsed < u {
+        gettimeofday(&tv_now, NULL as timezone*)
+        elapsed = ((tv_now.tv_sec * 1000000) + tv_now.tv_usec) - ((tv_beg.tv_sec * 1000000) + tv_beg.tv_usec)
+    }
+}
+type _sigaction {
+    bytes : char[16]
+}
+
+extern nolibc_syscall_sigaction_sa_handler(_sigaction*) : <(int)>*
+extern nolibc_syscall_sigaction_sa_flags(_sigaction*) : int*
 
 const SYS_write := SYS_NR_MOD + 4
 const SYS_read := SYS_NR_MOD + 3
@@ -36,6 +72,7 @@ const SYS_lseek := SYS_NR_MOD + 199
 const SYS_access := SYS_NR_MOD + 33
 const SYS_getpid := SYS_NR_MOD + 20
 const SYS_gettimeofday := SYS_NR_MOD + 116
+const SYS_sigaction := SYS_NR_MOD + 46
 const S_IRWXU := 448
 const S_IRUSR := 256
 const S_IWUSR := 128
@@ -59,6 +96,39 @@ const SEEK_SET := 0
 const SEEK_CUR := 1
 const SEEK_END := 2
 const F_OK := 0
+const SIGHUP := 1
+const SIGINT := 2
+const SIGQUIT := 3
+const SIGILL := 4
+const SIGTRAP := 5
+const SIGABRT := 6
+const SIGIOT := 6
+const SIGEMT := 7
+const SIGFPE := 8
+const SIGKILL := 9
+const SIGBUS := 10
+const SIGSEGV := 11
+const SIGSYS := 12
+const SIGPIPE := 13
+const SIGALRM := 14
+const SIGTERM := 15
+const SIGURG := 16
+const SIGSTOP := 17
+const SIGTSTP := 18
+const SIGCONT := 19
+const SIGCHLD := 20
+const SIGTTIN := 21
+const SIGTTOU := 22
+const SIGIO := 23
+const SIGXCPU := 24
+const SIGXFSZ := 25
+const SIGVTALRM := 26
+const SIGPROF := 27
+const SIGWINCH := 28
+const SIGINFO := 29
+const SIGUSR1 := 30
+const SIGUSR2 := 31
+const _SC_NPROCESSORS_ONLN := 58
 
 proc write(fd : i32, buf : void*, nbyte : u64) : i64
     return nolibc_syscall(SYS_write, 3, fd, buf, nbyte)
@@ -89,3 +159,11 @@ proc getpid() : i64
 
 proc gettimeofday(tv : timeval*, tz : timezone*) : i64
     return nolibc_syscall(SYS_gettimeofday, 2, tv, tz)
+
+proc sigaction(signum : int, act : _sigaction*, oldact : _sigaction*) : i64
+    return nolibc_syscall(SYS_sigaction, 3, signum, act, oldact)
+
+
+    extern sysctlbyname(char*, void*, u64, void*, u64) : int
+    extern sysconf(int) : i64
+

@@ -1,0 +1,226 @@
+# threadpool.bjou
+#
+# basic threadpool based on https://github.com/mbrossard/threadpool
+
+module threadpool
+
+using import "thread.bjou"
+
+enum stopmode {
+    DONT_STOP,
+    IMMEDIATE,
+    GRACEFUL
+}
+
+type task_fn_t = <(void*)>
+
+type task_link = (task ref | none)
+type task {
+    function : task_fn_t
+    arg      : void*
+    prev     : task_link
+    next     : task_link
+
+
+    proc create(fn : task_fn_t, arg : void*) : task_link {
+        t := new task
+        @t = { task:
+            .function = fn,
+            .arg = arg,
+            .prev = nothing,
+            .next = nothing,
+        }
+
+        return @t
+    }
+
+    proc free(this) { delete &this }
+}
+
+type task_queue {
+    head : task_link
+    tail : task_link
+    len  : u32
+
+    proc create() : task_queue
+        return { task_queue: .head = nothing, .tail = nothing }
+
+    proc en(this, fn : task_fn_t, arg : void*) {
+        new_task_link := task.create(fn, arg)
+        if new_task : task ref = new_task_link {
+            if head : task ref = this.head {
+                new_task.next = this.head
+                head.prev     = new_task_link
+                this.head     = new_task_link
+            } else {
+                this.head = this.tail = new_task_link
+            }
+            this.len += 1
+        } else \die{ "task creation failed" }
+    }
+
+    proc de(this) : (task ref | none) {
+        if tail : task ref = this.tail {
+            if prev : task ref = tail.prev {
+                prev.next = nothing 
+                this.tail = prev
+            } else {
+                this.head = this.tail = nothing
+            }
+            tail.prev = tail.next = nothing
+            this.len -= 1
+            return tail
+        }
+
+        return nothing
+    }
+
+    proc clear(this) {
+        while true {
+            if t : task ref = this.de() {
+                t.free()
+            } else break
+        }
+    }
+}
+
+type thread_fn_t = <(void*) : void*>
+
+proc task_to_thread(t : task_fn_t) : thread_fn_t
+    return (t as void*) as thread_fn_t
+
+
+type threadpool {
+    lock         : mutex
+    notify       : cond
+    threads      : thread[...]
+    queue        : task_queue
+    stop_m       : stopmode
+    n_started    : i32
+    n_running    : i32
+
+
+    proc create(n_workers : u32) : threadpool ref {
+        pool := new threadpool
+        @pool = { threadpool:
+            .lock     = mutex.create(),
+            .notify   = cond.create(),
+            .threads  = [...thread],
+            .queue    = task_queue.create(),
+            .stop_m   = stopmode.DONT_STOP
+        }
+
+        if n_workers == 0    { n_workers = 1 }
+
+        for i := 0; i < n_workers; i += 1 {
+            pool.threads.push(thread.create(task_to_thread(thread_task), pool))
+            pool.n_started += 1
+        }
+
+        return @pool
+    }
+
+    proc free(this) {
+        this.notify.destroy()
+        this.lock.destroy()
+        this.queue.clear()
+        this.threads.free()
+
+        delete &this
+    }
+
+    proc stop(this, mode : stopmode) {
+        this.lock.lock()
+
+        if  mode == stopmode.DONT_STOP
+        or  this.stop_m != stopmode.DONT_STOP {
+            this.lock.unlock()
+            return
+        }
+
+        this.stop_m = mode
+       
+        this.notify.broadcast()
+
+        this.lock.unlock()
+
+        foreach t in this.threads   { t.join() }
+    }
+
+    proc add_task(this, the_task : task_fn_t, arg : void*) {
+        this.lock.lock()
+
+        if this.stop_m == stopmode.DONT_STOP {
+            this.queue.en(the_task, arg)
+            this.notify.signal()
+        }
+
+        this.lock.unlock()
+    }
+
+    proc wait(this) {
+        while true {
+            this.lock.lock()
+
+            if  this.queue.len == 0
+            and this.n_running   == 0 {
+                this.lock.unlock()
+                break
+            }
+
+            this.lock.unlock() 
+            __sys::usleep(100)
+        }
+    }
+
+    proc running(this) : i32 {
+        this.lock.lock()
+        r := this.n_running
+        this.lock.unlock()
+        return r
+    }
+}
+
+proc thread_task(_pool : void*) {
+    pool : threadpool ref = @(_pool as threadpool*)
+    
+    while true {
+        # Lock must be taken to wait on conditional variable
+        pool.lock.lock()
+
+        # Wait on condition variable, check for spurious wakeups.
+        # When returning from cond.wait(), we own the lock.
+        while pool.queue.len == 0
+        and   pool.stop_m == stopmode.DONT_STOP {
+            pool.notify.wait(pool.lock)
+        }
+
+        if  pool.stop_m == stopmode.IMMEDIATE
+        or (pool.stop_m == stopmode.GRACEFUL and pool.queue.len == 0) {
+            break
+        }
+
+        # Grab our task
+        m_t := pool.queue.de()
+
+        # Get to work
+        if t : task ref = m_t {
+            f := t.function
+            a := t.arg
+            pool.n_running += 1
+            t.free()
+            pool.lock.unlock()
+
+            f(a)
+
+            pool.lock.lock()
+            pool.n_running -= 1
+            pool.lock.unlock()
+        } else \die{ "invalid task" }
+    }
+
+    pool.n_started -= 1
+
+    pool.lock.unlock()
+    thread::exit(NULL)
+}

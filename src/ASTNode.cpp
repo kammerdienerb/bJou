@@ -3509,7 +3509,7 @@ bool InitializerList::isConstant() {
     analyze();
     for (ASTNode * _expr : getExpressions()) {
         Expression * expr = (Expression *)_expr;
-        c &= expr->isConstant();
+        c &= (expr->isConstant() && !expr->getType()->isSum());
     }
     return c;
 }

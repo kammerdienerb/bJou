@@ -1,0 +1,314 @@
+# threadpool.bjou
+#
+# basic threadpool based on https://github.com/Pithikos/C-Thread-Pool
+
+module threadpool
+
+using import "__pthread.bjou"
+using import "os.bjou"
+extern sleep(u32) : u32
+
+threads_keepalive : int # volatile
+threads_on_hold   : int # volatile
+
+type routine_t = <(void*)>
+
+proc routine_cast$T(routine : T) : <(void*) : void*>
+    return (routine as void*) as <(void*) : void*>
+
+proc volatile_set(i : int ref, val : int) : int
+    return \volatile_w{ @&i = val }
+ 
+proc volatile_add(i : int ref, addend : int) : int
+    return \volatile_w{ @&i = \volatile_r{ @&i } + addend }
+
+
+type threadpool {
+    threads             : thread*[...]
+	num_threads_alive   : int # volatile
+	num_threads_working : int # volatile
+	thcount_lock        : pthread_mutex_t
+	threads_all_idle    : pthread_cond_t
+    jobqueue            : jobqueue
+
+    proc create(n_workers : i32) : threadpool {
+        # Make new thread pool
+        r := { threadpool: }
+
+        volatile_set(threads_on_hold, 0)
+        volatile_set(threads_keepalive, 1)
+
+        if n_workers <= 0    { n_workers = 1 }
+
+        volatile_set(r.num_threads_alive, 0)
+        volatile_set(r.num_threads_working, 0)
+
+        # Initialise the job queue
+        r.jobqueue = jobqueue.create()
+
+        pthread_mutex_init(&(r.thcount_lock), NULL as pthread_mutexattr_t*)
+        pthread_cond_init(&(r.threads_all_idle), NULL as pthread_condattr_t*)
+
+        # Make threads in pool
+        for i := 0; i < n_workers; i += 1
+            r.threads.push(thread.create(r))
+
+        # Wait for threads to initialize
+        while \volatile_r{ @&r.num_threads_alive } != n_workers { }
+
+        return r
+    }
+
+    proc free(this) {
+        using __sys
+
+        threads_total := \volatile_r{ @&this.num_threads_alive } # volatile
+
+        # End each thread 's infinite loop
+        volatile_set(threads_keepalive, 0)
+
+        # Give one second to kill idle threads
+        TIMEOUT := 1.0
+        start   := time(NULL as time_t*)
+        end     := 0 as time_t
+        tpassed := 0.0
+        while tpassed < TIMEOUT
+        and   \volatile_r{ @&this.num_threads_alive } {
+            (@this.jobqueue.has_jobs).post_all()
+            end     = time(NULL as time_t*)
+            tpassed = (end - start) as f64
+        }
+
+        # Poll remaining threads
+        while \volatile_r{ @&this.num_threads_alive } {
+            (@this.jobqueue.has_jobs).post_all()
+            sleep(1)
+        }
+
+        # Job queue cleanup
+        this.jobqueue.free()
+        # Deallocs
+        foreach t in this.threads    { (@t).free() }
+        this.threads.free()
+    }
+
+    proc add_worker(this, work : routine_t, arg : void*) {
+        newjob := new job
+
+        # add function and argument
+        @newjob = { job: .function = work, .arg = arg }
+
+        # add job to queue
+        this.jobqueue.push(newjob)
+    }
+
+    proc wait(this) {
+        pthread_mutex_lock(&(this.thcount_lock))
+        while this.jobqueue.len
+        or    \volatile_r { @&this.num_threads_working }
+            pthread_cond_wait(&(this.threads_all_idle), &(this.thcount_lock))
+        pthread_mutex_unlock(&(this.thcount_lock))
+    }
+}
+
+# Binary semaphore
+type bsem {
+	mutex : pthread_mutex_t
+	cond  : pthread_cond_t
+    v     : int
+
+
+    proc create(val : int) : bsem {
+        if val < 0 or val > 1
+            \die{ "bsem value can only be 1 or 0" }
+
+        r := { bsem: .v = val }
+        pthread_mutex_init(&(r.mutex), NULL as pthread_mutexattr_t*)
+        pthread_cond_init(&(r.cond), NULL as pthread_condattr_t*)
+
+        return r
+    }
+
+    proc reset(this)    { this = bsem.create(0) }
+
+    proc post(this) {
+        pthread_mutex_lock(&(this.mutex))
+        this.v = 1
+        pthread_cond_signal(&(this.cond))
+        pthread_mutex_unlock(&(this.mutex))
+    }
+    
+    proc post_all(this) {
+        pthread_mutex_lock(&(this.mutex))
+        this.v = 1
+        pthread_cond_broadcast(&(this.cond))
+        pthread_mutex_unlock(&(this.mutex))
+    }
+
+    # Wait on semaphore until semaphore has value 0
+    proc wait(this) {
+        pthread_mutex_lock(&(this.mutex))
+        while this.v != 1 {
+            pthread_cond_wait(&(this.cond), &(this.mutex))
+        }
+        this.v = 0
+        pthread_mutex_unlock(&(this.mutex))
+    }
+}
+
+type job {
+    prev     : job*
+    function : routine_t
+    arg      : void*
+}
+
+type jobqueue {
+    rwmutex  : pthread_mutex_t    
+    front    : job*
+    rear     : job*
+    has_jobs : bsem*
+    len      : int
+
+
+    proc create() : jobqueue {
+        r := { jobqueue: }
+
+        r.has_jobs = new bsem
+        @(r.has_jobs) = bsem.create(0)
+
+        if r.has_jobs.isnull()
+            \die{ "could not allocate bsem for jobqueue" }
+
+        pthread_mutex_init(&(r.rwmutex), NULL as pthread_mutexattr_t*)
+
+        return r
+    }
+
+    proc clear(this) {
+        while this.len
+            delete this.pull()
+
+        this.front = NULL as job*
+        this.rear  = NULL as job*
+        (@this.has_jobs).reset()
+        this.len = 0
+    }
+
+    proc push(this, newjob : job*) {
+        pthread_mutex_lock(&(this.rwmutex))
+        newjob.prev = NULL as job*
+
+        if this.len == 0 {
+            this.front = this.front = newjob
+        } else {
+            this.rear.prev = this.rear = newjob
+        }
+        this.len += 1
+
+        (@this.has_jobs).post()
+        pthread_mutex_unlock(&(this.rwmutex))
+    }
+
+    proc pull(this) : job* {
+        pthread_mutex_lock(&(this.rwmutex))
+        job_p := this.front
+
+        if this.len == 0 {
+            # no jobs in queue
+        } else if this.len == 1 {
+            this.front = NULL as job*
+            this.rear  = NULL as job*
+            this.len   = 0
+        } else {
+            this.front = job_p.prev
+            this.len  -= 1
+            # more than one job in queue -> post it
+            (@this.has_jobs).post()
+        }
+
+        pthread_mutex_unlock(&(this.rwmutex))
+        return job_p
+    }
+
+    proc free(this) {
+        this.clear()
+        delete this.has_jobs
+    }
+}
+
+type thread {
+	pthread : pthread_t
+    pool    : threadpool ref
+
+
+    proc create(pool : threadpool ref) : thread* {
+        r := new thread
+        @r = { thread: .pool = pool }
+        pthread_create(&(r.pthread), NULL as pthread_attr_t*, routine_cast(thread.go), r)
+        pthread_detach(r.pthread)
+        return r
+    }
+
+    proc hold(sig_id : int) {
+        \volatile_w{ threads_on_hold = 1 }
+        while \volatile_r{ @&threads_on_hold }
+            sleep(1)
+    }
+
+    proc go(this) : void* {
+        using __sys
+
+        # Assure all threads have been created before starting serving
+        pool := this.pool
+
+        # Register signal handler
+        act := { __sys::_sigaction: }
+        @nolibc_syscall_sigaction_sa_flags(&act)   = 0
+        @nolibc_syscall_sigaction_sa_handler(&act) = thread.hold
+        if sigaction(SIGUSR1, &act, NULL as _sigaction*) == -1
+            \die{ "thread.go(): cannot handle SIGUSR1" }
+
+        # Mark thread as alive (initialized)
+        pthread_mutex_lock(&(pool.thcount_lock))
+        volatile_add(pool.num_threads_alive, 1)
+        pthread_mutex_unlock(&(pool.thcount_lock))
+
+        while \volatile_r{ @&threads_keepalive } {
+            (@(pool.jobqueue.has_jobs)).wait()
+
+            if \volatile_r{ @&threads_keepalive } {
+                pthread_mutex_lock(&(pool.thcount_lock))
+                volatile_add(pool.num_threads_working, 1)
+                pthread_mutex_unlock(&(pool.thcount_lock))
+
+                # Read job from queue and execute it
+                func_buff := NULL as <(void*)>
+                arg_buff  := NULL
+                job_p     := pool.jobqueue.pull()
+
+                if not job_p.isnull() {
+                    func_buff = job_p.function
+                    arg_buff  = job_p.arg
+                    func_buff(arg_buff)
+                    delete job_p
+                }
+
+                pthread_mutex_lock(&(pool.thcount_lock))
+                volatile_add(pool.num_threads_working, -1)
+                if not \volatile_r{ @&pool.num_threads_working }
+                    pthread_cond_signal(&(pool.threads_all_idle))
+                pthread_mutex_unlock(&(pool.thcount_lock))
+            }
+        }
+
+        pthread_mutex_lock(&(pool.thcount_lock))
+        volatile_add(pool.num_threads_alive, -1)
+        pthread_mutex_unlock(&(pool.thcount_lock))
+
+        return NULL
+    }
+
+    proc free(this) {
+        delete &this
+    }
+}

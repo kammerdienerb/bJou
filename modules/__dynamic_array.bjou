@@ -102,6 +102,10 @@ proc len$T(da : T[...] ref) : u64 {
     return |da|    
 }
 
+proc capacity$T(da : T[...] ref) : u64 {
+    return \__da_capacity{da}
+}
+
 proc as_slice$T(da : T[...] ref) : T[] {
     return [ \__da_data{da}, 0:\__da_used{da} ]
 }
