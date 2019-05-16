@@ -1,0 +1,9 @@
+# math.bjou
+
+using import "math.bjou"
+
+main()
+
+proc main() {
+    print "%", floor(3.14159)
+}

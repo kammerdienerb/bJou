@@ -1,0 +1,32 @@
+# math.bjou
+
+module math
+
+proc floor(f : f64) : f64 {
+    f_i := @((&f) as u64*)
+    e   := f_i bshr 52u64 band 0x7ffu64
+	y   := 0.0
+
+	if e >= (0x3ffu64 + 52u64)
+    or f == 0u64
+		return f
+
+    _1p52_i := 0x4330000000000000u64
+    _1p52   := @((&_1p52_i) as f64*)
+
+	# y = int(x) - x, where int(x) is an integer neighbor of x
+	if f_i bshr 63u64
+		y = (f - _1p52) + _1p52 - f
+	else
+		y = (f + _1p52) - _1p52 - f
+	
+    # special case because of non-nearest rounding modes
+	if e <= (0x3ffu64 - 1u64) {
+        if f_i bshr 63u64
+            return -1
+        return 0
+	}
+	if y > 0
+		return f + y - 1u64
+    return f + y
+}

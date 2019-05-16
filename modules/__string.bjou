@@ -244,6 +244,12 @@ proc str(f : f64) : string {
     return string.create(buff)
 }
 
+proc str(f : f64, dec : u32) : string {
+    buff : char[128]
+    sprintf(buff, "%.*f", dec, f)
+    return string.create(buff)
+}
+
 proc equal(s1 : string ref, s2 : string ref) : bool {
     return cstrcmp(s1.c_str(), s2.c_str()) == 0
 }
