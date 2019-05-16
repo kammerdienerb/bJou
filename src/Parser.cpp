@@ -30,7 +30,6 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_hash, parser_thick_arrow, parser_dollar, parser_question,
     parser_dbl_question, parser_template_begin, parser_kwd_const,
     parser_kwd_type, parser_kwd_abstract, parser_kwd_extends,
-    parser_kwd_from,
     parser_kwd_enum, parser_kwd_print, parser_kwd_immut,
     parser_kwd_coerce, parser_kwd_this, parser_kwd_ref, parser_kwd_delete,
     parser_kwd_import, parser_kwd_using, parser_kwd_module,
@@ -79,7 +78,7 @@ parser_end_of_line
 #define IS_SPACE(buff, p) ((p) < (buff).viewSize() && (isspace((buff)[(p)])))
 
 const char * kwds[] = {
-    "type",    "abstract", "extends", "from",
+    "type",    "abstract", "extends",
     "enum",    "print",    "immut",      "delete", 
     "import",  "using", "alias",    "operator",  "coerce",     "this",    "ref",
 
@@ -245,9 +244,6 @@ MaybeString parser_kwd_abstract(StringViewableBuffer & buff) {
 }
 MaybeString parser_kwd_extends(StringViewableBuffer & buff) {
     return parse_kwd(buff, "extends");
-}
-MaybeString parser_kwd_from(StringViewableBuffer & buff) {
-    return parse_kwd(buff, "from");
 }
 MaybeString parser_kwd_enum(StringViewableBuffer & buff) {
     return parse_kwd(buff, "enum");
@@ -1074,20 +1070,6 @@ MaybeASTNode Parser::parseTemplateDefineTypeDescriptor() {
         return MaybeASTNode();
     }
     result->setName(name);
-    if (optional(KWD_FROM)) {
-        while (true) {
-            MaybeASTNode m_decl = parseDeclarator();
-            ASTNode * decl = nullptr;
-            if (!m_decl.assignTo(decl))
-                errornext(
-                    *this,
-                    "Expected type declarator in template type descriptor.",
-                    true, "as template bound after 'from'");
-            result->addBound(decl);
-            if (!optional(VERT))
-                break;
-        }
-    }
     result->getContext().finish(&currentContext, &justCleanedContext);
 
     return MaybeASTNode(result);

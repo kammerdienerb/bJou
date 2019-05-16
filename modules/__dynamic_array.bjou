@@ -201,6 +201,28 @@ proc set$T(da : T[...] ref, data : T[]) {
     mcopy(_d, \__slice_data{data}, _u * sizeof T)
 }
 
+proc add$T(da : T[...] ref, data : T[]) {
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
+
+    _l := \__slice_len{data}
+
+    if _l == 0
+        return
+
+    desired_len := _u + _l
+
+    # make space
+    while _c < desired_len
+        da.__bjou_dynamic_array_grow()
+
+    # copy
+    mcopy(_d + _u, \__slice_data{data}, _l * sizeof T)
+    
+    _u = desired_len
+}
+
 proc copy$T(da : T[...] ref) : T[...] {
     c : T[...] = da
 
@@ -293,5 +315,13 @@ proc find$T(da : T[...] ref, val : T) : i64 {
             return i
     }
     return -1
+}
+
+proc count$T(da : T[...] ref, val : T) : u64 {
+    c := 0u64
+    foreach ref item in da
+        if item == val
+            c += 1
+    return c
 }
 

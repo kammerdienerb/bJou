@@ -198,6 +198,10 @@ type string {
 
         return ptrdiff(result as void*, haystack as void*)
     }
+
+    proc count(this, ch : char) : u64 {
+        return this.__data.count(ch)
+    }
 }
 
 \op { "[]" proc __string_subscript(s : string, index : u64) : char {

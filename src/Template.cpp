@@ -109,10 +109,12 @@ static void templateReplaceTerminals(ASTNode * _template, ASTNode * _def,
     for (ASTNode * term : terminals) {
         for (int idx = 0; idx < (int)def->getElements().size(); idx += 1) {
             ASTNode * d = def->getElements()[idx];
-            ASTNode * i = inst->getElements()[idx];
-            ASTNode * i_clone = i->clone();
-            i_clone->setContext(term->getContext());
             if (terminalShouldReplace(term, d)) {
+                ASTNode * i = inst->getElements()[idx];
+                ASTNode * i_clone = i->clone();
+
+                i_clone->setContext(term->getContext());
+
                 checkTemplateExpressionSubstitution(term);
                 (*term->replace)(term->parent, term, i_clone);
             }
@@ -130,9 +132,12 @@ static void templateReplaceTerminals(std::vector<ASTNode *> & terminals,
     for (ASTNode * term : terminals) {
         for (int idx = 0; idx < (int)def->getElements().size(); idx += 1) {
             ASTNode * d = def->getElements()[idx];
-            ASTNode * i = inst->getElements()[idx];
-            ASTNode * i_clone = i->clone();
             if (terminalShouldReplace(term, d)) {
+                ASTNode * i = inst->getElements()[idx];
+                ASTNode * i_clone = i->clone();
+                
+                i_clone->setContext(term->getContext());
+
                 checkTemplateExpressionSubstitution(term);
                 (*term->replace)(term->parent, term, i_clone);
             }
@@ -552,7 +557,7 @@ Procedure * makeTemplateProc(ASTNode * _tproc, ASTNode * _passed_args,
 
     clone->addSymbols(tproc->mod, scope);
 
-    clone->analyze();//true);
+    clone->analyze(); //true);
     clone->setFlag(Procedure::IS_TEMPLATE_DERIVED, true);
     compilation->frontEnd.deferredAST.push_back(clone);
 

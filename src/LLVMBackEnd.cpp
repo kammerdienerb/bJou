@@ -2432,7 +2432,9 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
     } else {
         if ((   payload->t->getRetType()->isStruct()
              || payload->t->getRetType()->isSum()
-             || payload->t->getRetType()->isTuple())
+             || payload->t->getRetType()->isTuple()
+             || payload->t->getRetType()->isDynamicArray()
+             || payload->t->getRetType()->isSlice())
         &&   getAddr) {
             llvm::Value * tmp_ret =
                 llbe->allocUnnamedVal(payload->t->getRetType());
@@ -2639,11 +2641,6 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
     TupleType * t_t = nullptr;
     Identifier * r_id = (Identifier *)getRight();
     IntegerLiteral * r_elem = (IntegerLiteral *)getRight();
-
-    if (t->isSlice())
-        t = ((SliceType *)t)->getRealType();
-    else if (t->isDynamicArray())
-        t = ((DynamicArrayType *)t)->getRealType();
 
     if (t->isPointer()) {
         PointerType * pt = (PointerType *)t;

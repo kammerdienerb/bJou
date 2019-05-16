@@ -3485,7 +3485,10 @@ void Identifier::addSymbols(std::string& _mod, Scope * _scope) {
     }
 }
 
-ASTNode * Identifier::clone() { return ExpressionClone(this); }
+ASTNode * Identifier::clone() {
+    Identifier * c = (Identifier*)ExpressionClone(this);
+    return c;
+}
 
 void Identifier::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
     if (!dumpCT && isCT(this))
@@ -3825,9 +3828,9 @@ void SliceExpression::analyze(bool force) {
 ASTNode * SliceExpression::clone() {
     SliceExpression * c = ExpressionClone(this);
 
-    c->setSrc(getSrc());
-    c->setStart(getStart());
-    c->setLength(getLength());
+    c->setSrc(getSrc()->clone());
+    c->setStart(getStart()->clone());
+    c->setLength(getLength()->clone());
 
     return c;
 }
@@ -3972,7 +3975,7 @@ void DynamicArrayExpression::analyze(bool force) {
 ASTNode * DynamicArrayExpression::clone() {
     DynamicArrayExpression * c = ExpressionClone(this);
 
-    c->setTypeDeclarator(getTypeDeclarator());
+    c->setTypeDeclarator(getTypeDeclarator()->clone());
 
     return c;
 }
@@ -4079,7 +4082,7 @@ void LenExpression::analyze(bool force) {
 ASTNode * LenExpression::clone() {
     LenExpression * c = ExpressionClone(this);
 
-    c->setExpr(getExpr());
+    c->setExpr(getExpr()->clone());
 
     return c;
 }
@@ -7668,27 +7671,17 @@ void Procedure::unwrap(std::vector<ASTNode *> & terminals) {
 ASTNode * Procedure::clone() {
     Procedure * c = new Procedure(*this);
 
-    std::vector<ASTNode *> & my_paramVarDeclarations =
-        c->getParamVarDeclarations();
-    std::vector<ASTNode *> params = my_paramVarDeclarations;
-
-    my_paramVarDeclarations.clear();
-
-    for (ASTNode * p : params)
+    c->getParamVarDeclarations().clear();
+    for (ASTNode * p : getParamVarDeclarations())
         c->addParamVarDeclaration(p->clone());
 
-    // if (c->getRetDeclarator())
     c->setRetDeclarator(c->getRetDeclarator()->clone());
 
     if (c->getProcDeclarator())
         c->setProcDeclarator(c->getProcDeclarator()->clone());
 
-    std::vector<ASTNode *> & my_statements = c->getStatements();
-    std::vector<ASTNode *> stats = my_statements;
-
-    my_statements.clear();
-
-    for (ASTNode * s : stats)
+    c->getStatements().clear();
+    for (ASTNode * s : getStatements())
         c->addStatement(s->clone());
 
     return c;
@@ -8729,9 +8722,10 @@ ASTNode * Foreach::clone() {
     Foreach * c = new Foreach(*this);
 
     c->setExpression(getExpression()->clone());
+    c->getStatements().clear();
 
     for (ASTNode * statement : getStatements())
-        c->addStatement(statement);
+        c->addStatement(statement->clone());
 
     return c;
 }

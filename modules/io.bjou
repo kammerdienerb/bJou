@@ -8,6 +8,8 @@ const IO_BUFF_SIZE := 1024u64
 __bjou_io_stdfiles     : file[3]
 __bjou_io_stdfileptrs  : file*[3]
 
+externvar errno : i32
+
 type file {
     const READ   := __sys::O_RDONLY
     const WRITE  := __sys::O_WRONLY bxor __sys::O_CREAT bxor __sys::O_TRUNC
@@ -17,9 +19,12 @@ type file {
     eof      : bool
     can_seek : bool
     path     : char*
+    mode     : int
 
-    proc _file_can_seek(fd : int) : bool
-        return __sys::lseek(fd, 0, __sys::SEEK_CUR) == -1
+
+    proc _file_can_seek(fd : int) : bool {
+        return __sys::lseek(fd, 0, __sys::SEEK_CUR) != -1
+    }
 
     proc _getstdfile(fd : int) : file ref {
         if fd < 0
@@ -83,16 +88,7 @@ type file {
         if this.fd < 0
             return false
 
-        # @bad and probably wrong
-        if not this.can_seek
-            return not this.eof 
-
-        cur := __sys::lseek(this.fd, 0, __sys::SEEK_CUR)
-        end := __sys::lseek(this.fd, 0, __sys::SEEK_END)
-        # restore
-        __sys::lseek(this.fd, cur, __sys::SEEK_SET)
-
-        return cur != end and not this.eof
+        return not this.eof
     }
 
     proc close(this) {

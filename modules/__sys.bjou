@@ -164,6 +164,6 @@ proc sigaction(signum : int, act : _sigaction*, oldact : _sigaction*) : i64
     return nolibc_syscall(SYS_sigaction, 3, signum, act, oldact)
 
 
-    extern sysctlbyname(char*, void*, u64, void*, u64) : int
-    extern sysconf(int) : i64
+extern sysctlbyname(char*, void*, u64, void*, u64) : int
+extern sysconf(int) : i64
 

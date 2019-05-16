@@ -32,3 +32,13 @@
 
 -- bug in pointer declarator (probably all similar) replacement policies for template stuff
     -- check junk/bad_cli.bjou
+
+-- bug with slice destructuring
+[
+    type parse_table_t = <(char[] ref, string ref) : bool>
+]
+
+-- can't convert tuples containing sums
+[
+    tup : ((int | none), bool) = (nothing, true)
+]

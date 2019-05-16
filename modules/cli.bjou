@@ -717,6 +717,7 @@ type ArgParser {
     }
 
     proc handleLongVal(this, arg_name: string ref, val_str: string ref) : bool {
+
         found : (Arg* | none) = nothing
         foreach ref arg in this.all {
             if not arg.long.isnull() {
@@ -729,37 +730,39 @@ type ArgParser {
         }
 
         if arg : Arg* = found {
-            if arg.kind == ArgKind.INT_VAL
-            or arg.kind == ArgKind.INT_MULTI_VAL {
+            k := arg.kind
+            if k == ArgKind.INT_VAL {
                 i := 0
                 if sscanf(val_str.c_str(), "%d", &i) != 1 {
                     this.report_invalid_val_error(arg.short)
                     return false
                 }
-                if arg.kind == ArgKind.INT_MULTI_VAL {
-                    if is : i32[...] = arg.vals    { is.push(i) }
-                } else if arg.kind == ArgKind.INT_VAL {
-                    arg.val = i
+                arg.val = i
+            } else if k == ArgKind.INT_MULTI_VAL {
+                i := 0
+                if sscanf(val_str.c_str(), "%d", &i) != 1 {
+                    this.report_invalid_val_error(arg.short)
+                    return false
                 }
-            } else if arg.kind == ArgKind.FLOAT_VAL
-              or arg.kind == ArgKind.FLOAT_MULTI_VAL {
+                if is : i32[...] = arg.vals    { is.push(i) }
+            } else if k == ArgKind.FLOAT_VAL {
                 f := 0.0
                 if sscanf(val_str.c_str(), "%f", &f) != 1 {
                     this.report_invalid_val_error(arg.short)
                     return false
                 }
-                if arg.kind == ArgKind.FLOAT_MULTI_VAL {
-                    if fs : f32[...] = arg.vals    { fs.push(f) }
-                } else if arg.kind == ArgKind.FLOAT_VAL {
-                    arg.val = f
+                arg.val = f
+            } else if k == ArgKind.FLOAT_MULTI_VAL {
+                f := 0.0
+                if sscanf(val_str.c_str(), "%f", &f) != 1 {
+                    this.report_invalid_val_error(arg.short)
+                    return false
                 }
-            } else if arg.kind == ArgKind.STRING_VAL
-              or arg.kind == ArgKind.STRING_MULTI_VAL {
-                if arg.kind == ArgKind.STRING_MULTI_VAL {
-                    if ss : string[...] = arg.vals    { ss.push(val_str.copy()) }
-                } else if arg.kind == ArgKind.STRING_VAL {
-                    arg.val = val_str.copy()
-                }
+                if fs : f32[...] = arg.vals    { fs.push(f) }
+            } else if k == ArgKind.STRING_VAL {
+                arg.val = val_str.copy()
+            } else if k == ArgKind.STRING_MULTI_VAL {
+                if ss : string[...] = arg.vals    { ss.push(val_str.copy()) }
             } else {
                 this.report_not_val_error(arg_name.c_str())
                 return false
@@ -767,7 +770,7 @@ type ArgParser {
 
             return true 
         }
-        
+
         this.report_ill_error(arg_name.c_str())
         return false
     }

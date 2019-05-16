@@ -57,6 +57,27 @@ proc free$T(slice : T[] ref) {
     delete \__slice_data{slice}
 }
 
+proc advance$T(slice : T[] ref, n : u32) {
+    _d := __ref::getref(\__slice_data{slice})
+    _l := __ref::getref(\__slice_len{slice})
+    if _l < n {
+        _d += _l
+        _l  = 0
+    } else {
+        _d += n
+        _l -= n
+    }
+}
+
+proc shrink$T(slice : T[] ref, n : u32) {
+    _l := __ref::getref(\__slice_len{slice})
+    if _l < n {
+        _l  = 0
+    } else {
+        _l -= n
+    }
+}
+
 # proc zip$(T, U)(a1 : T[], a2 : U[], out : (T, U)*) {
 #     if |a1| != |a2|
 #         \die{ "Can't zip containers of different lengths." }
