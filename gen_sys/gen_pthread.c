@@ -5,6 +5,8 @@
  * May 8, 2019
  */
 
+#define _XOPEN_SOURCE
+
 #include <stdio.h>
 #include <pthread.h>
 
@@ -30,13 +32,6 @@ void pre() {
     PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_CREATE_JOINABLE);
     PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_EXPLICIT_SCHED);
     PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_INHERIT_SCHED);
-    PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_MUTEX_DEFAULT);
-    PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_MUTEX_ERRORCHECK);
-    PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_MUTEX_NORMAL);
-    PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_MUTEX_RECURSIVE);
-    PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_PRIO_INHERIT);
-    PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_PRIO_NONE);
-    PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_PRIO_PROTECT);
     PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_PROCESS_SHARED);
     PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_PROCESS_PRIVATE);
     PRINT_PTH_CONSTANT_INT_DECL(PTHREAD_SCOPE_PROCESS);
@@ -50,10 +45,7 @@ void pre() {
     PRINT_OPAQUE_STRUCT_DECL(pthread_mutex_t, sizeof(pthread_mutex_t));    
     PRINT_OPAQUE_STRUCT_DECL(pthread_mutexattr_t, sizeof(pthread_mutexattr_t));    
     PRINT_OPAQUE_STRUCT_DECL(pthread_once_t, sizeof(pthread_once_t));    
-    PRINT_OPAQUE_STRUCT_DECL(pthread_rwlock_t, sizeof(pthread_rwlock_t));    
-    PRINT_OPAQUE_STRUCT_DECL(pthread_rwlockattr_t, sizeof(pthread_rwlockattr_t));    
-    PRINT_OPAQUE_STRUCT_DECL(_pthread_t, sizeof(*(pthread_t){NULL}));
-    printf("type pthread_t = _pthread_t*\n");
+    printf("type pthread_t = void*\n");
     printf("type pthread_key_t = u%lu\n", 8 * sizeof(long));
 
     printf("\n");
@@ -125,17 +117,6 @@ int main() {
     printf("extern pthread_mutexattr_setpshared(pthread_mutexattr_t *, int) : int \n");
     printf("extern pthread_mutexattr_settype(pthread_mutexattr_t *, int) : int \n");
     printf("extern pthread_once(pthread_once_t *, <()>) : int \n");
-    printf("extern pthread_rwlock_destroy(pthread_rwlock_t *) : int \n");
-    printf("extern pthread_rwlock_init(pthread_rwlock_t *,  pthread_rwlockattr_t *) : int \n");
-    printf("extern pthread_rwlock_rdlock(pthread_rwlock_t *) : int \n");
-    printf("extern pthread_rwlock_tryrdlock(pthread_rwlock_t *) : int \n");
-    printf("extern pthread_rwlock_trywrlock(pthread_rwlock_t *) : int \n");
-    printf("extern pthread_rwlock_unlock(pthread_rwlock_t *) : int \n");
-    printf("extern pthread_rwlock_wrlock(pthread_rwlock_t *) : int \n");
-    printf("extern pthread_rwlockattr_destroy(pthread_rwlockattr_t *) : int \n");
-    printf("extern pthread_rwlockattr_getpshared( pthread_rwlockattr_t *, int *) : int \n");
-    printf("extern pthread_rwlockattr_init(pthread_rwlockattr_t *) : int \n");
-    printf("extern pthread_rwlockattr_setpshared(pthread_rwlockattr_t *, int) : int \n");
     printf("extern pthread_self() : pthread_t \n");
     printf("extern pthread_setcancelstate(int, int *) : int \n");
     printf("extern pthread_setcanceltype(int, int *) : int \n");

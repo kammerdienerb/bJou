@@ -24,10 +24,11 @@ ASTNode * Val::toExpr() {
     } else if (t->isInt()) {
         IntType * int_t = (IntType*)t;
         IntegerLiteral * i = new IntegerLiteral;
-        i->setContents(std::to_string(as_i64));
         if (int_t->sign == Type::Sign::SIGNED) {
+            i->setContents(std::to_string(as_i64));
             i->getContents() += "i";
         } else {
+            i->setContents(std::to_string((uint64_t)as_i64));
             i->getContents() += "u";
         }
         i->getContents() += std::to_string(int_t->width);

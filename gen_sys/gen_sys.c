@@ -5,6 +5,8 @@
  * Feb 1, 2019
  */
 
+#define _XOPEN_SOURCE
+
 #include <stdio.h>
 #include <sys/syscall.h>
 #include <fcntl.h>
@@ -78,14 +80,6 @@ void pre() {
 "    }\n"
 "}\n"
 );
-    printf(
-"type _sigaction {\n"
-"    bytes : char[%lu]\n"
-"}\n", sizeof(struct sigaction));
-    printf(
-"\n"
-"extern nolibc_syscall_sigaction_sa_handler(_sigaction*) : <(int)>*\n"
-"extern nolibc_syscall_sigaction_sa_flags(_sigaction*) : int*\n");
     printf("\n");
 }
 
@@ -121,9 +115,6 @@ void post() {
 "\n"
 "proc gettimeofday(tv : timeval*, tz : timezone*) : i64\n"
 "    return nolibc_syscall(SYS_gettimeofday, 2, tv, tz)\n"
-"\n"
-"proc sigaction(signum : int, act : _sigaction*, oldact : _sigaction*) : i64\n"
-"    return nolibc_syscall(SYS_sigaction, 3, signum, act, oldact)\n"
 "\n");
 
     printf("\n");
@@ -153,7 +144,6 @@ int main() {
     PRINT_SYS_NR_DECL(SYS_access);
     PRINT_SYS_NR_DECL(SYS_getpid);
     PRINT_SYS_NR_DECL(SYS_gettimeofday);
-    PRINT_SYS_NR_DECL(SYS_sigaction);
 
     PRINT_SYS_CONSTANT_DECL(S_IRWXU);
     PRINT_SYS_CONSTANT_DECL(S_IRUSR);
@@ -189,7 +179,6 @@ int main() {
     PRINT_SYS_CONSTANT_DECL(SIGPOLL);
 #endif
     PRINT_SYS_CONSTANT_DECL(SIGIOT);
-    PRINT_SYS_CONSTANT_DECL(SIGEMT);
     PRINT_SYS_CONSTANT_DECL(SIGFPE);
     PRINT_SYS_CONSTANT_DECL(SIGKILL);
     PRINT_SYS_CONSTANT_DECL(SIGBUS);
@@ -211,7 +200,6 @@ int main() {
     PRINT_SYS_CONSTANT_DECL(SIGVTALRM);
     PRINT_SYS_CONSTANT_DECL(SIGPROF);
     PRINT_SYS_CONSTANT_DECL(SIGWINCH);
-    PRINT_SYS_CONSTANT_DECL(SIGINFO);
     PRINT_SYS_CONSTANT_DECL(SIGUSR1);
     PRINT_SYS_CONSTANT_DECL(SIGUSR2);
 
