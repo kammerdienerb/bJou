@@ -2,8 +2,10 @@
 
 module __dynamic_array
 
+const INIT_SIZE := 8
+
 type __bjou_dyn_array$T {
-    const INIT_SIZE := 8
+    const INIT_SIZE := INIT_SIZE
 
     __data		: T*
     __capacity 	: u64
@@ -72,6 +74,12 @@ proc resize$T(da : T[...] ref, size : u64, val : T) {
 		for i := 0; i < (size - __u); i += 1
             _d[i] = val
 	}
+}
+
+proc __bjou_dynamic_array_get_grow_size(n : u64) : u64 {
+    r := INIT_SIZE as u64
+    while r < n    { r = r bshl 1}
+    return r
 }
 
 proc __bjou_dynamic_array_grow$T(da : T[...] ref) {
@@ -183,22 +191,24 @@ proc data$T(da : T[...] ref) : T* {
 }
 
 proc set$T(da : T[...] ref, data : T[]) {
-    # clear all old
-    delete \__da_data{da}
-    da = [...T]
-
     _d := __ref::getref(\__da_data{da})
     _c := __ref::getref(\__da_capacity{da})
     _u := __ref::getref(\__da_used{da})
 
-    # make space
-    while _c < |data|
-        da.__bjou_dynamic_array_grow()
+    _l := \__slice_len{data}
 
-    _u = |data|
+    new_len  := __bjou_dynamic_array_get_grow_size(_l)
+    ptr      := new T[new_len]
+    old_data := __ref::unref(_d)
 
-    # copy
-    mcopy(_d, \__slice_data{data}, _u * sizeof T)
+    mcopy(ptr, \__slice_data{data}, _l * sizeof T)
+
+    _d = ptr
+    _u = _l
+    _c = new_len
+
+    # clear all old
+    delete old_data
 }
 
 proc add$T(da : T[...] ref, data : T[]) {

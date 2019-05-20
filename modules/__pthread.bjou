@@ -13,13 +13,6 @@ const PTHREAD_CREATE_DETACHED := 2
 const PTHREAD_CREATE_JOINABLE := 1
 const PTHREAD_EXPLICIT_SCHED := 2
 const PTHREAD_INHERIT_SCHED := 1
-const PTHREAD_MUTEX_DEFAULT := 0
-const PTHREAD_MUTEX_ERRORCHECK := 1
-const PTHREAD_MUTEX_NORMAL := 0
-const PTHREAD_MUTEX_RECURSIVE := 2
-const PTHREAD_PRIO_INHERIT := 1
-const PTHREAD_PRIO_NONE := 0
-const PTHREAD_PRIO_PROTECT := 2
 const PTHREAD_PROCESS_SHARED := 1
 const PTHREAD_PROCESS_PRIVATE := 2
 const PTHREAD_SCOPE_PROCESS := 2
@@ -43,16 +36,7 @@ type pthread_mutexattr_t {
 type pthread_once_t {
     bytes : char[16]
 }
-type pthread_rwlock_t {
-    bytes : char[200]
-}
-type pthread_rwlockattr_t {
-    bytes : char[24]
-}
-type _pthread_t {
-    bytes : char[8192]
-}
-type pthread_t = _pthread_t*
+type pthread_t = void*
 type pthread_key_t = u64
 
 extern pthread_attr_destroy(pthread_attr_t *) : int 
@@ -114,17 +98,6 @@ extern pthread_mutexattr_setprotocol(pthread_mutexattr_t *, int) : int
 extern pthread_mutexattr_setpshared(pthread_mutexattr_t *, int) : int 
 extern pthread_mutexattr_settype(pthread_mutexattr_t *, int) : int 
 extern pthread_once(pthread_once_t *, <()>) : int 
-extern pthread_rwlock_destroy(pthread_rwlock_t *) : int 
-extern pthread_rwlock_init(pthread_rwlock_t *,  pthread_rwlockattr_t *) : int 
-extern pthread_rwlock_rdlock(pthread_rwlock_t *) : int 
-extern pthread_rwlock_tryrdlock(pthread_rwlock_t *) : int 
-extern pthread_rwlock_trywrlock(pthread_rwlock_t *) : int 
-extern pthread_rwlock_unlock(pthread_rwlock_t *) : int 
-extern pthread_rwlock_wrlock(pthread_rwlock_t *) : int 
-extern pthread_rwlockattr_destroy(pthread_rwlockattr_t *) : int 
-extern pthread_rwlockattr_getpshared( pthread_rwlockattr_t *, int *) : int 
-extern pthread_rwlockattr_init(pthread_rwlockattr_t *) : int 
-extern pthread_rwlockattr_setpshared(pthread_rwlockattr_t *, int) : int 
 extern pthread_self() : pthread_t 
 extern pthread_setcancelstate(int, int *) : int 
 extern pthread_setcanceltype(int, int *) : int 

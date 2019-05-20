@@ -40,6 +40,17 @@ proc cstrcmp(s1 : char*, s2 : char*) : int {
     return @(s1 as u8*) - @(s2 as u8*)
 }
 
+proc cstrncmp(s1 : char*, s2 : char*, n : u64) : int {
+    c := 0u64
+    while c < n
+    and   @s1 == @s2 {
+        s1 += 1
+        s2 += 1
+        c  += 1
+    }
+    return @(s1 as u8*) - @(s2 as u8*)
+}
+
 proc cstrcat(dst : char*, src : char*) : char* {
     p := dst + cstrlen(dst)
 
@@ -67,6 +78,15 @@ type string {
             .__data = [...char] 
         }
         s.__data.set([c_str, 0:cstrlen(c_str)])
+        s.__data.push('\0')
+        return s
+    }
+
+    proc create(c_str : char*, n : u64) : string {
+        s := { string:
+            .__data = [...char] 
+        }
+        s.__data.set([c_str, 0:n])
         s.__data.push('\0')
         return s
     }
@@ -219,6 +239,9 @@ proc str(c : char) : string {
 
 proc str(c_str : char*) : string
     return string.create(c_str)
+
+proc str(c_str : char*, n : u64) : string
+    return string.create(c_str, n)
 
 proc str(u : u64) : string {
     buff : char[128]
