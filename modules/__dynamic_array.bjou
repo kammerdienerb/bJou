@@ -2,22 +2,37 @@
 
 module __dynamic_array
 
-const INIT_SIZE := 8
+const INIT_SIZE  := 8
+const __SSO_MASK := 0x1u64
 
 type __bjou_dyn_array$T {
     const INIT_SIZE := INIT_SIZE
 
-    __data		: T*
+    # NOTE: it is critical that __dynamic_array
+    # has capacity as this first member to support
+    # SSO.
+    # DON'T CHANGE THE LAYOUT
     __capacity 	: u64
     __used		: u64
+    __data		: T*
 
     proc create() : __bjou_dyn_array$T {
-        return  { __bjou_dyn_array$T: 
-            .__capacity = __bjou_dyn_array$T.INIT_SIZE,
+        r := { __bjou_dyn_array$T: 
+            .__capacity = 0, # __bjou_dyn_array$T.INIT_SIZE bor __SSO_MASK, # @SSO
             .__used     = 0,
-            .__data     = new T[__bjou_dyn_array$T.INIT_SIZE]
+            .__data     = NULL as T* # new T[__bjou_dyn_array$T.INIT_SIZE]
         }
+
+        return r
     }
+}
+
+# @SSO
+proc __inline__ __bjou_get_cap$T(da : T[...] ref) : u64 {
+    return \__da_capacity{ da } band bneg __SSO_MASK
+}
+proc __inline__ __bjou_set_cap$T(da : T[...] ref, c : u64) {
+    \__da_capacity{ da } = c bor __SSO_MASK
 }
 
 proc free$T(da : T[...] ref) {
@@ -47,7 +62,7 @@ proc free$T(da : T[...] ref) {
     }
 }
 \static_if { not \abc{}
-    proc __bjou_dynamic_array_subscript$T(_s : T[...] ref, _i : u64) : T ref {
+    proc __inline__ __bjou_dynamic_array_subscript$T(_s : T[...] ref, _i : u64) : T ref {
         return \__da_data{_s}[_i]
     }
 }
@@ -58,7 +73,6 @@ proc resize$T(da : T[...] ref, size : u64) {
 
 proc resize$T(da : T[...] ref, size : u64, val : T) {
 	_d := __ref::getref(\__da_data{da})
-	_c := __ref::getref(\__da_capacity{da})
 	_u := __ref::getref(\__da_used{da})
 
 	if size < _u {
@@ -66,7 +80,7 @@ proc resize$T(da : T[...] ref, size : u64, val : T) {
 	} else {
         __u := __ref::unref(_u)
 
-        while _c < size
+        while __bjou_get_cap(da) < size
             da.__bjou_dynamic_array_grow()
 
         _u = size
@@ -78,7 +92,7 @@ proc resize$T(da : T[...] ref, size : u64, val : T) {
 
 proc __bjou_dynamic_array_get_grow_size(n : u64) : u64 {
     r := INIT_SIZE as u64
-    while r < n    { r = r bshl 1}
+    while r < n    { r = r bshl 0x1u64 }
     return r
 }
 
@@ -87,11 +101,22 @@ proc __bjou_dynamic_array_grow$T(da : T[...] ref) {
     _c := __ref::getref(\__da_capacity{da})
     _u := __ref::getref(\__da_used{da})
 
-    _c *= 2
-    new__data := new T[_c]
-    mcopy(new__data, _d, _u * sizeof T)
-    delete _d
-    _d = new__data
+    if _c == 0 {
+        _c = INIT_SIZE
+        _d = new T[INIT_SIZE]
+        return
+    }
+
+    old_c := __bjou_get_cap(da)
+
+    __bjou_set_cap(da, old_c bshl 0x1u64) # @SSO
+
+    if _c != old_c {
+        new__data := new T[__bjou_get_cap(da)]
+        mcopy(new__data, _d, _u * sizeof T)
+        delete _d
+        _d = new__data
+    }
 }
 
 proc __bjou_dynamic_array_shrink$T(da : T[...] ref) {
@@ -99,33 +124,37 @@ proc __bjou_dynamic_array_shrink$T(da : T[...] ref) {
     _c := __ref::getref(\__da_capacity{da})
     _u := __ref::getref(\__da_used{da})
 
-    _c /= 2
-    new__data := new T[_c]
-    mcopy(new__data, _d, _u * sizeof T)
-    delete _d
-    _d = new__data
+    old_c := __bjou_get_cap(da)
+
+    __bjou_set_cap(da, old_c bshr 0x1u64) # @SSO
+
+    if _c != old_c {
+        new__data := new T[__bjou_get_cap(da)]
+        mcopy(new__data, _d, _u * sizeof T)
+        delete _d
+        _d = new__data
+    }
 }
 
-proc len$T(da : T[...] ref) : u64 {
+proc __inline__ len$T(da : T[...] ref) : u64 {
     return |da|    
 }
 
-proc capacity$T(da : T[...] ref) : u64 {
-    return \__da_capacity{da}
+proc __inline__ capacity$T(da : T[...] ref) : u64 {
+    return __bjou_get_cap(da)
 }
 
-proc as_slice$T(da : T[...] ref) : T[] {
+proc __inline__ as_slice$T(da : T[...] ref) : T[] {
     return [ \__da_data{da}, 0:\__da_used{da} ]
 }
 
 # push by val
 proc push$T(da : T[...] ref, item : T) {
     _d := __ref::getref(\__da_data{da})
-    _c := __ref::getref(\__da_capacity{da})
     _u := __ref::getref(\__da_used{da})
 
     # make space if necessary
-    if _u == _c
+    if _u == __bjou_get_cap(da)
         da.__bjou_dynamic_array_grow()
 
     # put the item in
@@ -137,11 +166,10 @@ proc push$T(da : T[...] ref, item : T) {
 # push by ref
 proc push$T(da : T[...] ref, item : T ref) {
     _d := __ref::getref(\__da_data{da})
-    _c := __ref::getref(\__da_capacity{da})
     _u := __ref::getref(\__da_used{da})
 
     # make space if necessary
-    if _u == _c
+    if _u == __bjou_get_cap(da)
         da.__bjou_dynamic_array_grow()
 
     # put the item in
@@ -152,7 +180,6 @@ proc push$T(da : T[...] ref, item : T ref) {
 
 proc pop$T(da : T[...] ref) {
     _d := __ref::getref(\__da_data{da})
-    _c := __ref::getref(\__da_capacity{da})
     _u := __ref::getref(\__da_used{da})
 
     if _u == 0
@@ -160,8 +187,10 @@ proc pop$T(da : T[...] ref) {
 
     _u -= 1
 
-    if _u < (_c / 2)
-    and _c > __bjou_dyn_array$T.INIT_SIZE
+    __cap := __bjou_get_cap(da)
+
+    if  _u < (__cap bshr 0x1u64) # @SSO
+    and __cap > __bjou_dyn_array$T.INIT_SIZE
         da.__bjou_dynamic_array_shrink()
 }
 
@@ -171,7 +200,7 @@ proc back$T(da : T[...] ref) : T ref {
     return da[|da| - 1]    
 }
 
-proc clear$T(da : T[...] ref) {
+proc __inline__ clear$T(da : T[...] ref) {
     \__da_used{da} = 0    
 }
 
@@ -186,13 +215,12 @@ proc erase$T(da : T[...] ref, idx : u64) {
     da.pop()
 }
 
-proc data$T(da : T[...] ref) : T* {
+proc __inline__ data$T(da : T[...] ref) : T* {
     return \__da_data{da}    
 }
 
 proc set$T(da : T[...] ref, data : T[]) {
     _d := __ref::getref(\__da_data{da})
-    _c := __ref::getref(\__da_capacity{da})
     _u := __ref::getref(\__da_used{da})
 
     _l := \__slice_len{data}
@@ -205,7 +233,7 @@ proc set$T(da : T[...] ref, data : T[]) {
 
     _d = ptr
     _u = _l
-    _c = new_len
+    __bjou_set_cap(da, new_len)
 
     # clear all old
     delete old_data
@@ -213,7 +241,6 @@ proc set$T(da : T[...] ref, data : T[]) {
 
 proc add$T(da : T[...] ref, data : T[]) {
     _d := __ref::getref(\__da_data{da})
-    _c := __ref::getref(\__da_capacity{da})
     _u := __ref::getref(\__da_used{da})
 
     _l := \__slice_len{data}
@@ -224,7 +251,7 @@ proc add$T(da : T[...] ref, data : T[]) {
     desired_len := _u + _l
 
     # make space
-    while _c < desired_len
+    while __bjou_get_cap(da) < desired_len
         da.__bjou_dynamic_array_grow()
 
     # copy
@@ -237,10 +264,9 @@ proc copy$T(da : T[...] ref) : T[...] {
     c : T[...] = da
 
     _d := __ref::getref(\__da_data{c})
-    _c := __ref::getref(\__da_capacity{c})
     _u := __ref::getref(\__da_used{c})
     
-    _d = new T[_c]
+    _d = new T[__bjou_get_cap(da)]
 
     mcopy(_d, \__da_data{da}, _u * sizeof T)
 

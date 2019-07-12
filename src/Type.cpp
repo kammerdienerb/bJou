@@ -20,6 +20,10 @@
 
 namespace bjou {
 
+static VoidType * void_type_ptr = nullptr;
+static BoolType * bool_type_ptr = nullptr;
+static CharType * char_type_ptr = nullptr;
+
 const char * signLtr = "ui";
 #define VALID_IWIDTH(w) ((w) == 8 || (w) == 16 || (w) == 32 || (w) == 64)
 #define VALID_FWIDTH(w) ((w) == 32 || (w) == 64 || (w) == 128)
@@ -153,7 +157,8 @@ static inline std::string smkey(const std::vector<const Type *> & types) {
             key += " | ";
     }
 
-    return key + ")";
+    key += ")";
+    return key;
 }
 
 static inline std::string tkey(const std::vector<const Type *> & types) {
@@ -164,7 +169,8 @@ static inline std::string tkey(const std::vector<const Type *> & types) {
             key += ", ";
     }
 
-    return key + ")";
+    key += ")";
+    return key;
 }
 
 static inline std::string prkey(const std::vector<const Type *> & paramTypes,
@@ -180,8 +186,9 @@ static inline std::string prkey(const std::vector<const Type *> & paramTypes,
     key += ")";
     if (retType->key != VoidType::vkey)
         key += " : " + retType->key;
-
-    return key + ">";
+    
+    key += ">";
+    return key;
 }
 
 static Declarator * basicDeclarator(const Type * t) {
@@ -221,7 +228,11 @@ const Type * PlaceholderType::replacePlaceholders(const Type * t) const {
 
 VoidType::VoidType() : Type(VOID, VoidType::vkey) {}
 
-const Type * VoidType::get() { return getOrAddType<VoidType>(VoidType::vkey); }
+const Type * VoidType::get() {
+    return void_type_ptr
+            ? void_type_ptr
+            : (void_type_ptr = (VoidType*)getOrAddType<VoidType>(VoidType::vkey));
+}
 
 Declarator * VoidType::getGenericDeclarator() const {
     return basicDeclarator(this);
@@ -231,7 +242,11 @@ std::string VoidType::getDemangledName() const { return key; }
 
 BoolType::BoolType() : Type(BOOL, BoolType::bkey) {}
 
-const Type * BoolType::get() { return getOrAddType<BoolType>(BoolType::bkey); }
+const Type * BoolType::get() { 
+    return bool_type_ptr
+            ? bool_type_ptr
+            : (bool_type_ptr = (BoolType*)getOrAddType<BoolType>(BoolType::bkey));
+}
 
 Declarator * BoolType::getGenericDeclarator() const {
     return basicDeclarator(this);
@@ -271,7 +286,11 @@ std::string FloatType::getDemangledName() const { return key; }
 
 CharType::CharType() : Type(CHAR, CharType::ckey) {}
 
-const Type * CharType::get() { return getOrAddType<CharType>(CharType::ckey); }
+const Type * CharType::get() { 
+    return char_type_ptr
+            ? char_type_ptr
+            : (char_type_ptr = (CharType*)getOrAddType<CharType>(CharType::ckey));
+}
 
 Declarator * CharType::getGenericDeclarator() const {
     return basicDeclarator(this);
@@ -366,7 +385,7 @@ const Type * ArrayType::replacePlaceholders(const Type * t) const {
 }
 
 SliceType::SliceType(const Type * _elem_t)
-    : Type(SLICE, skey(_elem_t)), elem_t(_elem_t) {
+    : Type(SLICE, skey(_elem_t)), elem_t(_elem_t), real_t(nullptr) {
 
     // This will force template instantiation of the real type
     // in the front end. If we don't do this we will still instantiate,
@@ -381,6 +400,9 @@ const Type * SliceType::get(const Type * elem_t) {
 }
 
 const Type * SliceType::getRealType() const {
+    if (real_t)
+        return real_t;
+
     /////////////////////////////////////////////////////// @bad hack
     /////////////////////////////////////////////////////////////////
     Declarator * elem_decl = under()->getGenericDeclarator();
@@ -412,7 +434,9 @@ const Type * SliceType::getRealType() const {
 
     delete holder;
 
-    return t;
+    /* sorry, not sorry */
+    ((SliceType*)this)->real_t = t;
+    return real_t;
 }
 
 const Type * SliceType::under() const { return elem_t; }
@@ -433,7 +457,7 @@ const Type * SliceType::replacePlaceholders(const Type * t) const {
 }
 
 DynamicArrayType::DynamicArrayType(const Type * _elem_t)
-    : Type(DYNAMIC_ARRAY, dkey(_elem_t)), elem_t(_elem_t) {
+    : Type(DYNAMIC_ARRAY, dkey(_elem_t)), elem_t(_elem_t), real_t(nullptr) {
 
     // This will force template instantiation of the real type
     // in the front end. If we don't do this we will still instantiate,
@@ -448,6 +472,9 @@ const Type * DynamicArrayType::get(const Type * elem_t) {
 }
 
 const Type * DynamicArrayType::getRealType() const {
+    if (real_t)
+        return real_t;
+
     /////////////////////////////////////////////////////// @bad hack
     /////////////////////////////////////////////////////////////////
     Declarator * elem_decl = under()->getGenericDeclarator();
@@ -480,7 +507,9 @@ const Type * DynamicArrayType::getRealType() const {
 
     delete holder;
 
-    return t;
+    /* sorry, not sorry */
+    ((DynamicArrayType*)this)->real_t = t;
+    return real_t;
 }
 
 const Type * DynamicArrayType::under() const { return elem_t; }
@@ -503,7 +532,7 @@ const Type * DynamicArrayType::replacePlaceholders(const Type * t) const {
 StructType::StructType(std::string & name, Struct * __struct,
                        TemplateInstantiation * _inst)
     : Type(STRUCT, name), isAbstract(__struct->getFlag(Struct::IS_ABSTRACT)),
-      isComplete(false), _struct(__struct), inst(_inst), extends(nullptr)        {}
+      isComplete(false), _struct(__struct), inst(_inst), extends(nullptr)        { }
 
 const Type * StructType::get(std::string name) {
     return getOrAddType<StructType>(name, name);
@@ -703,9 +732,52 @@ IntegerLiteral * EnumType::getValueLiteral(std::string& identifier, Context & co
     return lit;
 }
 
+static unsigned n_bits_to_encode(unsigned val) {
+    unsigned n_bits = 0;
+    while (val > 0) {
+        n_bits += 1;
+        val >>= 1;
+    }
+    return n_bits;
+}
+
 SumType::SumType(const std::vector<const Type *> & _types, Declarator * _first_decl)
     : Type(SUM, smkey(_types)), first_decl(_first_decl), types(_types)  {
     BJOU_DEBUG_ASSERT(!types.empty());
+
+    /* How many bits do we need to encode equality index? */
+    n_eq_bits = n_bits_to_encode(types.size() - 1);
+}
+
+std::vector<const Type*> SumType::flatten_sub_types() const {
+    std::vector<const Type*> r;
+
+    for (const Type * sub : getTypes()) {
+        if (sub->isSum()) {
+            const SumType *sum_t = (const SumType*)sub;
+            for (const Type * sub_sub : sum_t->flatten_sub_types()) {
+                r.push_back(sub_sub);
+            }
+        } else {
+            r.push_back(sub);
+        }
+    }
+
+    return r;
+}
+
+const Type * SumType::oro_ref_type() const {
+    /* Check if we can do ORO (optional reference optimization). */
+    if (getTypes().size() == 2) {
+        auto& types = getTypes();
+        if (types[0]->isRef() && types[1]->isNone()) {
+            return types[0];
+        } else if (types[0]->isNone() && types[1]->isRef()) {
+            return types[1];
+        }
+    }
+
+    return nullptr;
 }
 
 const Type * SumType::get(const std::vector<const Type *> & types, Declarator * first_decl) {
@@ -778,14 +850,73 @@ bool SumType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleD
     return false;
 }
 
-uint64_t get_static_sum_tag(const Type * dest_t, const SumType * sum_t) {
-    uint64_t tag = 0;
+
+static std::map<const StructType*, std::set<const Type*> > sum_type_get_extend_type_map(const SumType * sum_t) {
+    std::map<const StructType*, std::set<const Type*> > r;
+
+    /* Collect struct extension types. */
     for (const Type * option : sum_t->getTypes()) {
+        if (option->unRef()->isStruct()) {
+            const StructType * s_t = (const StructType*)option->unRef();
+            BJOU_DEBUG_ASSERT(s_t->isComplete);
+            s_t = (const StructType*)s_t->extends;
+
+            while (s_t) {
+                r[s_t].insert(option->unRef());
+                s_t = (const StructType*)s_t->extends;
+            }
+        }
+    }
+    
+    /* Include the self type of T1 because another type T2 in the sum may inherit
+     * from T1. In that case, in _cmp() we will find that T1 can be destructured
+     * into T1. */
+    for (const Type * option : sum_t->getTypes()) {
+        for (auto& it : r) {
+            if (it.first == option->unRef()) {
+                it.second.insert(option->unRef());
+            }
+        }
+    }
+
+    return r;
+}
+
+uint32_t get_static_sum_tag_store(const Type * dest_t, const SumType * sum_t) {
+    uint32_t eq_tag = 0;
+    uint32_t ex_tag = 0;
+
+    /* Little lambda */
+    auto get_extend_type_indices = [&](const Type * t) {
+        std::vector<int> r;
+        int i = 2;
+        auto extend_type_map = sum_type_get_extend_type_map(sum_t);
+        for (auto& it : extend_type_map) {
+            auto search = it.second.find(t);
+            if (search != it.second.end()) {
+                r.push_back(i);
+            }
+            i += 1;
+        }
+        if (r.empty()) {
+            r.push_back(1);
+        }
+        return r;
+    };
+
+    unsigned by_ref_bit = 0;
+
+    for (const Type * option : sum_t->getTypes()) {
+        /* Check if this matches through any reference combination. */
         if (equal(option, dest_t)) {
+            if (option->isRef()) {
+                by_ref_bit = 1;
+            }
             break;
         }
         if (dest_t->isRef() && option->isRef()) {
             if (equal(dest_t->unRef(), option->unRef())) {
+                by_ref_bit = 1;
                 break;
             }
         }
@@ -796,12 +927,78 @@ uint64_t get_static_sum_tag(const Type * dest_t, const SumType * sum_t) {
         }
         if (option->isRef()) {
             if (equal(dest_t, option->unRef())) {
+                by_ref_bit = 1;
                 break;
             }
         }
+        eq_tag += 1;
+    }
+    BJOU_DEBUG_ASSERT(eq_tag != sum_t->getTypes().size());
+
+    auto bits = get_extend_type_indices(dest_t->unRef());
+    for (int bit : bits) {
+        ex_tag |= (1 << bit);
+    }
+    
+    ex_tag |= by_ref_bit;
+
+    return (ex_tag << sum_t->n_eq_bits) | eq_tag;
+}
+
+uint32_t get_static_sum_tag_cmp(const Type * dest_t, const SumType * sum_t, bool *by_ext) {
+    uint64_t tag = 0;
+
+    /* See if we can use type extension bits as the tag. */ 
+    if (dest_t->unRef()->isStruct()) {
+        const StructType * s_ex_t = (const StructType*)dest_t->unRef();
+        bool found = false;
+        tag = 2;
+        auto extend_type_map = sum_type_get_extend_type_map(sum_t);
+        for (auto& it : extend_type_map) {
+            if (it.first == s_ex_t) {
+                found = true;
+                break;
+            }
+            tag += 1;
+        }
+
+        if (found) {
+            tag = (1 << tag);
+            if (dest_t->isRef())
+                tag |= 1;
+            *by_ext = true;
+            return tag;
+        }
+    }
+
+    tag = 0;
+
+    /* Try just searching by equality. */
+    for (const Type * option : sum_t->getTypes()) {
+        if (equal(option, dest_t)) {
+            break;
+        }
+        /* if (dest_t->isRef() && option->isRef()) { */
+        /*     if (equal(dest_t->unRef(), option->unRef())) { */
+        /*         break; */
+        /*     } */
+        /* } */
+        /* if (dest_t->isRef()) { */
+        /*     if (equal(dest_t->unRef(), option)) { */
+        /*         break; */
+        /*     } */
+        /* } */
+        /* if (option->isRef()) { */
+        /*     if (equal(dest_t, option->unRef())) { */
+        /*         break; */
+        /*     } */
+        /* } */
         tag += 1;
     }
+
     BJOU_DEBUG_ASSERT(tag != sum_t->getTypes().size());
+
+    *by_ext = false;
 
     return tag;
 }
@@ -1258,8 +1455,8 @@ bool argMatch(const Type * t1, const Type * t2, bool exact) {
 
 const Type * getTypeFromTable(const std::string & key) {
     auto val = compilation->frontEnd.typeTable.find(key);
-
-    if (val != compilation->frontEnd.typeTable.end())
+    auto end = compilation->frontEnd.typeTable.end();
+    if (val != end)
         return val->second;
     return nullptr;
 }
@@ -1441,9 +1638,9 @@ void compilationAddPrimativeTypes() {
 unsigned int simpleSizer(const Type * t) {
     unsigned int size = 0;
 
-    if (t->isVoid() || t->isNone()) {
+    if (t->isVoid()) {
         size = 0;
-    } else if (t->isBool()) {
+    } else if (t->isNone() || t->isBool()) {
         size = 1;
     } else if (t->isInt()) {
         size = ((IntType *)t)->width / 8;
@@ -1495,13 +1692,24 @@ int countConversions(ProcedureType * compare_type,
         const Type * t2 = candidate_type->paramTypes[i];
         if (!conv(t1, t2))
             return -1;
+    
         if (!equal(t1, t2)) {
-            nconv += 2;
             // account for reference conversions too
             if (t1->isRef()) {
-                if (!equal(t1->unRef(), t2->unRef()))
+                if (equal(t1->unRef(), t2->unRef())) {
+                    nconv +=1;
+                    continue; 
+                } else {
                     nconv += 1;
+                }
+            } else if (t2->isRef()) {
+                if (equal(t1, t2->unRef())) {
+                    nconv +=1;
+                    continue; 
+                }
             }
+            
+            nconv += 2;
 
             if (t1->isPointer() || t1->isRef()) {
                 const Type * u1 = t1->under();

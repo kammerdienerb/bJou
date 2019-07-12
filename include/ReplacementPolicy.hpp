@@ -60,6 +60,7 @@ RP_FUNCTOR_DECL(DynamicArrayExpression_TypeDeclarator);
 RP_FUNCTOR_DECL(LenExpression_Expr);
 RP_FUNCTOR_DECL(TupleLiteral_subExpression);
 RP_FUNCTOR_DECL_BL(ExprBlock_Statement);
+RP_FUNCTOR_DECL(NamedArg_Expression);
 RP_FUNCTOR_DECL(Declarator_Identifier);
 RP_FUNCTOR_DECL(Declarator_TemplateInst);
 RP_FUNCTOR_DECL(ArrayDeclarator_ArrayOf);

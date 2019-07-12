@@ -1,0 +1,478 @@
+# ncurses.bjou
+
+module ncurses
+
+abstract type WINDOW { }
+abstract type SCREEN { }
+abstract type FILE   { }
+
+type chtype = u32
+type attr_t = chtype
+
+type NCURSES_WINDOW_CB = <(WINDOW*, void*) : int>
+type NCURSES_SCREEN_CB = <(SCREEN*, void*) : int>
+
+externvar stdscr : WINDOW*
+externvar COLORS : int
+
+const NCURSES_ATTR_SHIFT := 8
+
+const A_NORMAL     := 0u32
+const A_ATTRIBUTES := (-1i32 as u32)
+const A_CHARTEXT   := (1u32 bshl ((0u32 - 1u32) + NCURSES_ATTR_SHIFT))
+const A_COLOR      := (((1u32 bshl 8) - 1u32) bshl (8  + NCURSES_ATTR_SHIFT))
+const A_STANDOUT   := (1u32 bshl (8  + NCURSES_ATTR_SHIFT))
+const A_UNDERLINE  := (1u32 bshl (9  + NCURSES_ATTR_SHIFT))
+const A_REVERSE    := (1u32 bshl (10 + NCURSES_ATTR_SHIFT))
+const A_BLINK      := (1u32 bshl (11 + NCURSES_ATTR_SHIFT))
+const A_DIM        := (1u32 bshl (12 + NCURSES_ATTR_SHIFT))
+const A_BOLD       := (1u32 bshl (13 + NCURSES_ATTR_SHIFT))
+const A_ALTCHARSET := (1u32 bshl (14 + NCURSES_ATTR_SHIFT))
+const A_INVIS      := (1u32 bshl (15 + NCURSES_ATTR_SHIFT))
+const A_PROTECT    := (1u32 bshl (16 + NCURSES_ATTR_SHIFT))
+const A_HORIZONTAL := (1u32 bshl (17 + NCURSES_ATTR_SHIFT))
+const A_LEFT       := (1u32 bshl (18 + NCURSES_ATTR_SHIFT))
+const A_LOW        := (1u32 bshl (19 + NCURSES_ATTR_SHIFT))
+const A_RIGHT      := (1u32 bshl (20 + NCURSES_ATTR_SHIFT))
+const A_TOP        := (1u32 bshl (21 + NCURSES_ATTR_SHIFT))
+const A_VERTICAL   := (1u32 bshl (22 + NCURSES_ATTR_SHIFT))
+
+# colors
+const COLOR_BLACK   := 0
+const COLOR_RED     := 1
+const COLOR_GREEN   := 2
+const COLOR_YELLOW  := 3
+const COLOR_BLUE    := 4
+const COLOR_MAGENTA := 5
+const COLOR_CYAN    := 6
+const COLOR_WHITE   := 7
+
+# Function prototypes.  This is the complete X/Open Curses list of required
+# functions.  Those marked `generated' will have sources generated from the
+# macro definitions later in this file, in order to satisfy XPG4.2
+# requirements.
+
+extern addch(chtype)                                                            : int
+extern addchnstr(chtype*, int)                                                  : int
+extern addchstr(chtype*)                                                        : int
+extern addnstr(char*, int)                                                      : int
+extern addstr(char*)                                                            : int
+extern attroff(attr_t)                                                          : int
+extern attron(attr_t)                                                           : int
+extern attrset(attr_t)                                                          : int
+extern attr_get(attr_t*, i16*, void*)                                           : int
+extern attr_off(attr_t, void*)                                                  : int
+extern attr_on(attr_t, void*)                                                   : int
+extern attr_set(attr_t, i16, void*)                                             : int
+extern baudrate()                                                               : int
+extern beep()                                                                   : int
+extern bkgd(chtype)                                                             : int
+extern bkgdset(chtype)                                                          : void
+extern border(chtype,chtype,chtype,chtype,chtype,chtype,chtype,chtype)          : int
+extern box(WINDOW*, chtype, chtype)                                             : int
+extern can_change_color()                                                       : bool
+extern cbreak()                                                                 : int
+extern chgat(int, attr_t, i16, void*)                                           : int
+extern clear()                                                                  : int
+extern clearok(WINDOW*,bool)                                                    : int
+extern clrtobot()                                                               : int
+extern clrtoeol()                                                               : int
+extern color_content(i16,i16*,i16*,i16*)                                        : int
+extern color_set(i16,void*)                                                     : int
+extern COLOR_PAIR(int)                                                          : int
+extern copywin(WINDOW*,WINDOW*,int,int,int,int,int,int,int)                     : int
+extern curs_set(int)                                                            : int
+extern def_prog_mode()                                                          : int
+extern def_shell_mode()                                                         : int
+extern delay_output(int)                                                        : int
+extern delch()                                                                  : int
+extern delscreen(SCREEN*)                                                       : void
+extern delwin(WINDOW*)                                                          : int
+extern deleteln()                                                               : int
+extern derwin(WINDOW*,int,int,int,int)                                          : WINDOW*
+extern doupdate()                                                               : int
+extern dupwin(WINDOW*)                                                          : WINDOW*
+extern echo()                                                                   : int
+extern echochar(chtype)                                                         : int
+extern erase()                                                                  : int
+extern endwin()                                                                 : int
+extern erasechar()                                                              : char
+extern filter()                                                                 : void
+extern flash()                                                                  : int
+extern flushinp()                                                               : int
+extern getbkgd(WINDOW*)                                                         : chtype
+extern getch()                                                                  : int
+extern getnstr(char*, int)                                                      : int
+extern getstr(char*)                                                            : int
+extern getwin(FILE*)                                                            : WINDOW*
+extern halfdelay(int)                                                           : int
+extern has_colors()                                                             : bool
+extern has_ic()                                                                 : bool
+extern has_il()                                                                 : bool
+extern hline(chtype, int)                                                       : int
+extern idcok(WINDOW*, bool)                                                     : void
+extern idlok(WINDOW*, bool)                                                     : int
+extern immedok(WINDOW*, bool)                                                   : void
+extern inch()                                                                   : chtype
+extern inchnstr(chtype*, int)                                                   : int
+extern inchstr(chtype*)                                                         : int
+extern initscr()                                                                : WINDOW*
+extern init_color(i16,i16,i16,i16)                                              : int
+extern init_pair(i16,i16,i16)                                                   : int
+extern innstr(char*, int)                                                       : int
+extern insch(chtype)                                                            : int
+extern insdelln(int)                                                            : int
+extern insertln()                                                               : int
+extern insnstr(char*, int)                                                      : int
+extern insstr(char*)                                                            : int
+extern instr(char*)                                                             : int
+extern intrflush(WINDOW*,bool)                                                  : int
+extern isendwin()                                                               : bool
+extern is_linetouched(WINDOW*,int)                                              : bool
+extern is_wintouched(WINDOW*)                                                   : bool
+extern keyname(int)                                                             : char*
+extern keypad(WINDOW*,bool)                                                     : int
+extern killchar()                                                               : char
+extern leaveok(WINDOW*,bool)                                                    : int
+extern longname()                                                               : char*
+extern meta(WINDOW*,bool)                                                       : int
+extern move(int, int)                                                           : int
+extern mvaddch(int, int, chtype)                                                : int
+extern mvaddchnstr(int, int, chtype*, int)                                      : int
+extern mvaddchstr(int, int, chtype*)                                            : int
+extern mvaddnstr(int, int, char*, int)                                          : int
+extern mvaddstr(int, int, char*)                                                : int
+extern mvchgat(int, int, int, attr_t, i16, void*)                               : int
+extern mvcur(int,int,int,int)                                                   : int
+extern mvdelch(int, int)                                                        : int
+extern mvderwin(WINDOW*, int, int)                                              : int
+extern mvgetch(int, int)                                                        : int
+extern mvgetnstr(int, int, char*, int)                                          : int
+extern mvgetstr(int, int, char*)                                                : int
+extern mvhline(int, int, chtype, int)                                           : int
+extern mvinch(int, int)                                                         : chtype
+extern mvinchnstr(int, int, chtype*, int)                                       : int
+extern mvinchstr(int, int, chtype*)                                             : int
+extern mvinnstr(int, int, char*, int)                                           : int
+extern mvinsch(int, int, chtype)                                                : int
+extern mvinsnstr(int, int, char*, int)                                          : int
+extern mvinsstr(int, int, char*)                                                : int
+extern mvinstr(int, int, char*)                                                 : int
+extern mvprintw(int,int, char*,...)                                             : int
+extern mvscanw(int,int, char*,...)                                              : int
+extern mvvline(int, int, chtype, int)                                           : int
+extern mvwaddch(WINDOW*, int, int, chtype)                                      : int
+extern mvwaddchnstr(WINDOW*, int, int, chtype*, int)                            : int
+extern mvwaddchstr(WINDOW*, int, int, chtype*)                                  : int
+extern mvwaddnstr(WINDOW*, int, int, char*, int)                                : int
+extern mvwaddstr(WINDOW*, int, int, char*)                                      : int
+extern mvwchgat(WINDOW*, int, int, int, attr_t, i16, void*)                     : int
+extern mvwdelch(WINDOW*, int, int)                                              : int
+extern mvwgetch(WINDOW*, int, int)                                              : int
+extern mvwgetnstr(WINDOW*, int, int, char*, int)                                : int
+extern mvwgetstr(WINDOW*, int, int, char*)                                      : int
+extern mvwhline(WINDOW*, int, int, chtype, int)                                 : int
+extern mvwin(WINDOW*,int,int)                                                   : int
+extern mvwinch(WINDOW*, int, int)                                               : chtype
+extern mvwinchnstr(WINDOW*, int, int, chtype*, int)                             : int
+extern mvwinchstr(WINDOW*, int, int, chtype*)                                   : int
+extern mvwinnstr(WINDOW*, int, int, char*, int)                                 : int
+extern mvwinsch(WINDOW*, int, int, chtype)                                      : int
+extern mvwinsnstr(WINDOW*, int, int, char*, int)                                : int
+extern mvwinsstr(WINDOW*, int, int, char*)                                      : int
+extern mvwinstr(WINDOW*, int, int, char*)                                       : int
+extern mvwprintw(WINDOW*,int,int, char*,...)                                    : int
+extern mvwscanw(WINDOW*,int,int, char*,...)                                     : int
+extern mvwvline(WINDOW*,int, int, chtype, int)                                  : int
+extern napms(int)                                                               : int
+extern newpad(int,int)                                                          : WINDOW*
+extern newterm(char*,FILE*,FILE*)                                               : SCREEN*
+extern newwin(int,int,int,int)                                                  : WINDOW*
+extern nl()                                                                     : int
+extern nocbreak()                                                               : int
+extern nodelay(WINDOW*,bool)                                                    : int
+extern noecho()                                                                 : int
+extern nonl()                                                                   : int
+extern noqiflush()                                                              : void
+extern noraw()                                                                  : int
+extern notimeout(WINDOW*,bool)                                                  : int
+extern overlay(WINDOW*,WINDOW*)                                                 : int
+extern overwrite(WINDOW*,WINDOW*)                                               : int
+extern pair_content(i16,i16*,i16*)                                              : int
+extern PAIR_NUMBER(int)                                                         : int
+extern pechochar(WINDOW*, chtype)                                               : int
+extern pnoutrefresh(WINDOW*,int,int,int,int,int,int)                            : int
+extern prefresh(WINDOW*,int,int,int,int,int,int)                                : int
+extern printw(char*,...)                                                        : int
+extern putwin(WINDOW*, FILE*)                                                   : int
+extern qiflush()                                                                : void
+extern raw()                                                                    : int
+extern redrawwin(WINDOW*)                                                       : int
+extern refresh()                                                                : int
+extern resetty()                                                                : int
+extern reset_prog_mode()                                                        : int
+extern reset_shell_mode()                                                       : int
+extern ripoffline(int, <(WINDOW*, int) : int>)                                  : int
+extern savetty()                                                                : int
+extern scanw(char*,...)                                                         : int
+extern scr_dump(char*)                                                          : int
+extern scr_init(char*)                                                          : int
+extern scrl(int)                                                                : int
+extern scroll(WINDOW*)                                                          : int
+extern scrollok(WINDOW*,bool)                                                   : int
+extern scr_restore(char*)                                                       : int
+extern scr_set(char*)                                                           : int
+extern setscrreg(int,int)                                                       : int
+extern set_term(SCREEN*)                                                        : SCREEN*
+extern slk_attroff(chtype)                                                      : int
+extern slk_attr_off(attr_t, void*)                                              : int
+extern slk_attron(chtype)                                                       : int
+extern slk_attr_on(attr_t,void*)                                                : int
+extern slk_attrset(chtype)                                                      : int
+extern slk_attr()                                                               : attr_t
+extern slk_attr_set(attr_t,i16,void*)                                           : int
+extern slk_clear()                                                              : int
+extern slk_color(i16)                                                           : int
+extern slk_init(int)                                                            : int
+extern slk_label(int)                                                           : char*
+extern slk_noutrefresh()                                                        : int
+extern slk_refresh()                                                            : int
+extern slk_restore()                                                            : int
+extern slk_set(int,char*,int)                                                   : int
+extern slk_touch()                                                              : int
+extern standout()                                                               : int
+extern standend()                                                               : int
+extern start_color()                                                            : int
+extern subpad(WINDOW*, int, int, int, int)                                      : WINDOW*
+extern subwin(WINDOW*, int, int, int, int)                                      : WINDOW*
+extern syncok(WINDOW*, bool)                                                    : int
+extern termattrs()                                                              : chtype
+extern termname()                                                               : char*
+extern timeout(int)                                                             : void
+extern touchline(WINDOW*, int, int)                                             : int
+extern touchwin(WINDOW*)                                                        : int
+extern typeahead(int)                                                           : int
+extern ungetch(int)                                                             : int
+extern untouchwin(WINDOW*)                                                      : int
+extern use_env(bool)                                                            : void
+extern vidattr(chtype)                                                          : int
+extern vidputs(chtype, <(int) : int>)                                           : int
+extern vline(chtype, int)                                                       : int
+extern waddch(WINDOW*, chtype)                                                  : int
+extern waddchnstr(WINDOW*,chtype*,int)                                          : int
+extern waddchstr(WINDOW*,chtype*)                                               : int
+extern waddnstr(WINDOW*,char*,int)                                              : int
+extern waddstr(WINDOW*,char*)                                                   : int
+extern wattron(WINDOW*, int)                                                    : int
+extern wattroff(WINDOW*, int)                                                   : int
+extern wattrset(WINDOW*, int)                                                   : int
+extern wattr_get(WINDOW*, attr_t*, i16*, void*)                                 : int
+extern wattr_on(WINDOW*, attr_t, void*)                                         : int
+extern wattr_off(WINDOW*, attr_t, void*)                                        : int
+extern wattr_set(WINDOW*, attr_t, i16, void*)                                   : int
+extern wbkgd(WINDOW*, chtype)                                                   : int
+extern wbkgdset(WINDOW*,chtype)                                                 : void
+extern wborder(WINDOW*,chtype,chtype,chtype,chtype,chtype,chtype,chtype,chtype) : int
+extern wchgat(WINDOW*, int, attr_t, i16, void*)                                 : int
+extern wclear(WINDOW*)                                                          : int
+extern wclrtobot(WINDOW*)                                                       : int
+extern wclrtoeol(WINDOW*)                                                       : int
+extern wcolor_set(WINDOW*,i16,void*)                                            : int
+extern wcursyncup(WINDOW*)                                                      : void
+extern wdelch(WINDOW*)                                                          : int
+extern wdeleteln(WINDOW*)                                                       : int
+extern wechochar(WINDOW*, chtype)                                               : int
+extern werase(WINDOW*)                                                          : int
+extern wgetch(WINDOW*)                                                          : int
+extern wgetnstr(WINDOW*,char*,int)                                              : int
+extern wgetstr(WINDOW*, char*)                                                  : int
+extern whline(WINDOW*, chtype, int)                                             : int
+extern winch(WINDOW*)                                                           : chtype
+extern winchnstr(WINDOW*, chtype*, int)                                         : int
+extern winchstr(WINDOW*, chtype*)                                               : int
+extern winnstr(WINDOW*, char*, int)                                             : int
+extern winsch(WINDOW*, chtype)                                                  : int
+extern winsdelln(WINDOW*,int)                                                   : int
+extern winsertln(WINDOW*)                                                       : int
+extern winsnstr(WINDOW*, char*,int)                                             : int
+extern winsstr(WINDOW*, char*)                                                  : int
+extern winstr(WINDOW*, char*)                                                   : int
+extern wmove(WINDOW*,int,int)                                                   : int
+extern wnoutrefresh(WINDOW*)                                                    : int
+extern wprintw(WINDOW*, char*,...)                                              : int
+extern wredrawln(WINDOW*,int,int)                                               : int
+extern wrefresh(WINDOW*)                                                        : int
+extern wscanw(WINDOW*, char*,...)                                               : int
+extern wscrl(WINDOW*,int)                                                       : int
+extern wsetscrreg(WINDOW*,int,int)                                              : int
+extern wstandout(WINDOW*)                                                       : int
+extern wstandend(WINDOW*)                                                       : int
+extern wsyncdown(WINDOW*)                                                       : void
+extern wsyncup(WINDOW*)                                                         : void
+extern wtimeout(WINDOW*,int)                                                    : void
+extern wtouchln(WINDOW*,int,int,int)                                            : int
+extern wvline(WINDOW*,chtype,int)                                               : int
+
+# These are also declared in <term.h>:
+
+extern tigetflag(char*)                                                         : int
+extern tigetnum(char*)                                                          : int
+extern tigetstr(char*)                                                          : char*
+extern putp(char*)                                                              : int
+
+extern tparm(char*, ...)                                                        : char*
+
+# These functions are not in X/Open, but we use them in macro definitions:
+
+extern getattrs(WINDOW*)                                                        : int
+extern getcurx(WINDOW*)                                                         : int
+extern getcury(WINDOW*)                                                         : int
+extern getbegx(WINDOW*)                                                         : int
+extern getbegy(WINDOW*)                                                         : int
+extern getmaxx(WINDOW*)                                                         : int
+extern getmaxy(WINDOW*)                                                         : int
+extern getparx(WINDOW*)                                                         : int
+extern getpary(WINDOW*)                                                         : int
+
+# These functions are extensions - not in X/Open Curses.
+
+extern is_term_resized(int, int)                                                : bool
+extern keybound(int, int)                                                       : char*
+extern curses_version()                                                         : char*
+extern assume_default_colors(int, int)                                          : int
+extern define_key(char*, int)                                                   : int
+extern key_defined(char*)                                                       : int
+extern keyok(int, bool)                                                         : int
+extern resize_term(int, int)                                                    : int
+extern resizeterm(int, int)                                                     : int
+extern set_escdelay(int)                                                        : int
+extern set_tabsize(int)                                                         : int
+extern use_default_colors()                                                     : int
+extern use_extended_names(bool)                                                 : int
+extern use_legacy_coding(int)                                                   : int
+extern use_screen(SCREEN*, NCURSES_SCREEN_CB, void*)                            : int
+extern use_window(WINDOW*, NCURSES_WINDOW_CB, void*)                            : int
+extern wresize(WINDOW*, int, int)                                               : int
+extern nofilter()
+
+# These extensions provide access to information stored in the WINDOW even
+# when NCURSES_OPAQUE is set:
+
+extern wgetparent(WINDOW*)                                                      : WINDOW*
+extern is_cleared(WINDOW*)                                                      : bool
+extern is_idcok(WINDOW*)                                                        : bool
+extern is_idlok(WINDOW*)                                                        : bool
+extern is_immedok(WINDOW*)                                                      : bool
+extern is_keypad(WINDOW*)                                                       : bool
+extern is_leaveok(WINDOW*)                                                      : bool
+extern is_nodelay(WINDOW*)                                                      : bool
+extern is_notimeout(WINDOW*)                                                    : bool
+extern is_scrollok(WINDOW*)                                                     : bool
+extern is_syncok(WINDOW*)                                                       : bool
+extern wgetscrreg(WINDOW*, int*, int*)                                          : int
+
+
+# Pseudo-character tokens outside ASCII range.  The curses wgetch() function
+# will return any given one of these only if the corresponding k- capability
+# is defined in your terminal's terminfo entry.
+
+# Some keys (KEY_A1, etc) are arranged like this:
+#    a1     up    a3
+#    left   b2    right
+#    c1     down  c3
+
+KEY_CODE_YES  := 0x100
+KEY_MIN       := 0x101
+KEY_BREAK     := 0x101
+KEY_SRESET    := 0x158
+KEY_RESET     := 0x159
+KEY_DOWN      := 0x102
+KEY_UP        := 0x103
+KEY_LEFT      := 0x104
+KEY_RIGHT     := 0x105
+KEY_HOME      := 0x106
+KEY_BACKSPACE := 0x107
+KEY_F0        := 0x108
+KEY_DL        := 0x148
+KEY_IL        := 0x149
+KEY_DC        := 0x14a
+KEY_IC        := 0x14b
+KEY_EIC       := 0x14c
+KEY_CLEAR     := 0x14d
+KEY_EOS       := 0x14e
+KEY_EOL       := 0x14f
+KEY_SF        := 0x150
+KEY_SR        := 0x151
+KEY_NPAGE     := 0x152
+KEY_PPAGE     := 0x153
+KEY_STAB      := 0x154
+KEY_CTAB      := 0x155
+KEY_CATAB     := 0x156
+KEY_ENTER     := 0x157
+KEY_PRINT     := 0x15a
+KEY_LL        := 0x15b
+KEY_A1        := 0x15c
+KEY_A3        := 0x15d
+KEY_B2        := 0x15e
+KEY_C1        := 0x15f
+KEY_C3        := 0x160
+KEY_BTAB      := 0x161
+KEY_BEG       := 0x162
+KEY_CANCEL    := 0x163
+KEY_CLOSE     := 0x164
+KEY_COMMAND   := 0x165
+KEY_COPY      := 0x166
+KEY_CREATE    := 0x167
+KEY_END       := 0x168
+KEY_EXIT      := 0x169
+KEY_FIND      := 0x16a
+KEY_HELP      := 0x16b
+KEY_MARK      := 0x16c
+KEY_MESSAGE   := 0x16d
+KEY_MOVE      := 0x16e
+KEY_NEXT      := 0x16f
+KEY_OPEN      := 0x170
+KEY_OPTIONS   := 0x171
+KEY_PREVIOUS  := 0x172
+KEY_REDO      := 0x173
+KEY_REFERENCE := 0x174
+KEY_REFRESH   := 0x175
+KEY_REPLACE   := 0x176
+KEY_RESTART   := 0x177
+KEY_RESUME    := 0x178
+KEY_SAVE      := 0x179
+KEY_SBEG      := 0x17a
+KEY_SCANCEL   := 0x17b
+KEY_SCOMMAND  := 0x17c
+KEY_SCOPY     := 0x17d
+KEY_SCREATE   := 0x17e
+KEY_SDC       := 0x17f
+KEY_SDL       := 0x180
+KEY_SELECT    := 0x181
+KEY_SEND      := 0x182
+KEY_SEOL      := 0x183
+KEY_SEXIT     := 0x184
+KEY_SFIND     := 0x185
+KEY_SHELP     := 0x186
+KEY_SHOME     := 0x187
+KEY_SIC       := 0x188
+KEY_SLEFT     := 0x189
+KEY_SMESSAGE  := 0x18a
+KEY_SMOVE     := 0x18b
+KEY_SNEXT     := 0x18c
+KEY_SOPTIONS  := 0x18d
+KEY_SPREVIOUS := 0x18e
+KEY_SPRINT    := 0x18f
+KEY_SREDO     := 0x190
+KEY_SREPLACE  := 0x191
+KEY_SRIGHT    := 0x192
+KEY_SRSUME    := 0x193
+KEY_SSAVE     := 0x194
+KEY_SSUSPEND  := 0x195
+KEY_SUNDO     := 0x196
+KEY_SUSPEND   := 0x197
+KEY_UNDO      := 0x198
+KEY_MOUSE     := 0x199
+KEY_RESIZE    := 0x19a
+KEY_EVENT     := 0x19b
+KEY_MAX       := 0x1ff

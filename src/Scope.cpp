@@ -17,8 +17,6 @@
 #include <sstream>
 #include <iterator>
 
-#define SYBMOL_TABLE_INITIAL_BUCKETS (7)
-
 namespace bjou {
 
 Scope::Scope(std::string _description, Scope * _parent, bool _is_module_scope, std::string mod)
@@ -27,7 +25,7 @@ Scope::Scope(std::string _description, Scope * _parent, bool _is_module_scope, s
     if (parent) {
         usings.insert(usings.end(), parent->usings.begin(), parent->usings.end());
     } else {
-        module_scopes = new hybrid_map<std::string, Scope*, std_string_hasher>();
+        module_scopes = new hash_table_t<std::string, Scope*, STRING_HASHER>();
     }
 
     if (is_module_scope) {
@@ -247,19 +245,28 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope,
         auto m_sym = parent->getSymbol(startingScope, qualifiedIdentifier, context,
                                  traverse, fail, checkUninit, countAsReference, mod);
 
-        if (m_sym)    { return m_sym; }
+        if (m_sym) {
+            return m_sym;
+        }
     }
 
     if (!has_mod) {
-        std::string mod_postfix = "::" + qualifiedIdentifier;
+        std::string mod_postfix;
+        mod_postfix.reserve(64);
+        mod_postfix += "::";
+        mod_postfix += qualifiedIdentifier;
         std::string qual;
-        for (auto it = usings.rbegin(); it != usings.rend(); it++) {
+        qual.reserve(64);
+        auto r_end = usings.rend();
+        for (auto it = usings.rbegin(); it != r_end; it++) {
             qual.clear();
             qual += *it;
             qual += mod_postfix;
             auto m_sym = getModuleSymbol(startingScope, *it, qual, context);
 
-            if (m_sym)    { return m_sym; }
+            if (m_sym) {
+                return m_sym;
+            }
         }
     }
 
@@ -270,7 +277,9 @@ Maybe<Symbol *> Scope::getSymbol(Scope * startingScope,
                     startingScope, qualifiedIdentifier, context,
                     false, fail, checkUninit, countAsReference, mod);
 
-        if (global_m_sym)    { return global_m_sym; }
+        if (global_m_sym) {
+            return global_m_sym;
+        }
     }
 out:
     if (fail && this == startingScope)    { symbol_error(startingScope, qualifiedIdentifier, context); }

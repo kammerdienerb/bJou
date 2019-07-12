@@ -55,11 +55,13 @@ fi
 ./clean.sh
 
 # prepare nolibc_syscall
-mkdir -p nolibc_syscall
-git clone https://www.github.com/kammerdienerb/nolibc_syscall.git
-cd nolibc_syscall
-make
-cd ..
+if [ ! -d nolibc_syscall ]; then
+    mkdir -p nolibc_syscall
+    git clone https://www.github.com/kammerdienerb/nolibc_syscall.git
+    cd nolibc_syscall
+    make
+    cd ..
+fi
 
 # build bJou
 mkdir -p build
@@ -68,10 +70,12 @@ cd build
 if [ -z ${INSTALL_PREFIX+x} ]; then
     if [ -z ${LLVM_CONFIG+x} ]; then
         cmake                                        \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=YES      \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
             ..
     else
         cmake                                        \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=YES      \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
             -DLLVM_CONFIG=${LLVM_CONFIG}             \
             ..
@@ -79,11 +83,13 @@ if [ -z ${INSTALL_PREFIX+x} ]; then
 else
     if [ -z ${LLVM_CONFIG+x} ]; then
         cmake                                        \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=YES      \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
             -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
             ..
     else
         cmake                                        \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=YES      \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE}         \
             -DLLVM_CONFIG=${LLVM_CONFIG}             \
             -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
@@ -92,3 +98,5 @@ else
 fi
 
 time make -j$CORES
+
+cp compile_commands.json ..

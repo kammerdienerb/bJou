@@ -1,0 +1,13 @@
+# pair.bjou
+
+module pair
+
+type pair$(T1, T2) {
+    first  : T1
+    second : T2
+
+    
+    proc create(first : T1, second : T2) : pair$(T1, T2) {
+        return { pair$(T1, T2): .first = first, .second = second }
+    }
+}

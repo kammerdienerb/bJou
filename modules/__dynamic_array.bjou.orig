@@ -1,0 +1,337 @@
+# __dynamic_array.bjou
+
+module __dynamic_array
+
+const INIT_SIZE := 8
+
+type __bjou_dyn_array$T {
+    const INIT_SIZE := INIT_SIZE
+
+    __data		: T*
+    __capacity 	: u64
+    __used		: u64
+
+    proc create() : __bjou_dyn_array$T {
+        return  { __bjou_dyn_array$T: 
+            .__capacity = __bjou_dyn_array$T.INIT_SIZE,
+            .__used     = 0,
+            .__data     = new T[__bjou_dyn_array$T.INIT_SIZE]
+        }
+    }
+}
+
+proc free$T(da : T[...] ref) {
+    delete \__da_data{da}
+    \__da_capacity{da} = 0
+    \__da_used{da} = 0
+}
+
+\static_if { \abc{}
+    proc __bjou_dynamic_array_subscript$T(
+            _s     : T[...] ref, # the dynamic array
+            _i     : u64,        # the index
+            _loc_f : char*,      # call site file
+            _loc_l : int,        # call site line
+            _loc_c : int)        # call site character
+            : T ref {
+
+        if _i >= |_s|
+        or _i < 0 {
+            buff : char[1024]
+            buff.sprintf("dynamic array index out of bounds (index = %llu, length = %llu)\n    at %s :: %d :: %d",
+                         _i, |_s|, _loc_f, _loc_l, _loc_c)
+            \die{ buff }
+        }
+
+        return \__da_data{_s}[_i]
+    }
+}
+\static_if { not \abc{}
+    proc __bjou_dynamic_array_subscript$T(_s : T[...] ref, _i : u64) : T ref {
+        return \__da_data{_s}[_i]
+    }
+}
+
+proc resize$T(da : T[...] ref, size : u64) {
+    da.resize(size, zinit$T())
+}
+
+proc resize$T(da : T[...] ref, size : u64, val : T) {
+	_d := __ref::getref(\__da_data{da})
+	_c := __ref::getref(\__da_capacity{da})
+	_u := __ref::getref(\__da_used{da})
+
+	if size < _u {
+		_u = size
+	} else {
+        __u := __ref::unref(_u)
+
+        while _c < size
+            da.__bjou_dynamic_array_grow()
+
+        _u = size
+
+		for i := 0; i < (size - __u); i += 1
+            _d[i] = val
+	}
+}
+
+proc __bjou_dynamic_array_get_grow_size(n : u64) : u64 {
+    r := INIT_SIZE as u64
+    while r < n    { r = r bshl 1}
+    return r
+}
+
+proc __bjou_dynamic_array_grow$T(da : T[...] ref) {
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
+
+    _c *= 2
+    new__data := new T[_c]
+    mcopy(new__data, _d, _u * sizeof T)
+    delete _d
+    _d = new__data
+}
+
+proc __bjou_dynamic_array_shrink$T(da : T[...] ref) {
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
+
+    _c /= 2
+    new__data := new T[_c]
+    mcopy(new__data, _d, _u * sizeof T)
+    delete _d
+    _d = new__data
+}
+
+proc len$T(da : T[...] ref) : u64 {
+    return |da|    
+}
+
+proc capacity$T(da : T[...] ref) : u64 {
+    return \__da_capacity{da}
+}
+
+proc as_slice$T(da : T[...] ref) : T[] {
+    return [ \__da_data{da}, 0:\__da_used{da} ]
+}
+
+# push by val
+proc push$T(da : T[...] ref, item : T) {
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
+
+    # make space if necessary
+    if _u == _c
+        da.__bjou_dynamic_array_grow()
+
+    # put the item in
+    _d[_u] = item
+
+    _u += 1
+}
+
+# push by ref
+proc push$T(da : T[...] ref, item : T ref) {
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
+
+    # make space if necessary
+    if _u == _c
+        da.__bjou_dynamic_array_grow()
+
+    # put the item in
+    _d[_u] = item
+
+    _u += 1
+}
+
+proc pop$T(da : T[...] ref) {
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
+
+    if _u == 0
+        return
+
+    _u -= 1
+
+    if _u < (_c / 2)
+    and _c > __bjou_dyn_array$T.INIT_SIZE
+        da.__bjou_dynamic_array_shrink()
+}
+
+proc back$T(da : T[...] ref) : T ref {
+    if |da| == 0
+        \die{ "called back() on an empty dynamic array" }
+    return da[|da| - 1]    
+}
+
+proc clear$T(da : T[...] ref) {
+    \__da_used{da} = 0    
+}
+
+proc erase$T(da : T[...] ref, idx : u64) {
+    if |da| == 0
+        \die{ "called erase() on an empty dynamic array" }
+    da[idx] # bounds check
+    _d := __ref::getref(\__da_data{da})
+    _u := __ref::getref(\__da_used{da})
+
+    mmove(_d + idx, _d + idx + 1, (_u - idx - 1) * sizeof T)
+    da.pop()
+}
+
+proc data$T(da : T[...] ref) : T* {
+    return \__da_data{da}    
+}
+
+proc set$T(da : T[...] ref, data : T[]) {
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
+
+    _l := \__slice_len{data}
+
+    new_len  := __bjou_dynamic_array_get_grow_size(_l)
+    ptr      := new T[new_len]
+    old_data := __ref::unref(_d)
+
+    mcopy(ptr, \__slice_data{data}, _l * sizeof T)
+
+    _d = ptr
+    _u = _l
+    _c = new_len
+
+    # clear all old
+    delete old_data
+}
+
+proc add$T(da : T[...] ref, data : T[]) {
+    _d := __ref::getref(\__da_data{da})
+    _c := __ref::getref(\__da_capacity{da})
+    _u := __ref::getref(\__da_used{da})
+
+    _l := \__slice_len{data}
+
+    if _l == 0
+        return
+
+    desired_len := _u + _l
+
+    # make space
+    while _c < desired_len
+        da.__bjou_dynamic_array_grow()
+
+    # copy
+    mcopy(_d + _u, \__slice_data{data}, _l * sizeof T)
+    
+    _u = desired_len
+}
+
+proc copy$T(da : T[...] ref) : T[...] {
+    c : T[...] = da
+
+    _d := __ref::getref(\__da_data{c})
+    _c := __ref::getref(\__da_capacity{c})
+    _u := __ref::getref(\__da_used{c})
+    
+    _d = new T[_c]
+
+    mcopy(_d, \__da_data{da}, _u * sizeof T)
+
+    return c
+}
+
+proc _swap$T(a : T ref, b : T ref) {
+    tmp := __ref::unref(a)
+    a    = __ref::unref(b)
+    b    = tmp
+}
+
+proc _sort$T(arr : T*, len : u64) {
+    if len < 2    return
+     
+    pivot := arr[len / 2]
+
+    i := 0
+    j := len - 1
+
+    while true {
+        while arr[i] < pivot    i += 1
+        while arr[j] > pivot    j -= 1
+
+        if i >= j    break
+
+        _swap(arr[i], arr[j])
+
+        i += 1
+        j -= 1
+    }
+
+    _sort(arr, i)
+    _sort(arr + i, len - i)
+}
+
+proc _sort$T(arr : T*, len : u64, cmp : <(T ref, T ref) : i32>) {
+    if len < 2    return
+     
+    pivot := arr[len / 2]
+
+    i := 0
+    j := len - 1
+
+    while true {
+        while cmp(arr[i], pivot) < 0    i += 1
+        while cmp(arr[j], pivot) > 0    j -= 1
+
+        if i >= j    break
+
+        _swap(arr[i], arr[j])
+
+        i += 1
+        j -= 1
+    }
+
+    _sort(arr, i, cmp)
+    _sort(arr + i, len - i, cmp)
+}
+
+proc sort$T(da : T[...] ref) {
+    _d := \__da_data{da}
+    _u := \__da_used{da}
+
+    if _u < 2    return
+
+    _sort(_d, _u)
+}
+
+proc sort$T(da : T[...] ref, cmp : <(T ref, T ref) : i32>) {
+    _d := \__da_data{da}
+    _u := \__da_used{da}
+
+    if _u < 2    return
+
+    _sort(_d, _u, cmp)
+}
+
+proc find$T(da : T[...] ref, val : T) : i64 {
+    for i := 0; i < |da|; i += 1 {
+        if da[i] == val
+            return i
+    }
+    return -1
+}
+
+proc count$T(da : T[...] ref, val : T) : u64 {
+    c := 0u64
+    foreach ref item in da
+        if item == val
+            c += 1
+    return c
+}
+

@@ -1,6 +1,6 @@
--- 'run' macro should call __bjou_rt_init or at least complete the same tasks before executing code
+1.  -- 'run' macro should call __bjou_rt_init or at least complete the same tasks before executing code
 
--- Need a better way to manage when macros are executed and when/if their children are analyzed
+2.  -- Need a better way to manage when macros are executed and when/if their children are analyzed
 [
     static_if{ cond
         type T {} }
@@ -8,37 +8,87 @@
         type T {} }
 ]
 
--- should template define elements be checked against other symbols?
+3.  -- should template define elements be checked against other symbols?
 [
     type A {}
     type T$A { field : A }
 ]
 
--- with the new symbol system, we use Declarator::asString to create template proc symbols..
-   This can cause duplication of code when the declarators used to instantiate a template are
-   different names for the same type. There isn't a problem except for code bloat.
+4.  -- with the new symbol system, we use Declarator::asString to create template proc symbols..
+      This can cause duplication of code when the declarators used to instantiate a template are
+      different names for the same type. There isn't a problem except for code bloat.
 [
     proc p$T(t : T) {}
     p$int(1)
     p$i32(2)
 ]
 
--- expression blocks can cause code to be executed unexpectedly
+5.  -- expression blocks can cause code to be executed unexpectedly
 
--- cross-module template interaction can cause 'use of undeclared identifier' errors when
-   the template parameter is expanded to a non-fully-qualified form
+6.  -- cross-module template interaction can cause 'use of undeclared identifier' errors when
+      the template parameter is expanded to a non-fully-qualified form
 
--- \static_if and 'using' statements don't exactly work..
+7.  -- \static_if and 'using' statements don't exactly work..
 
--- bug in pointer declarator (probably all similar) replacement policies for template stuff
-    -- check junk/bad_cli.bjou
+8.  -- bug in pointer declarator (probably all similar) replacement policies for template stuff
+        -- check junk/bad_cli.bjou
 
--- bug with slice destructuring
+9.  -- bug with slice destructuring
+        -- Same as bug 13
 [
     type parse_table_t = <(char[] ref, string ref) : bool>
 ]
 
--- can't convert tuples containing sums
+10. -- can't convert tuples containing sums
 [
     tup : ((int | none), bool) = (nothing, true)
 ]
+
+11. -- right now in parsing, __no_mangle__ must come before __inline__ if both being used
+
+12. -- containsRefs() should be implemented for all types, not just StructType
+
+13. -- trouble finding symbols in type alias defs?
+        -- Same as bug 9
+[
+    type opt_string = (string | none)
+]
+
+14. -- should disallow multiples of the same type within sums
+
+15. -- we should optimize the zero-length dynamic array case so that it doesn't allocate until an element is actually needed
+
+16. -- on ambiguous procedure call errors, we should show the received argument types
+
+17. -- this should work
+    -- related to bug 20
+[
+    foreach ch in s.as_slice() { ... }
+]
+
+18. -- need to report type alias names in errors since that is more clear and the names can be very long
+
+19. -- Not something I can fix, but an optimization that transforms if/else chains into switches is causing bad
+       code to be generated when using lld. If experiencing this issue, just use the system linker.
+
+20. -- Foreach loops desugar in way such that if the subject expression is a procedure call it will be called
+       for every iteration of the loop. Not what we want. Unfortunately, the way we do desugaring isn't
+       condusive to an easy fix.
+    -- related to bug 17
+
+21. -- Module paths are case insensitive??? Should not be the case.
+
+22. -- We need to implement the fallback case for sum type tags.
+
+23. -- Something like completeSumTypes() should also be done for tuples.
+    -- This is making erp fail to compile right now.
+
+24. -- Would be nice to do some checking for things like unused expressions.
+    -- This bit me when trying to write the self hosted compiler multithreading code.
+[
+    some_proc # should be called like some_proc(), but it is ignored
+]
+
+25. -- Compiler crash when trying to instantiate a through-template in some scenarios.
+    -- Watch what happens if you try take out the explicit template istantiation
+       parameters in hash_set.bjou.

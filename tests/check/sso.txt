@@ -1,0 +1,17 @@
+s.__is_long(): 0
+s: '' -- 0 chars
+s'.__is_long(): 0
+s': 'short' -- 5 chars
+s''.__is_long(): 1
+s'': '                    long      strin' -- 35 chars
+s''.__is_long(): 0
+s'': 'shorter!' -- 8 chars
+!
+s''.__is_long(): 0
+s'': 'short' -- 5 chars
+s'.__is_long(): 0
+s': '' -- 0 chars
+s''.__is_long(): 1
+s'': 'shortabcdefghijklmnopqrstuvwxyz' -- 31 chars
+s''.__is_long(): 1
+s'': '' -- 0 chars

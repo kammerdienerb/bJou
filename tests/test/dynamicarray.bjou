@@ -4,8 +4,8 @@
 main()          # run time
 
 proc printda$T(da : T[...] ref) {
-    _c := getref(\__da_capacity{da})
-    _u := getref(\__da_used{da})
+    _c := da.capacity()
+    _u := |da|
 
     print "using % of %", _u, _c
 }

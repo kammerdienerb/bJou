@@ -58,11 +58,11 @@ type mutex {
 
     proc destroy(this) : i32
         return pthread_mutex_destroy(&this.mtx)
-    proc lock(this) : i32
+    proc __inline__ lock(this) : i32
         return pthread_mutex_lock(&this.mtx)
-    proc trylock(this) : i32
+    proc __inline__ trylock(this) : i32
         return pthread_mutex_trylock(&this.mtx)
-    proc unlock(this) : i32
+    proc __inline__ unlock(this) : i32
         return pthread_mutex_unlock(&this.mtx)
 }
 
@@ -79,10 +79,10 @@ type cond {
 
     proc destroy(this) : i32
         return pthread_cond_destroy(&this.cnd)
-    proc signal(this) : i32
+    proc __inline__ signal(this) : i32
         return pthread_cond_signal(&this.cnd)
-    proc broadcast(this) : i32
+    proc __inline__ broadcast(this) : i32
         return pthread_cond_broadcast(&this.cnd)
-    proc wait(this, m : mutex ref) : i32
+    proc __inline__ wait(this, m : mutex ref) : i32
         return pthread_cond_wait(&this.cnd, &m.mtx)
 }

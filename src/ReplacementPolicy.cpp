@@ -41,6 +41,8 @@ void init_replacementPolicies() {
         ANY_EXPRESSION};
     rpget<replacementPolicy_ExprBlock_Statement>()->allowed_nodeKinds = {
         ANY_STATEMENT};
+    rpget<replacementPolicy_NamedArg_Expression>()->allowed_nodeKinds = {
+        ANY_EXPRESSION};
     rpget<replacementPolicy_Declarator_Identifier>()->allowed_nodeKinds = {
         ASTNode::NodeKind::IDENTIFIER};
     rpget<replacementPolicy_Declarator_TemplateInst>()->allowed_nodeKinds = {
@@ -285,6 +287,11 @@ RP_FUNCTOR_IMPL(
     new_node->replace = rpget<replacementPolicy_ExprBlock_Statement>();
 
     return new_node;);
+RP_FUNCTOR_IMPL(NamedArg_Expression,
+                BJOU_DEBUG_ASSERT(((NamedArg*)parent)->getExpression() ==
+                                  old_node);
+                ((NamedArg *)parent)->setExpression(new_node);
+                return new_node;);
 RP_FUNCTOR_IMPL(Declarator_Identifier,
                 BJOU_DEBUG_ASSERT(((Declarator *)parent)->getIdentifier() ==
                                   old_node);

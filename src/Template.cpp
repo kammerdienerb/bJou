@@ -189,7 +189,7 @@ Struct * makeTemplateStruct(ASTNode * _ttype, ASTNode * _inst) {
     ((StructType *)clone->getType())->complete();
     ((StructType *)clone->getType())->checkForCycles();
 
-    clone->analyze();//true);
+    /* clone->analyze();//true); */
 
     compilation->frontEnd.deferredAST.push_back(clone);
 
@@ -449,12 +449,6 @@ int checkTemplateProcInstantiation(ASTNode * _tproc, ASTNode * _passed_args,
         for (ASTNode * _var : var_clones) {
             VariableDeclaration * var = (VariableDeclaration *)_var;
 
-            // We need to analyze and THEN get the type, making sure to access
-            // the declarator via getTypeDeclarator() because if the declarator
-            // is a template, it will be replaced.
-
-            /* var->getTypeDeclarator()->analyze(true); */
-            var->getTypeDeclarator()->analyze();
             new_param_types.push_back(var->getTypeDeclarator()->getType());
             delete _var;
         }

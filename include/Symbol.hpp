@@ -11,8 +11,8 @@
 #include "Maybe.hpp"
 #include "Scope.hpp"
 #include "bJouDemangle.h"
-#include "std_string_hasher.hpp"
-#include "hybrid_map.hpp"
+
+#include "hash_table.h"
 
 #include <iostream>
 #include <set>
@@ -25,12 +25,17 @@ struct Symbol;
 
 // ProcSet inherits from ASTNode only so that we can have symbols to it.
 // ProcSets are NOT part of the AST
+
+struct Candidate {
+    Symbol *sym    = nullptr;
+    int     n_conv = -1;
+};
+
 struct ProcSet : ASTNode {
     ProcSet();
     ProcSet(std::string _name);
 
-    /* std::unordered_map<std::string, Symbol *> procs; */
-    hybrid_map<std::string, Symbol*, std_string_hasher> procs;
+    hash_table_t<std::string, Symbol*, STRING_HASHER> procs;
     std::string name;
 
     // Node interface
@@ -46,13 +51,13 @@ struct ProcSet : ASTNode {
     Procedure * getTemplate(std::vector<const Type *> & arg_types,
                             ASTNode * args, ASTNode * inst, Context * context,
                             bool fail);
-    std::vector<Symbol *> getCandidates(Scope * scope, ProcedureType * compare_type,
+    std::vector<Candidate> getCandidates(Scope * scope, ProcedureType * compare_type,
                                         ASTNode * args, ASTNode * inst,
                                         Context * context, bool fail, bool set_is_in_module);
-    bool resolve(std::vector<Symbol *> & candidates,
-                 std::vector<Symbol *> & resolved, ProcedureType * compare_type,
+    bool resolve(std::vector<Candidate> & candidates,
+                 std::vector<Candidate> & resolved, ProcedureType * compare_type,
                  ASTNode * args, ASTNode * inst, Context * context, bool fail);
-    void showCandidatesError(std::vector<Symbol *> & candidates,
+    void showCandidatesError(std::vector<Candidate> & candidates,
                              Context * context);
 };
 
@@ -344,6 +349,7 @@ template <> inline bool _Symbol<VariableDeclaration>::isVar() const {
 template <> inline bool _Symbol<Struct>::isType() const { return true; }
 template <> inline bool _Symbol<Alias>::isType() const { return true; }
 template <> inline bool _Symbol<Enum>::isType() const { return true; }
+template <> inline bool _Symbol<TemplateStruct>::isType() const { return true; }
 template <> inline bool _Symbol<TemplateStruct>::isTemplateType() const {
     return true;
 }

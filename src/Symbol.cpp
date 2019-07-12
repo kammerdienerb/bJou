@@ -182,7 +182,7 @@ Procedure * ProcSet::get(Scope * scope, bool is_module_qualified, ASTNode * args
                help1, help2);
     }
 
-    std::vector<Symbol *> candidates, resolved;
+    std::vector<Candidate> candidates, resolved;
     candidates = getCandidates(scope, compare_type, args, inst, context, fail, set_is_in_module);
     resolve(candidates, resolved, compare_type, args, inst, context, fail);
 
@@ -198,7 +198,7 @@ Procedure * ProcSet::get(Scope * scope, bool is_module_qualified, ASTNode * args
             printProcSetGetError(this, args, context, scope, set_is_in_module);
         }
     } else {
-        Symbol * sym = resolved[0];
+        Symbol * sym = resolved[0].sym;
 
         if (!sym->isTemplateProc())
             return (Procedure *)sym->node();
@@ -213,17 +213,20 @@ Procedure * ProcSet::get(Scope * scope, bool is_module_qualified, ASTNode * args
 Procedure * ProcSet::getTemplate(std::vector<const Type *> & arg_types,
                                  ASTNode * args, ASTNode * inst,
                                  Context * context, bool fail) {
-    std::vector<Symbol *> symbols;
+    std::vector<Candidate> symbols;
     std::vector<TemplateProc *> matches;
 
     for (auto & p : procs) {
         if (p.second->isTemplateProc()) {
             TemplateProc * tproc = (TemplateProc *)p.second->node();
 
-            if (checkTemplateProcInstantiation(tproc, args, inst, context,
-                                               fail) != -1) {
+            int n_conv = checkTemplateProcInstantiation(tproc, args, inst, context, fail);
+            if (n_conv != -1) {
                 matches.push_back(tproc);
-                symbols.push_back(p.second);
+                Candidate c;
+                c.n_conv = n_conv;
+                c.sym = p.second;
+                symbols.push_back(c);
             }
         }
     }
@@ -239,10 +242,10 @@ Procedure * ProcSet::getTemplate(std::vector<const Type *> & arg_types,
     return nullptr;
 }
 
-std::vector<Symbol *> ProcSet::getCandidates(Scope * scope, ProcedureType * compare_type,
+std::vector<Candidate> ProcSet::getCandidates(Scope * scope, ProcedureType * compare_type,
                                              ASTNode * args, ASTNode * inst,
                                              Context * context, bool fail, bool set_is_in_module) {
-    std::vector<Symbol *> candidates;
+    std::vector<Candidate> candidates;
 
     if (compare_type) {
         for (auto & p : procs) {
@@ -254,7 +257,9 @@ std::vector<Symbol *> ProcSet::getCandidates(Scope * scope, ProcedureType * comp
                 if (argMatch(p.second->node()->getType(), compare_type)) {
                     if (!p.second->node()->getFlag(
                             Procedure::IS_TEMPLATE_DERIVED)) {
-                        candidates.push_back(p.second);
+                        Candidate c;
+                        c.sym = p.second;
+                        candidates.push_back(c);
                     }
                 }
             } else {
@@ -262,9 +267,12 @@ std::vector<Symbol *> ProcSet::getCandidates(Scope * scope, ProcedureType * comp
 
                 // don't fail with the check when we are just gathering
                 // candidates
-                if (checkTemplateProcInstantiation(tproc, args, inst, context,
-                                                   false) != -1) {
-                    candidates.push_back(p.second);
+                int n_conv = checkTemplateProcInstantiation(tproc, args, inst, context, false);
+                if (n_conv != -1) {
+                    Candidate c;
+                    c.n_conv = n_conv;
+                    c.sym    = p.second;
+                    candidates.push_back(c);
                 }
             }
         }
@@ -273,26 +281,27 @@ std::vector<Symbol *> ProcSet::getCandidates(Scope * scope, ProcedureType * comp
     return candidates;
 }
 
-bool ProcSet::resolve(std::vector<Symbol *> & candidates,
-                      std::vector<Symbol *> & resolved,
+bool ProcSet::resolve(std::vector<Candidate> & candidates,
+                      std::vector<Candidate> & resolved,
                       ProcedureType * compare_type, ASTNode * args,
                       ASTNode * inst, Context * context, bool fail) {
     typedef std::multimap<int, Symbol *> Map;
     Map _concrete, _template;
 
     if (compare_type) {
-        for (auto sym : candidates) {
-            if (sym->isTemplateProc()) {
-                TemplateProc * tproc = (TemplateProc *)sym->node();
-                _template.insert(
-                    std::make_pair(checkTemplateProcInstantiation(
-                                       tproc, args, inst, context, fail),
-                                   sym));
+        for (auto& c : candidates) {
+            if (c.sym->isTemplateProc()) {
+                /* TemplateProc * tproc = (TemplateProc *)c.sym->node(); */
+                _template.insert(std::make_pair(c.n_conv, c.sym));
+                /* _template.insert( */
+                /*     std::make_pair(checkTemplateProcInstantiation( */
+                /*                        tproc, args, inst, context, fail), */
+                /*                    c.sym)); */
             } else {
                 ProcedureType * candidate_type =
-                    (ProcedureType *)sym->node()->getType();
+                    (ProcedureType *)c.sym->node()->getType();
                 _concrete.insert(std::make_pair(
-                    countConversions(candidate_type, compare_type), sym));
+                    countConversions(candidate_type, compare_type), c.sym));
             }
         }
 
@@ -311,7 +320,10 @@ bool ProcSet::resolve(std::vector<Symbol *> & candidates,
             }
 
             for (It it = take.first; it != take.second; it++) {
-                resolved.push_back(it->second);
+                Candidate c;
+                c.sym    = it->second;
+                c.n_conv = it->first;
+                resolved.push_back(c);
             }
         }
     }
@@ -325,12 +337,12 @@ bool ProcSet::resolve(std::vector<Symbol *> & candidates,
     return true;
 }
 
-void ProcSet::showCandidatesError(std::vector<Symbol *> & candidates,
+void ProcSet::showCandidatesError(std::vector<Candidate> & candidates,
                                   Context * context) {
     errorl(*context, "Reference to '" + name + "' is ambiguous.", false);
-    for (Symbol *& sym : candidates) {
-        errorl(sym->node()->getNameContext(), "'" + sym->unmangled + "' is a candidate.",
-               (&sym == &candidates.back()));
+    for (auto& c : candidates) {
+        errorl(c.sym->node()->getNameContext(), "'" + c.sym->unmangled + "' is a candidate.",
+               (&c == &candidates.back()));
     }
 }
 
@@ -382,14 +394,15 @@ Maybe<std::string> get_mod_from_string(const std::string& s) {
     size_t p = 0,
            l = s.size();
     if (l > 2) {
-        while (p < l - 2
-        &&    (isalnum(s[p])
-            || s[p] == '_'
-            || s[p] == '\'')) {
+        char c;
+        while (c = s[p], p < l - 2
+        && (isalnum(c)
+            || c == '_'
+            || c == '\'')) {
             p += 1;
         }
 
-        if (s[p] == ':' && s[p + 1] == ':') {
+        if (c == ':' && s[p + 1] == ':') {
             return Maybe<std::string>(s.substr(0, p));
         }
     }
@@ -422,7 +435,9 @@ ASTNode * Symbol::node()      const { return _node; }
 
 void Symbol::tablePrint(int indent) {
     static const char * pad = "................................................"
-                              "............................";
+                              "................................................"
+                              "................................................"
+                              "................................................";
     static const char * side = "\xE2\x95\x91";
     std::string indentation(indent * 2, ' ');
 
@@ -435,8 +450,8 @@ void Symbol::tablePrint(int indent) {
         right = unmangled;
     }
     
-    if (indentation.size() + left.size() + right.size() + 2 > strlen(pad))
-        right = "<too long>";
+    /* if (indentation.size() + left.size() + right.size() + 2 > strlen(pad)) */
+    /*     right = "<too long>"; */
     printf("%s %s", side, indentation.c_str());
     setColor(LIGHTRED);
     printf("%s", left.c_str());

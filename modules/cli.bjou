@@ -259,9 +259,7 @@ type ArgParser {
 
         switch.short = short
         has_long    := long != NULL as char*
-        switch.long  = << if has_long
-                            <-cstrdup(long)
-                          else <-NULL as char* >>
+        if has_long { switch.long = cstrdup(long) }
       
         this.all.push(switch)
         this.switches.push(switch)
@@ -302,9 +300,7 @@ type ArgParser {
         
         arg.short = short
         has_long := long != NULL as char*
-        arg.long  = << if has_long
-                            <-cstrdup(long)
-                       else <-NULL as char* >>
+        if has_long { arg.long = cstrdup(long) }
         
         this.all.push(arg)
         this.val_args.push(arg)
@@ -389,9 +385,7 @@ type ArgParser {
         
         arg.short = short
         has_long := long != NULL as char*
-        arg.long  = << if has_long
-                            <-cstrdup(long)
-                       else <-NULL as char* >>
+        if has_long { arg.long = cstrdup(long) }
         
         this.all.push(arg)
         this.val_args.push(arg)
@@ -560,6 +554,7 @@ type ArgParser {
                             continue
                         } else {
                             s'       := str(s.c_str() + 2)
+
                             arg_name := { string: }
                             val_str  := { string: }
                             val_idx  := s'.find('=')
@@ -709,9 +704,10 @@ type ArgParser {
                 this.report_needs_val_error(arg_name.c_str())
                 return false
             }
+
             return true 
         }
-        
+       
         this.report_ill_error(arg_name.c_str())
         return false
     }
@@ -858,3 +854,6 @@ proc sattr(s : string ref, attr : char*) : string ref
 
 proc sattr(s : string ref, attr1 : char*, attr2 : char*) : string ref
     return (s = concat(str(attr1), str(attr2), s, str(RESET)))
+
+proc sattr(s : string ref, attr1 : char*, attr2 : char*, attr3 : char*) : string ref
+    return (s = concat(concat(str(attr1), str(attr2), str(attr3)), s, str(RESET)))

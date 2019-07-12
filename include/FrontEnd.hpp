@@ -16,17 +16,16 @@
 #include "Scope.hpp"
 #include "Symbol.hpp"
 #include "Type.hpp"
-#include "std_string_hasher.hpp"
-#include "hybrid_map.hpp"
 
 #include <map>
 #include <set>
 #include <stack>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace bjou {
+struct Include;
+
 struct FrontEnd {
     FrontEnd();
     ~FrontEnd();
@@ -38,8 +37,8 @@ struct FrontEnd {
     std::set<ASTNode *> non_run_non_fast_tracked_macros;
     bool stop_tracking_macros = false;
     std::vector<ASTNode *> structs, namespaces;
-    std::unordered_map<std::string, const Type *> typeTable;
-    std::unordered_map<std::string, const Type *> primativeTypeTable;
+    hash_table_t<std::string, const Type *, STRING_HASHER> typeTable;
+    hash_table_t<std::string, const Type *, STRING_HASHER> primativeTypeTable;
     Scope * globalScope;
 
     Procedure * printf_decl;
@@ -57,6 +56,8 @@ struct FrontEnd {
     std::set<std::string> modulesImported;
     std::map<std::string, Module *> modulesByID;
     std::map<std::string, Module *> modulesByPath;
+    std::vector<Include*> include_stack;
+    std::vector<std::string> include_path_stack;
     std::map<ASTNode::NodeKind, std::string> kind2string;
     MacroManager macroManager;
 

@@ -482,6 +482,34 @@ static ASTNode * __slice_len(MacroUse * use) {
     return access;
 }
 
+static ASTNode * __sum_data(MacroUse * use) {
+    Expression * expr = (Expression *)use->getArgs()[0];
+    const Type * t = expr->getType()->unRef();
+
+    if (!t->isSum()) {
+        errorl(expr->getContext(), "__sum_data: Expression is not a sum.",
+               true, "got '" + t->getDemangledName() + "'");
+    }
+
+    StructType * struct_t = (StructType *)((SliceType *)t)->getRealType();
+
+    const Type * result_t = VoidType::get()->getPointer();
+
+    AccessExpression * access = new AccessExpression;
+    access->setContext(use->getContext());
+
+    access->setLeft(expr);
+    access->setRight(new IgnoreNode());
+
+    access->addSymbols(use->mod, use->getScope());
+    access->setType(result_t);
+    access->setFlag(AccessExpression::ANALYZED, true);
+    
+    access->setFlag(AccessExpression::SUM_DATA, true);
+
+    return access;
+}
+
 static ASTNode * abc(MacroUse * use) {
     bool abc = compilation->frontEnd.abc;
 
@@ -818,6 +846,8 @@ MacroManager::MacroManager() {
         "__slice_data", Macros::__slice_data, {{ANY_EXPRESSION}}};
     macros["__slice_len"] = {
         "__slice_len", Macros::__slice_len, {{ANY_EXPRESSION}}};
+
+    macros["__sum_data"] = { "__sum_data", Macros::__sum_data, {{ANY_EXPRESSION}}};
 
     macros["abc"] = {"abc", Macros::abc, {}};
 

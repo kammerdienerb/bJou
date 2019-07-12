@@ -1,0 +1,10 @@
+got an int ref (123)
+got nothing
+got nothing
+got an int ref (456)
+s() assigning to i
+now i is 789
+got an int ref (111)
+sum is not nothing
+in while destructure
+2468

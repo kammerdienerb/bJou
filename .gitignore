@@ -23,3 +23,4 @@ berg
 nolibc_syscall
 cmake-build-debug
 self
+.ccls-cache

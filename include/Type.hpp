@@ -11,10 +11,10 @@
 
 #include "Maybe.hpp"
 #include "Misc.hpp"
-#include "std_string_hasher.hpp"
-#include "hybrid_map.hpp"
+#include "hash_table.h"
 
 #include <set>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -252,6 +252,8 @@ struct ArrayType : Type {
 
 struct SliceType : Type {
     const Type * elem_t;
+    
+    const Type * real_t;
 
     SliceType(const Type * _elem_t);
 
@@ -270,6 +272,8 @@ struct SliceType : Type {
 
 struct DynamicArrayType : Type {
     const Type * elem_t;
+
+    const Type * real_t;
 
     DynamicArrayType(const Type * _elem_t);
 
@@ -292,12 +296,12 @@ struct StructType : Type {
     Struct * _struct;
     TemplateInstantiation * inst;
     Type * extends;
-    hybrid_map<std::string, int, std_string_hasher> memberIndices;
+    hash_table_t<std::string, int, STRING_HASHER> memberIndices;
     std::vector<const Type *> memberTypes;
     std::vector<VariableDeclaration*> memberVarDecls;
-    hybrid_map<std::string, Constant *, std_string_hasher> constantMap;
-    hybrid_map<std::string, ProcSet *, std_string_hasher> memberProcs;
-    hybrid_map<std::string, const StructType*, std_string_hasher> inheritedProcsToBaseStructType;
+    hash_table_t<std::string, Constant *, STRING_HASHER> constantMap;
+    hash_table_t<std::string, ProcSet *, STRING_HASHER> memberProcs;
+    hash_table_t<std::string, const StructType*, STRING_HASHER> inheritedProcsToBaseStructType;
 
     StructType(std::string & name, Struct * __struct = nullptr,
                TemplateInstantiation * _inst = nullptr);
@@ -334,6 +338,11 @@ struct SumType : Type {
 
     std::vector<const Type *> types;
 
+    std::vector<const Type*> flatten_sub_types() const;
+    const Type * oro_ref_type() const;
+
+    unsigned n_eq_bits;
+
     SumType(const std::vector<const Type *> & _types, Declarator * _first_decl);
 
     static const Type * get(const std::vector<const Type *> & types, Declarator * _first_decl);
@@ -347,7 +356,8 @@ struct SumType : Type {
     bool _checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const;
 };
 
-uint64_t get_static_sum_tag(const Type * dest_t, const SumType * sum_t);
+uint32_t get_static_sum_tag_store(const Type * dest_t, const SumType * sum_t);
+uint32_t get_static_sum_tag_cmp(const Type * dest_t, const SumType * sum_t, bool *by_ext);
 
 struct TupleType : Type {
     Declarator * first_decl;

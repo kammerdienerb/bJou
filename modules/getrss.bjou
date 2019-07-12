@@ -1,0 +1,15 @@
+# getrss.bjou
+
+module getrss
+
+using __sys
+import "os.bjou"
+
+proc getpeakrss() : u64 {
+    usage := { rusage: }
+    getrusage(0, &usage)
+    r := usage.ru_maxrss()
+    \static_if{ os::OS == os::LINUX
+        r *= 1024 }
+    return r
+}

@@ -180,9 +180,7 @@ type ArgParser {
 
         switch.short = short
         has_long    := long != NULL as char*
-        switch.long  = << if has_long
-                            <-cstrdup(long)
-                          else <-NULL as char* >>
+        if has_long { switch.long = cstrdup(long) }
       
         this.all.push(switch)
         this.switches.push(switch)
@@ -223,9 +221,7 @@ type ArgParser {
 
         arg.short = short
         has_long := long != NULL as char*
-        arg.long  = << if has_long
-                            <-cstrdup(long)
-                       else <-NULL as char* >>
+        if has_long { arg.long = cstrdup(long) }
         
         this.all.push(arg)
         this.val_args.push(arg)

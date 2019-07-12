@@ -37,7 +37,7 @@ type __bjou_slice$T {
     }
 }
 \static_if { not \abc{}
-    proc __bjou_slice_subscript$T(_s : T[] ref, _i : u64) : T {
+    proc __inline__ __bjou_slice_subscript$T(_s : T[] ref, _i : u64) : T {
         return \__slice_data{_s}[_i]
     }
 }
@@ -49,7 +49,7 @@ proc contains$T(slice : T[] ref, val : T) : bool {
     return false
 }
 
-proc data$T(slice : T[] ref) : T* {
+proc __inline__ data$T(slice : T[] ref) : T* {
     return \__slice_data{slice}
 }
 
@@ -57,7 +57,7 @@ proc free$T(slice : T[] ref) {
     delete \__slice_data{slice}
 }
 
-proc advance$T(slice : T[] ref, n : u32) {
+proc __inline__ advance$T(slice : T[] ref, n : u32) {
     _d := __ref::getref(\__slice_data{slice})
     _l := __ref::getref(\__slice_len{slice})
     if _l < n {
@@ -69,7 +69,7 @@ proc advance$T(slice : T[] ref, n : u32) {
     }
 }
 
-proc shrink$T(slice : T[] ref, n : u32) {
+proc __inline__ shrink$T(slice : T[] ref, n : u32) {
     _l := __ref::getref(\__slice_len{slice})
     if _l < n {
         _l  = 0

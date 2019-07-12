@@ -1,0 +1,18 @@
+# types.bjou
+
+module types
+
+const U8_MAX  := 0xffu8
+const U16_MAX := 0xffffu16
+const U32_MAX := 0xffffffffu32
+const U64_MAX := 0xffffffffffffffffu64
+
+const I8_MAX  := 0x7f as i8
+const I16_MAX := 0x7fff as i16
+const I32_MAX := 0x7fffffff as i32
+const I64_MAX := 0x7fffffffffffffff as i64
+
+const I8_MIN  := -128i8
+const I16_MIN := -32768i16 
+const I32_MIN := -2147483647i32
+const I64_MIN := -9223372036854775807i64

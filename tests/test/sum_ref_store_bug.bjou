@@ -1,0 +1,14 @@
+main()
+
+proc main() {
+    i := 0
+    p := (&i) as void*
+
+    ptr_ref := getref(p)
+
+    m_ptr : (void* | none) = ptr_ref
+
+    if ptr : void* = m_ptr {
+        print "%", &i == ptr
+    }
+}

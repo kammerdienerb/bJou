@@ -11,8 +11,8 @@
 #include "FrontEnd.hpp"
 #include "Misc.hpp"
 #include "Parser.hpp"
-#include "std_string_hasher.hpp"
-#include "hybrid_map.hpp"
+
+#include "hash_table.h"
 
 #ifdef BJOU_DEBUG_BUILD
 #define SAVE_BJOU_DEBUG_BUILD
@@ -138,14 +138,14 @@ static void importModules(std::deque<Import *> imports, FrontEnd & frontEnd) {
     std::set<std::string> & modulesImported =
         compilation->frontEnd.modulesImported;
     std::set<std::string> filesSeen;
-    hybrid_map<std::string, milliseconds, std_string_hasher> times;
-    hybrid_map<std::string, milliseconds, std_string_hasher> peektimes;
+    hash_table_t<std::string, milliseconds, STRING_HASHER> times;
+    hash_table_t<std::string, milliseconds, STRING_HASHER> peektimes;
 
     unsigned int nthreaded = std::thread::hardware_concurrency() - 1;
 
     if (nthreaded > 0 && !compilation->args.noparallel_arg) {
         std::vector<ImportParser *> parserContainer;
-        std::unordered_map<std::string, std::future<milliseconds>, std_string_hasher> futureTimes;
+        std::unordered_map<std::string, std::future<milliseconds>, STRING_HASHER> futureTimes;
         parserContainer.reserve(nthreaded);
 
         while (!imports.empty()) {
@@ -339,174 +339,4 @@ void importModuleFromFile(FrontEnd & frontEnd, const char * _fname) {
     // importModules(imports, frontEnd);
 }
 
-/*
-AsyncImporter::AsyncImporter() : ifs(nullptr), ar(nullptr) {  }
-
-AsyncImporter::AsyncImporter(std::string& _header, std::ifstream * _ifs,
-boost::archive::text_iarchive * _ar) : header(_header), ifs(_ifs), ar(_ar) {  }
-
-milliseconds AsyncImporter::operator () () {
-    auto start = Clock::now();
-
-    deserializeTypeTable(typeTable, *ar);
-    deserializeAST(AST, *ar);
-
-    auto end = Clock::now();
-    return duration_cast<milliseconds>(end - start);
-}
- */
-
-/*
-void importModules(std::vector<ASTNode*>& AST) {
-    std::vector<Import*> imports;
-    for (ASTNode * node : AST)
-        if (node->nodeKind == ASTNode::IMPORT)
-            imports.push_back((Import*)node);
-
-    unsigned int nthreaded = std::thread::hardware_concurrency() - 1;
-    size_t nimports = imports.size();
-
-    std::unordered_map<std::string, milliseconds> times;
-
-    if (nimports > 1 && nthreaded > 0 &&
-!compilation->args.noparallel_arg.getValue()) { unsigned int i = 0; while (i <
-nimports) {
-            // do threads
-            std::vector<AsyncImporter> importers;
-            importers.reserve(nthreaded);
-            std::unordered_map<std::string, std::future<milliseconds> >
-futureTimes;
-
-            while (importers.size() < nthreaded || (i >= (nimports - (nimports %
-nthreaded)) && i < nimports)) { Import * import = imports[i];
-
-                BJOU_DEBUG_ASSERT(import->getFlag(Import::FROM_PATH));
-                BJOU_DEBUG_ASSERT(import->module.size() > 2);
-
-                // de-quote
-                std::string fname = import->module.substr(1,
-import->module.size() - 2);
-
-                std::ifstream * ifs = new std::ifstream(fname);
-                BJOU_DEBUG_ASSERT(ifs && "Bad file!");
-                boost::archive::text_iarchive * ar = new
-boost::archive::text_iarchive(*ifs);
-
-                std::string header = read_header(*ar);
-                auto& modulesImported = compilation->frontEnd.modulesImported;
-
-                if (modulesImported.find(header) == modulesImported.end()) {
-                    std::set<std::string> importedIDs;
-
-                    deserializeImportedIDs(importedIDs, *ar);
-                    joinImportedIDsWithCompilation(importedIDs);
-
-                    modulesImported.insert(header);
-
-                    importers.emplace_back(header, ifs, ar);
-
-                    futureTimes[header] = std::async(std::launch::async,
-std::ref(importers.back()));
-
-                    for (auto& ft : futureTimes)
-                        times[ft.first] = ft.second.get();
-
-                    for (AsyncImporter& importer : importers) {
-                        joinTypeTableWithCompilation(importer.typeTable);
-                        AST.reserve(AST.size() + importer.AST.size());
-                        AST.insert(AST.end(), importer.AST.begin(),
-importer.AST.end());
-
-                        delete importer.ar;
-                        delete importer.ifs;
-                    }
-                } else {
-                    delete ar;
-                    delete ifs;
-                }
-                i += 1;
-            }
-        }
-    } else {
-        for (Import * import : imports) {
-            BJOU_DEBUG_ASSERT(import->getFlag(Import::FROM_PATH));
-            BJOU_DEBUG_ASSERT(import->module.size() > 2);
-
-            // de-quote
-            std::string fname = import->module.substr(1, import->module.size() -
-2);
-
-            auto start = Clock::now();
-
-            importModuleFromFile(AST, fname.c_str());
-
-            auto end = Clock::now();
-            times[fname] = duration_cast<milliseconds>(end - start);
-        }
-    }
-
-    if (compilation->args.time_arg.getValue())
-        for (auto& t : times)
-            prettyPrintTimeMin(t.second, "    " + t.first);
-}
-
-void importModuleFromFile(std::vector<ASTNode*>& AST, const char * fname) {
-    std::vector<ASTNode*> importedNodes;
-    std::string header;
-
-    std::ifstream ifs(fname);
-    {
-        BJOU_DEBUG_ASSERT(ifs && "Bad file!");
-        boost::archive::text_iarchive ar(ifs);
-
-        header = read_header(ar);
-        auto& modulesImported = compilation->frontEnd.modulesImported;
-
-        if (modulesImported.find(header) == modulesImported.end()) {
-            std::vector<ASTNode*> importedNodes;
-            std::unordered_map<std::string, Type*> importedTypeTable;
-            std::set<std::string> importedIDs;
-
-            modulesImported.insert(header);
-
-            deserializeImportedIDs(importedIDs, ar);
-            deserializeTypeTable(importedTypeTable, ar);
-            deserializeAST(importedNodes, ar);
-            joinImportedIDsWithCompilation(importedIDs);
-            joinTypeTableWithCompilation(importedTypeTable);
-            AST.reserve(AST.size() + importedNodes.size());
-            AST.insert(AST.end(), importedNodes.begin(), importedNodes.end());
-        }
-    }
-}
-
-void exportModule(std::vector<ASTNode*>& AST) {
-    exportModuleToFile(AST, (compilation->outputpath +
-compilation->outputbasefilename).c_str());
-}
-
-void exportModuleToFile(std::vector<ASTNode*>& AST, const char * fname) {
-    std::ofstream ofs(fname);
-    {
-        boost::archive::text_oarchive ar(ofs);
-
-        write_header(compilation->module_identifier, ar);
-        serializeImportedIDs(compilation->frontEnd.modulesImported, ar);
-        serializeTypeTable(compilation->frontEnd.typeTable, ar);
-        serializeAST(AST, ar);
-    }
-}
-
-void joinTypeTableWithCompilation(std::unordered_map<std::string, Type*>&
-typeTable) {
-    // @leak?
-
-    compilation->frontEnd.typeTable.insert(typeTable.begin(), typeTable.end());
-}
-
-void joinImportedIDsWithCompilation(std::set<std::string>& modulesImported) {
-    compilation->frontEnd.modulesImported.insert(modulesImported.begin(),
-modulesImported.end());
-}
- */
 } // namespace bjou

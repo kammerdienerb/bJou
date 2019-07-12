@@ -42,6 +42,7 @@ static void AddOptimizationPasses(llvm::legacy::PassManagerBase & MPM,
             // llvm::createFunctionInliningPass(OptLevel, SizeLevel, false);
             llvm::createFunctionInliningPass(
                 OptLevel, SizeLevel
+
 #if LLVM_VERSION_MAJOR > 4
                 ,
                 false /* DisableInlineHotCallSite */
@@ -65,10 +66,24 @@ static void AddOptimizationPasses(llvm::legacy::PassManagerBase & MPM,
     Builder.populateFunctionPassManager(FPM);
     Builder.populateModulePassManager(MPM);
 
+    MPM.add(llvm::createAlwaysInlinerLegacyPass());
+
 #if !LLVM_VERSION_MAJOR > 4
     TM->addEarlyAsPossiblePasses(FPM);
     TM->addEarlyAsPossiblePasses(MPM);
 #endif
+}
+
+static void addLinkPasses(llvm::legacy::PassManagerBase &passes, unsigned OptLevel, unsigned SizeLevel) {
+  llvm::PassManagerBuilder builder;
+  builder.VerifyInput = true;
+  builder.Inliner = llvm::createFunctionInliningPass(OptLevel, SizeLevel
+#if LLVM_VERSION_MAJOR > 4
+                ,
+                false /* DisableInlineHotCallSite */
+#endif
+          );
+  builder.populateLTOPassManager(passes);
 }
 
 namespace bjou {
@@ -92,6 +107,7 @@ void LLVMGenerator::generate() {
         fpass.add(createTargetTransformInfoWrapperPass(
             backEnd.targetMachine->getTargetIRAnalysis()));
         AddOptimizationPasses(pass, fpass, backEnd.targetMachine, 3, 0);
+        addLinkPasses(pass, 3, 0);
     }
 
     llvm::raw_fd_ostream * dest = nullptr;
@@ -125,6 +141,10 @@ void LLVMGenerator::generate() {
             error(Context(), "TargetMachine can't emit a file of this type");
     }
 
+    fpass.doInitialization(); 
+    for (auto& F : *backEnd.llModule)
+        fpass.run(F);
+    fpass.doFinalization(); 
     pass.run(*(backEnd.llModule));
 
     if (dest) {

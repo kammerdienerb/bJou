@@ -23,10 +23,14 @@ proc __die(err : __errcode::errcode, fl : char*, pn : char*, ln : u32) {
 
     do_color := isatty(2) == 1
     
-    blue  := << if do_color <-"\e[34m" else <-"" >>
-    red   := << if do_color <-"\e[31m" else <-"" >>
-    bold  := << if do_color <-"\e[1m" else <-"" >>
-    reset := << if do_color <-"\e[0m" else <-"" >>
+    blue  := ""
+    if do_color { blue  = "\e[34m" }
+    red   := ""
+    if do_color { red   = "\e[31m" }
+    bold  := ""
+    if do_color { bold  = "\e[1m"  }
+    reset := ""
+    if do_color { reset = "\e[0m"  }
 
     es := __errcode::errstr(err)
 
@@ -64,10 +68,14 @@ proc __die(msg : char*, fl : char*, pn : char*, ln : u32) {
 
     do_color := isatty(2) == 1
     
-    blue  := << if do_color <-"\e[34m" else <-"" >>
-    red   := << if do_color <-"\e[31m" else <-"" >>
-    bold  := << if do_color <-"\e[1m" else <-"" >>
-    reset := << if do_color <-"\e[0m" else <-"" >>
+    blue  := ""
+    if do_color { blue  = "\e[34m" }
+    red   := ""
+    if do_color { red   = "\e[31m" }
+    bold  := ""
+    if do_color { bold  = "\e[1m"  }
+    reset := ""
+    if do_color { reset = "\e[0m"  }
 
     const fmt :=
 "%s%s%s%s :: %s%s%s%s :: %s%s%u%s -- exiting due to an error

@@ -30,7 +30,7 @@ import "actor.bjou"
 
     \actor_receive{ proc (this) {
         while true {
-            \actor_send{ rc, val }
+            \actor_send{ rc val }
             \actor_sleep{ 1 }
         }
     } }

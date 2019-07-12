@@ -231,12 +231,11 @@ proc v_TypedefDecl(cursor      : CXCursor,
       or children[0].kind == CXCursor_EnumDecl) {
         rec := translator.created.back()
 
-        rec_name := <<
-            if children[0].kind == CXCursor_EnumDecl
-                <-bjou_getEnumName(rec)
-            else
-                <-bjou_getStructName(rec)
-        >>
+        rec_name := NULL as char*
+        if children[0].kind == CXCursor_EnumDecl
+            rec_name = bjou_getEnumName(rec)
+        else
+            rec_name = bjou_getStructName(rec)
 
         decl = bjou_createDeclarator(
                     bjou_createIdentifier(rec_name),

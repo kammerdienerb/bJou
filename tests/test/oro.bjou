@@ -1,0 +1,70 @@
+main()
+
+proc p() : (int ref | none) {
+    return nothing
+}
+
+proc p(arg : int ref) : (int ref | none) {
+    return arg
+}
+
+proc q(arg : (int ref | none)) {
+    if i : int ref = arg {
+        print "got an int ref (%)", i
+    } else {
+        print "got nothing"
+    }
+}
+
+proc s(arg : (int ref | none)) {
+    if i : int ref = arg {
+        print "s() assigning to i"
+        i = 789
+    }
+}
+
+proc is_none$T(arg : T) : bool {
+    if n : none = arg
+        return true
+    return false
+}
+
+proc main() {
+    i   := 123
+    sum : (int ref | none) = i
+    sum = getref(i)
+    q(sum)
+    sum = nothing
+    q(sum)
+    sum = p()
+    q(sum)
+
+    i = 456
+
+    q(i)
+
+    sum = i
+
+    s(sum)
+
+    print "now i is %", i
+
+    i = 111
+
+    sum = p(i)
+    q(sum)
+
+    if sum.is_none() {
+        print "sum is none"
+    } else {
+        print "sum is not nothing"
+    }
+
+    sum = i
+    while i' : int ref = sum {
+        print "in while destructure"
+        i   = 2468
+        sum = nothing
+    }
+    print "%", i
+}

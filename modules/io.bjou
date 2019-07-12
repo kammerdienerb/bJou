@@ -74,7 +74,10 @@ type file {
                 bxor S_IWGRP bxor S_IROTH bxor S_IWOTH
 
         fd    := open(path, mode, DEFAULT_PERM)
-        path' := << if fd >= 0 <- cstrdup(path) else <- NULL as char* >>
+        path' := NULL as char*
+        if fd >= 0 {
+            path' = cstrdup(path)
+        }
 
         return { file:
             .fd       = fd,

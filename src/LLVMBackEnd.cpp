@@ -73,7 +73,6 @@ LLVMBackEnd::LLVMBackEnd(FrontEnd & _frontEnd)
       abi_lowerer(ABILowerer<LLVMBackEnd>::get(*this)), builder(llContext) {
     target = nullptr;
     targetMachine = nullptr;
-    layout = nullptr;
     llModule = nullptr;
     outModule = nullptr;
     ee = nullptr;
@@ -163,11 +162,10 @@ void LLVMBackEnd::init() {
         genTriple, "", targetFeatures, Options, RM,
         llvm::CodeModel::Small, OLvl);
     targetMachine->setFastISel(!compilation->args.opt_arg);
-    layout = new llvm::DataLayout(targetMachine->createDataLayout());
 
     outModule = new llvm::Module(compilation->outputbasefilename, llContext);
-    outModule->setDataLayout(targetMachine->createDataLayout());
     outModule->setTargetTriple(genTriple);
+    outModule->setDataLayout(targetMachine->createDataLayout());
 
     // setup pre defined passes
     pass_create_by_name["earlycse"] = []() {
@@ -238,10 +236,9 @@ void LLVMBackEnd::jit_reset() {
     targetMachine = target->createTargetMachine(
         nativeTriple, "", "", Options, RM,
         llvm::CodeModel::Small, OLvl);
-    layout = new llvm::DataLayout(targetMachine->createDataLayout());
 
-    jitModule->setDataLayout(targetMachine->createDataLayout());
     jitModule->setTargetTriple(nativeTriple);
+    jitModule->setDataLayout(targetMachine->createDataLayout());
 
     if (ee)
         delete ee;
@@ -306,7 +303,6 @@ void LLVMBackEnd::jit_reset() {
     ee->addGlobalMapping("bjou_createModAssignExpression", (uint64_t)&bjou_createModAssignExpression);
     ee->addGlobalMapping("bjou_createLssExpression", (uint64_t)&bjou_createLssExpression);
     ee->addGlobalMapping("bjou_createLeqExpression", (uint64_t)&bjou_createLeqExpression);
-    ee->addGlobalMapping("bjou_createLeqExpression", (uint64_t)&bjou_createLeqExpression);
     ee->addGlobalMapping("bjou_createGtrExpression", (uint64_t)&bjou_createGtrExpression);
     ee->addGlobalMapping("bjou_createGeqExpression", (uint64_t)&bjou_createGeqExpression);
     ee->addGlobalMapping("bjou_createEquExpression", (uint64_t)&bjou_createEquExpression);
@@ -369,8 +365,6 @@ LLVMBackEnd::~LLVMBackEnd() {
     // delete jitModule;
     if (outModule)
         delete outModule;
-    if (layout)
-        delete layout;
 }
 
 milliseconds LLVMBackEnd::go() {
@@ -406,9 +400,8 @@ void * LLVMBackEnd::run(Procedure * proc, void * _val_args) {
     mode = GEN_MODE::CT;
 
     /* save generation target info */
-    const llvm::Target * save_target         = target;
-    llvm::TargetMachine * save_targetMachine = targetMachine;
-    llvm::DataLayout * save_layout           = layout;
+    const llvm::Target  *save_target        = target;
+    llvm::TargetMachine *save_targetMachine = targetMachine;
     /*******************************/
 
     if (!ee)
@@ -682,7 +675,6 @@ void * LLVMBackEnd::run(Procedure * proc, void * _val_args) {
     /* restore generation target info */
     target        = save_target;
     targetMachine = save_targetMachine;
-    layout        = save_layout;
     /*******************************/
 
     /* internalError("LLVMBackEnd::run(): For now, there is a limit to the type " */
@@ -836,6 +828,35 @@ llvm::Type * LLVMBackEnd::getOrGenType(const Type * t) {
     return ll_t;
 }
 
+__attribute__((used))
+static std::string get_struct_name(llvm::Type * ty) {
+    if (!ty->isStructTy())
+        return "";
+    return ty->getStructName().str();
+}
+
+uint64_t LLVMBackEnd::getLLVMAllocSize(llvm::Type* ty) {
+    if (ty->isEmptyTy()) { 
+        return 0;
+    }
+    auto size = llModule->getDataLayout().getTypeAllocSize(ty);
+    
+    if (size == 0) {
+        llvm::outs() << "zero size for type ";
+        plt(ty);
+        llvm::outs() << "\n";
+    }
+
+    return size;
+}
+
+uint64_t LLVMBackEnd::getLLVMABITypeAlignment(llvm::Type* ty) {
+    if (ty->isEmptyTy() || !ty->isSized())
+        return 1;
+
+    return llModule->getDataLayout().getABITypeAlignment(ty);
+}
+
 void LLVMBackEnd::completeTypes() {
     while (!types_need_completion.empty()) {
         std::vector<ASTNode *> copy;
@@ -963,11 +984,11 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
 
         return gvar;
     } else {
-        auto align = llbe->layout->getABITypeAlignment(ll_t);
+        auto align = llbe->getLLVMABITypeAlignment(ll_t);
 
         if (t->isArray()) {
             gvar->setAlignment(
-                (unsigned int)llbe->layout->getTypeAllocSize(gvar->getType()));
+                (unsigned int)llbe->getLLVMAllocSize(gvar->getType()));
 
             if (var->getFlag(VariableDeclaration::IS_EXTERN)) {
                 return gvar;
@@ -977,7 +998,7 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
                 *llbe->llModule, ll_t, false,
                 llvm::GlobalVariable::InternalLinkage, 0,
                 "__bjou_array_under_" + var->getMangledName());
-            under->setAlignment(llbe->layout->getPreferredAlignment(under));
+            under->setAlignment(llbe->llModule->getDataLayout().getPreferredAlignment(under));
 
             if (var->getInitialization()) {
                 if (var->getInitialization()->nodeKind ==
@@ -1108,9 +1129,6 @@ milliseconds LLVMBackEnd::IRGenStage() {
         internalError("There was an llvm error.");
     }
 
-    if (compilation->args.verbose_arg)
-        llModule->print(llvm::errs(), nullptr);
-
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
 }
@@ -1118,6 +1136,18 @@ milliseconds LLVMBackEnd::IRGenStage() {
 milliseconds LLVMBackEnd::CodeGenStage() {
     auto start = Clock::now();
     generator.generate();
+    
+    std::string errstr;
+    llvm::raw_string_ostream errstream(errstr);
+    if (llvm::verifyModule(*llModule, &errstream)) {
+        llModule->print(llvm::errs(), nullptr);
+        error(COMPILER_SRC_CONTEXT(), "LLVM:", true, errstream.str());
+        internalError("There was an llvm error.");
+    }
+
+    if (compilation->args.verbose_arg)
+        llModule->print(llvm::errs(), nullptr);
+
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
 }
@@ -1179,7 +1209,7 @@ milliseconds LLVMBackEnd::LinkingStage() {
         if (trip.isOSBinFormatMachO()) {
             success = lld::mach_o::link(lld_args, errstream);
         } else if (trip.isOSBinFormatELF()) {
-            success = lld::elf::link(lld_args, errstream);
+            success = lld::elf::link(lld_args, false);
         } else internalError("Could not determine output binary format for linking.");
 #endif
 
@@ -1310,7 +1340,7 @@ llvm::Value * LLVMBackEnd::allocNamedVal(std::string name, const Type * type) {
     builder.SetInsertPoint(local_alloc_stack.top());
 
     llvm::Value * alloca = builder.CreateAlloca(t, 0, name);
-    ((llvm::AllocaInst *)alloca)->setAlignment(layout->getABITypeAlignment(t));
+    ((llvm::AllocaInst *)alloca)->setAlignment(getLLVMABITypeAlignment(t));
 
     if (t->isArrayTy()) {
         llvm::Value * ptr =
@@ -1347,7 +1377,7 @@ llvm::Value * LLVMBackEnd::allocUnnamedVal(const Type * type,
     builder.SetInsertPoint(local_alloc_stack.top());
 
     llvm::Value * alloca = builder.CreateAlloca(t, 0, "");
-    ((llvm::AllocaInst *)alloca)->setAlignment(layout->getABITypeAlignment(t));
+    ((llvm::AllocaInst *)alloca)->setAlignment(getLLVMABITypeAlignment(t));
 
     if (t->isArrayTy() && array2pointer) {
         llvm::Value * ptr =
@@ -1409,12 +1439,19 @@ llvm::Type * LLVMBackEnd::bJouTypeToLLVMType(const bjou::Type * t) {
             return llvm::Type::getDoubleTy(llContext);*/ }
         case Type::CHAR:
             return llvm::IntegerType::get(llContext, 8);
-        case Type::NONE:
+        case Type::NONE: {
             return llvm::StructType::get(llContext, {});
+        }
         case Type::STRUCT: {
-            Struct * s = ((StructType *)t)->_struct;
-            llvm::Type * ll_t = llvm::StructType::create(llContext, s->getMangledName());
+            StructType * s_t = (StructType *)t;
+            Struct * s       = s_t->_struct;
+            llvm::Type *ll_t = llvm::StructType::create(llContext, s->getMangledName());
             generated_types[t] = ll_t;
+
+            if (s_t->memberTypes.empty()) {
+                empty_struct_types.insert(ll_t);
+            }
+
             s->analyze();
             genStructProcs(s);
             getOrGenNode(s);
@@ -1497,14 +1534,35 @@ llvm::Type * LLVMBackEnd::createOrLookupDefinedType(const bjou::Type * t) {
     return nullptr;
 }
 
-llvm::StructType * LLVMBackEnd::createSumStructType(const Type * t) {
+llvm::Type * LLVMBackEnd::createSumStructType(const Type * t) {
     BJOU_DEBUG_ASSERT(t->isSum());
 
     SumType * s_t = (SumType *)t;
+
+    /* Check if we can do ORO (optional reference optimization). */
+    const Type * oro_t = s_t->oro_ref_type();
+    if (oro_t) {
+        return getOrGenType(oro_t);
+    }
+
     std::string name = compilation->frontEnd.makeUID("sum");
     llvm::StructType * ll_t = llvm::StructType::create(llContext, name);
+    generated_types[t] = ll_t;
 
-    sum_types_need_completion.insert(s_t);
+    /* kinda like a little genDeps() */
+    for (const Type *sub_t : s_t->getTypes()) {
+        /* Pointer's and references imply that we don't
+         * need the types to be complete.
+         * This helps avoid some cirular dependency issues. */
+        if (!sub_t->isRef() && !sub_t->isPointer()) {
+            getOrGenType(sub_t);
+        }
+    }
+
+    auto search = std::find(sum_types_need_completion.begin(), sum_types_need_completion.end(), s_t);
+    if (search == sum_types_need_completion.end()) {
+        sum_types_need_completion.push_back(s_t);
+    }
     return ll_t;
 }
 
@@ -1514,13 +1572,13 @@ void LLVMBackEnd::completeSumType(const SumType * t) {
     llvm::StructType * ll_t = (llvm::StructType*)_ll_t;
 
     std::vector<llvm::Type *> sub_types;
-    sub_types.push_back(builder.getInt8Ty()); /* tag type */
+    sub_types.push_back(builder.getInt32Ty()); /* tag type */
    
     uint64_t sub_size     = 0;
     llvm::Type * max_type = nullptr;
     for (const Type * sub_t : t->types) {
         llvm::Type * ll_sub_t = getOrGenType(sub_t);
-        auto sz = layout->getTypeAllocSize(ll_sub_t);
+        auto sz = getLLVMAllocSize(ll_sub_t);
         if (sz >= sub_size) {
             sub_size = sz;
             max_type = ll_sub_t;
@@ -1907,7 +1965,7 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
     else if (lt->isSlice())
         lt = ((SliceType *)lt)->getRealType();
 
-    auto align = llbe->layout->getABITypeAlignment(llbe->getOrGenType(lt));
+    auto align = llbe->getLLVMABITypeAlignment(llbe->getOrGenType(lt));
 
     if (lt->isStruct()) { // do memcpy
         rv = (llvm::Value *)getRight()->generate(backEnd, true);
@@ -1919,7 +1977,7 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
 
         llvm::Value * dest = llbe->builder.CreateBitCast(lv, ll_byte_ptr_t);
         llvm::Value * src = llbe->builder.CreateBitCast(rv, ll_byte_ptr_t);
-        auto _size = llbe->layout->getTypeAllocSize((llbe->getOrGenType((lt))));
+        auto _size = llbe->getLLVMAllocSize((llbe->getOrGenType((lt))));
         llvm::Value * size = llvm::ConstantInt::get(
             llvm::Type::getInt64Ty(llbe->llContext), _size);
 #if LLVM_VERSION_MAJOR >= 7
@@ -1933,7 +1991,7 @@ void * AssignmentExpression::generate(BackEnd & backEnd, bool getAddr) {
         llvm::StoreInst * store = llbe->builder.CreateStore(rv, lv, v_w);
 
         if (getLeft()->getType()->isPointer() && !lt->under()->isVoid()) {
-            store->setAlignment(llbe->layout->getABITypeAlignment(llbe->getOrGenType(lt->under())));
+            store->setAlignment(llbe->getLLVMABITypeAlignment(llbe->getOrGenType(lt->under())));
         }
     }
 
@@ -2013,6 +2071,8 @@ void * LssExpression::generate(BackEnd & backEnd, bool flag) {
             return llbe->builder.CreateICmpSLT(lv, rv);
         else
             return llbe->builder.CreateICmpULT(lv, rv);
+    } else if (myt->isEnum()) {
+        return llbe->builder.CreateICmpULT(lv, rv);
     } else if (myt->isChar()) {
         return llbe->builder.CreateICmpULT(lv, rv);
     } else if (myt->isFloat()) {
@@ -2045,6 +2105,8 @@ void * LeqExpression::generate(BackEnd & backEnd, bool flag) {
             return llbe->builder.CreateICmpSLE(lv, rv);
         else
             return llbe->builder.CreateICmpULE(lv, rv);
+    } else if (myt->isEnum()) {
+        return llbe->builder.CreateICmpULE(lv, rv);
     } else if (myt->isChar()) {
         return llbe->builder.CreateICmpULE(lv, rv);
     } else if (myt->isFloat()) {
@@ -2077,6 +2139,8 @@ void * GtrExpression::generate(BackEnd & backEnd, bool flag) {
             return llbe->builder.CreateICmpSGT(lv, rv);
         else
             return llbe->builder.CreateICmpUGT(lv, rv);
+    } else if (myt->isEnum()) {
+        return llbe->builder.CreateICmpUGT(lv, rv);
     } else if (myt->isChar()) {
         return llbe->builder.CreateICmpUGT(lv, rv);
     } else if (myt->isFloat()) {
@@ -2109,6 +2173,8 @@ void * GeqExpression::generate(BackEnd & backEnd, bool flag) {
             return llbe->builder.CreateICmpSGE(lv, rv);
         else
             return llbe->builder.CreateICmpUGE(lv, rv);
+    } else if (myt->isEnum()) {
+        return llbe->builder.CreateICmpUGE(lv, rv);
     } else if (myt->isFloat()) {
         return llbe->builder.CreateFCmpUGE(lv, rv);
     } else if (myt->isPointer()) {
@@ -2412,9 +2478,7 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
     if (!payload->sret) {
         if (payload->t->getRetType()->isRef()) {
             const Type * ret_t = payload->t->getRetType()->unRef();
-            unsigned int size = simpleSizer(ret_t);
-            if (!size)
-                size = 1;
+            auto size = llbe->getLLVMAllocSize(llbe->getOrGenType(ret_t));
             callinst->addAttribute(
                 0, llvm::Attribute::getWithDereferenceableBytes(llbe->llContext,
                                                                 size));
@@ -2456,9 +2520,7 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
     }
     for (int ibyref : byrefs) {
         const Type * param_t = payload->t->getParamTypes()[ibyref]->unRef();
-        unsigned int size = simpleSizer(param_t);
-        if (!size)
-            size = 1;
+        auto size = llbe->getLLVMAllocSize(llbe->getOrGenType(param_t));
 
         llvm::Attribute attr =
             llvm::Attribute::getWithDereferenceableBytes(llbe->llContext, size);
@@ -2631,6 +2693,29 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
 
     const Type * t = getLeft()->getType()->unRef();
 
+    if (getFlag(AccessExpression::SUM_DATA)) {
+        BJOU_DEBUG_ASSERT(t->isSum());
+
+        const SumType * sum_t = (const SumType*)t;
+        if (sum_t->oro_ref_type()) {
+            return llbe->getOrGenNode(getLeft(), true);
+        }
+
+        left_val = (llvm::Value *)llbe->getOrGenNode(getLeft(), true);
+        elem     = 1;
+        
+        indices.push_back(
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), 0));
+        indices.push_back(
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(llbe->llContext), elem));
+
+        llvm::Value * access = llbe->builder.CreateInBoundsGEP(left_val, indices);
+
+        BJOU_DEBUG_ASSERT(access->getType()->isPointerTy());
+
+        return llbe->builder.CreateBitCast(access, llvm::Type::getInt8PtrTy(llbe->llContext));
+    }
+
     // to accommodate the way LenExpression desugars
     if (t->isSlice())
         t = ((SliceType *)t)->getRealType();
@@ -2704,7 +2789,7 @@ void * AccessExpression::generate(BackEnd & backEnd, bool getAddr) {
     llvm::LoadInst * load = llbe->builder.CreateLoad(access, name);
 
     if (getType()->isPointer() && !getType()->under()->isVoid()) {
-        load->setAlignment(llbe->layout->getABITypeAlignment(llbe->getOrGenType(getType()->under())));
+        load->setAlignment(llbe->getLLVMABITypeAlignment(llbe->getOrGenType(getType()->under())));
     }
 
     return load;
@@ -2734,7 +2819,7 @@ void * NewExpression::generate(BackEnd & backEnd, bool flag) {
 
         ArrayDeclarator * array_decl = (ArrayDeclarator *)getRight();
 
-        size = llbe->layout->getTypeAllocSize(llbe->getOrGenType(sub_t));
+        size = llbe->getLLVMAllocSize(llbe->getOrGenType(sub_t));
 
         size_val = llvm::ConstantInt::get(
             llvm::Type::getInt64Ty(llbe->llContext), size);
@@ -2748,7 +2833,7 @@ void * NewExpression::generate(BackEnd & backEnd, bool flag) {
         size_val = llbe->builder.CreateMul(size_val, width_val);
 
     } else {
-        size = llbe->layout->getTypeAllocSize(llbe->getOrGenType(r_t));
+        size = llbe->getLLVMAllocSize(llbe->getOrGenType(r_t));
         size_val = llvm::ConstantInt::get(
             llvm::Type::getInt64Ty(llbe->llContext), size);
     }
@@ -2792,7 +2877,7 @@ void * SizeofExpression::generate(BackEnd & backEnd, bool flag) {
 
     BJOU_DEBUG_ASSERT(rt != VoidType::get());
 
-    uint64_t size = llbe->layout->getTypeAllocSize(
+    uint64_t size = llbe->getLLVMAllocSize(
         llbe->getOrGenType(getRight()->getType()));
 
     return llvm::ConstantInt::get(llvm::Type::getInt64Ty(llbe->llContext),
@@ -2879,9 +2964,27 @@ void * AsExpression::generate(BackEnd & backEnd, bool getAddr) {
     if (rt->isEnum())
         rt = IntType::get(Type::Sign::UNSIGNED, 64);
 
-    llvm::Value * val = (llvm::Value *)llbe->getOrGenNode(getLeft());
-    if (val->getType()->isArrayTy()) {
-        val = (llvm::Value *)llbe->getOrGenNode(getLeft(), true);
+    /* @bad @hack -- we don't really even know what 
+     * we're doing here..
+     * see comment below in Sum section */
+    llvm::Value * sum_problem_val_ptr = nullptr;
+    llvm::Value * val                 = nullptr;
+    const Type  * sum_oro             = nullptr;
+    if (rt->isSum()) {
+        const SumType    *sum_t     = (const SumType*)getType();
+        sum_oro = sum_t->oro_ref_type();
+        if (!sum_oro) {
+            auto tag                    = get_static_sum_tag_store(getLeft()->getType(), sum_t);
+            auto t_idx                  = tag & ((1 << sum_t->n_eq_bits) - 1);
+            const Type       *dest_t    = sum_t->getTypes()[t_idx];
+            bool is_ref                 = dest_t->isRef();
+            sum_problem_val_ptr = (llvm::Value *)llbe->getOrGenNode(getLeft(), is_ref);
+        }
+    } else {
+        val = (llvm::Value *)llbe->getOrGenNode(getLeft());
+        if (val->getType()->isArrayTy()) {
+            val = (llvm::Value *)llbe->getOrGenNode(getLeft(), true);
+        }
     }
 
     llvm::Type * ll_rt = llbe->getOrGenType(rt);
@@ -2922,32 +3025,51 @@ void * AsExpression::generate(BackEnd & backEnd, bool getAddr) {
 
     if (rt->isSum()) {
         const SumType    *sum_t     = (const SumType*)getType();
-        auto tag                    = get_static_sum_tag(lt, sum_t);
-        llvm::StructType *ll_t      = (llvm::StructType *)llbe->getOrGenType(sum_t);
-        const Type       *dest_t    = sum_t->getTypes()[tag];
-        llvm::Type       *ll_dest_t = llbe->getOrGenType(dest_t);
 
-        llvm::Value * alloca = llbe->allocUnnamedVal(sum_t);
+        if (sum_oro) {
+            if (lt->isNone()) {
+                return llvm::Constant::getNullValue(llbe->getOrGenType(sum_oro));
+            } else {
+                return (llvm::Value *)llbe->getOrGenNode(getLeft(), true);
+            }
+        } else {
+            auto tag                    = get_static_sum_tag_store(getLeft()->getType(), sum_t);
+            auto t_idx                  = tag & ((1 << sum_t->n_eq_bits) - 1);
+            llvm::StructType *ll_t      = (llvm::StructType *)llbe->getOrGenType(sum_t);
+            const Type       *dest_t    = sum_t->getTypes()[t_idx];
+            llvm::Type       *ll_dest_t = llbe->getOrGenType(dest_t);
 
-        /* get the tag value */
-        bool is_ref = dest_t->isRef();
-        /* store the tag */
-        llvm::Value * tag_elem = llbe->builder.CreateInBoundsGEP(
-            ll_t, alloca, { llbe->builder.getInt32(0), llbe->builder.getInt32(0) });
-        llbe->builder.CreateStore(llbe->builder.getInt8(tag), tag_elem);
+            llvm::Value * alloca = llbe->allocUnnamedVal(sum_t);
 
-        /* store the value */
-        llvm::Value * val_elem = llbe->builder.CreateInBoundsGEP(
-            ll_t, alloca, { llbe->builder.getInt32(0), llbe->builder.getInt32(1) });
-        val_elem = llbe->builder.CreateBitCast(val_elem, ll_dest_t->getPointerTo());
-        /* @bad @hack -- shouldn't have to override like this */
-        llvm::Value * the_value = (llvm::Value *)getLeft()->generate(*llbe, is_ref);
-        llbe->builder.CreateStore(the_value, val_elem);
+            /* get the tag value */
+            bool is_ref = dest_t->isRef();
+            /* store the tag */
+            llvm::Value * tag_elem = llbe->builder.CreateInBoundsGEP(
+                ll_t, alloca, { llbe->builder.getInt32(0), llbe->builder.getInt32(0) });
+            llbe->builder.CreateStore(llbe->builder.getInt32(tag), tag_elem);
 
-        if (getAddr) {
-            return alloca;
+            /* store the value */
+            llvm::Value * val_elem = llbe->builder.CreateInBoundsGEP(
+                ll_t, alloca, { llbe->builder.getInt32(0), llbe->builder.getInt32(1) });
+            val_elem = llbe->builder.CreateBitCast(val_elem, ll_dest_t->getPointerTo());
+            /* @bad @hack -- shouldn't have to override like this */
+            /* How do we make it so that if a node is generated first by value (not
+             * address), that we can still get the address of the value without
+             * recomputing? */
+            /* llvm::Value * the_value = (llvm::Value *)getLeft()->generate(*llbe, is_ref); */
+            /* llvm::Value * the_value = is_ref */
+            /*                             ? sum_problem_val_ptr */
+            /*                             : (sum_problem_val_ptr->getType()->isPointerTy() */
+            /*                                     ? llbe->builder.CreateLoad(sum_problem_val_ptr) */
+            /*                                     : sum_problem_val_ptr); */
+            llvm::Value * the_value = sum_problem_val_ptr;
+            llbe->builder.CreateStore(the_value, val_elem);
+
+            if (getAddr) {
+                return alloca;
+            }
+            return llbe->builder.CreateLoad(alloca, "sum_value");
         }
-        return llbe->builder.CreateLoad(alloca, "sum_value");
     }
 
     // @incomplete
@@ -3109,7 +3231,7 @@ void * Identifier::generate(BackEnd & backEnd, bool getAddr) {
 
     llvm::LoadInst * load = llbe->builder.CreateLoad(ptr, symAll());
     if (getType()->isPointer() || getType()->isRef() && !getType()->under()->isVoid()) {
-        load->setAlignment(llbe->layout->getABITypeAlignment(llbe->getOrGenType(
+        load->setAlignment(llbe->getLLVMABITypeAlignment(llbe->getOrGenType(
                         getType())));
     }
 
@@ -3193,11 +3315,14 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
     llvm::Value * ldptr = nullptr;
 
     bool do_memset = false;
+    bool has_sum   = false;
 
     if (myt->isStruct()) {
         StructType * s_t = (StructType *)myt;
         for (const Type * t : s_t->memberTypes) {
-            if (t->isArray()) {
+            if (t->isSum()) {
+                has_sum = true;
+            } else if (t->isArray()) {
                 ArrayType * a_t = (ArrayType *)t;
                 // @bad, sort of arbitrary choice of threshold here
                 // really we would like to know when the cost of
@@ -3209,7 +3334,7 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
         }
     }
 
-    if (!do_memset && isConstant()) {
+    if (!do_memset && !has_sum && isConstant()) {
         llvm::Constant * constant_init = llbe->createConstantInitializer(this);
         if (myt->isStruct()) {
             if (getAddr)
@@ -3278,15 +3403,45 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
             const Type * elem_t = s_t->memberTypes[i];
 
             if (!vals[i]) {
-                llvm::Value * null_val =
-                    llvm::Constant::getNullValue(llbe->getOrGenType(elem_t));
-                llbe->builder.CreateStore(null_val, elem);
+                /* Sum types with none can default value to nothing. */
+                if (elem_t->isSum()) {
+                    const SumType * sum_t = (const SumType*)elem_t;
+
+#ifdef BJOU_DEBUG_BUILD
+                    bool has_none = false;
+                    for (const Type * option_t : sum_t->getTypes()) {
+                        if (option_t->isNone()) {
+                            has_none = true;
+                            break;
+                        }
+                    }
+                    BJOU_DEBUG_ASSERT(has_none);
+#endif
+                    
+                    const Type * oro_t = sum_t->oro_ref_type();
+                    if (oro_t) {
+                        auto null_ref_val = llvm::Constant::getNullValue(llbe->getOrGenType(oro_t));
+                        llbe->builder.CreateStore(null_ref_val, elem);
+                    } else {
+                        llvm::PointerType * ll_tag_ptr_t =
+                            llvm::Type::getInt32Ty(llbe->llContext)->getPointerTo();
+
+                        auto none_tag = get_static_sum_tag_store(NoneType::get(), sum_t);
+                        auto tag_ptr  = llbe->builder.CreateBitCast(elem, ll_tag_ptr_t);
+
+                        llbe->builder.CreateStore(llbe->builder.getInt32(none_tag), tag_ptr);
+                    }
+                } else {
+                    llvm::Value * null_val =
+                        llvm::Constant::getNullValue(llbe->getOrGenType(elem_t));
+                    llbe->builder.CreateStore(null_val, elem);
+                }
             } else {
                 llvm::StoreInst * store =
                     llbe->builder.CreateStore(vals[i], elem);
 
                 if (elem_t->isPointer() || elem_t->isRef() && !elem_t->under()->isVoid()) {
-                    store->setAlignment(llbe->layout->getABITypeAlignment(
+                    store->setAlignment(llbe->getLLVMABITypeAlignment(
                         llbe->getOrGenType(elem_t)));
                 }
             }
@@ -3295,6 +3450,7 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
         // memset uninitialized array members to zero
         for (auto uninit : uninit_array_elems) {
             const Type * elem_t = uninit.second->under();
+
 
             llvm::PointerType * ll_byte_ptr_t =
                 llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
@@ -3309,18 +3465,49 @@ void * InitializerList::generate(BackEnd & backEnd, bool getAddr) {
                                         uninit.first)});
 
             Ptr = llbe->builder.CreateBitCast(Ptr, ll_byte_ptr_t);
+            
 
-            Val = llvm::Constant::getNullValue(
-                llvm::IntegerType::getInt8Ty(llbe->llContext));
+            /* Sum types with none can default value to nothing. */
+            if (elem_t->isSum()) {
+                const SumType * sum_t = (const SumType*)elem_t;
 
-            Size = llvm::ConstantInt::get(
-                llvm::Type::getInt64Ty(llbe->llContext),
-                uninit.second->width *
-                    llbe->layout->getTypeAllocSize(llbe->getOrGenType(elem_t)));
+#ifdef BJOU_DEBUG_BUILD
+                bool has_none = false;
+                for (const Type * option_t : sum_t->getTypes()) {
+                    if (option_t->isNone()) {
+                        has_none = true;
+                        break;
+                    }
+                }
+                BJOU_DEBUG_ASSERT(has_none);
+#endif
 
-            auto Align = llbe->layout->getABITypeAlignment(llbe->getOrGenType(elem_t->under()));
+                const Type * oro_t = sum_t->oro_ref_type();
+                if (oro_t) {
+                    auto null_ref_val = llvm::Constant::getNullValue(llbe->getOrGenType(oro_t));
+                    llbe->builder.CreateStore(null_ref_val, Ptr);
+                } else {
+                    llvm::PointerType * ll_tag_ptr_t =
+                        llvm::Type::getInt32Ty(llbe->llContext)->getPointerTo();
 
-            llbe->builder.CreateMemSet(Ptr, Val, Size, Align);
+                        auto none_tag = get_static_sum_tag_store(NoneType::get(), sum_t);
+                        auto tag_ptr  = llbe->builder.CreateBitCast(Ptr, ll_tag_ptr_t);
+
+                        llbe->builder.CreateStore(llbe->builder.getInt32(none_tag), tag_ptr);
+                }
+            } else {
+                Val = llvm::Constant::getNullValue(
+                    llvm::IntegerType::getInt8Ty(llbe->llContext));
+
+                Size = llvm::ConstantInt::get(
+                    llvm::Type::getInt64Ty(llbe->llContext),
+                    uninit.second->width *
+                        llbe->getLLVMAllocSize(llbe->getOrGenType(elem_t)));
+
+                auto Align = llbe->getLLVMABITypeAlignment(llbe->getOrGenType(elem_t->under()));
+
+                llbe->builder.CreateMemSet(Ptr, Val, Size, Align);
+            }
         }
 
         if (getAddr || x86::ABIClassForType(*llbe, myt) == x86::MEMORY)
@@ -3435,13 +3622,13 @@ void * VariableDeclaration::generate(BackEnd & backEnd, bool flag) {
 
 #if LLVM_VERSION_MAJOR >= 7
                 llbe->builder.CreateMemCpy(
-                    val, llbe->layout->getABITypeAlignment(ll_t),
-                    init_v, llbe->layout->getABITypeAlignment(ll_t),
-                    llbe->layout->getTypeAllocSize(ll_t));
+                    val, llbe->getLLVMABITypeAlignment(ll_t),
+                    init_v, llbe->getLLVMABITypeAlignment(ll_t),
+                    llbe->getLLVMAllocSize(ll_t));
 #else
                 llbe->builder.CreateMemCpy(
-                    val, init_v, llbe->layout->getTypeAllocSize(ll_t),
-                    llbe->layout->getABITypeAlignment(ll_t));
+                    val, init_v, llbe->getLLVMAllocSize(ll_t),
+                    llbe->getLLVMABITypeAlignment(ll_t));
 #endif
 
             } else {
@@ -3603,24 +3790,71 @@ void * Print::generate(BackEnd & backEnd, bool flag) {
     return val;
 }
 
-static llvm::Value * generate_destructure_condition(LLVMBackEnd& llbe, VariableDeclaration * var_decl) {
+static llvm::Value * generate_destructure_condition(LLVMBackEnd& llbe, VariableDeclaration * var_decl, llvm::Value **by_ref_bit_out) {
     const Type * dest_t = var_decl->getTypeDeclarator()->getType();
     const Type * _sum_t = var_decl->getInitialization()->getType()->unRef();
     BJOU_DEBUG_ASSERT(_sum_t->isSum());
     const SumType * sum_t = (const SumType*)_sum_t;
+    bool by_ext;
+
+    if (!var_decl->getFlag(VariableDeclaration::DESTRUCTURE_REF)) {
+        dest_t = dest_t->unRef();
+    }
+
+    const Type * oro_t = sum_t->oro_ref_type();
+
+    if (oro_t) {
+        auto null_val = llvm::Constant::getNullValue(llbe.getOrGenType(oro_t));
+        auto ref_val  = llbe.getOrGenNode(var_decl->getInitialization());
+        if (dest_t->isNone()) {
+            return llbe.builder.CreateICmpEQ(ref_val, null_val);
+        } else {
+            return llbe.builder.CreateICmpNE(ref_val, null_val);
+        }
+    }
 
     /* get the expected tag value */
-    auto tag = get_static_sum_tag(dest_t, sum_t);
+    auto tag = get_static_sum_tag_cmp(dest_t, sum_t, &by_ext);
     /* get the actual tag value */
     llvm::Value * sum_val  = llbe.getOrGenNode(var_decl->getInitialization(), true);
     llvm::Value * real_tag = llbe.builder.CreateInBoundsGEP(sum_val,
             { llbe.builder.getInt32(0), llbe.builder.getInt32(0) });
     real_tag = llbe.builder.CreateLoad(real_tag, "sum_tag");
 
-    return llbe.builder.CreateICmpEQ(llbe.builder.getInt8(tag), real_tag);
+    if (by_ext) {
+        llvm::Value *cmp_val, *ext_bits, *by_ref_bit, *ext_bits_match, *by_ref_bit_matches;
+
+        real_tag   = llbe.builder.CreateLShr(real_tag, llbe.builder.getInt32(sum_t->n_eq_bits));
+        ext_bits   = llbe.builder.CreateLShr(real_tag, llbe.builder.getInt32(1));
+        by_ref_bit = llbe.builder.CreateAnd(real_tag, llbe.builder.getInt32(1));
+
+        *by_ref_bit_out = by_ref_bit;
+
+        ext_bits_match     = llbe.builder.CreateICmpNE(
+                                llbe.builder.CreateAnd(ext_bits, llbe.builder.getInt32(tag >> 0x1)),
+                                llbe.builder.getInt32(0));
+        by_ref_bit_matches = llbe.builder.CreateICmpEQ(
+                                by_ref_bit,
+                                llbe.builder.getInt32(tag & 0x1));
+
+        cmp_val            = llbe.builder.CreateAnd(ext_bits_match, by_ref_bit_matches);
+        
+        return llbe.builder.CreateICmpNE(cmp_val, llbe.builder.getInt1(0));
+    } else {
+        llvm::Value *by_ref_bit = llbe.builder.CreateLShr(real_tag, llbe.builder.getInt32(sum_t->n_eq_bits));
+        by_ref_bit              = llbe.builder.CreateAnd(by_ref_bit, llbe.builder.getInt32(1));
+        *by_ref_bit_out         = by_ref_bit;
+        
+        uint32_t mask = (1 << (sum_t->n_eq_bits)) - 1;
+        real_tag = llbe.builder.CreateAnd(real_tag, llbe.builder.getInt32(mask));
+        return llbe.builder.CreateICmpEQ(llbe.builder.getInt32(tag), real_tag);
+    }
+    
+    BJOU_DEBUG_ASSERT(false);
+    return nullptr;
 }
 
-static llvm::Value * generate_destructure_var(LLVMBackEnd& llbe, VariableDeclaration * var_decl) {
+static llvm::Value * generate_destructure_var(LLVMBackEnd& llbe, VariableDeclaration * var_decl, llvm::Value * destructure_by_ref_bit) {
     Declarator * decl = (Declarator*)var_decl->getTypeDeclarator();
     
     bool is_ref = var_decl->getFlag(VariableDeclaration::DESTRUCTURE_REF);
@@ -3635,15 +3869,37 @@ static llvm::Value * generate_destructure_var(LLVMBackEnd& llbe, VariableDeclara
 
     llvm::Value * sum_val  = llbe.getOrGenNode(init, true);
 
+    const Type * oro_t = sum_t->oro_ref_type();
+
+    if (oro_t) {
+        if (dest_t->isNone()) {
+            auto nothing_val = llvm::ConstantStruct::get((llvm::StructType*)llbe.getOrGenType(dest_t), {});
+            return llbe.addNamedVal(var_decl->getMangledName(), nothing_val, dest_t);
+        } else {
+            auto ref_val = sum_val;
+            return llbe.addNamedVal(var_decl->getMangledName(), ref_val, dest_t);
+        }
+    }
+
     llvm::Value * val = llbe.builder.CreateInBoundsGEP(sum_val,
             { llbe.builder.getInt32(0), llbe.builder.getInt32(1) });
 
-    if (is_ref) {
-        val = llbe.builder.CreateBitCast(val, llbe.getOrGenType(dest_t)->getPointerTo());
-        val = llbe.builder.CreateLoad(val, "sum_ref");
+    if (destructure_by_ref_bit) {
+        llvm::Value *by_ref_then, *by_ref_else;
+
+        by_ref_then = llbe.builder.CreateLoad(llbe.builder.CreateBitCast(val, llbe.getOrGenType(dest_t)->getPointerTo()), "sum_ref");
+        by_ref_else = llbe.builder.CreateBitCast(val, llbe.getOrGenType(dest_t));
+
+        val = llbe.builder.CreateSelect(llbe.builder.CreateICmpEQ(destructure_by_ref_bit, llbe.builder.getInt32(1)), by_ref_then, by_ref_else);
     } else {
         val = llbe.builder.CreateBitCast(val, llbe.getOrGenType(dest_t));
     }
+                                
+    /* if (is_ref) { */
+    /*     val = llbe.builder.CreateBitCast(val, llbe.getOrGenType(dest_t)->getPointerTo()); */
+    /*     val = llbe.builder.CreateLoad(val, "sum_ref"); */
+    /* } else { */
+    /* } */
 
     llvm::Value * ret = llbe.addNamedVal(var_decl->getMangledName(), val, dest_t);
 
@@ -3658,8 +3914,9 @@ void * If::generate(BackEnd & backEnd, bool flag) {
     bool hasElse = (bool)getElse();
 
     llvm::Value * cond = nullptr;
+    llvm::Value * destructure_by_ref_bit = nullptr;
     if (getFlag(If::HAS_DESTRUCTURE)) {
-        cond = generate_destructure_condition(*llbe, (VariableDeclaration*)getConditional());
+        cond = generate_destructure_condition(*llbe, (VariableDeclaration*)getConditional(), &destructure_by_ref_bit);
     } else {
         cond = (llvm::Value *)llbe->getOrGenNode(getConditional());
     }
@@ -3698,7 +3955,7 @@ void * If::generate(BackEnd & backEnd, bool flag) {
 
     if (getFlag(If::HAS_DESTRUCTURE)) {
         VariableDeclaration * destr_var_decl = (VariableDeclaration*)getConditional();
-        generate_destructure_var(*llbe, destr_var_decl);
+        generate_destructure_var(*llbe, destr_var_decl, destructure_by_ref_bit);
     }
 
     for (ASTNode * statement : getStatements())
@@ -3826,7 +4083,14 @@ void * While::generate(BackEnd & backEnd, bool flag) {
 
     llbe->builder.SetInsertPoint(check);
 
-    llvm::Value * cond = (llvm::Value *)llbe->getOrGenNode(getConditional());
+    llvm::Value * cond = nullptr;
+    llvm::Value * destructure_by_ref_bit = nullptr;
+    if (getFlag(While::HAS_DESTRUCTURE)) {
+        cond = generate_destructure_condition(*llbe, (VariableDeclaration*)getConditional(), &destructure_by_ref_bit);
+    } else {
+        cond = (llvm::Value *)llbe->getOrGenNode(getConditional());
+    }
+    BJOU_DEBUG_ASSERT(cond);
     // Convert condition to a bool by comparing equal to 1.
     cond = llbe->builder.CreateICmpEQ(
         cond, llvm::ConstantInt::get(llbe->llContext, llvm::APInt(1, 1, true)),
@@ -3845,6 +4109,11 @@ void * While::generate(BackEnd & backEnd, bool flag) {
 
     // Emit then value.
     llbe->builder.SetInsertPoint(then);
+
+    if (getFlag(While::HAS_DESTRUCTURE)) {
+        VariableDeclaration * destr_var_decl = (VariableDeclaration*)getConditional();
+        generate_destructure_var(*llbe, destr_var_decl, destructure_by_ref_bit);
+    }
 
     for (ASTNode * statement : getStatements())
         llbe->getOrGenNode(statement);
@@ -3989,9 +4258,7 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                 arg.addAttr(llvm::Attribute::ByVal);
             if (payload->ref & (1 << i)) {
                 const Type * param_t = payload->t->getParamTypes()[i]->unRef();
-                unsigned int size = simpleSizer(param_t);
-                if (!size)
-                    size = 1;
+                auto size = llbe->getLLVMAllocSize(llbe->getOrGenType(param_t));
 
                 llvm::Attribute attr =
                     llvm::Attribute::getWithDereferenceableBytes(
@@ -4012,9 +4279,7 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         if (!payload->sret) {
             if (payload->t->getRetType()->isRef()) {
                 const Type * ret_t = payload->t->getRetType()->unRef();
-                unsigned int size = simpleSizer(ret_t);
-                if (!size)
-                    size = 1;
+                auto size = llbe->getLLVMAllocSize(llbe->getOrGenType(ret_t));
                 func->addAttribute(0,
                                    llvm::Attribute::getWithDereferenceableBytes(
                                        llbe->llContext, size));
@@ -4039,6 +4304,10 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         func->addFnAttr("no-frame-pointer-elim", "true");
         func->addFnAttr("no-frame-pointer-elim-non-leaf", "true");
 
+        if (getFlag(Procedure::IS_INLINE) && compilation->args.opt_arg) {
+            func->addFnAttr(llvm::Attribute::AttrKind::AlwaysInline);
+        }
+
         // @abi
         ABILowerProcedureTypeData * payload =
             (ABILowerProcedureTypeData *)llbe->proc_abi_info[this];
@@ -4049,6 +4318,7 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
         for (auto & arg : func->args()) {
             if (i == 0 && payload->sret) {
                 arg.setName("__bjou_sret");
+                arg.addAttr(llvm::Attribute::StructRet);
             } else {
                 VariableDeclaration * param = (VariableDeclaration *)(getParamVarDeclarations()
                                                          [i - payload->sret]);
@@ -4100,9 +4370,9 @@ void * Procedure::generate(BackEnd & backEnd, bool flag) {
                 // If this is byval, we need to do memcpy because the value is
                 // big.
                 if (payload->byval & (1 << j)) {
-                    auto size = llbe->layout->getTypeAllocSize(
+                    auto size = llbe->getLLVMAllocSize(
                         alloca->getType()->getPointerElementType());
-                    auto align = llbe->layout->getABITypeAlignment(
+                    auto align = llbe->getLLVMABITypeAlignment(
                         alloca->getType());
 #if LLVM_VERSION_MAJOR >= 7
                     llbe->builder.CreateMemCpy(alloca, align, val, align, size);
@@ -4168,6 +4438,7 @@ void * Return::generate(BackEnd & backEnd, bool flag) {
         (ABILowerProcedureTypeData *)llbe->proc_abi_info[proc];
 
     ProcedureType * pt = (ProcedureType *)proc->getType();
+    const Type * ret_t = pt->getRetType();
 
     if (payload->sret) {
         // @abi
@@ -4178,8 +4449,7 @@ void * Return::generate(BackEnd & backEnd, bool flag) {
         llvm::Value * val =
             (llvm::Value *)llbe->getOrGenNode(getExpression(), true);
 
-        const Type * t = getExpression()->getType();
-        llvm::Type * ll_t = llbe->getOrGenType(t);
+        llvm::Type * ll_t = llbe->getOrGenType(ret_t);
 
         llvm::PointerType * ll_byte_ptr_t =
             llvm::Type::getInt8Ty(llbe->llContext)->getPointerTo();
@@ -4187,17 +4457,17 @@ void * Return::generate(BackEnd & backEnd, bool flag) {
         sret = llbe->builder.CreateBitCast(sret, ll_byte_ptr_t);
         val = llbe->builder.CreateBitCast(val, ll_byte_ptr_t);
 
+        auto _size = llbe->getLLVMAllocSize(ll_t);
         llvm::Value * size =
-            llvm::ConstantInt::get(llvm::Type::getInt64Ty(llbe->llContext),
-                                   llbe->layout->getTypeAllocSize(ll_t));
+            llvm::ConstantInt::get(llvm::Type::getInt64Ty(llbe->llContext), _size);
 
 #if LLVM_VERSION_MAJOR >= 7
-        llbe->builder.CreateMemCpy(sret, llbe->layout->getABITypeAlignment(ll_t),
-                                   val, llbe->layout->getABITypeAlignment(ll_t),
+        llbe->builder.CreateMemCpy(sret, llbe->getLLVMABITypeAlignment(ll_t),
+                                   val, llbe->getLLVMABITypeAlignment(ll_t),
                                    size);
 #else
         llbe->builder.CreateMemCpy(sret, val, size,
-                                   llbe->layout->getABITypeAlignment(ll_t));
+                                   llbe->getLLVMABITypeAlignment(ll_t));
 #endif
 
         return llbe->builder.CreateRetVoid();
@@ -4283,6 +4553,12 @@ void * ExprBlock::generate(BackEnd & backEnd, bool getAddr) {
         return alloca;
 
     return llbe->builder.CreateLoad(alloca);
+}
+
+void * NamedArg::generate(BackEnd & backEnd, bool getAddr) {
+    LLVMBackEnd * llbe = (LLVMBackEnd *)&backEnd;
+
+    return llbe->getOrGenNode(getExpression(), getAddr);
 }
 
 void * ExprBlockYield::generate(BackEnd & backEnd, bool flag) {

@@ -205,6 +205,7 @@ proc thread_task(_pool : void*) {
 
         # Get to work
         if t : task ref = m_t {
+            i := 0
             f := t.function
             a := t.arg
             pool.n_running += 1

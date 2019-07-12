@@ -57,6 +57,14 @@ proc usleep(u : u64) {
     }
 }
 
+type rusage {
+    bytes : u8[144]
+    proc ru_maxrss(this) : i64 {
+        return @(((&(this.bytes[32])) as void*) as i64*)
+    }
+}
+
+
 const SYS_write := SYS_NR_MOD + 4
 const SYS_read := SYS_NR_MOD + 3
 const SYS_open := SYS_NR_MOD + 5
@@ -66,6 +74,7 @@ const SYS_lseek := SYS_NR_MOD + 199
 const SYS_access := SYS_NR_MOD + 33
 const SYS_getpid := SYS_NR_MOD + 20
 const SYS_gettimeofday := SYS_NR_MOD + 116
+const SYS_getrusage := SYS_NR_MOD + 117
 const S_IRWXU := 448
 const S_IRUSR := 256
 const S_IWUSR := 128
@@ -150,6 +159,9 @@ proc getpid() : i64
 
 proc gettimeofday(tv : timeval*, tz : timezone*) : i64
     return nolibc_syscall(SYS_gettimeofday, 2, tv, tz)
+
+proc getrusage(who : int, usage : rusage*) : i64
+    return nolibc_syscall(SYS_getrusage, 2, who, usage)
 
 
 extern sysctlbyname(char*, void*, u64, void*, u64) : int

@@ -59,6 +59,7 @@ MaybeString parser_kwd_this(StringViewableBuffer & buff);
 MaybeString parser_kwd_ref(StringViewableBuffer & buff);
 MaybeString parser_kwd_delete(StringViewableBuffer & buff);
 MaybeString parser_kwd_import(StringViewableBuffer & buff);
+MaybeString parser_kwd_include(StringViewableBuffer & buff);
 MaybeString parser_kwd_using(StringViewableBuffer & buff);
 MaybeString parser_kwd_module(StringViewableBuffer & buff);
 MaybeString parser_kwd_alias(StringViewableBuffer & buff);
@@ -104,6 +105,7 @@ MaybeString parser_kwd_not(StringViewableBuffer & buff);
 MaybeString parser_kwd_new(StringViewableBuffer & buff);
 MaybeString parser_kwd_proc(StringViewableBuffer & buff);
 MaybeString parser_kwd___no_mangle__(StringViewableBuffer & buff);
+MaybeString parser_kwd___inline__(StringViewableBuffer & buff);
 MaybeString parser_kwd_extern(StringViewableBuffer & buff);
 MaybeString parser_kwd_externvar(StringViewableBuffer & buff);
 MaybeString parser_kwd_some(StringViewableBuffer & buff);
@@ -174,6 +176,7 @@ enum TokenKind {
     KWD_REF,
     KWD_DELETE,
     KWD_IMPORT,
+    KWD_INCLUDE,
     KWD_USING,
     KWD_MODULE,
     KWD_ALIAS,
@@ -219,6 +222,7 @@ enum TokenKind {
     KWD_NEW,
     KWD_PROC,
     KWD___NO_MANGLE__,
+    KWD___INLINE__,
     KWD_EXTERN,
     KWD_EXTERNVAR,
     KWD_SOME,
@@ -318,6 +322,7 @@ struct Parser {
                              Expression * left, Expression * right,
                              MaybeString & m_binOp, int minPrecedence);
     MaybeASTNode parseTerminatingExpression();
+    MaybeASTNode parseNamedArg();
     MaybeASTNode parseParentheticalExpressionOrTuple();
     MaybeASTNode parseInitializerList();
     MaybeASTNode parseSliceOrDynamicArrayExpression();
@@ -328,6 +333,7 @@ struct Parser {
 
     virtual MaybeASTNode parseTopLevelNode();
     MaybeASTNode parseImport();
+    MaybeASTNode parseInclude();
     MaybeASTNode parseUsing();
     MaybeASTNode parseModuleDeclaration();
     MaybeASTNode parseType();

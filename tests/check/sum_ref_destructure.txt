@@ -1,0 +1,12 @@
+B ref:
+    A REF: .field = 987
+    B REF: .field = 987
+C:
+    A    : .field = 0
+D:
+    A    : .field = 0
+int:
+    int: 123
+thinger has no path
+a string
+bad thinger

@@ -123,6 +123,8 @@ struct ASTNode {
         SOME_LITERAL,
         NOTHING_LITERAL,
         TUPLE_LITERAL,
+        EXPR_BLOCK,
+        NAMED_ARG,
         _END_EXPRESSIONS,
         DECLARATOR,
         ARRAY_DECLARATOR,
@@ -146,12 +148,12 @@ struct ASTNode {
         PROCEDURE,
         NAMESPACE,
         IMPORT,
+        INCLUDE,
         USING,
         PRINT,
         RETURN,
         BREAK,
         CONTINUE,
-        EXPR_BLOCK,
         EXPR_BLOCK_YIELD,
         IF,
         ELSE,
@@ -236,7 +238,7 @@ struct ASTNode {
         ASTNode::NodeKind::STRUCT, ASTNode::NodeKind::ENUM,                    \
         ASTNode::NodeKind::ARG_LIST, ASTNode::NodeKind::THIS,                  \
         ASTNode::NodeKind::PROCEDURE, ASTNode::NodeKind::NAMESPACE,            \
-        ASTNode::NodeKind::IMPORT, ASTNode::NodeKind::USING, ASTNode::NodeKind::PRINT,                   \
+        ASTNode::NodeKind::IMPORT, ASTNode::NodeKind::INCLUDE, ASTNode::NodeKind::USING, ASTNode::NodeKind::PRINT,                   \
         ASTNode::NodeKind::RETURN, ASTNode::NodeKind::BREAK,                   \
         ASTNode::NodeKind::CONTINUE, ASTNode::NodeKind::IF,                    \
         ASTNode::NodeKind::ELSE, ASTNode::NodeKind::FOR,                       \
@@ -311,7 +313,7 @@ struct ASTNode {
 
 #define ANY_STATEMENT                                                          \
     ASTNode::NodeKind::IGNORE, ANY_EXPRESSION, ASTNode::NodeKind::CONSTANT,    \
-        ASTNode::NodeKind::VARIABLE_DECLARATION, ASTNode::NodeKind::IMPORT, ASTNode::NodeKind::USING,    \
+        ASTNode::NodeKind::VARIABLE_DECLARATION, ASTNode::NodeKind::IMPORT, ASTNode::NodeKind::INCLUDE, ASTNode::NodeKind::USING,    \
         ASTNode::NodeKind::PRINT, ASTNode::NodeKind::RETURN,                   \
         ASTNode::NodeKind::BREAK, ASTNode::NodeKind::CONTINUE,                 \
         ASTNode::NodeKind::IF, ASTNode::NodeKind::ELSE,                        \
@@ -1114,7 +1116,7 @@ struct SubscriptExpression : BinaryExpression {
 struct AccessExpression : BinaryExpression {
     AccessExpression();
 
-    enum eBitFlags E_BIT_FLAGS_AND(PAREN, TERMINAL, IDENT, UFC);
+    enum eBitFlags E_BIT_FLAGS_AND(PAREN, TERMINAL, IDENT, UFC, SUM_DATA);
 
     CallExpression * injection;
 
@@ -1392,7 +1394,8 @@ struct Identifier : Expression {
     std::string
         sym_name,
         sym_mod,
-        sym_type;
+        sym_type,
+        sym_all;
     enum eBitFlags E_BIT_FLAGS_AND(PAREN, TERMINAL, IDENT);
 
     ASTNode * resolved;
@@ -1404,7 +1407,7 @@ struct Identifier : Expression {
     std::string & getSymType();
     void setSymType(std::string _type);
 
-    std::string symAll() const;
+    std::string symAll();
 
     bool isConstant();
     Val eval();
@@ -1871,6 +1874,44 @@ struct ExprBlock : Expression {
     //
 };
 
+
+/* ============================================================================
+ *
+ *                              NamedArg
+ *
+ *  p(arg_name: expr)
+ * ===========================================================================*/
+
+struct NamedArg : Expression {
+    NamedArg();
+
+
+    std::string arg_name;
+    ASTNode *expression;
+
+    std::string& getName();
+    void setName(std::string name);
+    ASTNode * getExpression();
+    void setExpression(ASTNode * _expression);
+
+    bool isConstant();
+
+    // Node interface
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
+    virtual void analyze(bool force = false);
+    ASTNode * clone();
+    void * generate(BackEnd & backEnd, bool flag = false);
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+    // virtual ~NamedArg();
+    //
+};
+
+
+
+
+
+
 /* ============================================================================
  *
  *                              Declarators
@@ -1904,6 +1945,8 @@ struct Declarator : ASTNode {
     bool createdFromType;
 
     const Type * type = nullptr;
+
+    std::string str_rep;
 
     enum eBitFlags E_BIT_FLAGS_AND(IMPLIES_COMPLETE);
 
@@ -2626,10 +2669,11 @@ struct Procedure : ASTNode {
     ASTNode * procDeclarator;
     std::vector<ASTNode *> statements;
 
+    const Type * type;
     ASTNode * inst; // not owned!
 
     enum eBitFlags E_BIT_FLAGS_AND(IS_ANONYMOUS, IS_TEMPLATE_DERIVED, IS_EXTERN,
-                                   IS_VARARG, IS_TYPE_MEMBER, NO_MANGLE);
+                                   IS_VARARG, IS_TYPE_MEMBER, NO_MANGLE, IS_INLINE);
 
     std::string & getName();
     void setName(std::string _name);
@@ -2700,6 +2744,31 @@ struct Import : ASTNode {
     virtual void dump(std::ostream & stream, unsigned int level = 0,
                       bool dumpCT = true);
     virtual ~Import();
+    //
+};
+
+/* ============================================================================
+ *                              Include
+ * ===========================================================================*/
+
+struct Include : ASTNode {
+    Include();
+
+    std::string full_path;
+
+    enum eBitFlags E_BIT_FLAGS();
+
+    std::string & getPath();
+    void setPath(std::string _path);
+
+    // Node interface
+    void unwrap(std::vector<ASTNode *> & terminals);
+    virtual void analyze(bool force = false);
+    ASTNode * clone();
+    virtual void addSymbols(std::string& _mod, Scope * _scope);
+    virtual void dump(std::ostream & stream, unsigned int level = 0,
+                      bool dumpCT = true);
+    virtual ~Include();
     //
 };
 
@@ -3050,7 +3119,7 @@ struct While : ASTNode {
     ASTNode * conditional;
     std::vector<ASTNode *> statements;
 
-    enum eBitFlags E_BIT_FLAGS();
+    enum eBitFlags E_BIT_FLAGS_AND(HAS_DESTRUCTURE);
 
     ASTNode * getConditional() const;
     void setConditional(ASTNode * _conditional);

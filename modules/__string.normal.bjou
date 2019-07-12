@@ -1,0 +1,435 @@
+# __string.bjou
+
+module __string
+
+import "null.bjou"
+
+extern sprintf(char*, char*, ...) : int
+extern sscanf(char*, char*, ...) : int
+extern strstr(char*, char*) : char*
+extern isspace(int) : int
+
+proc cstrlen(s : char*) : u64 {
+    len := 0u64
+
+    while @s {
+        s   += 1
+        len += 1
+    }
+
+    return len
+}
+
+proc cstrdup(s : char*) : char* {
+    len := cstrlen(s)
+
+    len += 1 # for NULL char
+
+    s' := new char[len]
+    mcopy(s', s, len)
+
+    return s'
+}
+
+proc cstrcmp(s1 : char*, s2 : char*) : int {
+    while @s1
+    and   @s1 == @s2 {
+        s1 += 1
+        s2 += 1
+    }
+    return @(s1 as u8*) - @(s2 as u8*)
+}
+
+proc cstrncmp(s1 : char*, s2 : char*, n : u64) : int {
+    c := 0u64
+    while c < n
+    and   @s1 == @s2 {
+        s1 += 1
+        s2 += 1
+        c  += 1
+    }
+    return @(s1 as u8*) - @(s2 as u8*)
+}
+
+proc cstrcat(dst : char*, src : char*) : char* {
+    p := dst + cstrlen(dst)
+
+    while @p = @src {
+        p   += 1
+        src += 1
+    }
+
+    return dst
+}
+
+type string {
+    __data : char[...]
+
+    proc create() : string {
+        s := { string:
+            .__data = [...char]
+        }
+        s.__data.push('\0')
+        return s
+    }
+    
+    proc create(c_str : char*) : string {
+        s := { string:
+            .__data = [...char] 
+        }
+        s.__data.set([c_str, 0:cstrlen(c_str)])
+        s.__data.push('\0')
+        return s
+    }
+
+    proc create(c_str : char*, n : u64) : string {
+        s := { string:
+            .__data = [...char] 
+        }
+        s.__data.set([c_str, 0:n])
+        s.__data.push('\0')
+        return s
+    }
+
+    proc copy(this) : string {
+        c : string = this
+        c.__data = this.__data.copy()
+        return c
+    }
+
+    proc set(this, c_str : char*) {
+        this.__data.set([c_str, 0:cstrlen(c_str)])
+        this.__data.push('\0')
+    }
+
+    proc set(this, s : string ref) {
+        this.set(s.c_str())
+    }
+
+    proc free(this) {
+        this.__data.free()
+    }
+
+    proc len(this) : u64
+        return |this.__data| - 1
+
+    proc c_str(this) : char* {
+        return this.__data.data()
+    }
+
+    proc as_slice(this) : char[] {
+        return this.__data.as_slice()
+    }
+
+    proc data(this) : char[...] ref {
+        return this.__data
+    }
+
+    proc append(this, ch : char) {
+        this.__data.back() = ch
+        this.__data.push('\0')
+    }
+
+    proc append(this, s : string) {
+        for i := 0; i < s.len(); i += 1
+            this.append(s.__data[i])
+    }
+
+    proc append(this, s : char*) {
+        s_slice := [s, 0:cstrlen(s)]
+        foreach ch in s_slice
+            this.append(ch)
+    }
+
+    proc pop(this) {
+        this.__data.pop()
+        this.__data.back() = '\0'
+    }
+
+    proc back(this) : char {
+        if this.len() == 0
+            \die{ "called back() on an empty string" }
+        return this.__data[this.len() - 1]
+    }
+
+    proc clear(this) {
+        this.__data.clear()
+        this.__data.push('\0')
+    }
+
+    proc substr(this, start : u64) : string {
+        s := str()
+        l := this.len()
+        for i := start; i < l; i += 1 {
+            s.append(this[i])
+        }
+        return s
+    }
+    
+    proc substr(this, start : u64, take : u64) : string {
+        s := str()
+        for i := 0u64; i < take; i += 1 {
+            s.append(this[start + i])
+        }
+        return s
+    }
+
+    proc find(this, c : char) : i64 {
+        l := this.len()
+        for i := 0i64; i < l; i += 1
+            if this.__data[i] == c
+                return i
+        return -1
+    }
+
+    proc find(this, needle : char*) : i64 {
+        haystack := this.c_str()
+        search   := strstr(haystack, needle)
+        if search.null::isnull()
+            return -1
+        return ptrdiff(search as void*, haystack as void*)
+    }
+
+    proc find(this, needle : string) : i64
+        return this.find(needle.c_str())
+
+    proc findlast(this, c : char) : i64 {
+        for i := this.len() - 1; i >= 0; i -= 1
+            if this.__data[i] == c
+                return i
+        return -1
+    }
+
+    proc findlast(this, needle : char*) : i64 {
+        haystack := this.c_str()
+        running  := haystack
+
+        result := null::NULL as char*
+
+        if @needle == '\0'
+            return 0
+
+        while true {
+            search := strstr(running, needle)
+            if search.null::isnull()
+                break
+            result  = search
+            running = search + 1
+        }
+
+        if result.null::isnull()
+            return -1
+
+        return ptrdiff(result as void*, haystack as void*)
+    }
+
+    proc count(this, ch : char) : u64 {
+        return this.__data.count(ch)
+    }
+}
+
+\op { "[]" proc __string_subscript(s : string, index : u64) : char {
+    return s.__data[index]
+}}
+
+proc str() : string
+    return string.create()
+
+proc str(c : char) : string {
+    buff := { 0 as char, 0 }
+    buff[0] = c
+    return string.create(buff)
+}
+
+proc str(c_str : char*) : string
+    return string.create(c_str)
+
+proc str(c_str : char*, n : u64) : string
+    return string.create(c_str, n)
+
+proc str(u : u64) : string {
+    buff : char[128]
+    sprintf(buff, "%llu", u)
+    return string.create(buff)
+}
+
+proc str(i : i64) : string {
+    buff : char[128]
+    sprintf(buff, "%lld", i)
+    return string.create(buff)
+}
+
+proc str(f : f32) : string {
+    buff : char[128]
+    sprintf(buff, "%f", f)
+    return string.create(buff)
+}
+
+proc str(f : f64) : string {
+    buff : char[128]
+    sprintf(buff, "%f", f)
+    return string.create(buff)
+}
+
+proc str(f : f64, dec : u32) : string {
+    buff : char[128]
+    sprintf(buff, "%.*f", dec, f)
+    return string.create(buff)
+}
+
+proc equal(s1 : string ref, s2 : string ref) : bool {
+    return cstrcmp(s1.c_str(), s2.c_str()) == 0
+}
+
+\op { "==" proc __string_equ(s1 : string ref, s2 : string ref) : bool {
+    return equal(s1, s2)
+}}
+
+# @note: These concat() functions are inefficient.
+
+proc concat(s1 : string, s2 : char*) : string {
+    out := str()
+
+    for i := 0; i < s1.len(); i += 1
+        out.__data.push(s1.__data[i])
+
+    s2_slice := [s2, 0:cstrlen(s2)]
+    foreach ch in s2_slice
+        out.__data.push(ch)
+
+    return out
+}
+
+proc concat(s1 : string, s2 : string) : string {
+    out := str()
+    for i := 0; i < s1.len(); i += 1
+        out.append(s1.__data[i])
+    for i := 0; i < s2.len(); i += 1
+        out.append(s2.__data[i])
+    s1.free()
+    s2.free()
+    return out
+}
+
+proc concat(s1 : string,
+            s2 : string,
+            s3 : string) : string {
+    out := str()
+    for i := 0; i < s1.len(); i += 1
+        out.append(s1.__data[i])
+    for i := 0; i < s2.len(); i += 1
+        out.append(s2.__data[i])
+    for i := 0; i < s3.len(); i += 1
+        out.append(s3.__data[i])
+    s1.free()
+    s2.free()
+    s3.free()
+    return out
+}
+
+proc concat(s1 : string,
+            s2 : string,
+            s3 : string,
+            s4 : string) : string {
+    out := str()
+    for i := 0; i < s1.len(); i += 1
+        out.append(s1.__data[i])
+    for i := 0; i < s2.len(); i += 1
+        out.append(s2.__data[i])
+    for i := 0; i < s3.len(); i += 1
+        out.append(s3.__data[i])
+    for i := 0; i < s4.len(); i += 1
+        out.append(s4.__data[i])
+    s1.free()
+    s2.free()
+    s3.free()
+    s4.free()
+    return out
+}
+
+proc concat(strs : string[...] ref) : string {
+    out := str()
+    foreach ref s in strs {
+        for i := 0; i < s.len(); i += 1
+            out.append(s.__data[i])
+        s.free()
+    }
+    return out
+}
+
+\op { "+" proc __string_plus(s1 : string, s2 : string) : string {
+    return concat(s1, s2)
+}}
+
+proc ljust(s : string ref, width : int) {
+    l := s.len()
+
+    if l > width
+        \die{ "string longer than justify width" }
+    if l == width
+        return
+
+    n_spc := width - l
+    spc   := str()
+
+    for i := 0; i < n_spc; i += 1
+        spc.append(' ')
+
+    s = concat(s, spc)
+}
+
+proc rjust(s : string ref, width : int) {
+    l := s.len()
+
+    if l > width
+        \die{ "string longer than justify width" }
+    if l == width
+        return
+
+    n_spc := width - l
+    spc   := str()
+
+    for i := 0; i < n_spc; i += 1
+        spc.append(' ')
+
+    s = concat(spc, s)
+}
+
+proc ltrim(s : string ref) {
+    dup := cstrdup(s.c_str())
+    ptr := dup
+    while isspace(@ptr)    ptr += 1
+    s.free()
+    s = str(ptr)
+    delete dup
+}
+ 
+proc rtrim(s : string ref) {
+    dup := cstrdup(s.c_str())
+    ptr := dup + s.len() - 1 
+
+    while (isspace(@ptr) or not @ptr) and ptr >= dup 
+        ptr -= 1
+    ptr += 1
+    @ptr = '\0'
+    
+    s.free()
+    s = str(dup)
+    delete dup
+}
+ 
+proc trim(s : string ref) {
+    s.ltrim()
+    s.rtrim()
+}
+
+proc to$T(s : string ref) : T {
+    \static_if{ \typeisint{T}
+        i := 0i64
+        sscanf(s.c_str(), "%lld", &i)
+        return i }
+    \static_if{ \typeisfloat{T}
+        f := 0.0
+        sscanf(s.c_str(), "%f", &f)
+        return f }
+}

@@ -1,0 +1,25 @@
+# namedargs.bjou
+
+main()
+
+proc a() {
+    print "a()"
+}
+
+proc b(arg : int) {
+    print "b(arg: %)", arg
+}
+
+proc c(arg1 : int, arg2 : bool) {
+    print "c(arg1: %, arg2: %)", arg1, arg2
+}
+
+proc main() {
+    a()
+    b(arg: 123)
+    c(arg1: 432, arg2: false)
+
+    # won't work because it would be an indirect call
+    # p := c
+    # p(arg1: 678, arg2: not true)
+}

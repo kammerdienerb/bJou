@@ -9,6 +9,14 @@ import "__env.bjou"
 extern signal(int, <(int)>) : <(int)>
 extern sprintf(char*, char*, ...) : int
 
+proc __bjou_sigill_handler(sig : int) {
+    buff : char[4096]
+    
+    prgnm := __env::env.args()[0].c_str()
+    buff.sprintf("'%s' terminated by signal SIGILL (abort program)", prgnm)
+    \die{ buff }
+}
+
 proc __bjou_sigabrt_handler(sig : int) {
     buff : char[4096]
     
@@ -34,6 +42,7 @@ proc __bjou_sigsegv_handler(sig : int) {
 }
 
 proc __bjou_rt_init(argc : int, argv : char**) {
+    signal(4, __bjou_sigill_handler)
     signal(6, __bjou_sigabrt_handler)
     signal(10, __bjou_sigbus_handler)
     signal(11, __bjou_sigsegv_handler)

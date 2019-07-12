@@ -16,6 +16,7 @@
 #include "Operator.hpp"
 #include "Symbol.hpp"
 #include "Template.hpp"
+#include "Parser.hpp"
 
 #include <bitset>
 #include <iostream>
@@ -24,6 +25,7 @@
 #include <sstream>
 #include <iomanip>
 #include <string.h> // bzero
+#include <fstream>
 
 namespace bjou {
 
@@ -2222,7 +2224,7 @@ void CallExpression::analyze(bool force) {
 
     int nargs = (int)args->getExpressions().size();
     int nexpected = (int)plt->paramTypes.size();
-
+    
     bool arg_err = false;
     bool l_val_err = false;
     Context errContext;
@@ -2236,9 +2238,36 @@ void CallExpression::analyze(bool force) {
     }
 
     if (!arg_err) {
+        /* check named args */
+        if (proc) {
+            for (int i = 0; i < nargs; i += 1) {
+                ASTNode * arg = args->getExpressions()[i];
+
+                if (arg->nodeKind == ASTNode::NAMED_ARG) {
+                    std::string& arg_name = ((NamedArg*)arg)->getName();
+
+                    VariableDeclaration * param = (VariableDeclaration*)proc->getParamVarDeclarations()[i];
+                    std::string& param_name     = param->getName();
+                    
+                    if (arg_name != param_name) {
+                        errorl(arg->getContext(), "Argument name '" + arg_name + "' does not match paramater name '" + param_name + "'.", false);
+                        errorl(param->getNameContext(), "Parameter '" + param_name + "' named here.");
+                    }
+                }
+            }
+        } else {
+            for (ASTNode * arg : args->getExpressions()) {
+                if (arg->nodeKind == ASTNode::NAMED_ARG) {
+                    errorl(arg->getContext(), "Named arguments can't be used in indirect calls.", false);
+                    errorl(getLeft()->getContext(), "Object of indirect call here.", true, "value not known at compile time");
+                }
+            }
+        }
+
         for (int i = 0; i < nexpected; i += 1) {
             const Type * expected_t = plt->paramTypes[i];
-            const Type * arg_t = args->getExpressions()[i]->getType();
+            ASTNode * arg_node = args->getExpressions()[i];
+            const Type * arg_t = arg_node->getType();
 
             if (expected_t->isRef() &&
                 !((Expression *)args->getExpressions()[i])->canBeLVal()) {
@@ -3088,28 +3117,35 @@ void AddressExpression::analyze(bool force) {
     } else {
         rt = rt->unRef();
 
-        if (right->getFlag(IDENT)) {
-            Maybe<Symbol *> m_sym = getScope()->getSymbol(
-                getScope(), (Identifier *)right, &right->getContext());
-            Symbol * sym = nullptr;
-            m_sym.assignTo(sym);
-            BJOU_DEBUG_ASSERT(sym);
-            if (sym->isType())
-                errorl(right->getContext(),
-                       "Cannot take the address of a type.");
-            else if (sym->isProcSet())
-                errorl(right->getContext(), "Use of '" +
-                                                sym->unmangled +
-                                                "' is ambiguous."); // @bad
-            else if (sym->node()->getFlag(ASTNode::IS_TEMPLATE))
-                errorl(right->getContext(),
-                       "Cannot take the address of a template definition.");
-        } else {
+        if (!right->getFlag(IDENT)) {
             if (right->getFlag(TERMINAL) || !((Expression *)right)->canBeLVal())
                 errorl(right->getContext(),
                        "Operand right of '" + contents +
                            "' operator must be addressable.");
         }
+
+        /* if (right->getFlag(IDENT)) { */
+        /*     Maybe<Symbol *> m_sym = getScope()->getSymbol( */
+        /*         getScope(), (Identifier *)right, &right->getContext()); */
+        /*     Symbol * sym = nullptr; */
+        /*     m_sym.assignTo(sym); */
+        /*     BJOU_DEBUG_ASSERT(sym); */
+        /*     if (sym->isType()) */
+        /*         errorl(right->getContext(), */
+        /*                "Cannot take the address of a type."); */
+        /*     else if (sym->isProcSet()) */
+        /*         errorl(right->getContext(), "Use of '" + */
+        /*                                         sym->unmangled + */
+        /*                                         "' is ambiguous."); // @bad */
+        /*     else if (sym->node()->getFlag(ASTNode::IS_TEMPLATE)) */
+        /*         errorl(right->getContext(), */
+        /*                "Cannot take the address of a template definition."); */
+        /* } else { */
+        /*     if (right->getFlag(TERMINAL) || !((Expression *)right)->canBeLVal()) */
+        /*         errorl(right->getContext(), */
+        /*                "Operand right of '" + contents + */
+        /*                    "' operator must be addressable."); */
+        /* } */
     }
 
     setType(rt->getPointer());
@@ -3334,20 +3370,22 @@ void Identifier::setSymType(std::string _type) {
     sym_type = _type;
 }
 
-std::string Identifier::symAll() const {
-    std::string r;
+std::string Identifier::symAll() {
+    if (sym_all.empty()) {
+        sym_all.reserve(64);
 
-    if (!sym_mod.empty()) {
-        r += sym_mod;
-        r += "::";
+        if (!sym_mod.empty()) {
+            sym_all += sym_mod;
+            sym_all += "::";
+        }
+        if (!sym_type.empty()) {
+            sym_all += sym_type;
+            sym_all += ".";
+        }
+        sym_all += sym_name;
     }
-    if (!sym_type.empty()) {
-        r += sym_type;
-        r += ".";
-    }
-    r += sym_name;
 
-    return r;
+    return sym_all;
 }
 
 // Node interface
@@ -3355,9 +3393,8 @@ const Type * Identifier::getType() {
     analyze();
 
     if (!type) {
-        Maybe<Symbol *> m_sym;
         Symbol * sym = nullptr;
-        m_sym = getScope()->getSymbol(getScope(), this, &this->getContext());
+        auto m_sym = getScope()->getSymbol(getScope(), this, &this->getContext());
         m_sym.assignTo(sym);
         BJOU_DEBUG_ASSERT(sym);
 
@@ -3388,9 +3425,9 @@ const Type * Identifier::getType() {
 void Identifier::analyze(bool force) {
     HANDLE_FORCE();
 
-    Maybe<Symbol *> m_sym;
     Symbol * sym = nullptr;
-    m_sym = getScope()->getSymbol(getScope(), this, &this->getContext());
+
+    auto m_sym = getScope()->getSymbol(getScope(), this, &this->getContext());
     m_sym.assignTo(sym);
     BJOU_DEBUG_ASSERT(sym);
 
@@ -3625,10 +3662,19 @@ void InitializerList::analyze(bool force) {
                                                  "because it contains one or more references.");
                     }
                 } else if (t->isSum()) {
-                    errorl(getContext(), "Member '" + name + "' of '" +
-                                             s_t->getDemangledName() +
-                                             "' must be explicitly initialized "
-                                             "because it is a sum type.");
+                    bool has_none = false;
+                    for (const Type * option_t : ((const SumType*)t)->getTypes()) {
+                        if (option_t->isNone()) {
+                            has_none = true;
+                            break;
+                        }
+                    }
+                    if (!has_none) {
+                        errorl(getContext(), "Member '" + name + "' of '" +
+                                                 s_t->getDemangledName() +
+                                                 "' must be explicitly initialized "
+                                                 "because it is a sum type which does not include 'none'.");
+                    }
                 }
             }
         }
@@ -3663,10 +3709,12 @@ void InitializerList::analyze(bool force) {
         const Type * first_t = getExpressions()[0]->getType();
         for (ASTNode * expr : getExpressions()) {
             const Type * a_t = expr->getType();
-            if (!conv(a_t, first_t))
+            if (!conv(first_t, a_t))
                 errorl(expr->getContext(),
                        "Element in '" + first_t->getDemangledName() +
                            "' array literal differs in type.");
+            if (!equal(first_t, a_t))
+                emplaceConversion((Expression*)expr, first_t);
         }
 
         const Type * array_t =
@@ -4520,7 +4568,7 @@ void ProcLiteral::analyze(bool force) {
         errorl(getRight()->getNameContext(),
                "Can't determine type of expression containing uninstantiated "
                "template procedure.");
-
+   
     Procedure * proc = (Procedure *)getRight();
 
     proc->analyze(force);
@@ -4848,6 +4896,67 @@ void ExprBlock::desugar() {
 }
 //
 
+
+
+
+// ~~~~~ NamedArg ~~~~~
+
+NamedArg::NamedArg() { nodeKind = NAMED_ARG; }
+
+bool NamedArg::isConstant() { return ((Expression*)getExpression())->isConstant(); }
+
+std::string& NamedArg::getName() { return arg_name; }
+void NamedArg::setName(std::string name) {
+    arg_name = name;
+}
+ASTNode * NamedArg::getExpression() { return expression; }
+void NamedArg::setExpression(ASTNode * _expression) {
+    _expression->parent = this;
+    _expression->replace = rpget<replacementPolicy_NamedArg_Expression>();
+    expression = _expression;
+}
+
+void NamedArg::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    setScope(_scope);
+    getExpression()->addSymbols(mod, _scope);
+}
+
+void NamedArg::analyze(bool force) {
+    HANDLE_FORCE();
+
+    if (!getParent() || getParent()->nodeKind != ARG_LIST) {
+        errorl(getContext(), "Named argument not allowed here.", true, "must be an argument in a procedure call");
+    }
+    /* @bad @temporary */
+    if (!getParent() || !getParent()->getParent() || getParent()->getParent()->nodeKind == PRINT) {
+        errorl(getContext(), "Named argument not allowed here.", true, "must be an argument in a procedure call");
+    }
+
+    type = getExpression()->getType();
+
+    BJOU_DEBUG_ASSERT(type && "expression does not have a type");
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * NamedArg::clone() {
+    NamedArg * t = ExpressionClone(this);
+    t->setExpression(getExpression()->clone());
+    
+    return t;
+}
+
+void NamedArg::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << getName() << ": ";
+    getExpression()->dump(stream, level, dumpCT);
+}
+//
+
+
+
+
 // ~~~~~ Declarator ~~~~~
 
 Declarator::Declarator()
@@ -4888,18 +4997,33 @@ void Declarator::analyze(bool force) {
 
     std::string s = asString();
 
-    // Maybe<Symbol*> m_sym = getScope()->getSymbol(getScope(), getIdentifier(),
-    // &getContext(), /* traverse = */true, /* fail = */false);
+    /* If this is just a primitive, we can bail early
+     * (and avoid a symbol lookup). */
+    auto primitive_search = compilation->frontEnd.typeTable.find(s);
+    if (primitive_search != compilation->frontEnd.typeTable.end()) {
+        const Type * t = primitive_search->second;
+        if (t->isPrimative()) {
+            type = t;
+            return;
+        }
+    }
+
+    Symbol * sym = nullptr;
+
     Maybe<Symbol *> m_sym =
         getScope()->getSymbol(getScope(), getIdentifier(), &getContext(),
                               /* traverse = */ true, /* fail = */ false);
-    Symbol * sym = nullptr;
 
     if (m_sym.assignTo(sym)) {
         if (sym->isProcSet()) {
             errorl(getContext(),
                    "Reference to procedure(s) named '" + sym->unmangled +
                        "' is not a type.");
+        }
+
+        if (!sym->isType()) {
+            errorl(getContext(),
+                   "'" + sym->unmangled + "' is not a type.");
         }
 
         if (!sym->isAlias()) {
@@ -4944,10 +5068,10 @@ void Declarator::analyze(bool force) {
                        "'" + sym->unmangled + "' is not a type.");
             }
         }
-    } else if (compilation->frontEnd.typeTable.count(s) == 0 ||
-               !compilation->frontEnd.typeTable[s]->isPrimative())
+    } else {
         getScope()->getSymbol(getScope(), getIdentifier(),
                               &getContext()); // should just produce an error
+    }
 
     setFlag(ANALYZED, true);
 }
@@ -4983,8 +5107,9 @@ const Type * Declarator::getType() {
     if (type)
         return type;
 
-    if (compilation->frontEnd.primativeTypeTable.count(asString()) > 0)
-        return compilation->frontEnd.primativeTypeTable[asString()];
+    /* Should no longer be necessary since we check for this in analyze(). */
+    /* if (compilation->frontEnd.primativeTypeTable.count(asString()) > 0) */
+    /*     return compilation->frontEnd.primativeTypeTable[asString()]; */
 
     Maybe<Symbol *> m_sym =
         getScope()->getSymbol(getScope(), getIdentifier(), &getContext());
@@ -5135,6 +5260,9 @@ void ArrayDeclarator::desugar() {
 }
 
 const Type * ArrayDeclarator::getType() {
+    if (type)
+        return type;
+
     ASTNode * expression = getExpression();
     Declarator * arrayOf = (Declarator *)getArrayOf();
     const Type * array_t = nullptr;
@@ -5147,6 +5275,7 @@ const Type * ArrayDeclarator::getType() {
         width = (int)expr->eval().as_i64;
     }
     array_t = ArrayType::get(arrayOf->getType(), width);
+    type = array_t;
     return array_t;
 }
 
@@ -5251,7 +5380,10 @@ void SliceDeclarator::desugar() {
 }
 
 const Type * SliceDeclarator::getType() {
-    return SliceType::get(getSliceOf()->getType());
+    if (type)
+        return type;
+    type = SliceType::get(getSliceOf()->getType());
+    return type;
 }
 
 //
@@ -5356,7 +5488,10 @@ void DynamicArrayDeclarator::desugar() {
 }
 
 const Type * DynamicArrayDeclarator::getType() {
-    return DynamicArrayType::get(getArrayOf()->getType());
+    if (type)
+        return type;
+    type = DynamicArrayType::get(getArrayOf()->getType());
+    return type;
 }
 
 //
@@ -5451,8 +5586,12 @@ void PointerDeclarator::dump(std::ostream & stream, unsigned int level,
 void PointerDeclarator::desugar() { getPointerOf()->desugar(); }
 
 const Type * PointerDeclarator::getType() {
+    if (type)
+        return type;
+
     Declarator * pointerOf = (Declarator *)getPointerOf();
-    return PointerType::get(pointerOf->getType());
+    type = PointerType::get(pointerOf->getType());
+    return type;
 }
 
 // Declarator interface
@@ -5543,8 +5682,12 @@ void RefDeclarator::dump(std::ostream & stream, unsigned int level,
 void RefDeclarator::desugar() { getRefOf()->desugar(); }
 
 const Type * RefDeclarator::getType() {
+    if (type)
+        return type;
+
     Declarator * refOf = (Declarator *)getRefOf();
-    return RefType::get(refOf->getType());
+    type = RefType::get(refOf->getType());
+    return type;
 }
 //
 
@@ -5669,12 +5812,14 @@ void SumDeclarator::addSubDeclarator(ASTNode * _subDeclarator) {
     subDeclarators.push_back(_subDeclarator);
 }
 
+
 // Node interface
 void SumDeclarator::analyze(bool force) {
     HANDLE_FORCE();
     for (ASTNode * sd : getSubDeclarators()) {
         ((Declarator *)sd)->analyze();
-        if (equal(VoidType::get(), sd->getType())) {
+        const Type * t = sd->getType();
+        if (equal(VoidType::get(), t)) {
             errorl(sd->getContext(), "'void' type is invalid in sum types.");
         }
     }
@@ -5731,15 +5876,39 @@ void SumDeclarator::desugar() {
 }
 
 const Type * SumDeclarator::getType() {
+    if (type)
+        return type;
+
+    std::map<const Type*, ASTNode*> seen;
     std::vector<ASTNode *> & subDeclarators = getSubDeclarators();
     std::vector<const Type *> types;
 
-    std::transform(subDeclarators.begin(), subDeclarators.end(),
-                   std::back_inserter(types), [](ASTNode * declarator) {
-                       return ((Declarator *)declarator)->getType();
-                   });
+    for (ASTNode * sub : getSubDeclarators()) {
+        const Type *t = sub->getType();
+        if (t->isSum()) {
+            const SumType * sub_sum_t = (const SumType*)t;
+            for (const Type * sub_sum_sub_t : sub_sum_t->flatten_sub_types()) {
+                auto search = seen.find(sub_sum_sub_t->unRef());
+                if (search != seen.end()) {
+                    errorl(sub->getContext(), "Type '" + sub_sum_sub_t->unRef()->key + "' is repeated in this sum type.", false);
+                    errorl(search->second->getContext(), "Type '" + search->first->key + "' first introduced here.");
+                }
+                seen[sub_sum_sub_t] = sub;
+                types.push_back(sub_sum_sub_t);
+            }
+        } else {
+            auto search = seen.find(t->unRef());
+            if (search != seen.end()) {
+                errorl(sub->getContext(), "Type '" + t->unRef()->key + "' is repeated in this sum type.", false);
+                errorl(search->second->getContext(), "Type '" + search->first->key + "' first introduced here.");
+            }
+            seen[t->unRef()] = sub;
+            types.push_back(t);
+        }
+    }
 
-    return SumType::get(types, this);
+    type = SumType::get(types, this);
+    return type;
 }
 
 //
@@ -5850,6 +6019,9 @@ void TupleDeclarator::desugar() {
 }
 
 const Type * TupleDeclarator::getType() {
+    if (type)
+        return type;
+
     std::vector<ASTNode *> & subDeclarators = getSubDeclarators();
     std::vector<const Type *> types;
 
@@ -5858,7 +6030,8 @@ const Type * TupleDeclarator::getType() {
                        return ((Declarator *)declarator)->getType();
                    });
 
-    return TupleType::get(types, this);
+    type = TupleType::get(types, this);
+    return type;
 }
 
 //
@@ -6000,6 +6173,9 @@ void ProcedureDeclarator::desugar() {
 }
 
 const Type * ProcedureDeclarator::getType() {
+    if (type)
+        return type;
+
     std::vector<ASTNode *> & paramDeclarators = getParamDeclarators();
     std::vector<const Type *> paramTypes;
     paramTypes.reserve(paramDeclarators.size());
@@ -6012,7 +6188,8 @@ const Type * ProcedureDeclarator::getType() {
     const Type * retType = ((Declarator *)getRetDeclarator())->getType();
     bool isVararg = getFlag(IS_VARARG);
 
-    return ProcedureType::get(paramTypes, retType, isVararg);
+    type = ProcedureType::get(paramTypes, retType, isVararg);
+    return type;
 }
 //
 
@@ -6274,6 +6451,8 @@ void Constant::addSymbols(std::string& _mod, Scope * _scope) {
 }
 
 void Constant::unwrap(std::vector<ASTNode *> & terminals) {
+    if (getTypeDeclarator())
+        getTypeDeclarator()->unwrap(terminals);
     getInitialization()->unwrap(terminals);
 }
 
@@ -6397,6 +6576,23 @@ void VariableDeclaration::analyze_destructure(Symbol * sym) {
         if (equal(decl_t, s_t)) {
             good = true;
             break;
+        } else {
+            if (decl_t->unRef()->isStruct()) {
+                if (s_t->unRef()->isStruct()) {
+                    auto unref_decl_t = decl_t->unRef();
+                    auto unref_s_t    = s_t->unRef();
+    
+                    if (unref_decl_t != unref_s_t) {
+                        const StructType * init_s_t = (const StructType*)unref_s_t;
+                        const StructType * decl_s_ref_t = (const StructType*)unref_decl_t->getRef();
+
+                        if (conv(decl_s_ref_t, init_s_t)) {
+                            good = true;
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
     if (!good) {
@@ -7409,7 +7605,7 @@ This::~This() {}
 Procedure::Procedure()
     : name({}), lookupName({}), paramVarDeclarations({}),
       retDeclarator(nullptr), procDeclarator(nullptr), statements({}),
-      inst(nullptr) {
+      inst(nullptr), type(nullptr) {
     nodeKind = PROCEDURE;
 }
 
@@ -7618,6 +7814,7 @@ void Procedure::addSymbols(std::string& _mod, Scope * _scope) {
 
         for (ASTNode * param : getParamVarDeclarations())
             param->addSymbols(mod, myScope);
+
         getRetDeclarator()->addSymbols(mod, myScope);
         for (ASTNode * statement : getStatements())
             statement->addSymbols(mod, myScope);
@@ -7764,6 +7961,10 @@ Procedure::~Procedure() {
 //
 
 const Type * Procedure::getType() {
+    if (type) {
+        return type;
+    }
+
     ProcedureDeclarator * procDeclarator =
         (ProcedureDeclarator *)getProcDeclarator();
     if (procDeclarator)
@@ -7783,7 +7984,9 @@ const Type * Procedure::getType() {
                             getFlag(IS_VARARG));
     setProcDeclarator(procDeclarator);
 
-    return procDeclarator->getType();
+    type = procDeclarator->getType();
+
+    return type;
 }
 
 
@@ -7868,6 +8071,125 @@ void Import::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
 }
 
 Import::~Import() {}
+//
+
+// ~~~~~ Include ~~~~~
+
+Include::Include() {
+    nodeKind = INCLUDE;
+}
+
+std::string & Include::getPath() { return full_path; }
+void Include::setPath(std::string _full_path) { full_path = _full_path; }
+
+// Node interface
+void Include::unwrap(std::vector<ASTNode *> & terminals) {
+    terminals.push_back(this);
+}
+
+void Include::analyze(bool force) {
+    HANDLE_FORCE();
+
+    setFlag(ANALYZED, true);
+}
+
+ASTNode * Include::clone() { return new Include(*this); }
+
+void Include::addSymbols(std::string& _mod, Scope * _scope) {
+    mod = _mod;
+    setScope(_scope);
+
+    std::string fname = de_quote(getPath());
+
+    std::ifstream in;
+    for (std::string & path : compilation->module_search_paths) {
+        in.open(path + fname);
+        if (in) {
+            fname = path + fname;
+            break;
+        }
+    }
+
+    auto& fe    = compilation->frontEnd;
+    auto search = std::find(fe.include_path_stack.begin(),
+                            fe.include_path_stack.end(),
+                            fname);
+    int idx     = search - fe.include_path_stack.begin();
+
+    if (search != fe.include_path_stack.end()) {
+        fe.include_stack.push_back(this);
+        fe.include_path_stack.push_back(getContext().filename);
+
+        int i = 0;
+        for (i = idx; i < fe.include_path_stack.size() - 1; i += 1) {
+            errorl(fe.include_stack[i]->getContext(),
+                   "'" + fe.include_path_stack[i] + "' includes '" + fe.include_path_stack[i + 1] + "'.", false);
+        }
+
+        errorl(fe.include_stack[i]->getContext(),
+               "'" + fe.include_path_stack[i] + "' includes '" + fe.include_path_stack[idx] + "'.", false);
+        errorl(getContext(), "'include' statement creates a recursive file structure.");
+    }
+
+    fe.include_path_stack.push_back(getContext().filename);
+    fe.include_stack.push_back(this);
+
+    if (!in) {
+        errorl(getContext(), "Unable to read file '" + fname + "'.");
+    }
+
+    if (getScope()->parent && !getScope()->is_module_scope) {
+        errorl(getContext(), "File includes must be made at global scope.",
+               false);
+        errorl(getContext(), "Attempting to include '" + fname +
+                                 "' in scope with description '" +
+                                 getScope()->description + "'.");
+    }
+
+    AsyncParser p(in, fname);
+    p();
+
+    MultiNode * multi = new MultiNode(p.nodes);
+    std::vector<ASTNode*> flat;
+    multi->flatten(flat);
+    for (ASTNode * node : flat) {
+        if (node->nodeKind == IMPORT) {
+            errorl(node->getContext(), "Files that are included by other files are not allowed to import modules.", false);
+            errorl(getContext(), "Include of '" + fname + "' happens here.");
+        }
+    }
+   
+    (*replace)(this->parent, this, multi);
+
+    for (ASTNode * s : p.structs)
+        ((Struct *)s)->preDeclare(mod, getScope());
+
+    for (ASTNode * s : p.structs)
+        ((Struct *)s)->addSymbols(mod, getScope());
+
+    for (ASTNode * n : p.nodes) {
+        if (n->nodeKind != ASTNode::STRUCT) {
+            n->addSymbols(mod, getScope());
+        }
+    }
+
+    fe.include_path_stack.pop_back();
+    fe.include_stack.pop_back();
+
+    compilation->frontEnd.n_lines += p.n_lines;
+}
+
+void Include::dump(std::ostream & stream, unsigned int level, bool dumpCT) {
+    if (!dumpCT && isCT(this))
+        return;
+    stream << std::string(4 * level, ' ');
+
+    stream << "include " << getPath();
+
+    stream << "\n";
+}
+
+Include::~Include() {}
 //
 
 // ~~~~~ Using ~~~~~
@@ -8865,16 +9187,18 @@ void While::analyze(bool force) {
 
     getConditional()->analyze(force);
 
-    if (!conv(BoolType::get(), getConditional()->getType()))
-        errorl(
-            getConditional()->getContext(),
-            "Expression resulting in type 'bool' is required for conditionals.",
-            true,
-            "'" + getConditional()->getType()->getDemangledName() +
-                "' is invalid");
+    if (!getFlag(While::HAS_DESTRUCTURE)) {
+        if (!conv(BoolType::get(), getConditional()->getType()))
+            errorl(
+                getConditional()->getContext(),
+                "Expression resulting in type 'bool' is required for conditionals.",
+                true,
+                "'" + getConditional()->getType()->getDemangledName() +
+                    "' is invalid");
 
-    if (!equal(BoolType::get(), getConditional()->getType()))
-        emplaceConversion((Expression*)getConditional(), BoolType::get());
+        if (!equal(BoolType::get(), getConditional()->getType()))
+            emplaceConversion((Expression*)getConditional(), BoolType::get());
+    }
 
     for (ASTNode *& statement : getStatements()) {
         statement->analyze(force);
@@ -8889,8 +9213,15 @@ void While::addSymbols(std::string& _mod, Scope * _scope) {
     setScope(_scope);
     Scope * myScope = new Scope(
         "line " + std::to_string(getContext().begin.line) + " while", _scope);
+    
     _scope->scopes.push_back(myScope);
-    conditional->addSymbols(mod, _scope);
+
+    if (getFlag(HAS_DESTRUCTURE)) {
+        conditional->addSymbols(mod, myScope);
+    } else {
+        conditional->addSymbols(mod, _scope);
+    }
+
     for (ASTNode * statement : getStatements())
         statement->addSymbols(mod, myScope);
 }

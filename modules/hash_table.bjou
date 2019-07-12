@@ -1,0 +1,245 @@
+# hash_table.bjou
+
+module hash_table
+
+
+using import "pair.bjou"
+
+type ht_slot$(K_T, V_T) {
+    key   : K_T
+    val   : V_T
+    _hash : u64
+    _next : (ht_slot$(K_T, V_T) ref | none)
+
+
+    proc create(key : K_T, val : V_T, hash : u64) : ht_slot$(K_T, V_T) ref {
+        slot := new ht_slot$(K_T, V_T)
+        @slot = { ht_slot$(K_T, V_T):
+            .key   = key,
+            .val   = val,
+            ._hash = hash,
+        }
+
+        return @slot
+    }
+}
+
+const DEFAULT_START_SIZE_IDX := 3
+
+type hash_table$(K_T, V_T, H_T) {
+    const _hash : <(K_T) : u64> = H_T.hash
+
+    _data        : (ht_slot$(K_T, V_T) ref | none)*
+    _size_idx    : u64
+    _load_thresh : u64
+    size         : u64
+
+
+    proc init(this) {
+        this._size_idx    = DEFAULT_START_SIZE_IDX
+        this._data        = new (ht_slot$(K_T, V_T) ref | none)[prime_sizes[this._size_idx]]
+        
+        this._update_load_thresh()
+
+        # @libc
+        memset(this._data, 0, prime_sizes[this._size_idx] * sizeof (ht_slot$(K_T, V_T) ref | none))
+    }
+
+    proc create() : hash_table$(K_T, V_T, H_T) {
+        ht := { hash_table$(K_T, V_T, H_T): }
+        ht.init()
+        return ht
+    }
+
+    proc free(this) {
+        for i := 0; i < prime_sizes[this._size_idx]; i += 1 {
+            m_slot := this._data[i]
+            while slot : ht_slot$(K_T, V_T) ref = m_slot {
+                m_slot = slot._next
+                delete &slot
+            }
+        }
+
+        delete this._data
+    }
+
+    proc insert(this, key : K_T, val : V_T) {
+        h         := H_T.hash(key)
+        data_size := prime_sizes[this._size_idx]
+        idx       := h % data_size
+        m_slot    := &this._data[idx]
+
+        if first_slot : ht_slot$(K_T, V_T) ref = @m_slot {
+            if first_slot.key == key {
+                first_slot.val = val
+                return
+            }
+            m_slot = &first_slot._next
+            while slot : ht_slot$(K_T, V_T) ref = @m_slot {
+                if slot.key == key {
+                    slot.val = val
+                    return
+                }
+                m_slot = &slot._next
+            }
+        }
+
+        @m_slot    = ht_slot.create(key, val, h)
+        this.size += 1
+
+        if this.size == this._load_thresh {
+            this._rehash()
+        }
+    }
+
+    proc _rehash_insert(this, insert_slot : ht_slot$(K_T, V_T) ref) {
+        h         := insert_slot._hash
+        data_size := prime_sizes[this._size_idx]
+        idx       := h % data_size
+        m_slot    := &this._data[idx]
+
+        if first_slot : ht_slot$(K_T, V_T) ref = @m_slot {
+            m_slot = &first_slot._next
+            while slot : ht_slot$(K_T, V_T) ref = @m_slot {
+                m_slot = &slot._next
+            }
+        }
+
+        @m_slot = insert_slot
+    }
+
+    proc _rehash(this) {
+        old_size       := prime_sizes[this._size_idx]
+        old_data       := this._data
+        this._size_idx += 1
+        this._data      = new (ht_slot$(K_T, V_T) ref | none)[prime_sizes[this._size_idx]]
+        # @libc
+        memset(this._data, 0, prime_sizes[this._size_idx] * sizeof (ht_slot$(K_T, V_T) ref | none))
+
+        for i := 0; i < old_size; i += 1 {
+            m_slot := old_data[i]
+            while slot : ht_slot$(K_T, V_T) ref = m_slot {
+                m_slot     = slot._next
+                slot._next = nothing
+                this._rehash_insert(slot)
+            }
+        }
+
+        delete old_data
+        
+        this._update_load_thresh()
+    }
+
+    proc _update_load_thresh(this) {
+        cur_size := prime_sizes[this._size_idx]
+        this._load_thresh = (((cur_size bshl 1) as f64) / ((cur_size * 3) as f64)) * cur_size
+    }
+
+    proc lookup(this, key : K_T) : (pair$(K_T ref, V_T ref) | none) {
+        h         := H_T.hash(key)
+        data_size := prime_sizes[this._size_idx]
+        idx       := h % data_size
+        m_slot    := &this._data[idx]
+
+
+        while slot : ht_slot$(K_T, V_T) ref = @m_slot {
+            if slot.key == key {
+                return pair$(K_T ref, V_T ref).create(slot.key, slot.val)
+            }
+            m_slot = &slot._next
+        }
+
+        return nothing
+    }
+
+    proc remove(this, key : K_T) {
+        h         := H_T.hash(key)
+        data_size := prime_sizes[this._size_idx]
+        idx       := h % data_size
+        m_slot    := &this._data[idx]
+        prev      : (ht_slot$(K_T, V_T) ref | none) = nothing
+
+        while slot : ht_slot$(K_T, V_T) ref = @m_slot {
+            if slot.key == key {
+                break
+            }
+            prev   = @m_slot
+            m_slot = &slot._next
+        }
+
+        if slot : ht_slot$(K_T, V_T) ref = @m_slot {
+            if prev_slot : ht_slot$(K_T, V_T) ref = prev {
+                prev_slot._next = slot._next
+            } else {
+                @m_slot = slot._next
+            }
+            delete &slot
+            this.size -= 1
+        }
+    }
+}
+
+prime_sizes := {
+  5u64,
+  11u64, 
+  23u64, 
+  47u64, 
+  97u64, 
+  199u64, 
+  409u64, 
+  823u64, 
+  1741u64, 
+  3469u64, 
+  6949u64, 
+  14033u64, 
+  28411u64, 
+  57557u64, 
+  116731u64, 
+  236897u64,
+  480881u64, 
+  976369u64,
+  1982627u64, 
+  4026031u64,
+  8175383u64, 
+  16601593u64, 
+  33712729u64,
+  68460391u64, 
+  139022417u64, 
+  282312799u64, 
+  573292817u64, 
+  1164186217u64,
+  2364114217u64, 
+  4294967291u64,
+  8589934583u64,
+  17179869143u64,
+  34359738337u64,
+  68719476731u64,
+  137438953447u64,
+  274877906899u64,
+  549755813881u64,
+  1099511627689u64,
+  2199023255531u64,
+  4398046511093u64,
+  8796093022151u64,
+  17592186044399u64,
+  35184372088777u64,
+  70368744177643u64,
+  140737488355213u64,
+  281474976710597u64,
+  562949953421231u64, 
+  1125899906842597u64,
+  2251799813685119u64, 
+  4503599627370449u64,
+  9007199254740881u64, 
+  18014398509481951u64,
+  36028797018963913u64, 
+  72057594037927931u64,
+  144115188075855859u64,
+  288230376151711717u64,
+  576460752303423433u64,
+  1152921504606846883u64,
+  2305843009213693951u64,
+  4611686018427387847u64,
+  9223372036854775783u64,
+  18446744073709551557u64
+}

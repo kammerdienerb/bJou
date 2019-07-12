@@ -8,9 +8,10 @@
 #ifndef hybrid_map_hpp
 #define hybrid_map_hpp 
 
-#include <unordered_map>
 #include <iterator>
 #include <utility>
+
+#include "hash_table.h"
 
 #define HYBRID_MAP_N (8)
 
@@ -19,22 +20,24 @@ struct hybrid_map;
 
 template <typename K_T, typename V_T, typename H_T>
 struct hybrid_map_it {
+    typedef typename hash_table_t<K_T, V_T, H_T>::const_iterator hash_it_t;
+
     const hybrid_map<K_T, V_T, H_T> * the_map;
     bool using_static;
     int static_idx;
-    typename std::unordered_map<K_T, V_T>::const_iterator hash_it;
+    hash_it_t hash_it;
     std::pair<K_T, V_T> the_pair;
 
     hybrid_map_it(const hybrid_map<K_T, V_T, H_T> * _the_map, int _static_idx)
         : the_map(_the_map), using_static(true), static_idx(_static_idx) { }
-    hybrid_map_it(const hybrid_map<K_T, V_T, H_T> * _the_map, typename std::unordered_map<K_T, V_T>::const_iterator _hash_it)
-        : the_map(_the_map), using_static(false), hash_it(_hash_it) { }
+    hybrid_map_it(const hybrid_map<K_T, V_T, H_T> * _the_map, hash_it_t _hash_it)
+        : the_map(_the_map), using_static(false) {
+            hash_it = _hash_it;
+        }
 
     bool operator==(hybrid_map_it<K_T, V_T, H_T>& rhs) {
         if (using_static) {
-            if (!rhs.using_static)               return false;
-            if (static_idx != rhs.static_idx)    return false;
-            return true;
+            return static_idx == rhs.static_idx;
         }
         return hash_it == rhs.hash_it;
     }
@@ -53,27 +56,19 @@ struct hybrid_map_it {
     }
 
     std::pair<K_T, V_T>& operator*() {
-        if (using_static) {
-            the_pair = std::make_pair(
+        return using_static
+                ? (the_pair = std::make_pair(
                         the_map->static_key_storage[static_idx], 
-                        the_map->static_val_storage[static_idx]);
-        } else {
-            the_pair = std::make_pair(hash_it->first, hash_it->second);
-        }
-
-        return the_pair;
+                        the_map->static_val_storage[static_idx]))
+                : (the_pair = std::make_pair(hash_it->first, hash_it->second));
     }
 
     std::pair<K_T, V_T> * operator->() {
-        if (using_static) {
-            the_pair = std::make_pair(
+        return &(using_static
+                ? (the_pair = std::make_pair(
                         the_map->static_key_storage[static_idx], 
-                        the_map->static_val_storage[static_idx]);
-        } else {
-            the_pair = std::make_pair(hash_it->first, hash_it->second);
-        }
-
-        return &the_pair;
+                        the_map->static_val_storage[static_idx]))
+                : (the_pair = std::make_pair(hash_it->first, hash_it->second)));
     }
 };
 
@@ -83,7 +78,7 @@ struct hybrid_map {
     V_T                          static_val_storage[HYBRID_MAP_N];
     size_t                       n_static;
     bool                         using_static;
-    std::unordered_map<K_T, V_T, H_T> hash_table;
+    hash_table_t<K_T, V_T, H_T> hash_table;
 
     hybrid_map()
         : n_static(0),
@@ -162,14 +157,10 @@ struct hybrid_map {
                     return get_static_it(i);
                 }
             }
-            return end();
+            return get_static_it(n_static);
         }
        
-        auto search = hash_table.find(key);
-        if (search == hash_table.end()) {
-            return end();
-        }
-        return hybrid_map_it<K_T, V_T, H_T>(this, search);
+        return hybrid_map_it<K_T, V_T, H_T>(this, hash_table.find(key));
     }
 
     size_t count(const K_T& key) {

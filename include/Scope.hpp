@@ -12,11 +12,11 @@
 #include "ASTNode.hpp"
 #include "Maybe.hpp"
 
-#include "std_string_hasher.hpp"
-#include "hybrid_map.hpp"
+#include "hash_table.h"
 
 #include <string>
 #include <unordered_map>
+#include <map>
 #include <vector>
 
 namespace bjou {
@@ -34,9 +34,8 @@ struct Scope {
     Scope * parent;
     bool is_module_scope;
     std::string module_name;
-    /* std::unordered_map<std::string, Symbol*, std_string_hasher> symbols; */
-    hybrid_map<std::string, Symbol*, std_string_hasher> symbols;
-    hybrid_map<std::string, Scope*, std_string_hasher> * module_scopes;
+    hash_table_t<std::string, Symbol*, STRING_HASHER> symbols;
+    hash_table_t<std::string, Scope*, STRING_HASHER> * module_scopes;
     std::vector<Scope *> scopes;
     std::vector<std::string> usings;
 

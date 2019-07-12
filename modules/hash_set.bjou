@@ -1,0 +1,28 @@
+# hash_set.bjou
+
+module hash_set
+
+
+import "hash_table.bjou"
+import "pair.bjou"
+
+
+type hash_set$(T, H_T) extends hash_table::hash_table$(T, none, H_T) {
+    proc create() : hash_set$(T, H_T) {
+        hs := { hash_set$(T, H_T): }
+        hash_table::hash_table$(T, none, H_T).init(hs)
+        return hs
+    }
+
+    proc insert(this, key : T) {
+        hash_table::hash_table$(T, none, H_T).insert(this, key, nothing)
+    }
+
+    proc lookup(this, key : T) : (T ref | none) {
+        result := hash_table::hash_table$(T, none, H_T).lookup(this, key)
+        if p : pair::pair$(T ref, none ref) = result {
+            return p.first
+        }
+        return nothing
+    }
+}

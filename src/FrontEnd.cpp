@@ -119,6 +119,8 @@ FrontEnd::FrontEnd()
     kind2string[ASTNode::NodeKind::PROCEDURE] = "PROCEDURE";
     kind2string[ASTNode::NodeKind::NAMESPACE] = "NAMESPACE";
     kind2string[ASTNode::NodeKind::IMPORT] = "IMPORT";
+    kind2string[ASTNode::NodeKind::INCLUDE] = "INLCUDE";
+    kind2string[ASTNode::NodeKind::USING] = "USING";
     kind2string[ASTNode::NodeKind::PRINT] = "PRINT";
     kind2string[ASTNode::NodeKind::RETURN] = "RETURN";
     kind2string[ASTNode::NodeKind::BREAK] = "BREAK";
@@ -149,6 +151,7 @@ FrontEnd::FrontEnd()
     kind2string[ASTNode::NodeKind::MODULE_DECL] = "MODULE_DECL";
     kind2string[ASTNode::NodeKind::IGNORE] = "IGNORE";
     kind2string[ASTNode::NodeKind::MACRO_USE] = "MACRO_USE";
+    kind2string[ASTNode::NodeKind::MULTINODE] = "MULTINODE";
 }
 
 FrontEnd::~FrontEnd() {
@@ -182,8 +185,6 @@ milliseconds FrontEnd::go() {
     auto s_time = SymbolsStage();
     if (time_arg)
         prettyPrintTimeMin(s_time, "Populate symbol tables");
-    if (compilation->args.symbols_arg)
-        printSymbolTables();
 
     auto t_time = TypesStage();
     if (time_arg)
@@ -192,6 +193,9 @@ milliseconds FrontEnd::go() {
     auto a_time = AnalysisStage();
     if (time_arg)
         prettyPrintTimeMin(a_time - ctruntime, "Semantic analysis");
+
+    if (compilation->args.symbols_arg)
+        printSymbolTables();
 
     auto end = Clock::now();
     return duration_cast<milliseconds>(end - start);
@@ -443,11 +447,14 @@ milliseconds FrontEnd::AnalysisStage() {
     for (ASTNode * node : AST)
         node->analyze();
 
-    for (ASTNode * node : deferredAST) {
-        node->parent = nullptr;
-        node->replace = rpget<replacementPolicy_Global_Node>();
-        node->analyze();
-        AST.push_back(node);
+    while (deferredAST.size()) {
+        std::vector<ASTNode*> hold_deferred = std::move(deferredAST);
+        for (ASTNode * node : hold_deferred) {
+            node->parent = nullptr;
+            node->replace = rpget<replacementPolicy_Global_Node>();
+            node->analyze();
+            AST.push_back(node);
+        }
     }
 
     auto end = Clock::now();

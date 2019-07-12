@@ -1,0 +1,77 @@
+main()
+
+extern printf(char*, ...) : int
+
+type A { field : int }
+type B extends A {}
+type C extends A {}
+type D extends C {}
+
+proc getref$T(arg : T ref) : T ref
+    return arg
+
+proc test(arg : (B ref | C | D | int), b : B ref) {
+    b.field = 987
+
+    if x : A = arg {
+        print "    A    : .field = %", x.field
+    }
+    if x : A ref = arg {
+        print "    A REF: .field = %", x.field
+    }
+    if x : B ref = arg {
+        print "    B REF: .field = %", x.field
+    }
+    if x : int = arg {
+        print "    int: %", x
+    }
+}
+
+type context {
+    path : (string ref | none)
+}
+
+type thinger = (context | none)
+
+proc new_thinger() : thinger {
+    return { context: .path = nothing }
+}
+
+proc p(arg : thinger ref) {
+    if c : context = arg {
+        if s : string ref = c.path {
+            print "%", s.c_str()
+        } else {
+            print "thinger has no path"
+        }
+    } else {
+        print "bad thinger"
+    }
+}
+
+proc main() {
+    b := { B: .field = 555 }
+    c := { C: }
+    d := { D: }
+
+    print "B ref:"
+    test(b, b) 
+    print "C:"
+    test(c, b) 
+    print "D:"
+    test(d, b) 
+    print "int:"
+    test(123, b)
+
+    s  := str("a string")
+    t  := new_thinger()
+    t' := t
+
+    if cxt : context = t'
+        cxt.path = s
+
+    p(t)
+    p(t')
+    bad_thinger : thinger = nothing
+    p(bad_thinger)
+}

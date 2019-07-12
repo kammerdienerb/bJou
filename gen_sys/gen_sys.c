@@ -13,6 +13,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/resource.h>
+#include <stddef.h>
 
 #define PRINT_SYS_NR_DECL(NR) printf("const "#NR" := SYS_NR_MOD + %d\n", (NR))
 #define PRINT_SYS_CONSTANT_DECL(C) printf("const "#C" := %d\n", (C))
@@ -78,9 +80,18 @@ void pre() {
 "        gettimeofday(&tv_now, NULL as timezone*)\n"
 "        elapsed = ((tv_now.tv_sec * 1000000) + tv_now.tv_usec) - ((tv_beg.tv_sec * 1000000) + tv_beg.tv_usec)\n"
 "    }\n"
-"}\n"
+"}\n");
+printf("\n"
+"type rusage {\n"
+"    bytes : u8[%lu]\n"
+"    proc ru_maxrss(this) : i64 {\n"
+"        return @(((&(this.bytes[%lu])) as void*) as i64*)\n"
+"    }\n"
+"}\n", sizeof(struct rusage), offsetof(struct rusage, ru_maxrss));
+printf("\n"
 );
-    printf("\n");
+    
+printf("\n");
 }
 
 void post() {
@@ -115,7 +126,11 @@ void post() {
 "\n"
 "proc gettimeofday(tv : timeval*, tz : timezone*) : i64\n"
 "    return nolibc_syscall(SYS_gettimeofday, 2, tv, tz)\n"
-"\n");
+"\n"
+"proc getrusage(who : int, usage : rusage*) : i64\n"
+"    return nolibc_syscall(SYS_getrusage, 2, who, usage)\n"
+"\n"
+);
 
     printf("\n");
 
@@ -144,6 +159,7 @@ int main() {
     PRINT_SYS_NR_DECL(SYS_access);
     PRINT_SYS_NR_DECL(SYS_getpid);
     PRINT_SYS_NR_DECL(SYS_gettimeofday);
+    PRINT_SYS_NR_DECL(SYS_getrusage);
 
     PRINT_SYS_CONSTANT_DECL(S_IRWXU);
     PRINT_SYS_CONSTANT_DECL(S_IRUSR);

@@ -13,7 +13,7 @@ proc option(arg : char*) : (char* | none) {
 proc main() {
     n := nothing
     
-    print "%, %", sizeof n, sizeof (none, none, none)
+    print "%, %", sizeof none, sizeof (none, none, none)
 
     p(n)
 

@@ -21,8 +21,7 @@
 #include "BackEnd.hpp"
 #include "LLVMGenerator.hpp"
 #include "Type.hpp"
-#include "std_string_hasher.hpp"
-#include "hybrid_map.hpp"
+#include "hash_table.h"
 
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/Optional.h>
@@ -58,7 +57,7 @@ struct StackFrame {
     };
 
     std::vector<FrameVal> vals;
-    hybrid_map<std::string, size_t, std_string_hasher> namedVals;
+    hash_table_t<std::string, size_t, STRING_HASHER> namedVals;
 };
 
 struct LoopFrameInfo {
@@ -88,7 +87,6 @@ struct LLVMBackEnd : BackEnd {
     std::string genArch;
     const llvm::Target * target;
     llvm::TargetMachine * targetMachine;
-    llvm::DataLayout * layout;
 
     llvm::LLVMContext llContext;
     llvm::Module *llModule, *outModule;
@@ -103,9 +101,12 @@ struct LLVMBackEnd : BackEnd {
     std::map<ASTNode *, llvm::Value *> generated_nodes;
     std::map<const Type *, llvm::Type *> generated_types;
     std::set<ASTNode *>       types_need_completion;
-    std::set<const SumType *> sum_types_need_completion;
+    std::vector<const SumType*> sum_types_need_completion;
+    /* std::set<const SumType *> sum_types_need_completion; */
     std::set<ASTNode *>       globs_need_completion;
     std::set<ASTNode *>       procs_need_completion;
+
+    std::set<llvm::Type*> empty_struct_types;
 
     std::map<Procedure *, void *> proc_abi_info;
 
@@ -117,6 +118,9 @@ struct LLVMBackEnd : BackEnd {
 
     llvm::Value * getOrGenNode(ASTNode * node, bool getAddr = false);
     llvm::Type * getOrGenType(const Type * t);
+
+    uint64_t getLLVMAllocSize(llvm::Type* ty);
+    uint64_t getLLVMABITypeAlignment(llvm::Type* ty);
 
     std::unordered_map<Constant *, llvm::Value *> generatedTypeMemberConstants;
 
@@ -147,7 +151,7 @@ struct LLVMBackEnd : BackEnd {
 
     llvm::Type * bJouTypeToLLVMType(const bjou::Type * t);
     llvm::Type * createOrLookupDefinedType(const bjou::Type * t);
-    llvm::StructType * createSumStructType(const bjou::Type * t);
+    llvm::Type * createSumStructType(const bjou::Type * t);
     llvm::StructType * createTupleStructType(const bjou::Type * t);
 
     llvm::Function * createMainEntryPoint();

@@ -32,7 +32,7 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_kwd_type, parser_kwd_abstract, parser_kwd_extends,
     parser_kwd_enum, parser_kwd_print, parser_kwd_immut,
     parser_kwd_coerce, parser_kwd_this, parser_kwd_ref, parser_kwd_delete,
-    parser_kwd_import, parser_kwd_using, parser_kwd_module,
+    parser_kwd_import, parser_kwd_include, parser_kwd_using, parser_kwd_module,
     parser_kwd_alias, parser_kwd_operator, parser_kwd_return, parser_kwd_if,
     parser_kwd_else, parser_kwd_while, parser_kwd_do, parser_kwd_for,
     parser_kwd_foreach, parser_kwd_in, parser_kwd_match, parser_kwd_with,
@@ -43,7 +43,7 @@ constexpr const TokenParserFnType tokenParsers[] = {
     parser_string_literal, parser_kwd_true, parser_kwd_false,
     parser_kwd_none, parser_kwd_nothing, parser_kwd_as, parser_dot, parser_arrow, parser_l_arrow,
     parser_exclam, parser_kwd_sizeof, parser_amp, parser_tilde, parser_at,
-    parser_kwd_not, parser_kwd_new, parser_kwd_proc, parser_kwd___no_mangle__, parser_kwd_extern, parser_kwd_externvar,
+    parser_kwd_not, parser_kwd_new, parser_kwd_proc, parser_kwd___no_mangle__, parser_kwd___inline__, parser_kwd_extern, parser_kwd_externvar,
     parser_kwd_some, parser_kwd_bneg, parser_mult, parser_div, parser_mod,
     parser_plus, parser_minus, parser_kwd_bshl, parser_kwd_bshr, parser_lss,
     parser_leq, parser_gtr, parser_geq, parser_equ, parser_neq, parser_kwd_band,
@@ -80,14 +80,14 @@ parser_end_of_line
 const char * kwds[] = {
     "type",    "abstract", "extends",
     "enum",    "print",    "immut",      "delete", 
-    "import",  "using", "alias",    "operator",  "coerce",     "this",    "ref",
+    "import", "include",  "using", "alias",    "coerce",     "this",    "ref",
 
     "return",  "if",       "else",      "while",      "do",      "for",
     "foreach", "in",       "match",     "with",       "break",   "continue",
 
     "true",    "false",    "nothing",
 
-    "as",      "sizeof",   "not",       "new",        "proc", "__no_mangle__",    "extern", "externvar",
+    "as",      "sizeof",   "not",       "new",        "proc", "__no_mangle__", "__inline__",   "extern", "externvar",
     "some",    "bneg",     "and",       "or",         "bshl",    "bshr",
     "band",    "bxor",     "bor"};
 
@@ -268,6 +268,9 @@ MaybeString parser_kwd_delete(StringViewableBuffer & buff) {
 }
 MaybeString parser_kwd_import(StringViewableBuffer & buff) {
     return parse_kwd(buff, "import");
+}
+MaybeString parser_kwd_include(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "include");
 }
 MaybeString parser_kwd_using(StringViewableBuffer & buff) {
     return parse_kwd(buff, "using");
@@ -514,6 +517,9 @@ MaybeString parser_kwd_proc(StringViewableBuffer & buff) {
 }
 MaybeString parser_kwd___no_mangle__(StringViewableBuffer & buff) {
     return parse_kwd(buff, "__no_mangle__");
+}
+MaybeString parser_kwd___inline__(StringViewableBuffer & buff) {
+    return parse_kwd(buff, "__inline__");
 }
 MaybeString parser_kwd_extern(StringViewableBuffer & buff) {
     return parse_kwd(buff, "extern");
@@ -1015,7 +1021,7 @@ MaybeASTNode Parser::parseDeclarator(bool base_only) {
                 ASTNode * expr = nullptr;
                 if (!m_expr.assignTo(expr)) {
                     errornext(*this, "Expected static array length expression.",
-                              true, "use '[]' do declare slice",
+                              true, "use '[]' to declare slice",
                               "or '[...]' to declare dynamic array");
                 }
                 result = new ArrayDeclarator(result, expr);
@@ -1249,9 +1255,6 @@ MaybeASTNode Parser::parseExpression(int minPrecedence) {
 
     m_primary = parseExpression_r(primary, minPrecedence);
 
-    if (!m_primary)
-        return MaybeASTNode();
-
     return m_primary;
 }
 
@@ -1385,6 +1388,8 @@ MaybeASTNode Parser::parseExpression_r(ASTNode * left, int minPrecedence) {
                 expect(R_SQR_BRACKET, "']'");
                 bracket = true;
                 bracket_context.finish(&currentContext, &justCleanedContext);
+            } else {
+                errornext(*this, "Missing operand to binary subscript expression.");
             }
         } else if (op == "()") {
             expect(L_PAREN, "'('");
@@ -1675,7 +1680,10 @@ MaybeASTNode Parser::parseTerminatingExpression() {
     MaybeASTNode m_node;
     Expression * node = nullptr;
 
-    if ((m_node = parseQualifiedIdentifier())) {
+    if ((m_node = parseNamedArg())) {
+        m_node.assignTo(node);
+        BJOU_DEBUG_ASSERT(node);
+    } else if ((m_node = parseQualifiedIdentifier())) {
         m_node.assignTo(node);
         BJOU_DEBUG_ASSERT(node);
         // if (optional(TEMPLATE_BEGIN, true)) {
@@ -1683,7 +1691,7 @@ MaybeASTNode Parser::parseTerminatingExpression() {
             MaybeASTNode m_templateInst = parseTemplateInst();
             ASTNode * templateInst = nullptr;
             if (!m_templateInst.assignTo(templateInst))
-                errornext(*this, "Expected template instantiation after '!'.");
+                errornext(*this, "Expected template instantiation after '$'.");
             node->setRight(templateInst);
         }
         node->setFlag(Expression::TERMINAL, true);
@@ -1697,6 +1705,30 @@ MaybeASTNode Parser::parseTerminatingExpression() {
         return MaybeASTNode();
 
     return MaybeASTNode(node);
+}
+
+MaybeASTNode Parser::parseNamedArg() {
+    if (optional(VAR_DECL_BEG, true)) {
+        NamedArg * result = new NamedArg();
+        result->getContext().start(&currentContext);
+
+        std::string arg_name = expect(IDENTIFIER, "identifier");
+        result->setName(arg_name);
+        expect(COLON, "':'");
+
+        auto m_expr = parseExpression();
+        ASTNode *expr = nullptr;
+        if (!m_expr.assignTo(expr)) {
+            errornext(*this, "Expected expression in named argument.");
+        }
+        result->setExpression(expr);
+
+        result->getContext().finish(&currentContext, &justCleanedContext);
+
+        return MaybeASTNode(result);
+    }
+
+    return MaybeASTNode();
 }
 
 MaybeASTNode Parser::parseParentheticalExpressionOrTuple() {
@@ -2073,7 +2105,7 @@ MaybeASTNode Parser::parseTopLevelNode() {
         (m_node = parseType()) || (m_node = parseEnum()) ||
         (m_node = parseConstant()) || (m_node = parseVariableDeclaration()) || 
         (m_node = parseAlias()) || (m_node = parseStatement()) ||
-        (m_node = parseImport());
+        (m_node = parseImport()) || (m_node = parseInclude());
 
     ASTNode * node = nullptr;
     if (m_node.assignTo(node)) {
@@ -2094,7 +2126,7 @@ MaybeASTNode AsyncParser::parseTopLevelNode() {
         (m_node = parseType()) || 
         (m_node = parseEnum()) || (m_node = parseConstant()) ||
         (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
-        (m_node = parseStatement()) || (m_node = parseImport());
+        (m_node = parseStatement()) || (m_node = parseImport()) || (m_node = parseInclude());
 
     ASTNode * node = nullptr;
     if (m_node.assignTo(node)) {
@@ -2115,7 +2147,7 @@ MaybeASTNode ImportParser::parseTopLevelNode() {
         (m_node = parseType()) || 
         (m_node = parseEnum()) || (m_node = parseConstant()) ||
         (m_node = parseVariableDeclaration()) || (m_node = parseAlias()) ||
-        (m_node = parseStatement()) || (m_node = parseImport());
+        (m_node = parseStatement()) || (m_node = parseImport()) || (m_node = parseInclude());
 
     ASTNode * node = nullptr;
     if (m_node.assignTo(node)) {
@@ -2150,6 +2182,23 @@ MaybeASTNode Parser::parseImport() {
     return MaybeASTNode();
 }
 
+MaybeASTNode Parser::parseInclude() {
+    if (optional(KWD_INCLUDE, true)) {
+        Include * result = new Include();
+        result->getContext().start(&currentContext);
+
+        eat("include");
+
+        auto path = expect(STRING_LITERAL, "path");
+        result->setPath(path);
+
+        result->getContext().finish(&currentContext, &justCleanedContext);
+
+        return MaybeASTNode(result);
+    }
+    return MaybeASTNode();
+}
+
 MaybeASTNode Parser::parseUsing() {
     if (optional(KWD_USING, true)) {
         Using * result = new Using();
@@ -2171,6 +2220,7 @@ MaybeASTNode Parser::parseUsing() {
         if (result->getImport()) {
             std::vector<ASTNode*> nodes { result->getImport(), result };
             MultiNode * multi = new MultiNode(nodes);
+            multi->getContext() = result->getContext();
 
             return MaybeASTNode(multi);
         }
@@ -2522,9 +2572,13 @@ MaybeASTNode Parser::parseProc(bool parse_body) {
         result->getNameContext().start(&currentContext);
 
         bool no_mangle = optional(KWD___NO_MANGLE__);
+        bool is_inline = optional(KWD___INLINE__);
 
         if (no_mangle) {
             result->setFlag(Procedure::NO_MANGLE, true);
+        }
+        if (is_inline) {
+            result->setFlag(Procedure::IS_INLINE, true);
         }
 
         MaybeString m_identifier = optional(IDENTIFIER);
@@ -2959,12 +3013,23 @@ MaybeASTNode Parser::parseWhile() {
 
         eat("while");
 
-        MaybeASTNode m_conditional = parseExpression();
-        ASTNode * conditional = nullptr;
-        if (!m_conditional.assignTo(conditional))
-            errornext(*this,
-                      "Invalid conditional expression for 'while' loop.");
-        result->setConditional(conditional);
+        if (optional(VAR_DECL_BEG, true)) {
+            MaybeASTNode m_destructure = parseVariableDeclaration();
+            ASTNode * destructure = nullptr;
+            if (!m_destructure.assignTo(destructure))
+                errornext(*this,
+                          "Invalid destructuring conditional expression for 'while' loop.");
+            destructure->setFlag(VariableDeclaration::IS_DESTRUCTURE, true);
+            result->setConditional(destructure);
+            result->setFlag(While::HAS_DESTRUCTURE, true);
+        } else {
+            MaybeASTNode m_conditional = parseExpression();
+            ASTNode * conditional = nullptr;
+            if (!m_conditional.assignTo(conditional))
+                errornext(*this,
+                          "Invalid conditional expression for 'while' loop.");
+            result->setConditional(conditional);
+        }
 
         MaybeASTNode m_statement;
         ASTNode * statement;
@@ -3153,6 +3218,9 @@ MaybeASTNode Parser::parseReturn() {
             result->setExpression(expression);
             result->getContext().finish(&currentContext, &justCleanedContext);
         } else {
+            if (buff.viewSize() > 0) {
+                this->n_lines += 1;
+            }
             result->getContext().finish(&currentContext, &justCleanedContext);
             result->getContext().end.character -= 1; // acount for the newline
             clean();

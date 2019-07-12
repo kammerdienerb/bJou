@@ -1,0 +1,217 @@
+# bucket_array.bjou
+
+module bucket_array
+
+const DEFAULT_BUCKET_SIZE := 4096
+
+type bucket$T {
+    data : T*
+    used : u32
+    cap  : u32
+}
+
+type iterator$T {
+    array       : bucket_array$T ref
+    cur_bucket  : u64
+    cur_idx     : u64
+
+
+    proc create(array : bucket_array$T ref) : iterator$T {
+        return { iterator$T: .array = array }
+    }
+
+    proc is_end(this) : bool {
+        # No buckets
+        if |this.array.buckets| == 0
+        or this.cur_bucket      == |this.array.buckets| {
+            return true
+        }
+
+        b := this.array.buckets[this.cur_bucket]
+
+        # Bad index or at empty bucket
+        if this.cur_idx >= b.used or b.used == 0    { return true }
+
+        if this.cur_idx == b.used - 1 { # at end of bucket
+            # No more buckets
+            if &b == &this.array.buckets.back() {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    proc next(this) {
+        if |this.array.buckets| == 0 {
+            return
+        }
+
+        b := this.array.buckets[this.cur_bucket]
+
+        this.cur_idx += 1
+
+        if this.cur_idx == b.used {
+            this.cur_idx     = 0
+            this.cur_bucket += 1
+        }
+    }
+
+    proc val(this) : T ref {
+        return this.array.buckets[this.cur_bucket].data[this.cur_idx]
+    }
+}
+
+type bucket_array$T {
+    buckets     : bucket$T[...]
+    cur_bucket  : (bucket$T ref | none)
+    bucket_size : u64
+    n_fit       : u32
+    size        : u64
+
+
+    proc create(bucket_size : u64) : bucket_array$T {
+        n_fit := 4 # Default value if the size of T is larger than the bucket_size.
+        if sizeof T < bucket_size {
+            n_fit = bucket_size / sizeof T
+        }
+
+        return { bucket_array$T:
+            .buckets     = [...bucket$T],
+            .cur_bucket  = nothing,
+            .bucket_size = bucket_size,
+            .n_fit       = n_fit,
+            .size        = 0,
+        }
+    }
+
+    proc __inline__ create() : bucket_array$T
+        return bucket_array$T.create(bucket_size: DEFAULT_BUCKET_SIZE)
+
+    proc free(this) {
+        foreach ref b in this.buckets    { delete b.data }
+        this.buckets.free()
+        this.cur_bucket = nothing
+    }
+
+    proc push(this, item : T ref) : T ref {
+        this.size += 1
+
+        if b : bucket$T ref = this.cur_bucket {
+            if b.used < b.cap {
+                return this.add_item_to_cur_bucket(item)
+            }
+        }
+
+        this.add_bucket()
+        return this.add_item_to_cur_bucket(item)
+    }
+   
+    proc __inline__ push(this, item : T) : T ref
+        return this.push(getref(item))
+
+    proc push_blank(this) : T ref {
+        this.size += 1
+
+        if b : bucket$T ref = this.cur_bucket {
+            if b.used < b.cap {
+                return this.get_next_slot_from_cur_bucket()
+            }
+        }
+
+        this.add_bucket()
+        return this.get_next_slot_from_cur_bucket()
+    }
+
+    proc add_item_to_bucket(this, b : bucket$T ref, item : T ref) : T ref {
+        slot : T ref = b.data[b.used]
+        slot         = item
+        b.used      += 1
+        return slot
+    }
+
+    proc get_next_slot_from_bucket(this, b : bucket$T ref) : T ref {
+        slot : T ref = b.data[b.used]
+        b.used      += 1
+        return slot
+    }
+
+    proc add_item_to_cur_bucket(this, item : T ref) : T ref {
+        if b : bucket$T ref = this.cur_bucket {
+            r_ref := this.add_item_to_bucket(b, item)
+            return  r_ref
+        }
+        \die{ "no cur_bucket" }
+        must_return := NULL as T*
+        return @must_return
+    }
+    
+    proc get_next_slot_from_cur_bucket(this) : T ref {
+        if b : bucket$T ref = this.cur_bucket {
+            r_ref := this.get_next_slot_from_bucket(b)
+            return  r_ref
+        }
+        \die{ "no cur_bucket" }
+        must_return := NULL as T*
+        return @must_return
+    }
+    
+    proc add_bucket(this) {
+        new_bucket := { bucket$T:
+            .data = new T[this.n_fit],
+            .used = 0,
+            .cap  = this.n_fit
+        }
+
+        this.buckets.push(new_bucket)
+        this.cur_bucket = this.buckets.back()
+        this.n_fit = this.n_fit bshl 1
+    }
+
+    proc len(this) : u64
+        return this.size
+
+    proc iter(this) : iterator$T
+        return iterator$T.create(this)
+
+    proc at(this, idx : u64) : T ref {
+        b_idx := 0
+
+        while b_idx < |this.buckets| {
+            b := this.buckets[b_idx]
+
+            if idx >= b.used {
+                idx   -= b.used
+                b_idx += 1
+            } else {
+                return b.data[idx]
+            }
+        }
+
+        \die{ "index out of bounds in bucket_array.at()" }
+        must_return := NULL as T*
+        return @must_return
+    }
+}
+
+proc merge_and_steal_data$T(a : bucket_array$T ref, b : bucket_array$T ref) : bucket_array$T {
+    bucket_size := a.bucket_size
+    if b.bucket_size > a.bucket_size {
+        bucket_size = b.bucket_size
+    }
+
+    new_bucket_array := bucket_array$T.create(bucket_size)
+    new_bucket_array.size = a.size + b.size
+
+
+    foreach ref a_b in a.buckets    { new_bucket_array.buckets.push(a_b) }
+    foreach ref b_b in b.buckets    { new_bucket_array.buckets.push(b_b) }
+
+    new_bucket_array.cur_bucket = new_bucket_array.buckets.back()
+
+    a.buckets.free()
+    b.buckets.free()
+
+    return new_bucket_array
+}
+

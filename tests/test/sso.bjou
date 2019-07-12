@@ -1,0 +1,43 @@
+main()
+
+proc p(name : char*, s : string ref) {
+    print "%.__is_long(): %", name, s.__is_long()
+    print "%: '%' -- % chars", name, s.c_str(), s.len()
+}
+
+proc main() {
+    s   := str()
+    s'  := str("short")
+    s'' := str("                    long      string")
+
+    s.pop()
+    s''.pop()
+
+    p("s", s)
+    p("s'", s')
+    p("s''", s'')
+   
+    s''.set("shorter")
+    s''.append('!')
+    p("s''", s'')
+   
+    print "%", s''.back()
+
+    s''.set(s')
+    p("s''", s'')
+   
+    s'.clear() 
+    p("s'", s')
+
+    for i := 0; i < 26; i += 1 {
+        s''.append("abcdefghijklmnopqrstuvwxyz"[i])
+    }
+    p("s''", s'')
+
+    s''.clear()
+    p("s''", s'')
+
+    s''.free()
+    s'.free()
+    s.free()
+}

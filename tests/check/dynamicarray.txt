@@ -1,4 +1,4 @@
-using 0 of 8
+using 0 of 0
 0
 0, 1
 0, 1, 2

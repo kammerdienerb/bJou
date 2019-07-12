@@ -21,6 +21,17 @@ function run_test {
     	TEST_SUCCESS="false"
   	fi
 
+    # Uncomment this block to test optimizations as well.
+
+    # if [ "$TEST_SUCCESS" == "true" ]
+    # then
+    #     ../build/bjou "test/$NAME.bjou" -I ../modules -O -o "bin/$NAME"
+    #     if [ $? -ne 0 ]
+    #     then
+    #         TEST_SUCCESS="false"
+    #     fi
+    # fi
+	
 	if [ "$TEST_SUCCESS" == "true" ]
 	then
 		"bin/$NAME" > "out/$NAME.txt"
@@ -51,10 +62,8 @@ function run_test {
 
 if [ "$#" -eq 0 ]
 then
-	for f in test/*.bjou;
-	do
-		run_test $f
-	done
+    export -f run_test
+    ls test/*.bjou | xargs -L 1 -P "$(ls test/*.bjou | wc)" -I FILE bash -c "run_test FILE"
 else
 	run_test test/$1.bjou
 fi

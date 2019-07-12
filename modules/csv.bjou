@@ -47,13 +47,14 @@ type csv {
             r.data.push([...string])
 
             item := str()
-            foreach ref c in l.__data {
+            for i := 0; i < l.len(); i += 1 {
+                c := getref(l[i])
                 if c == ',' {
                     item.trim()
                     r.data.back().push(item)
                     col += 1
                     item = str()
-                } else if &c == &l.__data.back() {
+                } else if &c == &l.back() {
                     item.append(c)
                     item.trim()
                     r.data.back().push(item)

@@ -134,14 +134,14 @@ set(BJOU_INCLUDE
     tclap
     ${CMAKE_CURRENT_SOURCE_DIR})
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 
 add_executable(bjou ${BJOU_SOURCES})
 
 target_include_directories(bjou PRIVATE ${BJOU_INCLUDE})
 target_include_directories(bjou PRIVATE ${LLVM_INCLUDE_DIRS})
 
-target_compile_options(bjou PRIVATE -fno-rtti -fno-exceptions -w)
+target_compile_options(bjou PRIVATE -fno-rtti -w)
 
 target_link_libraries(bjou
         ${LLVM_LD_FLAGS}

@@ -489,7 +489,7 @@ type CXIdxIncludedFileInfo {
 
 type CXIdxImportedASTFileInfo {
     file       : CXFile*
-    module     : CXModule*
+    _module    : CXModule*
     loc        : CXIdxLoc
     isImplicit : i32
 }
