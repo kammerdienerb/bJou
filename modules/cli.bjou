@@ -478,7 +478,7 @@ type ArgParser {
                 u.append(va.short)
                 if      va.kind == ArgKind.INT_VAL
                 or      va.kind == ArgKind.INT_MULTI_VAL
-                    u.append(str(" <int>"))
+                    u.append(str(" <integer>"))
                 else if va.kind == ArgKind.FLOAT_VAL
                 or      va.kind == ArgKind.FLOAT_MULTI_VAL
                     u.append(str(" <float>"))
@@ -495,7 +495,7 @@ type ArgParser {
                 u.append(va.long)
                 if      va.kind == ArgKind.INT_VAL
                 or      va.kind == ArgKind.INT_MULTI_VAL
-                    u.append(str("=<int>"))
+                    u.append(str("=<integer>"))
                 else if va.kind == ArgKind.FLOAT_VAL
                 or      va.kind == ArgKind.FLOAT_MULTI_VAL
                     u.append(str("=<float>"))

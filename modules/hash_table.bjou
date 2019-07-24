@@ -63,33 +63,29 @@ type hash_table$(K_T, V_T, H_T) {
         delete this._data
     }
 
-    proc insert(this, key : K_T, val : V_T) {
+    proc insert(this, key : K_T, val : V_T) : pair$(K_T ref, V_T ref) {
         h         := H_T.hash(key)
         data_size := prime_sizes[this._size_idx]
         idx       := h % data_size
         m_slot    := &this._data[idx]
 
-        if first_slot : ht_slot$(K_T, V_T) ref = @m_slot {
-            if first_slot.key == key {
-                first_slot.val = val
-                return
+        while slot : ht_slot$(K_T, V_T) ref = @m_slot {
+            if slot.key == key {
+                slot.val = val
+                return pair$(K_T ref, V_T ref).create(slot.key, slot.val)
             }
-            m_slot = &first_slot._next
-            while slot : ht_slot$(K_T, V_T) ref = @m_slot {
-                if slot.key == key {
-                    slot.val = val
-                    return
-                }
-                m_slot = &slot._next
-            }
+            m_slot = &slot._next
         }
 
-        @m_slot    = ht_slot.create(key, val, h)
+        new_slot  := ht_slot.create(key, val, h)
+        @m_slot    = new_slot
         this.size += 1
 
         if this.size == this._load_thresh {
             this._rehash()
         }
+
+        return pair$(K_T ref, V_T ref).create(new_slot.key, new_slot.val)
     }
 
     proc _rehash_insert(this, insert_slot : ht_slot$(K_T, V_T) ref) {
@@ -98,11 +94,8 @@ type hash_table$(K_T, V_T, H_T) {
         idx       := h % data_size
         m_slot    := &this._data[idx]
 
-        if first_slot : ht_slot$(K_T, V_T) ref = @m_slot {
-            m_slot = &first_slot._next
-            while slot : ht_slot$(K_T, V_T) ref = @m_slot {
-                m_slot = &slot._next
-            }
+        while slot : ht_slot$(K_T, V_T) ref = @m_slot {
+            m_slot = &slot._next
         }
 
         @m_slot = insert_slot
@@ -112,6 +105,7 @@ type hash_table$(K_T, V_T, H_T) {
         old_size       := prime_sizes[this._size_idx]
         old_data       := this._data
         this._size_idx += 1
+        new_data_size  := 
         this._data      = new (ht_slot$(K_T, V_T) ref | none)[prime_sizes[this._size_idx]]
         # @libc
         memset(this._data, 0, prime_sizes[this._size_idx] * sizeof (ht_slot$(K_T, V_T) ref | none))
@@ -176,6 +170,72 @@ type hash_table$(K_T, V_T, H_T) {
             delete &slot
             this.size -= 1
         }
+    }
+
+    proc iter(this) : iterator$(K_T, V_T, H_T) {
+        return iterator.create(this)
+    }
+}
+
+type iterator$(K_T, V_T, H_T) {
+    table    : hash_table$(K_T, V_T, H_T) ref
+    slot_idx : u64
+    m_slot   : (ht_slot$(K_T, V_T) ref | none)
+
+
+    proc create(table : hash_table$(K_T, V_T, H_T) ref) : iterator$(K_T, V_T, H_T) {
+        slot_idx := 0
+        m_slot   : (ht_slot$(K_T, V_T) ref | none) = nothing
+
+        while n : none = table._data[slot_idx] {
+            slot_idx += 1
+            if slot_idx == prime_sizes[table._size_idx] {
+                break
+            }
+        }
+        if slot_idx < prime_sizes[table._size_idx] {
+            m_slot = table._data[slot_idx]
+        }
+        return { iterator$(K_T, V_T, H_T):
+            .table    = table,
+            .slot_idx = slot_idx,
+            .m_slot   = m_slot,
+        }
+    }
+
+    proc is_end(this) : bool {
+        if n : none = this.m_slot { return true }
+        return false
+    }
+
+    proc next(this) {
+        if slot : ht_slot$(K_T, V_T) ref = this.m_slot {
+            if next_slot : ht_slot$(K_T, V_T) ref = slot._next {
+                this.m_slot = next_slot
+            } else {
+                do {
+                    this.slot_idx += 1
+
+                    if this.slot_idx >= prime_sizes[this.table._size_idx] {
+                        this.m_slot = nothing
+                        break
+                    } else if next_slot : ht_slot$(K_T, V_T) ref = this.table._data[this.slot_idx] {
+                        this.m_slot = next_slot
+                        break
+                    }
+                } while true
+            }
+        } else {
+            \die{ "called hash_table::iterator.next() on an invalid iterator" }
+        }
+    }
+
+    proc val(this) : pair$(K_T ref, V_T ref) {
+        if slot : ht_slot$(K_T, V_T) ref = this.m_slot {
+            return pair$(K_T ref, V_T ref).create(slot.key, slot.val)
+        }
+        \die{ "called hash_table::iterator.val() on an invalid iterator" }
+        return @(NULL as pair$(K_T ref, V_T ref)*)
     }
 }
 

@@ -14,8 +14,8 @@ type hash_set$(T, H_T) extends hash_table::hash_table$(T, none, H_T) {
         return hs
     }
 
-    proc insert(this, key : T) {
-        hash_table::hash_table$(T, none, H_T).insert(this, key, nothing)
+    proc insert(this, key : T) : T ref {
+        return hash_table::hash_table$(T, none, H_T).insert(this, key, nothing).first
     }
 
     proc lookup(this, key : T) : (T ref | none) {

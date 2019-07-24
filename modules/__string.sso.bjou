@@ -273,7 +273,7 @@ type string {
             if _u == 0
                 return
             this.__set_short_used(_u - 1)
-            this.__short_data()[_u] = '\0'
+            this.__short_data()[_u - 1] = '\0'
         }
     }
     

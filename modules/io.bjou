@@ -192,4 +192,20 @@ type file {
 
         return ret
     }
+    
+    proc lines(this, n : u64) : string[...] {
+        ret := [...string]
+        i   := 0
+
+        while this.good()
+        and   i < n {
+            l := this.readline()
+            if l.len() > 0 {
+                ret.push(l)
+                i += 1
+            }
+        }
+
+        return ret
+    }
 }

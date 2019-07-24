@@ -36,9 +36,12 @@ proc __inline__ __bjou_set_cap$T(da : T[...] ref, c : u64) {
 }
 
 proc free$T(da : T[...] ref) {
-    delete \__da_data{da}
+    if \__da_data{da} != NULL as T* {
+        delete \__da_data{da}
+    }
+    \__da_data{da}     = NULL as T*
     \__da_capacity{da} = 0
-    \__da_used{da} = 0
+    \__da_used{da}     = 0
 }
 
 \static_if { \abc{}
