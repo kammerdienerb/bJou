@@ -326,4 +326,43 @@ type rbtree$(K_T, V_T) {
 
         return nothing
     }
+
+    proc iter(this) : iterator$(K_T, V_T) {
+        return iterator.create(this)
+    }
+}
+
+type iterator$(K_T, V_T) {
+    tree : rbtree$(K_T, V_T) ref
+    node : rbtree_node$(K_T, V_T)*
+
+
+    proc create(tree : rbtree$(K_T, V_T) ref) : iterator$(K_T, V_T) {
+        return { iterator$(K_T, V_T):
+            .tree = tree,
+            .node = tree.beg,
+        }
+    }
+
+    proc is_end(this) : bool    { return this.node.isnull() }
+
+    proc next(this) {
+        if not this.node.child(1).isnull() {
+            this.node = this.node.child(1)
+            while not this.node.child(0).isnull() {
+                this.node = this.node.child(0)
+            }
+        } else {
+            p := this.node.parent
+            while not p.isnull() and this.node == p.child(1) {
+                this.node = p
+                p = p.parent
+            }
+            this.node = p
+        }
+    }
+
+    proc val(this) : (K_T ref, V_T ref) {
+        return (getref(this.node.key), getref(this.node.val))
+    }
 }

@@ -1,0 +1,22 @@
+# range.bjou
+
+module range
+
+type range_iterator {
+    idx  : i64
+    end  : i64
+    step : i64
+
+
+    proc iter(r : range_iterator) : range_iterator    { return r                                }
+    proc is_end(this) : bool                          { return this.idx == this.end + this.step }
+    proc next(this)                                   { this.idx += this.step                   }
+    proc val(this) : i64                              { return this.idx                         }
+}
+
+proc range(idx : i64, end : i64) : range_iterator {
+    return { range_iterator: .idx = idx, .end = end, .step = 1 }
+}
+proc range(idx : i64, end : i64, step : i64) : range_iterator {
+    return { range_iterator: .idx = idx, .end = end, .step = step }
+}

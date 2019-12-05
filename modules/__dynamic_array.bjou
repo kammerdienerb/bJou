@@ -152,7 +152,7 @@ proc __inline__ as_slice$T(da : T[...] ref) : T[] {
 }
 
 # push by val
-proc push$T(da : T[...] ref, item : T) {
+proc push$T(da : T[...] ref, item : T) : T ref {
     _d := __ref::getref(\__da_data{da})
     _u := __ref::getref(\__da_used{da})
 
@@ -164,10 +164,12 @@ proc push$T(da : T[...] ref, item : T) {
     _d[_u] = item
 
     _u += 1
+
+    return _d[_u - 1]
 }
 
 # push by ref
-proc push$T(da : T[...] ref, item : T ref) {
+proc push$T(da : T[...] ref, item : T ref) : T ref {
     _d := __ref::getref(\__da_data{da})
     _u := __ref::getref(\__da_used{da})
 
@@ -179,6 +181,8 @@ proc push$T(da : T[...] ref, item : T ref) {
     _d[_u] = item
 
     _u += 1
+    
+    return _d[_u - 1]
 }
 
 proc pop$T(da : T[...] ref) {
@@ -285,7 +289,7 @@ proc _swap$T(a : T ref, b : T ref) {
 proc _sort$T(arr : T*, len : u64) {
     if len < 2    return
      
-    pivot := arr[len / 2]
+    pivot := __ref::unref(arr[len / 2])
 
     i := 0
     j := len - 1
@@ -309,7 +313,7 @@ proc _sort$T(arr : T*, len : u64) {
 proc _sort$T(arr : T*, len : u64, cmp : <(T ref, T ref) : i32>) {
     if len < 2    return
      
-    pivot := arr[len / 2]
+    pivot := __ref::unref(arr[len / 2])
 
     i := 0
     j := len - 1

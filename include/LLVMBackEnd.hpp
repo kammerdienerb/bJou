@@ -161,7 +161,7 @@ struct LLVMBackEnd : BackEnd {
     llvm::Value * getPointerToArrayElements(llvm::Value * array);
     llvm::Value * createPointerToArrayElementsOnStack(llvm::Value * array,
                                                       const Type * t);
-    llvm::Constant * createConstantInitializer(InitializerList * ilist);
+    llvm::Constant * createConstantInitializer(InitializerList * ilist, bool for_global = false);
     llvm::Value * copyConstantInitializerToStack(llvm::Constant * constant_init,
                                                  const Type * t);
     llvm::Value * createGlobalStringVariable(std::string str);

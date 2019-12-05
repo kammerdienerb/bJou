@@ -32,13 +32,6 @@ type iterator$T {
         # Bad index or at empty bucket
         if this.cur_idx >= b.used or b.used == 0    { return true }
 
-        if this.cur_idx == b.used - 1 { # at end of bucket
-            # No more buckets
-            if &b == &this.array.buckets.back() {
-                return true
-            }
-        }
-
         return false
     }
 
@@ -106,7 +99,7 @@ type bucket_array$T {
         this.add_bucket()
         return this.add_item_to_cur_bucket(item)
     }
-   
+
     proc __inline__ push(this, item : T) : T ref
         return this.push(getref(item))
 
@@ -145,7 +138,7 @@ type bucket_array$T {
         must_return := NULL as T*
         return @must_return
     }
-    
+
     proc get_next_slot_from_cur_bucket(this) : T ref {
         if b : bucket$T ref = this.cur_bucket {
             r_ref := this.get_next_slot_from_bucket(b)
@@ -155,7 +148,7 @@ type bucket_array$T {
         must_return := NULL as T*
         return @must_return
     }
-    
+
     proc add_bucket(this) {
         new_bucket := { bucket$T:
             .data = new T[this.n_fit],
@@ -207,7 +200,9 @@ proc merge_and_steal_data$T(a : bucket_array$T ref, b : bucket_array$T ref) : bu
     foreach ref a_b in a.buckets    { new_bucket_array.buckets.push(a_b) }
     foreach ref b_b in b.buckets    { new_bucket_array.buckets.push(b_b) }
 
-    new_bucket_array.cur_bucket = new_bucket_array.buckets.back()
+    if |new_bucket_array.buckets| > 0 {
+        new_bucket_array.cur_bucket = new_bucket_array.buckets.back()
+    }
 
     a.buckets.free()
     b.buckets.free()

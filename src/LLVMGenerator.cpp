@@ -51,7 +51,6 @@ static void AddOptimizationPasses(llvm::legacy::PassManagerBase & MPM,
     } else {
         Builder.Inliner = llvm::createAlwaysInlinerLegacyPass();
     }
-    Builder.DisableUnitAtATime = false;
     Builder.DisableUnrollLoops = false;
 
     Builder.LoopVectorize = OptLevel > 1 && SizeLevel < 2;
@@ -141,10 +140,10 @@ void LLVMGenerator::generate() {
             error(Context(), "TargetMachine can't emit a file of this type");
     }
 
-    fpass.doInitialization(); 
+    fpass.doInitialization();
     for (auto& F : *backEnd.llModule)
         fpass.run(F);
-    fpass.doFinalization(); 
+    fpass.doFinalization();
     pass.run(*(backEnd.llModule));
 
     if (dest) {

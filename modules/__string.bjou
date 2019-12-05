@@ -426,11 +426,19 @@ proc str(f : f64, dec : u32) : string {
     return string.create(buff)
 }
 
+proc equal(s1 : string ref, s2 : char*) : bool {
+    return cstrcmp(s1.c_str(), s2) == 0
+}
+
 proc equal(s1 : string ref, s2 : string ref) : bool {
     return cstrcmp(s1.c_str(), s2.c_str()) == 0
 }
 
 \op { "==" proc __string_equ(s1 : string ref, s2 : string ref) : bool {
+    return equal(s1, s2)
+}}
+
+\op { "==" proc __string_equ(s1 : string ref, s2 : char*) : bool {
     return equal(s1, s2)
 }}
 

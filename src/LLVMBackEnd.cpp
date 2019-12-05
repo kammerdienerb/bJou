@@ -941,6 +941,27 @@ void LLVMBackEnd::completeProcs() {
     }
 }
 
+static llvm::Constant * generate_global_array_under(LLVMBackEnd& llbe, llvm::Type * ll_t, std::string& name, ASTNode * expr) {
+    llvm::GlobalVariable * under = new llvm::GlobalVariable(
+        *llbe.llModule, ll_t, false,
+        llvm::GlobalVariable::InternalLinkage, 0,
+        "__bjou_array_under_" + name);
+    under->setAlignment(llbe.llModule->getDataLayout().getPreferredAlignment(under));
+
+    if (expr) {
+        if (expr->nodeKind == ASTNode::INITIALZER_LIST) {
+            auto under_under = llbe.createConstantInitializer(
+                (InitializerList *)expr, true);
+
+            under->setInitializer(under_under);
+        }
+    } else {
+        under->setInitializer(llvm::Constant::getNullValue(ll_t));
+    }
+   
+    return under;
+}
+
 static void * GenerateGlobalVariable(VariableDeclaration * var,
                                      llvm::GlobalVariable * gvar,
                                      BackEnd & backEnd, bool flag = false) {
@@ -962,7 +983,9 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
                 ArrayType * array_t = (ArrayType*)t;
                 the_llvm_t          = llvm::ArrayType::get(llbe->getOrGenType(t->under()), array_t->width);
             } else {
-                PointerType * ptr_t = (PointerType *)t->under()->getPointer();
+                const Type * walk_down_t = t;
+                while (walk_down_t->isArray())    { walk_down_t = walk_down_t->under(); }
+                PointerType * ptr_t = (PointerType *)walk_down_t->getPointer();
                 the_llvm_t          = llbe->getOrGenType(ptr_t);
             }
             gvar =
@@ -993,29 +1016,17 @@ static void * GenerateGlobalVariable(VariableDeclaration * var,
             if (var->getFlag(VariableDeclaration::IS_EXTERN)) {
                 return gvar;
             }
+            
+            llvm::Constant* under = generate_global_array_under(*llbe, ll_t, var->getMangledName(), var->getInitialization());
+       
+            under = (llvm::Constant *)llbe->builder.CreateInBoundsGEP(
+                under,
+                {llvm::Constant::getNullValue(
+                     llvm::IntegerType::getInt32Ty(llbe->llContext)),
+                llvm::Constant::getNullValue(
+                     llvm::IntegerType::getInt32Ty(llbe->llContext))});
 
-            llvm::GlobalVariable * under = new llvm::GlobalVariable(
-                *llbe->llModule, ll_t, false,
-                llvm::GlobalVariable::InternalLinkage, 0,
-                "__bjou_array_under_" + var->getMangledName());
-            under->setAlignment(llbe->llModule->getDataLayout().getPreferredAlignment(under));
-
-            if (var->getInitialization()) {
-                if (var->getInitialization()->nodeKind ==
-                    ASTNode::INITIALZER_LIST)
-                    under->setInitializer(llbe->createConstantInitializer(
-                        (InitializerList *)var->getInitialization()));
-            } else {
-                under->setInitializer(llvm::Constant::getNullValue(ll_t));
-            }
-
-            gvar->setInitializer(
-                (llvm::Constant *)llbe->builder.CreateInBoundsGEP(
-                    under,
-                    {llvm::Constant::getNullValue(
-                         llvm::IntegerType::getInt32Ty(llbe->llContext)),
-                     llvm::Constant::getNullValue(
-                         llvm::IntegerType::getInt32Ty(llbe->llContext))}));
+            gvar->setInitializer(under);
         } else {
             gvar->setAlignment((unsigned int)align);
             
@@ -2372,9 +2383,9 @@ void * CallExpression::generate(BackEnd & backEnd, bool getAddr) {
     ArgList * arglist = (ArgList *)getRight();
     std::vector<llvm::Value *> args;
 
-    const Type * lt = getLeft()->getType();
-    BJOU_DEBUG_ASSERT(lt->isProcedure());
-    ProcedureType * plt = (ProcedureType *)lt;
+    const Type * lt = getLeft()->getType()->unRef();
+    BJOU_DEBUG_ASSERT(lt->unRef()->isProcedure());
+    ProcedureType * plt = (ProcedureType *)lt->unRef();
 
     // @abi
     ABILowerProcedureTypeData * payload = new ABILowerProcedureTypeData;
@@ -3263,8 +3274,21 @@ LLVMBackEnd::copyConstantInitializerToStack(llvm::Constant * constant_init,
     return alloca;
 }
 
+
+void flatten_constant_n_d_array_initializerlist(LLVMBackEnd& llbe, InitializerList* expr, std::vector<llvm::Constant*>& out) {
+
+    for (ASTNode * elem : expr->getExpressions()) {
+        if (elem->nodeKind == ASTNode::INITIALZER_LIST
+        &&  elem->getType()->isArray()) {
+            flatten_constant_n_d_array_initializerlist(llbe, (InitializerList*)elem, out);
+        } else {
+            out.push_back((llvm::Constant*)llbe.getOrGenNode(elem));
+        }
+    }
+}
+
 llvm::Constant *
-LLVMBackEnd::createConstantInitializer(InitializerList * ilist) {
+LLVMBackEnd::createConstantInitializer(InitializerList * ilist, bool for_global) {
     const Type * t = ilist->getType();
     llvm::Type * ll_t = getOrGenType(t);
     std::vector<ASTNode *> & expressions = ilist->getExpressions();
@@ -3288,8 +3312,20 @@ LLVMBackEnd::createConstantInitializer(InitializerList * ilist) {
         return llvm::ConstantStruct::get((llvm::StructType *)ll_t, vals);
     } else if (t->isArray()) {
         std::vector<llvm::Constant *> vals;
-        for (ASTNode * expr : expressions)
-            vals.push_back((llvm::Constant *)getOrGenNode(expr));
+        for (ASTNode * expr : expressions) {
+            if (for_global
+            &&  expr->nodeKind == ASTNode::INITIALZER_LIST
+            &&  expr->getType()->isArray()) {
+                std::vector<llvm::Constant*> array_vals;
+                flatten_constant_n_d_array_initializerlist(*this, (InitializerList*)expr, array_vals);
+
+                for (auto val : array_vals) {
+                    vals.push_back(val);
+                }
+            } else {
+                vals.push_back((llvm::Constant *)getOrGenNode(expr));
+            }
+        }
         llvm::Constant * c =
             llvm::ConstantArray::get((llvm::ArrayType *)ll_t, vals);
         return c;

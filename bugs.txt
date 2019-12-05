@@ -92,3 +92,15 @@
 25. -- Compiler crash when trying to instantiate a through-template in some scenarios.
     -- Watch what happens if you try take out the explicit template istantiation
        parameters in hash_set.bjou.
+
+26. -- Trying to use a procedure defined in a type by structure access introduces an LLVM error.
+[
+    pool.add_task(poo, this.the_proc, some_arg)
+]
+
+27. -- Accessing reference struct fields can cause an error.
+[
+    type T { u : int[...] ref }
+    t := { T: .u = some_dyn_array }
+    |t.u|
+]

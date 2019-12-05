@@ -64,7 +64,7 @@ type csv {
                     item.append(c)
                 }
             }
-           
+
             if col > mc    mc = col
 
             item.free()
@@ -379,10 +379,10 @@ type csv {
                 max = val
         }
 
-        return max 
+        return max
     }
 }
-    
+
 # common predicates
 proc pred_nonzero(idx : u64, item : string ref) : bool {
     return item.to$f64() != 0.0

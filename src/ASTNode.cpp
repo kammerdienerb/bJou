@@ -1993,7 +1993,9 @@ void SubscriptExpression::analyze(bool force) {
         }
     }
 
-    if (lt->isPointer() || lt->isSlice() || lt->isDynamicArray()) {
+    if (lt->isPointer() || lt->isDynamicArray()) {
+        setType(lt->under()->getRef());
+    } else if (lt->isSlice()) {
         setType(lt->under());
     } else if (lt->isArray()) {
         getRight()->analyze();
@@ -2015,7 +2017,7 @@ void SubscriptExpression::analyze(bool force) {
                     "attempting to index element " + std::to_string(rv.as_i64));
         }
 
-        setType(lt->under());
+        setType(lt->under()->getRef());
     }
 
     BJOU_DEBUG_ASSERT(type && "expression does not have a type");
@@ -2216,11 +2218,11 @@ void CallExpression::analyze(bool force) {
     }
 
     BJOU_DEBUG_ASSERT(lt);
-    if (!lt->isProcedure())
+    if (!lt->unRef()->isProcedure())
         errorl(getLeft()->getContext(),
                "Expression is not a procedure, but is being called like one.");
 
-    ProcedureType * plt = (ProcedureType *)lt;
+    ProcedureType * plt = (ProcedureType *)lt->unRef();
 
     int nargs = (int)args->getExpressions().size();
     int nexpected = (int)plt->paramTypes.size();
@@ -6720,7 +6722,7 @@ void VariableDeclaration::analyze(bool force) {
             if (my_t->isRef() &&
                 !((Expression *)getInitialization())->canBeLVal())
                 errorl(getInitialization()->getContext(),
-                       "Reference initializer can't be used as a reference.");
+                       "Initializer of reference type variable can't be used as a reference.");
 
             if (!conv(decl_t, init_t))
                 errorl(getInitialization()->getContext(),

@@ -208,4 +208,13 @@ type file {
 
         return ret
     }
+    
+    proc seek_begin(this) {
+        __sys::lseek(this.fd, 0, __sys::SEEK_SET)
+        this.eof = false
+    }
+
+    proc seek_forward(this, offset : u64) {
+        __sys::lseek(this.fd, offset, __sys::SEEK_CUR)
+    }
 }
