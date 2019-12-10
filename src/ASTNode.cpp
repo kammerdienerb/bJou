@@ -45,7 +45,7 @@ static std::string identStripMod(std::string _s) {
     while ((c = *s) && (isalnum(c) || c == '_' || c == '\''))    s++;
     if (*s     && (*s     == ':')
     &&  *(s+1) && (*(s+1) == ':')) {
-        return std::string(s); 
+        return std::string(s);
     }
     return _s;
 }
@@ -1393,7 +1393,7 @@ void LssExpression::analyze(bool force) {
             if (!dest_t)
                 goto err;
             convertOperands(this, dest_t);
-        } else 
+        } else
             goto err;
     } else if (lt->isEnum() && lt == rt) {
         /* good */
@@ -2226,7 +2226,7 @@ void CallExpression::analyze(bool force) {
 
     int nargs = (int)args->getExpressions().size();
     int nexpected = (int)plt->paramTypes.size();
-    
+
     bool arg_err = false;
     bool l_val_err = false;
     Context errContext;
@@ -2250,7 +2250,7 @@ void CallExpression::analyze(bool force) {
 
                     VariableDeclaration * param = (VariableDeclaration*)proc->getParamVarDeclarations()[i];
                     std::string& param_name     = param->getName();
-                    
+
                     if (arg_name != param_name) {
                         errorl(arg->getContext(), "Argument name '" + arg_name + "' does not match paramater name '" + param_name + "'.", false);
                         errorl(param->getNameContext(), "Parameter '" + param_name + "' named here.");
@@ -2505,7 +2505,7 @@ int AccessExpression::handleAccessThroughDeclarator(bool force) {
             if (getRight()->nodeKind == ASTNode::IDENTIFIER) {
                 EnumType * e_t = (EnumType*)lt;
                 IntegerLiteral * lit = e_t->getValueLiteral(r_id->getSymName(), getContext(), getScope());
-                
+
                 if (!lit) {
                     errorl(getRight()->getContext(), "'" + r_id->getSymName() + "' is not named in enum '" + e_t->getDemangledName() + "'.");
                 }
@@ -2685,7 +2685,7 @@ void AccessExpression::analyze(bool force) {
             return;
         } else if (i == 0) {
             errorl(getContext(),
-                   "Access using the '.' operator does not apply to type '" + 
+                   "Access using the '.' operator does not apply to type '" +
                     getLeft()->getType()->getDemangledName() + "'.");
         }
     }
@@ -4387,7 +4387,7 @@ void IntegerLiteral::analyze(bool force) {
         width |= width >> 16;
         width++;
     }
-   
+
     if (suffix.empty()) {
         std::stringstream ss(getContents());
         int i;
@@ -4471,7 +4471,7 @@ void FloatLiteral::analyze(bool force) {
     if (getContents().find('e') != std::string::npos
     ||  getContents().find('E') != std::string::npos) {
         std::stringstream ss(getContents());
-        double d; 
+        double d;
         ss >> d;
         setContents(std::to_string(d));
     }
@@ -4570,7 +4570,7 @@ void ProcLiteral::analyze(bool force) {
         errorl(getRight()->getNameContext(),
                "Can't determine type of expression containing uninstantiated "
                "template procedure.");
-   
+
     Procedure * proc = (Procedure *)getRight();
 
     proc->analyze(force);
@@ -4944,7 +4944,7 @@ void NamedArg::analyze(bool force) {
 ASTNode * NamedArg::clone() {
     NamedArg * t = ExpressionClone(this);
     t->setExpression(getExpression()->clone());
-    
+
     return t;
 }
 
@@ -6245,7 +6245,7 @@ void PlaceholderDeclarator::analyze(bool force) {
 
 PlaceholderDeclarator::~PlaceholderDeclarator() {}
 
-void PlaceholderDeclarator::addSymbols(std::string& _mod, Scope * _scope) { 
+void PlaceholderDeclarator::addSymbols(std::string& _mod, Scope * _scope) {
     mod = _mod;
     setScope(_scope);
 }
@@ -6344,7 +6344,7 @@ void Constant::analyze(bool force) {
             IntegerLiteral * lit            = nullptr;
             bool             constant       = false;
             std::string      constant_name;
-           
+
             if (getInitialization()->nodeKind == ASTNode::INTEGER_LITERAL) {
                 lit = (IntegerLiteral*)getInitialization();
             } else if (getInitialization()->nodeKind == ASTNode::IDENTIFIER) {
@@ -6417,17 +6417,17 @@ void Constant::analyze(bool force) {
         as   = init;
         init = (Expression *)as->getLeft();
     }
-         
+
     if (!init->getType()->isProcedure()) {
         /* init->setType(getTypeDeclarator()->getType()); // @hack */
         ASTNode * folded = init->eval().toExpr();
         folded->setContext(cxt);
         folded->addSymbols(mod, getScope());
         folded->analyze();
-            
+
         // @leak?
         if (as) {
-            as->setLeft(folded); 
+            as->setLeft(folded);
         } else {
             setInitialization(folded);
         }
@@ -6444,7 +6444,7 @@ void Constant::addSymbols(std::string& _mod, Scope * _scope) {
 
         setLookupName(symbol->unmangled);
         setMangledName(symbol->real_mangled);
-        
+
         _scope->addSymbol(symbol, &getNameContext());
     }
     if (getTypeDeclarator())
@@ -6581,9 +6581,14 @@ void VariableDeclaration::analyze_destructure(Symbol * sym) {
         } else {
             if (decl_t->unRef()->isStruct()) {
                 if (s_t->unRef()->isStruct()) {
+                    /* ref qualification has to match. */
+                    if (decl_t->isRef() != s_t->isRef()) {
+                        continue;
+                    }
+
                     auto unref_decl_t = decl_t->unRef();
                     auto unref_s_t    = s_t->unRef();
-    
+
                     if (unref_decl_t != unref_s_t) {
                         const StructType * init_s_t = (const StructType*)unref_s_t;
                         const StructType * decl_s_ref_t = (const StructType*)unref_decl_t->getRef();
@@ -6698,7 +6703,7 @@ void VariableDeclaration::analyze(bool force) {
                    "Type member variables cannot be initialized.", true,
                    "did you mean to make '" + getName() + "' a constant?");
         }
-        
+
         if (getFlag(IS_EXTERN)) {
             errorl(getInitialization()->getContext(),
                    "External variable bindings cannot be initialized.");
@@ -6736,7 +6741,7 @@ void VariableDeclaration::analyze(bool force) {
                 IntegerLiteral * lit            = nullptr;
                 bool             constant       = false;
                 std::string      constant_name;
-               
+
                 if (getInitialization()->nodeKind == ASTNode::INTEGER_LITERAL) {
                     lit = (IntegerLiteral*)getInitialization();
                 } else if (getInitialization()->nodeKind == ASTNode::IDENTIFIER) {
@@ -7704,7 +7709,7 @@ void Procedure::desugarThis() {
             Declarator * base = s->getType()->getGenericDeclarator();
 
             param->setTypeDeclarator(new RefDeclarator(base));
-            param->getTypeDeclarator()->addSymbols(mod, 
+            param->getTypeDeclarator()->addSymbols(mod,
                 node->getScope()); // @bad. does this make sense?
 
             (*node->replace)(node->parent, node, param);
@@ -8160,7 +8165,7 @@ void Include::addSymbols(std::string& _mod, Scope * _scope) {
             errorl(getContext(), "Include of '" + fname + "' happens here.");
         }
     }
-   
+
     (*replace)(this->parent, this, multi);
 
     for (ASTNode * s : p.structs)
@@ -9215,7 +9220,7 @@ void While::addSymbols(std::string& _mod, Scope * _scope) {
     setScope(_scope);
     Scope * myScope = new Scope(
         "line " + std::to_string(getContext().begin.line) + " while", _scope);
-    
+
     _scope->scopes.push_back(myScope);
 
     if (getFlag(HAS_DESTRUCTURE)) {

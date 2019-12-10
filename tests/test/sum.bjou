@@ -70,7 +70,7 @@ proc main() {
     takes_nullable(option1)
     takes_nullable(option2)
 
-    
+
     option3 := q(true)
     option4 := q(false)
     r(option3)
@@ -78,14 +78,14 @@ proc main() {
 
     if err : Error = s()
         print "[ error ](%): %", err.code, err.message
-    
+
     f := 1.23
     option5 : (float* | None) = &f
     takes_nullable_ptr(option5)
 
     b := { B: .field = 555 }
     b_or_c : (B | C) = b
-    if a : A ref = b_or_c {
+    if a : A = b_or_c {
         print "A: .field = %", a.field
     }
 }

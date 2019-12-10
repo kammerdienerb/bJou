@@ -17,3 +17,4 @@ my char*
 No array.. got None
 [ error ](1): there was an error
 1.230000
+A: .field = 555
