@@ -42,8 +42,8 @@ function run_test {
 
         if [ -f "check/$NAME.txt" ]
         then
-            DIFF=$(diff "out/$NAME.txt" "check/$NAME.txt")
-            if [ "$DIFF" != "" ] 
+            DIFF=$(diff <(sed 's/(nil)/0x0/g' "out/$NAME.txt") <(sed 's/(nil)/0x0/g' "check/$NAME.txt"))
+            if [ "$DIFF" != "" ]
             then
                 TEST_SUCCESS="false"
             fi
@@ -63,11 +63,11 @@ function run_test {
 if [ "$#" -eq 0 ]
 then
     export -f run_test
-    ls test/*.bjou | xargs -L 1 -P "$(ls test/*.bjou | wc)" -I FILE bash -c "run_test FILE"
+    ls test/*.bjou | xargs -L 1 -P "$(ls test/*.bjou | wc | awk '{ print $1; }')" -I FILE bash -c "run_test FILE"
 else
 	run_test test/$1.bjou
 fi
 
 
 
-##  
+##
