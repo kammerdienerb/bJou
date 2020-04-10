@@ -90,7 +90,7 @@ printf("\n"
 "}\n", sizeof(struct rusage), offsetof(struct rusage, ru_maxrss));
 printf("\n"
 );
-    
+
 printf("\n");
 }
 
@@ -114,6 +114,9 @@ void post() {
 "\n"
 "proc exit(status : int) : i64\n"
 "    return nolibc_syscall(SYS_exit, 1, status)\n"
+"\n"
+"proc exit_group(status : int) : i64\n"
+"    return nolibc_syscall(SYS_exit_group, 1, status)\n"
 "\n"
 "proc lseek(fd : int, offset : u64, whence : int) : u64\n"
 "    return nolibc_syscall(SYS_lseek, 3, fd, offset, whence)\n"
@@ -155,6 +158,7 @@ int main() {
     PRINT_SYS_NR_DECL(SYS_open);
     PRINT_SYS_NR_DECL(SYS_close);
     PRINT_SYS_NR_DECL(SYS_exit);
+    PRINT_SYS_NR_DECL(SYS_exit_group);
     PRINT_SYS_NR_DECL(SYS_lseek);
     PRINT_SYS_NR_DECL(SYS_access);
     PRINT_SYS_NR_DECL(SYS_getpid);
@@ -225,4 +229,3 @@ int main() {
 
     return 0;
 }
-

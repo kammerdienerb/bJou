@@ -4,37 +4,37 @@
 
 module __pthread
 
-const PTHREAD_CANCEL_ASYNCHRONOUS := 0
-const PTHREAD_CANCEL_ENABLE := 1
-const PTHREAD_CANCEL_DEFERRED := 2
-const PTHREAD_CANCEL_DISABLE := 0
-const PTHREAD_CANCELED := 0x1 as void*
-const PTHREAD_CREATE_DETACHED := 2
-const PTHREAD_CREATE_JOINABLE := 1
-const PTHREAD_EXPLICIT_SCHED := 2
-const PTHREAD_INHERIT_SCHED := 1
+const PTHREAD_CANCEL_ASYNCHRONOUS := 1
+const PTHREAD_CANCEL_ENABLE := 0
+const PTHREAD_CANCEL_DEFERRED := 0
+const PTHREAD_CANCEL_DISABLE := 1
+const PTHREAD_CANCELED := 0xffffffffffffffff as void*
+const PTHREAD_CREATE_DETACHED := 1
+const PTHREAD_CREATE_JOINABLE := 0
+const PTHREAD_EXPLICIT_SCHED := 1
+const PTHREAD_INHERIT_SCHED := 0
 const PTHREAD_PROCESS_SHARED := 1
-const PTHREAD_PROCESS_PRIVATE := 2
-const PTHREAD_SCOPE_PROCESS := 2
-const PTHREAD_SCOPE_SYSTEM := 1
+const PTHREAD_PROCESS_PRIVATE := 0
+const PTHREAD_SCOPE_PROCESS := 1
+const PTHREAD_SCOPE_SYSTEM := 0
 
 type pthread_attr_t {
-    bytes : char[64]
+    bytes : char[56]
 }
 type pthread_cond_t {
     bytes : char[48]
 }
 type pthread_condattr_t {
-    bytes : char[16]
+    bytes : char[4]
 }
 type pthread_mutex_t {
-    bytes : char[64]
+    bytes : char[40]
 }
 type pthread_mutexattr_t {
-    bytes : char[16]
+    bytes : char[4]
 }
 type pthread_once_t {
-    bytes : char[16]
+    bytes : char[4]
 }
 type pthread_t = void*
 type pthread_key_t = u64

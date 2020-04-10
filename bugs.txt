@@ -104,3 +104,18 @@
     t := { T: .u = some_dyn_array }
     |t.u|
 ]
+
+28. -- conv(B, A) where B is a sum type and A is a reference of a type option of B causes issues in code gen
+
+29. -- pointer/ref in struct issue when struct passed by ref
+[
+type expr_string {
+    s      : string
+    len    : int
+    cursor : char* # this is not working correctly
+}
+
+proc foo(e_s : expr_string ref) {
+    print "%", @(e_s.cursor)
+}
+]

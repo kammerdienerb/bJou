@@ -65,16 +65,17 @@ type rusage {
 }
 
 
-const SYS_write := SYS_NR_MOD + 4
-const SYS_read := SYS_NR_MOD + 3
-const SYS_open := SYS_NR_MOD + 5
-const SYS_close := SYS_NR_MOD + 6
-const SYS_exit := SYS_NR_MOD + 1
-const SYS_lseek := SYS_NR_MOD + 199
-const SYS_access := SYS_NR_MOD + 33
-const SYS_getpid := SYS_NR_MOD + 20
-const SYS_gettimeofday := SYS_NR_MOD + 116
-const SYS_getrusage := SYS_NR_MOD + 117
+const SYS_write := SYS_NR_MOD + 1
+const SYS_read := SYS_NR_MOD + 0
+const SYS_open := SYS_NR_MOD + 2
+const SYS_close := SYS_NR_MOD + 3
+const SYS_exit := SYS_NR_MOD + 60
+const SYS_exit_group := SYS_NR_MOD + 231
+const SYS_lseek := SYS_NR_MOD + 8
+const SYS_access := SYS_NR_MOD + 21
+const SYS_getpid := SYS_NR_MOD + 39
+const SYS_gettimeofday := SYS_NR_MOD + 96
+const SYS_getrusage := SYS_NR_MOD + 98
 const S_IRWXU := 448
 const S_IRUSR := 256
 const S_IWUSR := 128
@@ -90,10 +91,10 @@ const S_IXOTH := 1
 const O_RDONLY := 0
 const O_WRONLY := 1
 const O_RDWR := 2
-const O_APPEND := 8
-const O_CREAT := 512
-const O_TRUNC := 1024
-const O_EXCL := 2048
+const O_APPEND := 1024
+const O_CREAT := 64
+const O_TRUNC := 512
+const O_EXCL := 128
 const SEEK_SET := 0
 const SEEK_CUR := 1
 const SEEK_END := 2
@@ -104,31 +105,32 @@ const SIGQUIT := 3
 const SIGILL := 4
 const SIGTRAP := 5
 const SIGABRT := 6
+const SIGPOLL := 29
 const SIGIOT := 6
 const SIGFPE := 8
 const SIGKILL := 9
-const SIGBUS := 10
+const SIGBUS := 7
 const SIGSEGV := 11
-const SIGSYS := 12
+const SIGSYS := 31
 const SIGPIPE := 13
 const SIGALRM := 14
 const SIGTERM := 15
-const SIGURG := 16
-const SIGSTOP := 17
-const SIGTSTP := 18
-const SIGCONT := 19
-const SIGCHLD := 20
+const SIGURG := 23
+const SIGSTOP := 19
+const SIGTSTP := 20
+const SIGCONT := 18
+const SIGCHLD := 17
 const SIGTTIN := 21
 const SIGTTOU := 22
-const SIGIO := 23
+const SIGIO := 29
 const SIGXCPU := 24
 const SIGXFSZ := 25
 const SIGVTALRM := 26
 const SIGPROF := 27
 const SIGWINCH := 28
-const SIGUSR1 := 30
-const SIGUSR2 := 31
-const _SC_NPROCESSORS_ONLN := 58
+const SIGUSR1 := 10
+const SIGUSR2 := 12
+const _SC_NPROCESSORS_ONLN := 84
 
 proc write(fd : i32, buf : void*, nbyte : u64) : i64
     return nolibc_syscall(SYS_write, 3, fd, buf, nbyte)
@@ -148,6 +150,9 @@ proc close(fd : int) : i64
 proc exit(status : int) : i64
     return nolibc_syscall(SYS_exit, 1, status)
 
+proc exit_group(status : int) : i64
+    return nolibc_syscall(SYS_exit_group, 1, status)
+
 proc lseek(fd : int, offset : u64, whence : int) : u64
     return nolibc_syscall(SYS_lseek, 3, fd, offset, whence)
 
@@ -164,6 +169,5 @@ proc getrusage(who : int, usage : rusage*) : i64
     return nolibc_syscall(SYS_getrusage, 2, who, usage)
 
 
-extern sysctlbyname(char*, void*, u64, void*, u64) : int
 extern sysconf(int) : i64
 

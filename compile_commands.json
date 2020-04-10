@@ -1,182 +1,182 @@
 [
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/ASTNode.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/ASTNode.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/ASTNode.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/ASTNode.cpp.o -c /home/kammerdienerb/projects/bJou/src/ASTNode.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/ASTNode.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/BackEnd.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/BackEnd.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/BackEnd.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/BackEnd.cpp.o -c /home/kammerdienerb/projects/bJou/src/BackEnd.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/BackEnd.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/CLI.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/CLI.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/CLI.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/CLI.cpp.o -c /home/kammerdienerb/projects/bJou/src/CLI.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/CLI.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Compile.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Compile.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Compile.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Compile.cpp.o -c /home/kammerdienerb/projects/bJou/src/Compile.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Compile.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/CompilerAPI.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/CompilerAPI.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/CompilerAPI.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/CompilerAPI.cpp.o -c /home/kammerdienerb/projects/bJou/src/CompilerAPI.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/CompilerAPI.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Context.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Context.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Context.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Context.cpp.o -c /home/kammerdienerb/projects/bJou/src/Context.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Context.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Defaults.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Defaults.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Defaults.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Defaults.cpp.o -c /home/kammerdienerb/projects/bJou/src/Defaults.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Defaults.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Evaluate.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Evaluate.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Evaluate.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Evaluate.cpp.o -c /home/kammerdienerb/projects/bJou/src/Evaluate.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Evaluate.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/FrontEnd.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/FrontEnd.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/FrontEnd.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/FrontEnd.cpp.o -c /home/kammerdienerb/projects/bJou/src/FrontEnd.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/FrontEnd.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/LLVMABI.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/LLVMABI.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/LLVMABI.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/LLVMABI.cpp.o -c /home/kammerdienerb/projects/bJou/src/LLVMABI.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/LLVMABI.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/LLVMBackEnd.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/LLVMBackEnd.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/LLVMBackEnd.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/LLVMBackEnd.cpp.o -c /home/kammerdienerb/projects/bJou/src/LLVMBackEnd.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/LLVMBackEnd.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/LLVMExecutor.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/LLVMExecutor.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/LLVMExecutor.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/LLVMExecutor.cpp.o -c /home/kammerdienerb/projects/bJou/src/LLVMExecutor.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/LLVMExecutor.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/LLVMGenerator.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/LLVMGenerator.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/LLVMGenerator.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/LLVMGenerator.cpp.o -c /home/kammerdienerb/projects/bJou/src/LLVMGenerator.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/LLVMGenerator.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/LLVMSupport.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/LLVMSupport.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/LLVMSupport.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/LLVMSupport.cpp.o -c /home/kammerdienerb/projects/bJou/src/LLVMSupport.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/LLVMSupport.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Macro.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Macro.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Macro.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Macro.cpp.o -c /home/kammerdienerb/projects/bJou/src/Macro.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Macro.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Misc.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Misc.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Misc.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Misc.cpp.o -c /home/kammerdienerb/projects/bJou/src/Misc.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Misc.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Module.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Module.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Module.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Module.cpp.o -c /home/kammerdienerb/projects/bJou/src/Module.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Module.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Operator.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Operator.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Operator.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Operator.cpp.o -c /home/kammerdienerb/projects/bJou/src/Operator.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Operator.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Parser.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Parser.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Parser.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Parser.cpp.o -c /home/kammerdienerb/projects/bJou/src/Parser.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Parser.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/ReplacementPolicy.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/ReplacementPolicy.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/ReplacementPolicy.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/ReplacementPolicy.cpp.o -c /home/kammerdienerb/projects/bJou/src/ReplacementPolicy.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/ReplacementPolicy.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Scope.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Scope.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Scope.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Scope.cpp.o -c /home/kammerdienerb/projects/bJou/src/Scope.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Scope.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/StringViewableBuffer.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/StringViewableBuffer.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/StringViewableBuffer.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/StringViewableBuffer.cpp.o -c /home/kammerdienerb/projects/bJou/src/StringViewableBuffer.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/StringViewableBuffer.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Symbol.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Symbol.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Symbol.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Symbol.cpp.o -c /home/kammerdienerb/projects/bJou/src/Symbol.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Symbol.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Template.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Template.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Template.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Template.cpp.o -c /home/kammerdienerb/projects/bJou/src/Template.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Template.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Type.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/Type.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/Type.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/Type.cpp.o -c /home/kammerdienerb/projects/bJou/src/Type.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/Type.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/main.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/src/main.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/main.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/src/main.cpp.o -c /home/kammerdienerb/projects/bJou/src/main.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/src/main.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/cc -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -o CMakeFiles/bjou.dir/src/bJouDemangle.c.o   -c /Users/kammerdienerb/Documents/GitHub/bJou/src/bJouDemangle.c",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/bJouDemangle.c"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/cc -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -o CMakeFiles/bjou.dir/src/bJouDemangle.c.o   -c /home/kammerdienerb/projects/bJou/src/bJouDemangle.c",
+  "file": "/home/kammerdienerb/projects/bJou/src/bJouDemangle.c"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/cc -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -o CMakeFiles/bjou.dir/src/getRSS.c.o   -c /Users/kammerdienerb/Documents/GitHub/bJou/src/getRSS.c",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/src/getRSS.c"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/cc -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -o CMakeFiles/bjou.dir/src/getRSS.c.o   -c /home/kammerdienerb/projects/bJou/src/getRSS.c",
+  "file": "/home/kammerdienerb/projects/bJou/src/getRSS.c"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/Arg.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/tclap/Arg.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/tclap/Arg.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/Arg.cpp.o -c /home/kammerdienerb/projects/bJou/tclap/Arg.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/tclap/Arg.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/CmdLine.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/tclap/CmdLine.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/tclap/CmdLine.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/CmdLine.cpp.o -c /home/kammerdienerb/projects/bJou/tclap/CmdLine.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/tclap/CmdLine.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/MultiSwitchArg.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/tclap/MultiSwitchArg.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/tclap/MultiSwitchArg.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/MultiSwitchArg.cpp.o -c /home/kammerdienerb/projects/bJou/tclap/MultiSwitchArg.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/tclap/MultiSwitchArg.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/OptionalUnlabeledTracker.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/tclap/OptionalUnlabeledTracker.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/tclap/OptionalUnlabeledTracker.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/OptionalUnlabeledTracker.cpp.o -c /home/kammerdienerb/projects/bJou/tclap/OptionalUnlabeledTracker.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/tclap/OptionalUnlabeledTracker.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/SwitchArg.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/tclap/SwitchArg.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/tclap/SwitchArg.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/SwitchArg.cpp.o -c /home/kammerdienerb/projects/bJou/tclap/SwitchArg.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/tclap/SwitchArg.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -DBJOU_DEBUG_BUILD -DBJOU_HAS_LLD -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/Users/kammerdienerb/Documents/GitHub/bJou/include -I/Users/kammerdienerb/Documents/GitHub/bJou/tclap -I/Users/kammerdienerb/Documents/GitHub/bJou -I/usr/local/Cellar/llvm/9.0.0_1/include  -g   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/XorHandler.cpp.o -c /Users/kammerdienerb/Documents/GitHub/bJou/tclap/XorHandler.cpp",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/tclap/XorHandler.cpp"
+  "directory": "/home/kammerdienerb/projects/bJou/build",
+  "command": "/usr/bin/c++  -DBJOU_INSTALL_PREFIX=\\\"/usr/local\\\" -DBJOU_USE_COLOR -I/home/kammerdienerb/projects/bJou/include -I/home/kammerdienerb/projects/bJou/tclap -I/home/kammerdienerb/projects/bJou  -O3 -DNDEBUG   -fno-rtti -w -std=gnu++14 -o CMakeFiles/bjou.dir/tclap/XorHandler.cpp.o -c /home/kammerdienerb/projects/bJou/tclap/XorHandler.cpp",
+  "file": "/home/kammerdienerb/projects/bJou/tclap/XorHandler.cpp"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build/gen_sys",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/cc   -g   -o CMakeFiles/gen_pthread.dir/gen_pthread.c.o   -c /Users/kammerdienerb/Documents/GitHub/bJou/gen_sys/gen_pthread.c",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/gen_sys/gen_pthread.c"
+  "directory": "/home/kammerdienerb/projects/bJou/build/gen_sys",
+  "command": "/usr/bin/cc   -O3 -DNDEBUG   -o CMakeFiles/gen_pthread.dir/gen_pthread.c.o   -c /home/kammerdienerb/projects/bJou/gen_sys/gen_pthread.c",
+  "file": "/home/kammerdienerb/projects/bJou/gen_sys/gen_pthread.c"
 },
 {
-  "directory": "/Users/kammerdienerb/Documents/GitHub/bJou/build/gen_sys",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/cc   -g   -o CMakeFiles/gen_sys.dir/gen_sys.c.o   -c /Users/kammerdienerb/Documents/GitHub/bJou/gen_sys/gen_sys.c",
-  "file": "/Users/kammerdienerb/Documents/GitHub/bJou/gen_sys/gen_sys.c"
+  "directory": "/home/kammerdienerb/projects/bJou/build/gen_sys",
+  "command": "/usr/bin/cc   -O3 -DNDEBUG   -o CMakeFiles/gen_sys.dir/gen_sys.c.o   -c /home/kammerdienerb/projects/bJou/gen_sys/gen_sys.c",
+  "file": "/home/kammerdienerb/projects/bJou/gen_sys/gen_sys.c"
 }
 ]

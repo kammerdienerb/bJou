@@ -62,7 +62,7 @@ type task_queue {
     proc de(this) : (task ref | none) {
         if tail : task ref = this.tail {
             if prev : task ref = tail.prev {
-                prev.next = nothing 
+                prev.next = nothing
                 this.tail = prev
             } else {
                 this.head = this.tail = nothing
@@ -139,7 +139,7 @@ type threadpool {
         }
 
         this.stop_m = mode
-       
+
         this.notify.broadcast()
 
         this.lock.unlock()
@@ -168,7 +168,7 @@ type threadpool {
                 break
             }
 
-            this.lock.unlock() 
+            this.lock.unlock()
             __sys::usleep(100)
         }
     }
@@ -183,7 +183,7 @@ type threadpool {
 
 proc thread_task(_pool : void*) {
     pool : threadpool ref = @(_pool as threadpool*)
-    
+
     while true {
         # Lock must be taken to wait on conditional variable
         pool.lock.lock()
@@ -219,8 +219,6 @@ proc thread_task(_pool : void*) {
             pool.lock.unlock()
         } else \die{ "invalid task" }
     }
-
-    pool.n_started -= 1
 
     pool.lock.unlock()
     thread::exit(NULL)
