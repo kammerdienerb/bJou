@@ -4370,11 +4370,8 @@ void IntegerLiteral::analyze(bool force) {
         sign = Type::Sign::UNSIGNED;
         is_signed = false;
 
-        unsigned int bytes = (h.size() - 2) / 2;
-        if (bytes == 0)
-            bytes = 1;
-        else if (bytes % 2 == 1)
-            bytes += 1;
+        unsigned n_digits = h.size() - 2;
+        unsigned int bytes = (n_digits + 1) >> 1;
 
         width = bytes * 8;
 
