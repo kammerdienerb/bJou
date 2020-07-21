@@ -186,7 +186,7 @@ static inline std::string prkey(const std::vector<const Type *> & paramTypes,
     key += ")";
     if (retType->key != VoidType::vkey)
         key += " : " + retType->key;
-    
+
     key += ">";
     return key;
 }
@@ -242,7 +242,7 @@ std::string VoidType::getDemangledName() const { return key; }
 
 BoolType::BoolType() : Type(BOOL, BoolType::bkey) {}
 
-const Type * BoolType::get() { 
+const Type * BoolType::get() {
     return bool_type_ptr
             ? bool_type_ptr
             : (bool_type_ptr = (BoolType*)getOrAddType<BoolType>(BoolType::bkey));
@@ -286,7 +286,7 @@ std::string FloatType::getDemangledName() const { return key; }
 
 CharType::CharType() : Type(CHAR, CharType::ckey) {}
 
-const Type * CharType::get() { 
+const Type * CharType::get() {
     return char_type_ptr
             ? char_type_ptr
             : (char_type_ptr = (CharType*)getOrAddType<CharType>(CharType::ckey));
@@ -563,6 +563,8 @@ void StructType::complete() {
     if (isComplete)
         return;
 
+    isComplete = true;
+
     int i = 0;
     if (_struct->getExtends()) {
         extends = (Type *)_struct->getExtends()->getType();
@@ -576,7 +578,7 @@ void StructType::complete() {
         memberVarDecls = extends_t->memberVarDecls;
 
         /* Map to StructType that maps inherited procs to the originating
-         * struct type. Then, in AccessExpression::handleContainerAccess(), 
+         * struct type. Then, in AccessExpression::handleContainerAccess(),
          * when we don't find the proc name in 'memberProcs', we can
          * look in the map and create an identifier with the left
          * side being the name of the struct that the proc maps to.
@@ -620,14 +622,12 @@ void StructType::complete() {
 
         insertProcSet(this, proc);
     }
-
-    isComplete = true;
 }
 
 Declarator * StructType::getGenericDeclarator() const {
     return basicDeclarator(this);
 }
-    
+
 bool StructType::containsRefs() const {
     for (auto mem_t : memberTypes) {
         if (mem_t->isRef()) {
@@ -644,7 +644,7 @@ bool StructType::containsRefs() const {
 
 bool StructType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const {
     visited.insert(this);
-    
+
     for (ASTNode * _mem : memberVarDecls) {
         VariableDeclaration * mem = (VariableDeclaration *)_mem;
         mem->getTypeDeclarator()->analyze();
@@ -697,7 +697,7 @@ EnumType::EnumType(std::string & name, Enum * __enum)
         identifiers.insert(
                            identifiers.begin(),
                            _enum->identifiers.begin(),
-                           _enum->identifiers.end());    
+                           _enum->identifiers.end());
     }
 }
 
@@ -803,7 +803,7 @@ const Type * SumType::replacePlaceholders(const Type * t) const {
 
 bool SumType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const {
     visited.insert(this);
-   
+
     BJOU_DEBUG_ASSERT(first_decl);
     SumDeclarator * sum_decl = (SumDeclarator*)first_decl;
 
@@ -846,7 +846,7 @@ bool SumType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleD
             }
         }
     }
-    
+
     return false;
 }
 
@@ -867,7 +867,7 @@ static std::map<const StructType*, std::set<const Type*> > sum_type_get_extend_t
             }
         }
     }
-    
+
     /* Include the self type of T1 because another type T2 in the sum may inherit
      * from T1. In that case, in _cmp() we will find that T1 can be destructured
      * into T1. */
@@ -939,7 +939,7 @@ uint32_t get_static_sum_tag_store(const Type * dest_t, const SumType * sum_t) {
     for (int bit : bits) {
         ex_tag |= (1 << bit);
     }
-    
+
     ex_tag |= by_ref_bit;
 
     return (ex_tag << sum_t->n_eq_bits) | eq_tag;
@@ -948,7 +948,7 @@ uint32_t get_static_sum_tag_store(const Type * dest_t, const SumType * sum_t) {
 uint32_t get_static_sum_tag_cmp(const Type * dest_t, const SumType * sum_t, bool *by_ext) {
     uint64_t tag = 0;
 
-    /* See if we can use type extension bits as the tag. */ 
+    /* See if we can use type extension bits as the tag. */
     if (dest_t->unRef()->isStruct()) {
         const StructType * s_ex_t = (const StructType*)dest_t->unRef();
         bool found = false;
@@ -1031,7 +1031,7 @@ const Type * TupleType::replacePlaceholders(const Type * t) const {
 
 bool TupleType::_checkForCycles(std::set<const Type*>& visited, std::vector<CycleDetectEdge>& path) const {
     visited.insert(this);
-   
+
     BJOU_DEBUG_ASSERT(first_decl);
     TupleDeclarator * tup_decl = (TupleDeclarator*)first_decl;
 
@@ -1074,7 +1074,7 @@ bool TupleType::_checkForCycles(std::set<const Type*>& visited, std::vector<Cycl
             }
         }
     }
-    
+
     return false;
 }
 
@@ -1238,8 +1238,8 @@ const Type * convThroughPointerOrRefExtension(const Type *t1, const Type *t2) {
 
     enum { PTR, REF };
 
-    int kind1 = t1->isPointer() ? PTR : REF; 
-    int kind2 = t2->isPointer() ? PTR : REF; 
+    int kind1 = t1->isPointer() ? PTR : REF;
+    int kind2 = t2->isPointer() ? PTR : REF;
 
     if (kind1 == PTR)    r1 = t1->under();
     else                 r1 = t1->unRef();
@@ -1389,7 +1389,7 @@ const Type * conv(const Type * t1, const Type * t2) {
                 }
             }
         }
-        
+
         if (good) {
             return t1;
         }
@@ -1692,23 +1692,23 @@ int countConversions(ProcedureType * compare_type,
         const Type * t2 = candidate_type->paramTypes[i];
         if (!conv(t1, t2))
             return -1;
-    
+
         if (!equal(t1, t2)) {
             // account for reference conversions too
             if (t1->isRef()) {
                 if (equal(t1->unRef(), t2->unRef())) {
                     nconv +=1;
-                    continue; 
+                    continue;
                 } else {
                     nconv += 1;
                 }
             } else if (t2->isRef()) {
                 if (equal(t1, t2->unRef())) {
                     nconv +=1;
-                    continue; 
+                    continue;
                 }
             }
-            
+
             nconv += 2;
 
             if (t1->isPointer() || t1->isRef()) {

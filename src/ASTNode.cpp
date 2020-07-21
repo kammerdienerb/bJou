@@ -3500,6 +3500,7 @@ void Identifier::analyze(bool force) {
                                      "' is only available at compile time.");
     }
 
+
     // Identifier get's its type lazily because it might be a reference
     // to an overloaded proc
     // BJOU_DEBUG_ASSERT(type && "expression does not have a type");
@@ -8168,8 +8169,9 @@ void Include::addSymbols(std::string& _mod, Scope * _scope) {
     for (ASTNode * s : p.structs)
         ((Struct *)s)->preDeclare(mod, getScope());
 
-    for (ASTNode * s : p.structs)
+    for (ASTNode * s : p.structs) {
         ((Struct *)s)->addSymbols(mod, getScope());
+    }
 
     for (ASTNode * n : p.nodes) {
         if (n->nodeKind != ASTNode::STRUCT) {
@@ -10425,6 +10427,19 @@ void MacroUse::analyze(bool force) {
     (*replace)(parent, this, r);
 
     result_t = r->getType();
+    if (getMacroName() != "ct" && !r->scope) {
+        r->addSymbols(mod, this->scope);
+    }
+    for (auto & tt : compilation->frontEnd.typeTable) {
+        const Type *t = tt.second;
+        if (t->isStruct()) {
+            StructType *s_t = (StructType*)t;
+            if (!s_t->isComplete) {
+                s_t->checkForCycles();
+                s_t->complete();
+            }
+        }
+    }
     r->analyze();
 
     setFlag(ANALYZED, true);

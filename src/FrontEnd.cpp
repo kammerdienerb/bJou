@@ -327,8 +327,8 @@ milliseconds FrontEnd::SymbolsStage() {
 
     /* @bad
      * We're going to force usings for some preload stuff.
-     * We should instead use an 'include' kind of thing 
-     * and have __preload.bjou have using statements for 
+     * We should instead use an 'include' kind of thing
+     * and have __preload.bjou have using statements for
      * the modules it imports.. another day.
      */
     globalScope->usings.push_back("__ref");
