@@ -24,3 +24,4 @@ nolibc_syscall
 cmake-build-debug
 self
 .ccls-cache
+compile_commands.json
