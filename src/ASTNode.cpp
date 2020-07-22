@@ -6315,6 +6315,21 @@ void Constant::analyze(bool force) {
 
     BJOU_DEBUG_ASSERT(getInitialization());
 
+    auto & cstack = compilation->frontEnd.constantStack;
+    for (ASTNode *c : cstack) {
+        if (c == this) {
+            BJOU_DEBUG_ASSERT(cstack.size() >= 2);
+
+            Constant *prev = (Constant*)cstack.back();
+            errorl(prev->getNameContext(),
+                   "Definition of constant '" + prev->getName() +
+                       "' introduces a circular dependency with constant '"
+                       + this->getName() + "'.", false);
+            errorl(this->getNameContext(), "'" + this->getName() + "' defined here.");
+        }
+    }
+    compilation->frontEnd.constantStack.push_back(this);
+
     if (getTypeDeclarator()) {
 
         std::stack<const Type *> & lValStack = compilation->frontEnd.lValStack;
@@ -6430,6 +6445,8 @@ void Constant::analyze(bool force) {
             setInitialization(folded);
         }
     }
+
+    compilation->frontEnd.constantStack.pop_back();
 
     setFlag(ANALYZED, true);
 }

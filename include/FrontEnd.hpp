@@ -52,6 +52,7 @@ struct FrontEnd {
     bool abc = true;
 
     std::stack<ASTNode *> procStack;
+    std::vector<ASTNode *> constantStack;
     std::stack<const Type *> lValStack;
     std::set<std::string> modulesImported;
     std::map<std::string, Module *> modulesByID;
